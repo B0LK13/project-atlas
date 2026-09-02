@@ -424,6 +424,75 @@ def test_sync_skips_ambiguous_package_id_with_multiple_active_records(tmp_path: 
     assert len(records_after_reverse) == 2
 
 
+def test_sync_does_not_close_a_revision_that_superseded_the_actually_closed_one(
+    tmp_path: Path,
+) -> None:
+    """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 independent-IV finding
+    (chatgpt-codex-connector, PR #677, P1): if revision A is governed
+    in-flight, a scan supersedes it with revision B (which materializes
+    and becomes the SOLE active row for the package_id), and A's own
+    governed node THEN reaches CLOSED (a real, legitimate close of the
+    OLD, already-superseded work), the naive "exactly one active row for
+    this package_id" check must NOT mark B TERMINAL -- B was never
+    executed at all. `WorkNode` carries no `origination_identity`, so
+    the closed node (built to look exactly like A) cannot be
+    distinguished from B by package_id alone; the fix is conservative:
+    any package_id that has EVER had more than one revision (active or
+    SUPERSEDED) is never auto-synced.
+    """
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    main = "a" * 40
+    revision_a = _minimal_work_node(
+        "ORIG-swapped", base_pin=main, surface_id="revision-a-surface", paths=("src/a/",)
+    )
+    revision_b = _minimal_work_node(
+        "ORIG-swapped", base_pin=main, surface_id="revision-b-surface", paths=("src/b/",)
+    )
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [
+                    OriginationRecord(
+                        origination_identity="a" * 64,
+                        project_id="demo",
+                        proposal={"work_id": "ORIG-swapped"},
+                        policy_result={},
+                        work_node=revision_a.model_dump(mode="json"),
+                        state="SUPERSEDED",
+                    ).model_dump(mode="json"),
+                    OriginationRecord(
+                        origination_identity="b" * 64,
+                        project_id="demo",
+                        proposal={"work_id": "ORIG-swapped"},
+                        policy_result={},
+                        work_node=revision_b.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # A's OWN governed node reaches CLOSED -- structurally identical to
+    # revision_a (same package_id/base_pin/surface), exactly what a real
+    # in-flight governor would report for the work it was actually
+    # tracking.
+    closed_a = revision_a.model_copy(update={"state": NodeState.CLOSED})
+    synced = sync_terminal_governed_states(origination_store, [closed_a])
+    assert synced == ()  # nothing synced -- the ambiguity is refused, not guessed
+
+    records_after = load_projection(origination_store).records
+    states = {r.origination_identity: r.state for r in records_after}
+    assert states["a" * 64] == "SUPERSEDED"  # unchanged
+    # The critical assertion: B must NOT be silently marked TERMINAL for
+    # A's closure -- B was never executed.
+    assert states["b" * 64] == "MATERIALIZED"
+
+
 def test_sync_ignores_nodes_that_do_not_match_any_origination_record(tmp_path: Path) -> None:
     """A CLOSED governor node whose package_id has no origination record
     at all (e.g. the hardcoded pilot node) must not raise or otherwise

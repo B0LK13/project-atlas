@@ -290,12 +290,30 @@ def run_origination_scan(
                 # newly-blocked revision must revoke a stale unblocked
                 # one's durable rehydratability, not merely fail to add
                 # a second one alongside it.
-                reconciliation = reconcile_revision(
-                    store,
-                    origination_identity=proposal.origination_identity,
-                    package_id=proposal.work_id,
-                    work_node=None,
-                )
+                try:
+                    reconciliation = reconcile_revision(
+                        store,
+                        origination_identity=proposal.origination_identity,
+                        package_id=proposal.work_id,
+                        work_node=None,
+                    )
+                except OriginationProjectionError as reconcile_exc:
+                    # IDENTITY_ALREADY_RESOLVED (owner directive §4: a
+                    # TERMINAL/SUPERSEDED revision permanently cannot
+                    # regain authority, even on an exact-content revert)
+                    # -- isolated to this one work_id, never fatal to the
+                    # rest of the scan, matching every other per-item
+                    # materialization failure in this loop.
+                    not_materialized.append(
+                        {
+                            "work_id": proposal.work_id,
+                            "execution_ready": policy.execution_ready,
+                            "reason": policy.reason.value,
+                            "materialization_error": str(reconcile_exc),
+                            "materialization_error_code": reconcile_exc.code,
+                        }
+                    )
+                    continue
                 not_materialized.append(
                     {
                         "work_id": proposal.work_id,
@@ -330,12 +348,28 @@ def run_origination_scan(
             # leave open (delta-IV finding, PR #654: two concurrent scans
             # could otherwise both observe "no conflict" before either
             # wrote).
-            reconciliation = reconcile_revision(
-                store,
-                origination_identity=proposal.origination_identity,
-                package_id=proposal.work_id,
-                work_node=node,
-            )
+            try:
+                reconciliation = reconcile_revision(
+                    store,
+                    origination_identity=proposal.origination_identity,
+                    package_id=proposal.work_id,
+                    work_node=node,
+                )
+            except OriginationProjectionError as reconcile_exc:
+                # Same isolation as the blocked-path branch above --
+                # IDENTITY_ALREADY_RESOLVED (or, defensively,
+                # AMBIGUOUS_ACTIVE_REVISION/PACKAGE_ID_MISMATCH) must not
+                # abort the rest of this scan batch.
+                not_materialized.append(
+                    {
+                        "work_id": proposal.work_id,
+                        "execution_ready": policy.execution_ready,
+                        "reason": policy.reason.value,
+                        "materialization_error": str(reconcile_exc),
+                        "materialization_error_code": reconcile_exc.code,
+                    }
+                )
+                continue
             assert reconciliation.materialized is not None  # work_node was given above
             materialized_record = reconciliation.materialized
             # Cursor Bugbot finding on PR #654 (Low), still applicable to

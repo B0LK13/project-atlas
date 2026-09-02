@@ -159,6 +159,58 @@ def find_materialized_work_node(store: Path, package_id: str) -> WorkNode | None
         return None
 
 
+def has_ever_had_multiple_revisions(store: Path, package_id: str) -> bool:
+    """True iff more than one distinct ``origination_identity`` has ever
+    been durably attached (any state -- active, ``SUPERSEDED``, or
+    ``TERMINAL``) to this ``package_id``, i.e. this logical work_id has
+    been revised at least once.
+
+    AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 independent-IV finding
+    (chatgpt-codex-connector, PR #677, P1): ``WorkNode`` carries no
+    ``origination_identity`` field, so nothing that only has a
+    ``package_id`` and a ``WorkNode`` in hand -- ``_restore_leased_
+    node()``'s ``find_materialized_work_node()`` lookup, most critically
+    -- can prove that WorkNode is the SAME revision some earlier durable
+    fact (a granted lease, a closed governed node) was actually recorded
+    against. If revision A is leased, then superseded by revision B
+    before a crash, ``find_materialized_work_node(package_id)`` now
+    honestly returns B (the current active revision) -- but a durably
+    projected lease for A, replayed against B's WorkNode, could resume
+    with A's original authorization even though B may need a stricter
+    owner gate B never received: ``_validate_lease_row_against_node()``
+    re-checks capability/scope/state, but has no field to notice the
+    node underneath the lease silently changed identity.
+
+    This function is the conservative, identity-free guard callers use
+    instead: if a package_id has NEVER been revised (the overwhelming
+    common case), the current active revision is unambiguously the only
+    one that could ever have been leased or governed, and every existing
+    behavior is unaffected. If it HAS been revised at least once, callers
+    that would otherwise trust ``find_materialized_work_node()``'s result
+    as "the same revision some earlier durable fact refers to" must
+    refuse instead -- never attempt to cleverly prove the specific swap
+    in front of them is safe.
+
+    Never raises: an unreadable/missing store is treated as "no history
+    of revision," matching this module's other read-only helpers'
+    fail-closed-to-the-safe-default posture (unlike ``list_materialized_
+    work_nodes()``'s own, different, AMBIGUOUS_ACTIVE_REVISION check --
+    that one guards a DIFFERENT failure mode, two revisions active
+    SIMULTANEOUSLY, and intentionally fails loud since it is corruption
+    _now_, not just "this work_id has history").
+    """
+    try:
+        projection = load_projection(store)
+    except OriginationProjectionError:
+        return False
+    identities = {
+        row.origination_identity
+        for row in projection.records
+        if row.work_node is not None and row.work_node.get("package_id") == package_id
+    }
+    return len(identities) > 1
+
+
 def find_active_record_by_package_id(store: Path, package_id: str) -> OriginationRecord | None:
     """The first non-``TERMINAL`` durable record whose materialized
     ``work_node.package_id`` equals ``package_id``, regardless of its
@@ -222,11 +274,20 @@ def persist_materialized_if_no_active_conflict(
 
     A DIFFERENT identity already holding that ``package_id`` is a
     conflict (``(None, conflicting_record)``). The SAME identity
-    already holding a non-``TERMINAL`` ``work_node`` is returned
-    unchanged -- not rebuilt. ``run_origination_scan()`` can miss its
-    own skip from a stale unlocked snapshot; a second persist for the
-    same evidence must not clobber ``base_pin`` / ``state`` on a record
-    a governor may already have leased.
+    already holding a ``work_node`` -- ANY state, not only active ones --
+    is returned unchanged -- not rebuilt. ``run_origination_scan()`` can
+    miss its own skip from a stale unlocked snapshot; a second persist for
+    the same evidence must not clobber ``base_pin`` / ``state`` on a
+    record a governor may already have leased.
+
+    Independent-IV finding (copilot-pull-request-reviewer, PR #677): once
+    ``SUPERSEDED`` exists, a repeat call for an identity whose row already
+    reached ``TERMINAL`` or ``SUPERSEDED`` must never overwrite it back
+    toward ``state`` (that would resurrect a revision the owner directive
+    requires stay permanently retired, and would silently discard the
+    historical fact that it was ever superseded/closed). The own-identity
+    check below is therefore keyed purely on "does a ``work_node`` already
+    exist for this identity", never on the row's current ``state``.
 
     D-PHASE2A-2 delta-IV finding: this replaces the two-step sequence of
     a caller reading ``find_active_record_by_package_id()`` and then
@@ -273,14 +334,14 @@ def persist_materialized_if_no_active_conflict(
                 return None, conflict
             rows: list[OriginationRecord] = []
             found = False
-            already_active: OriginationRecord | None = None
+            already_attached: OriginationRecord | None = None
             for row in current.records:
                 if row.origination_identity != origination_identity:
                     rows.append(row)
                     continue
                 found = True
-                if row.work_node is not None and row.state not in _INACTIVE_STATES:
-                    already_active = row
+                if row.work_node is not None:
+                    already_attached = row
                     rows.append(row)
                     continue
                 rows.append(
@@ -292,8 +353,8 @@ def persist_materialized_if_no_active_conflict(
                 raise OriginationProjectionError(
                     "no proposed record to materialize", code="RECORD_UNKNOWN"
                 )
-            if already_active is not None:
-                return already_active, None
+            if already_attached is not None:
+                return already_attached, None
             updated = OriginationProjection(records=tuple(rows))
             _write_atomic(root / PROJECTION_NAME, updated.model_dump(mode="json"))
     except IdentityLockError as exc:
@@ -381,6 +442,29 @@ def reconcile_revision(
     row exists yet for ``origination_identity`` -- a revision cannot be
     reconciled before it is itself durably recorded as proposed.
 
+    Independent-IV finding (copilot-pull-request-reviewer, PR #677):
+    ``package_id`` is caller-supplied and used to decide WHICH other
+    revisions get superseded -- a mismatched value against the record's
+    own frozen ``proposal["work_id"]`` (or, when ``work_node`` is given,
+    its own ``work_node.package_id``) could supersede an unrelated
+    revision or fail to supersede the right one. Fails closed with
+    ``PACKAGE_ID_MISMATCH`` rather than trust the argument silently. The
+    one real caller (``origination/cli.py``) always derives ``package_id``
+    from the SAME ``proposal.work_id`` that produced both
+    ``origination_identity`` and (when materializing) ``work_node``, so
+    this never fires in practice -- it is a defense-in-depth boundary
+    check, not a behavior change for any real call site.
+
+    Independent-IV finding (copilot-pull-request-reviewer, PR #677): a
+    ``TERMINAL`` or ``SUPERSEDED`` row is a PERMANENT, one-way transition
+    -- once ``work_node`` was ever attached to an identity that has since
+    left the active states, this identity can never regain execution
+    authority, even if the exact same evidence is proposed again (a
+    content revert producing a byte-identical, and therefore identical,
+    ``origination_identity``). Fails closed with
+    ``IDENTITY_ALREADY_RESOLVED`` in that case -- the idempotent-replay
+    fast path above only ever applies to a row that is CURRENTLY active.
+
     Everything above happens inside ONE ``ProjectIdentityLock`` critical
     section -- there is no window where a crash could leave the store
     with the old revision superseded but the new one not yet reflected
@@ -409,12 +493,37 @@ def reconcile_revision(
                 raise OriginationProjectionError(
                     "no proposed record to reconcile", code="RECORD_UNKNOWN"
                 )
+            if own_row.proposal.get("work_id") != package_id:
+                raise OriginationProjectionError(
+                    f"package_id {package_id!r} does not match the proposed "
+                    f"record's own work_id {own_row.proposal.get('work_id')!r} "
+                    f"for origination_identity {origination_identity!r}",
+                    code="PACKAGE_ID_MISMATCH",
+                )
+            if work_node is not None and work_node.package_id != package_id:
+                raise OriginationProjectionError(
+                    f"work_node.package_id {work_node.package_id!r} does not "
+                    f"match the supplied package_id {package_id!r}",
+                    code="PACKAGE_ID_MISMATCH",
+                )
 
-            if own_row.state not in _INACTIVE_STATES and own_row.work_node is not None:
-                # Idempotent replay -- checked BEFORE any supersession so a
-                # repeat call (same evidence, re-scanned) can never
-                # re-supersede a sibling a second time.
-                return ReconciliationOutcome(materialized=own_row, already_current=True)
+            if own_row.work_node is not None:
+                if own_row.state not in _INACTIVE_STATES:
+                    # Idempotent replay -- checked BEFORE any supersession
+                    # so a repeat call (same evidence, re-scanned) can
+                    # never re-supersede a sibling a second time.
+                    return ReconciliationOutcome(materialized=own_row, already_current=True)
+                # TERMINAL/SUPERSEDED is permanent: never resurrect this
+                # identity's own authority, even on an exact-content
+                # replay. See this function's own docstring
+                # (IDENTITY_ALREADY_RESOLVED).
+                raise OriginationProjectionError(
+                    f"origination_identity {origination_identity!r} already "
+                    f"reached {own_row.state!r} -- a TERMINAL or SUPERSEDED "
+                    "revision cannot regain execution authority, even if the "
+                    "exact same evidence is proposed again",
+                    code="IDENTITY_ALREADY_RESOLVED",
+                )
 
             others = [
                 row
@@ -703,6 +812,28 @@ def sync_terminal_governed_states(
     not authority, exactly as ``find_materialized_work_node()`` already
     treats it.
 
+    AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 independent-IV finding
+    (chatgpt-codex-connector, PR #677, P1): a closed governor node is
+    correlated to a durable origination record purely by ``package_id``
+    -- ``WorkNode`` itself carries no ``origination_identity`` field, so
+    there is no direct way to confirm the CLOSED node is the SAME
+    revision as whichever row is currently active for that package_id.
+    If revision A is leased (governed in-memory), a scan supersedes it
+    with revision B (which materializes and becomes the sole ACTIVE row
+    for the package_id), and A's own governed node THEN reaches
+    ``CLOSED`` (a real, legitimate close of the OLD in-flight work), the
+    naive "exactly one active row" check above would incorrectly mark
+    B's identity ``TERMINAL`` -- B was never executed at all, and
+    ``originate_new_only()`` would then permanently and silently exclude
+    it from every future scan. Guarded against here the same
+    conservative way as the existing ambiguity check: a package_id that
+    has EVER had more than one origination revision (active or
+    ``SUPERSEDED`` -- ``superseded_package_ids`` below) is never
+    auto-synced, regardless of how many rows currently look active.
+    Rare, real production case unaffected: the overwhelming majority of
+    package_ids have exactly one revision ever, active or closed, and
+    sync there behaves exactly as before.
+
     Never raises: any per-identity ``mark_terminal()`` failure (e.g. a
     concurrent writer holding the lock) is skipped for that identity
     rather than aborting the whole sync pass -- a transient miss here
@@ -722,15 +853,22 @@ def sync_terminal_governed_states(
     if not closed_package_ids:
         return ()
     active_rows_by_package_id: dict[str, list[OriginationRecord]] = {}
+    superseded_package_ids: set[str] = set()
     for row in projection.records:
-        if row.state in _INACTIVE_STATES or row.work_node is None:
+        if row.work_node is None:
             continue
         package_id = row.work_node.get("package_id")
-        if package_id in closed_package_ids:
-            active_rows_by_package_id.setdefault(package_id, []).append(row)
+        if package_id not in closed_package_ids:
+            continue
+        if row.state == "SUPERSEDED":
+            superseded_package_ids.add(package_id)
+            continue
+        if row.state in _INACTIVE_STATES:
+            continue
+        active_rows_by_package_id.setdefault(package_id, []).append(row)
     synced: list[str] = []
-    for rows in active_rows_by_package_id.values():
-        if len(rows) != 1:
+    for package_id, rows in active_rows_by_package_id.items():
+        if len(rows) != 1 or package_id in superseded_package_ids:
             continue
         row = rows[0]
         try:

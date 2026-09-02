@@ -494,21 +494,23 @@ def test_reconcile_revision_closes_the_toctou_race_between_two_new_revisions(
     assert materialized_count == 1
 
 
-def test_legacy_conflict_primitive_never_reports_a_superseded_row_as_already_active(
+def test_legacy_conflict_primitive_never_resurrects_a_superseded_row(
     tmp_path: Path,
 ) -> None:
-    """Independent-IV finding (delta round on PR #677): `persist_materialized_
-    if_no_active_conflict()` predates the SUPERSEDED state and was not updated
-    to `_INACTIVE_STATES` -- its own-identity "already active" check still
-    read `row.state != "TERMINAL"`, so calling it directly for an identity
-    whose row `reconcile_revision()` had already superseded returned
-    `(row, None)` -- a "success" tuple whose own `.state` field reads
-    `"SUPERSEDED"`, exactly as if nothing were wrong. Unreachable through any
-    real production call site (`run_origination_scan()` exclusively uses
-    `reconcile_revision()` now) but a real, empirically-reproducible
-    inconsistency in this still-public, still-tested primitive. Fixed by
-    aligning this check with the same `_INACTIVE_STATES` definition every
-    other function in this module already uses.
+    """Independent-IV finding (delta round on PR #677, two review passes):
+    `persist_materialized_if_no_active_conflict()` predates the
+    SUPERSEDED state. Round 1 fix aligned its own-identity "already
+    active" check with `_INACTIVE_STATES` -- but a Copilot review pass on
+    that exact fix (thread #3, PR #677) correctly identified the fix
+    itself was still wrong: once `state not in _INACTIVE_STATES` is
+    FALSE for a SUPERSEDED row, the function fell through to its
+    unconditional overwrite branch and RESURRECTED the row back to
+    MATERIALIZED. A TERMINAL/SUPERSEDED transition is permanent (owner
+    directive §4: "NO FUTURE AUTHORITY MAY BE DERIVED FROM THIS OLD
+    ORIGINATION REVISION") -- the correct fix is for the own-identity
+    check to key purely on "does a work_node already exist for this
+    identity", never on its current state, so it always returns the
+    frozen historical row unchanged instead.
     """
     from project_atlas.orchestration.origination.projection import (
         persist_materialized_if_no_active_conflict,
@@ -554,15 +556,184 @@ def test_legacy_conflict_primitive_never_reports_a_superseded_row_as_already_act
     assert superseded_row.state == "SUPERSEDED"
 
     # Calling the legacy primitive directly for A's own (now-superseded)
-    # identity must never report a SUPERSEDED row as an unchanged "already
-    # active" success -- with nothing else active for this package_id, it
-    # correctly re-attaches materialization instead (protected, when
-    # something ELSE *is* active, by this same function's own
-    # different-identity conflict check, proven by the TOCTOU test above).
+    # identity must return it frozen and unchanged -- never resurrect it
+    # back to MATERIALIZED, even with nothing else active for this
+    # package_id (never even reaching the different-identity conflict
+    # check the TOCTOU test above exercises).
     record, conflict = persist_materialized_if_no_active_conflict(
         store, proposal_a.origination_identity, node_a
     )
     assert conflict is None
     assert record is not None
-    assert record.state != "SUPERSEDED"
-    assert record.state == "MATERIALIZED"
+    assert record.state == "SUPERSEDED"
+    assert record.work_node == superseded_row.work_node
+
+    projection_after = load_projection(store)
+    unchanged_row = next(
+        r
+        for r in projection_after.records
+        if r.origination_identity == proposal_a.origination_identity
+    )
+    assert unchanged_row.state == "SUPERSEDED"
+
+
+def test_reconcile_revision_never_resurrects_a_permanently_resolved_identity(
+    tmp_path: Path,
+) -> None:
+    """Owner directive §4 ("NO FUTURE AUTHORITY MAY BE DERIVED FROM THIS
+    OLD ORIGINATION REVISION"): once an identity's row is SUPERSEDED, a
+    repeat `reconcile_revision()` call for that EXACT SAME identity (a
+    content revert to byte-identical prior text would legitimately
+    produce it again, since origination_identity is content-addressed)
+    must fail closed rather than resurrect it -- even with nothing else
+    currently active for the package_id.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal_a, policy_a = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal_a, policy_a)
+    classification = classify_risk(
+        proposed_scope=proposal_a.proposed_scope, success_criteria=proposal_a.success_criteria
+    )
+    node_a = materialize_work_node(
+        proposal_a, classification, base_pin=main, surface_id=f"{proposal_a.project_id}-a"
+    )
+    reconcile_revision(
+        store,
+        origination_identity=proposal_a.origination_identity,
+        package_id=proposal_a.work_id,
+        work_node=node_a,
+    )
+
+    # Supersede A with B, then leave nothing active for this package_id.
+    proposal_b = proposal_a.model_copy(
+        update={"origination_identity": "7" * 64, "blockers": ("EXTERNAL_BLOCKED: needs data",)}
+    )
+    persist_proposed(store, proposal_b, policy_a)
+    reconcile_revision(
+        store,
+        origination_identity=proposal_b.origination_identity,
+        package_id=proposal_b.work_id,
+        work_node=None,
+    )
+
+    # A's exact evidence is proposed again -- same origination_identity,
+    # since it is a pure function of the (unchanged) content.
+    try:
+        reconcile_revision(
+            store,
+            origination_identity=proposal_a.origination_identity,
+            package_id=proposal_a.work_id,
+            work_node=node_a,
+        )
+        raise AssertionError("expected OriginationProjectionError")
+    except OriginationProjectionError as exc:
+        assert exc.code == "IDENTITY_ALREADY_RESOLVED"
+
+    a_record = next(
+        r
+        for r in load_projection(store).records
+        if r.origination_identity == proposal_a.origination_identity
+    )
+    assert a_record.state == "SUPERSEDED"  # unchanged by the refused attempt
+
+
+def test_reconcile_revision_rejects_a_mismatched_package_id(tmp_path: Path) -> None:
+    """Independent-IV finding (copilot-pull-request-reviewer, PR #677):
+    `reconcile_revision()` must not trust a caller-supplied `package_id`
+    that disagrees with the record's own frozen `proposal["work_id"]` or
+    the given `work_node.package_id` -- defense-in-depth; the one real
+    caller always derives all three from the same proposal.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal, policy = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal, policy)
+    classification = classify_risk(
+        proposed_scope=proposal.proposed_scope, success_criteria=proposal.success_criteria
+    )
+    node = materialize_work_node(
+        proposal, classification, base_pin=main, surface_id=f"{proposal.project_id}-a"
+    )
+
+    try:
+        reconcile_revision(
+            store,
+            origination_identity=proposal.origination_identity,
+            package_id="ORIG-totally-unrelated",
+            work_node=node,
+        )
+        raise AssertionError("expected OriginationProjectionError")
+    except OriginationProjectionError as exc:
+        assert exc.code == "PACKAGE_ID_MISMATCH"
+
+    projection = load_projection(store)
+    assert len(projection.records) == 1
+    assert projection.records[0].state == "PROPOSED"  # untouched by the rejected call
+
+
+def test_list_materialized_work_nodes_contract_missing_vs_ambiguous(tmp_path: Path) -> None:
+    """Owner directive §9 (PR #677 review): documentation and the actual
+    API contract must agree exactly -- a missing/unreadable store is NOT
+    treated as corruption (returns no candidates, matching this
+    function's pre-existing, unchanged-by-this-package posture), while
+    an ambiguous store (two active revisions sharing one package_id)
+    DOES fail closed. Both halves of the real contract, tested directly
+    against the one function, not merely asserted in a comment.
+    """
+    missing_store = tmp_path / "never-created"
+    assert list_materialized_work_nodes(missing_store) == ()
+
+    ambiguous_store = tmp_path / "ambiguous-store"
+    ambiguous_store.mkdir()
+    repo_parent = tmp_path / "repo-for-ambiguous"
+    repo_parent.mkdir()
+    repo = _eligible_repo(repo_parent)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    outcomes = originate_all(repo, "demo-project")
+    proposal_a, policy_a = outcomes[0].proposal, outcomes[0].policy
+    classification = classify_risk(
+        proposed_scope=proposal_a.proposed_scope, success_criteria=proposal_a.success_criteria
+    )
+    node_a = materialize_work_node(
+        proposal_a, classification, base_pin=main, surface_id=f"{proposal_a.project_id}-a"
+    )
+    node_b = materialize_work_node(
+        proposal_a, classification, base_pin=main, surface_id=f"{proposal_a.project_id}-b"
+    )
+    proposal_b = proposal_a.model_copy(update={"origination_identity": "5" * 64})
+    from project_atlas.orchestration.autonomy.lease_projection import _write_atomic
+    from project_atlas.orchestration.origination.projection import OriginationProjection
+
+    corrupt = OriginationProjection(
+        records=(
+            OriginationRecord(
+                origination_identity=proposal_a.origination_identity,
+                project_id=proposal_a.project_id,
+                proposal=proposal_a.model_dump(mode="json"),
+                policy_result=policy_a.model_dump(mode="json"),
+                work_node=node_a.model_dump(mode="json"),
+                state="MATERIALIZED",
+            ),
+            OriginationRecord(
+                origination_identity=proposal_b.origination_identity,
+                project_id=proposal_b.project_id,
+                proposal=proposal_b.model_dump(mode="json"),
+                policy_result=policy_a.model_dump(mode="json"),
+                work_node=node_b.model_dump(mode="json"),
+                state="MATERIALIZED",
+            ),
+        )
+    )
+    _write_atomic(ambiguous_store / PROJECTION_NAME, corrupt.model_dump(mode="json"))
+    try:
+        list_materialized_work_nodes(ambiguous_store)
+        raise AssertionError("expected OriginationProjectionError")
+    except OriginationProjectionError as exc:
+        assert exc.code == "AMBIGUOUS_ACTIVE_REVISION"
