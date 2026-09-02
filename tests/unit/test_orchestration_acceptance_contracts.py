@@ -573,6 +573,70 @@ def test_blocked_task_list_item_stays_blocked_even_with_a_valid_contract(tmp_pat
     assert outcomes[0].policy.execution_ready is False
 
 
+def test_external_blocked_item_stays_blocked_even_with_a_valid_contract(
+    tmp_path: Path,
+) -> None:
+    """Real incident, made load-bearing (owner review, 2026-09-02): the
+    actual INT-013 backlog item was originated ``execution_ready = True``
+    via its acceptance contract while ``docs/product/CODER-ALPHA-NORTH-
+    STAR.md`` -- a SEPARATE, authoritative source the origination
+    pipeline does not read -- classified it ``EXTERNAL_BLOCKED``. The
+    real fix was not to touch the acceptance-contract mechanism (the
+    sibling test above already proves contracts can never clear a
+    declared blocker) but to declare that blocker where the pipeline DOES
+    look: the task-list item's own title/continuation text in
+    ``docs/backlog.md`` (see ``_BLOCKER_KEYWORDS``'s own
+    ``"external_blocked"`` entry). This test is the ``EXTERNAL_BLOCKED``-
+    keyword-specific sibling of
+    ``test_blocked_task_list_item_stays_blocked_even_with_a_valid_
+    contract`` (which uses a different keyword) -- confirming a fully
+    valid, evidence-carrying contract still cannot flip
+    ``execution_ready`` once this exact keyword is present, the same
+    keyword the real INT-013 backlog entry now carries."""
+    _backlog_item(
+        tmp_path,
+        line=(
+            "- [ ] SYNC-001 Run the authentic estate sync\n"
+            "  (EXTERNAL_BLOCKED -- requires owner-provided authentic "
+            "project roots; committed fixture projects do not satisfy "
+            "this gate)\n"
+        ),
+    )
+    evidence = _skip_marked_test(tmp_path)
+    _write(
+        tmp_path,
+        "docs/acceptance-contracts.yaml",
+        "contracts:\n"
+        "  - item_id: SYNC-001\n"
+        "    source_path: docs/backlog.md\n"
+        f"    evidence: [{evidence}]\n"
+        "    proposed_scope: [src/thing.py]\n"
+        "    success_criteria: [\"criteria\"]\n",
+    )
+    _write(
+        tmp_path,
+        ".atlas-project.yaml",
+        "schema_version: 1\n"
+        "project:\n"
+        "  id: fixture-proj\n"
+        "origination_sources:\n"
+        "  - path: docs/backlog.md\n"
+        "    format: markdown-task-list\n"
+        "origination_acceptance_contracts: docs/acceptance-contracts.yaml\n",
+    )
+    outcomes = originate_all(tmp_path, "fixture-proj")
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    # ACCEPTANCE_CONTRACT_CAN_WIDEN_EVIDENCE = YES: the contract's real,
+    # marker-carrying evidence still gets merged in.
+    assert outcome.proposal.success_criteria == ("criteria",)
+    # ACCEPTANCE_CONTRACT_CAN_CLEAR_BLOCKER = NO: but that widened
+    # evidence never overrides the declared blocker.
+    assert outcome.proposal.blockers
+    assert any("external_blocked" in b.lower() for b in outcome.proposal.blockers)
+    assert outcome.policy.execution_ready is False
+
+
 def test_eligible_work_items_applies_contracts(tmp_path: Path) -> None:
     _backlog_item(tmp_path)
     evidence = _skip_marked_test(tmp_path)
