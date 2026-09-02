@@ -545,19 +545,42 @@ def reconcile_revision(
                     code="IDENTITY_ALREADY_RESOLVED",
                 )
 
-            if still_current is not None and not still_current():
-                # IV F2 (PR #677): the caller's evidence no longer matches
-                # current source truth -- a stale snapshot must never
-                # supersede (or materialize over) the revision derived
-                # from newer truth. Nothing has been written yet; deny
-                # everything this call would have done.
-                raise OriginationProjectionError(
-                    f"origination_identity {origination_identity!r} is no "
-                    f"longer derivable from current source truth -- refusing "
-                    f"a stale-snapshot reconcile for package_id "
-                    f"{package_id!r}; superseding and materializing nothing",
-                    code="STALE_SOURCE_SNAPSHOT",
-                )
+            if still_current is not None:
+                # Independent-IV finding (PR #678, MEDIUM -- also
+                # independently flagged by an automated review on this
+                # same PR): the docstring above promises "the callback
+                # must not raise (make it return False on any of its own
+                # failures: unverifiable is stale)", but that promise was
+                # previously only honored by the one real caller
+                # (`_source_identity_still_current()`'s own internal
+                # try/except) -- nothing in THIS function actually
+                # enforced it. A future caller that trusted the
+                # documented contract literally would get an unhandled
+                # exception propagating out of a locked critical section
+                # instead of a clean STALE_SOURCE_SNAPSHOT refusal. Fixed
+                # by enforcing the contract here, at the one place that
+                # can actually guarantee it: any exception from
+                # `still_current()` is treated exactly like a `False`
+                # return -- unverifiable evidence is stale evidence,
+                # never "trust and proceed".
+                try:
+                    current_ok = still_current()
+                except Exception:  # unverifiable is stale, not a crash
+                    current_ok = False
+                if not current_ok:
+                    # IV F2 (PR #677): the caller's evidence no longer
+                    # matches current source truth -- a stale snapshot
+                    # must never supersede (or materialize over) the
+                    # revision derived from newer truth. Nothing has been
+                    # written yet; deny everything this call would have
+                    # done.
+                    raise OriginationProjectionError(
+                        f"origination_identity {origination_identity!r} is no "
+                        f"longer derivable from current source truth -- refusing "
+                        f"a stale-snapshot reconcile for package_id "
+                        f"{package_id!r}; superseding and materializing nothing",
+                        code="STALE_SOURCE_SNAPSHOT",
+                    )
 
             others = [
                 row

@@ -923,6 +923,57 @@ def test_reconcile_revision_still_current_false_denies_before_any_write(tmp_path
     assert list_materialized_work_nodes(store) == ()
 
 
+def test_reconcile_revision_still_current_raising_denies_before_any_write(
+    tmp_path: Path,
+) -> None:
+    """Independent-IV finding on PR #678 (also independently flagged by
+    an automated review on the same PR): a ``still_current`` callback
+    that *raises* -- rather than cleanly returning ``False`` -- must be
+    treated exactly like ``False`` (unverifiable is stale, not a crash).
+    Before the fix, ``reconcile_revision()`` only guarded the boolean
+    case (``not still_current()``); an exception from the callback
+    propagated straight out of the locked critical section instead of
+    denying with ``STALE_SOURCE_SNAPSHOT``, contradicting this
+    function's own documented contract. Proven at the primitive level,
+    independent of ``cli.py``'s own real checker (which happened to be
+    safe only because it had its own separate try/except).
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal, policy = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal, policy)
+    classification = classify_risk(
+        proposed_scope=proposal.proposed_scope, success_criteria=proposal.success_criteria
+    )
+    node = materialize_work_node(
+        proposal, classification, base_pin=main, surface_id=f"{proposal.project_id}-a"
+    )
+
+    before = load_projection(store)
+
+    def _raises() -> bool:
+        raise RuntimeError("source tree unreadable mid-scan")
+
+    try:
+        reconcile_revision(
+            store,
+            origination_identity=proposal.origination_identity,
+            package_id=proposal.work_id,
+            work_node=node,
+            still_current=_raises,
+        )
+        raise AssertionError("expected OriginationProjectionError")
+    except OriginationProjectionError as exc:
+        assert exc.code == "STALE_SOURCE_SNAPSHOT"
+
+    after = load_projection(store)
+    assert before == after
+    assert list_materialized_work_nodes(store) == ()
+
+
 def test_reconcile_revision_still_current_callback_never_consulted_on_idempotent_or_permanent_paths(
     tmp_path: Path,
 ) -> None:
