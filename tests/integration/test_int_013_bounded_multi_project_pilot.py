@@ -1,24 +1,40 @@
-"""INT-013 — bounded multi-project integration pilot (acceptance criteria).
+"""M3 fixture-backed bounded multi-project integration test (technical
+acceptance -- see claim boundary below, NOT authentic INT-013
+certification).
 
-INT-013 ("Run the bounded multi-project integration pilot") is still
-unchecked in ``docs/backlog.md``. Every underlying piece it needs
-already exists and is independently tested -- the full production
-pipeline (``init``/``discover``/``ingest``/``build-indexes``/
-``build-portfolio``), and the AS-XPROJ-001/002/003 derived cross-project
-registry commands (``register-global-entity``, ``register-global-edge``,
-``detect-project-duplicates``) -- but they had never been ASSEMBLED and
-RUN together as one coherent, bounded, end-to-end pilot and formally
-recorded as certified. This module defines that pilot's real,
-executable acceptance criteria (see the AS-ORIGIN-ACCEPTANCE-001
-acceptance contract for this item, ``docs/origination-acceptance-
-contracts.yaml``).
+CLAIM BOUNDARY (owner review, 2026-09-02): this is a committed-fixture
+integration test. It verifies bounded multi-project technical behavior
+-- that the full production pipeline (``init``/``discover``/``ingest``/
+``build-indexes``/``build-portfolio``) and the AS-XPROJ-001/002/003
+derived cross-project registry commands (``register-global-entity``,
+``register-global-edge``, ``detect-project-duplicates``) genuinely
+compose into one coherent, bounded, end-to-end pilot run, against real
+committed fixture projects. It does **not** itself certify authentic
+INT-013, does **not** satisfy ``AUTHENTIC_PILOT``, and does **not**
+authorize checking the INT-013 backlog item complete.
+``docs/product/CODER-ALPHA-NORTH-STAR.md`` classifies INT-013
+``EXTERNAL_BLOCKED`` -- it needs owner-provided authentic project roots,
+and agents must not invent pilots to close it; committed
+``DEMO_FIXTURE`` projects (``harbor-api``/``harbor-ops`` below) do not
+satisfy that gate, matching ``docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md``'s
+existing, already-owner-authorized fixture-only precedent. See the
+AS-ORIGIN-ACCEPTANCE-001 acceptance contract for this item's own,
+separately-scoped fixture criteria (``docs/origination-acceptance-
+contracts.yaml``) -- that contract widens what evidence exists; it does
+not and cannot clear INT-013's real external blocker.
 
-Marked ``skip`` -- not because anything here is expected to fail (this
-was run un-skipped during authorship and passed cleanly end to end),
-but because INT-013 itself is honestly not yet a certified, completed
-milestone. Certifying it is a deliberate, separate act (removing this
-marker and checking the backlog box), not something writing this test
-should silently claim on its own.
+Previously marked ``skip`` pending a real, governed run proving it was
+genuinely runnable (written un-skipped during authorship and confirmed
+passing cleanly end to end, then marked ``skip`` again because it had
+not yet actually been RUN and recorded that way). A real supervised
+autonomous run (AS-ORCH-AUTONOMY-001E, dispatch ``local-process:
+LEASE-14:0``) later removed the marker for real -- see WORKLOG.md's "M3
+-- first supervised autonomous Atlas run" entry for that evidence. Now
+enabled as an ongoing fixture-backed integration regression, kept
+un-skipped going forward. ``docs/backlog.md``'s own INT-013 checkbox
+stays unchecked, both outside this change's authorized scope and
+substantively not owed a check while INT-013 remains
+``EXTERNAL_BLOCKED``.
 
 Bounded = exactly two real, independently-owned projects, reused from
 the already-committed ``tests/fixtures/demo/estate/`` fixture the
@@ -54,17 +70,7 @@ import hashlib
 import json
 from pathlib import Path
 
-import pytest
-
 from project_atlas.cli import EXIT_OK, main
-
-pytestmark = pytest.mark.skip(
-    reason=(
-        "INT-013 is not yet run/certified -- this defines real, "
-        "already-verified-runnable acceptance criteria for the bounded "
-        "multi-project integration pilot; see docs/backlog.md"
-    )
-)
 
 ESTATE = Path("tests/fixtures/demo/estate")
 PROJECT_A = "harbor-api"

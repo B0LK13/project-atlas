@@ -10898,3 +10898,40 @@ tree) and was verified BOTH ways: fails correctly against the vulnerable
 of this test passed for the wrong reason, an uninitialized store, before
 that was caught and fixed) and passes against the `== 2` fix. Full suite
 (269 tests) + freeze guard re-run clean; ruff/mypy clean.
+
+
+## M3 -- first supervised autonomous Atlas run: fixture-backed multi-project technical acceptance PASS
+
+Real supervised autonomous run (AS-ORCH-AUTONOMY-001E), LOCAL_PROCESS
+dispatch, dispatch_id `local-process:LEASE-14:0`, lease `LEASE-14`.
+`tests/integration/test_int_013_bounded_multi_project_pilot.py` skip
+marker removed and the test run unskipped for real: **PASSED**
+(exit code 0), exercising two real, independent, committed-fixture
+projects (`harbor-api`, `harbor-ops`, under `tests/fixtures/demo/estate/`)
+through the full production pipeline (`init`/`discover`/`ingest`/
+`build-indexes`/`build-portfolio`) plus AS-XPROJ-001/002/003 in one pilot
+run.
+
+**Claim boundary (owner review, 2026-09-02):** this proves the
+supervised-autonomous execution path end to end (real origination, real
+lease, real LOCAL_PROCESS dispatch, real isolated worktree, real result
+receipt, authority-clean, mutation-scope-clean, independently re-checked)
+and proves the bounded multi-project pilot is genuinely runnable against
+committed fixture data. It does **not** certify authentic INT-013:
+`docs/product/CODER-ALPHA-NORTH-STAR.md` classifies INT-013
+`EXTERNAL_BLOCKED` -- needs owner-provided authentic project roots,
+agents must not invent pilots -- and `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md`
+already establishes that fixture-only pilot evidence never flips
+authentic/production `ESTATE PILOT PASSED` semantics. `DEMO_FIXTURE !=
+AUTHENTIC_PILOT` applies here exactly as everywhere else in this repo.
+The origination-acceptance-contract mechanism that made this WorkNode
+`execution_ready` never cross-checked that external-blocker
+classification -- a real governance gap, reconciled separately (see the
+INT-013 origination-truth reconciliation work).
+
+`AUTHENTIC_PILOT = NO`. `INT013 = EXTERNAL_BLOCKED` (unchanged).
+`docs/backlog.md`'s INT-013 checkbox stays unchecked -- outside this
+WorkNode's authorized mutation surface (`proposed_scope`) regardless, and
+substantively not owed a check given the above. Result binding and
+independent verification of this dispatch attempt happen at the governor
+layer, outside this runner.
