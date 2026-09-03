@@ -43,7 +43,10 @@ from project_atlas.orchestration.origination.materialize import (
     MaterializationError,
     materialize_work_node,
 )
-from project_atlas.orchestration.origination.pipeline import originate_new_only
+from project_atlas.orchestration.origination.pipeline import (
+    effective_authority_fields,
+    originate_new_only,
+)
 from project_atlas.orchestration.origination.projection import (
     RELATIVE_DEFAULT as ORIGINATION_PROJECTION_RELATIVE_DEFAULT,
 )
@@ -107,6 +110,17 @@ def _source_identity_still_current(root: Path, project_id: str, expected_identit
     exact content re-derives that revision's same identity and correctly
     passes (owner gate (d): revert semantics are unchanged).
 
+    P1 finding on PR #678 (chatgpt-codex-connector), owner directive
+    D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE: ``expected_identity`` now
+    covers ``proposed_scope`` / ``success_criteria`` too (see
+    ``identity.py``), so this recheck must derive the SAME two fields
+    the same way ``_build_outcome()`` did -- via the shared
+    ``effective_authority_fields()`` -- and fold them into the fresh
+    identity it compares. A stalled scan holding an OLD acceptance
+    contract's scope/criteria therefore recomputes a DIFFERENT identity
+    from current source truth and correctly fails this check, exactly
+    like a roadmap-content edit already did before this fix.
+
     Never raises: an unreadable/misconfigured source at this instant is
     UNVERIFIABLE evidence, and unverifiable fails closed to "not
     current" -- the item is denied with a per-item receipt, never
@@ -116,13 +130,21 @@ def _source_identity_still_current(root: Path, project_id: str, expected_identit
         items = eligible_work_items(root)
     except Exception:
         return False
-    return any(
-        origination_identity_from_parts(
-            project_id, item.source_path, item.item_id, item.item_digest
-        )
-        == expected_identity
-        for item in items
-    )
+    for item in items:
+        proposed_scope, success_criteria = effective_authority_fields(item)
+        if (
+            origination_identity_from_parts(
+                project_id,
+                item.source_path,
+                item.item_id,
+                item.item_digest,
+                proposed_scope,
+                success_criteria,
+            )
+            == expected_identity
+        ):
+            return True
+    return False
 
 
 def run_origination_scan(

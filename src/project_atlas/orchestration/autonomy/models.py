@@ -63,6 +63,19 @@ INITIAL_RETARGET_EVIDENCE_DIGEST: Final[str] = (
 )
 CANONICAL_REPOSITORY_IDENTITY: Final[str] = "github.com/b0lk13/project-atlas"
 PILOT_PACKAGE_ID: Final[str] = "AS-ORCH-AUTONOMY-001-PILOT"
+#: ``MutationSurface.semantic`` every origination-derived ``WorkNode``
+#: carries, set by the single function that builds them
+#: (``origination/materialize.py``) and unchanged since that module was
+#: first created. It is therefore a reliable HISTORICAL discriminator:
+#: a node persisted long before ``WorkNode.origination_identity`` existed
+#: still carries this marker, which is exactly what lets
+#: ``governor.lease()`` tell a LEGACY ORIGINATION node (provenance
+#: missing, must fail closed) apart from a genuinely non-origination one
+#: (the pilot factory, which uses its own
+#: ``ORCHESTRATION_AUTONOMY_CONTROL_PLANE`` semantic, and nodes tests
+#: build directly). Named here rather than duplicated as a literal in
+#: both producer and consumer.
+ORIGINATION_SURFACE_SEMANTIC: Final[str] = "ORIGINATION_SPECIFICATION_BOUND"
 TRUTH_BOUNDARY: Final[str] = (
     "GOVERNOR_STATE != AUTHORITY / LEASE != DISPATCH / CERTIFIED != MERGED / "
     "MERGE_ELIGIBLE != MERGED / READY_FOR_OWNER_MERGE_GATE != MERGE_AUTHORIZATION / "
@@ -308,6 +321,27 @@ class WorkNode(BaseModel):
     destructive: Literal[False] = False
     merge_authorized: Literal[False] = False
     execution_authorized: Literal[False] = False
+    #: Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE:
+    #: PROVENANCE ONLY -- which origination revision created this node.
+    #: NEVER an authority token. A matching identity is NECESSARY for a
+    #: new lease (see ``governor.lease()``), but grants nothing on its
+    #: own: every existing READY / dependency / owner-gate / surface
+    #: gate still applies, unchanged.
+    #:
+    #: ``None`` for any node that is not origination-derived (the
+    #: ``_pilot_node()`` factory, and nodes tests construct directly).
+    #: Such a node is not governed by origination freshness at all and
+    #: leases exactly as it did before this field existed -- no sentinel
+    #: identity is ever fabricated for it, and no projection record is
+    #: required to exist on its behalf.
+    #:
+    #: Additive and backwards-compatible on purpose: a ``work_node`` dict
+    #: persisted before this field existed (an origination projection
+    #: row) simply lacks the key and deserializes to ``None``, so no
+    #: store migration is required. Matches ``OriginationRecord.
+    #: origination_identity``'s own 64-char sha256 shape
+    #: (``origination/projection.py``) whenever it is present.
+    origination_identity: str | None = Field(default=None, min_length=64, max_length=64)
 
     @field_validator("base_pin")
     @classmethod

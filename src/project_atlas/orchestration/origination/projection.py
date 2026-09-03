@@ -159,6 +159,47 @@ def find_materialized_work_node(store: Path, package_id: str) -> WorkNode | None
         return None
 
 
+def current_origination_identity(store: Path, package_id: str) -> str | None:
+    """The ``origination_identity`` of the ONE currently-active
+    materialized record for ``package_id`` -- the narrow currentness
+    lookup ``governor.lease()`` uses to refuse a stale node (owner
+    directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE §6/§8).
+
+    Returns ``None`` -- never raises -- when there is no such record, the
+    store is unreadable/absent, or MORE THAN ONE active row claims this
+    ``package_id``. Ambiguity is not authority, exactly as
+    ``find_materialized_work_node()`` above already treats it: a caller
+    comparing its node's own provenance against this value therefore
+    fails CLOSED on every one of "no current revision", "a different
+    current revision", "corrupt/ambiguous store", and "unreadable
+    store", without needing to distinguish them at the call site or
+    catch anything.
+
+    Deliberately returns the identity STRING rather than the record or
+    the node: the governor needs exactly one question answered ("is my
+    node's origination revision still the current one for this work?")
+    and giving it any more than that would hand the execution layer a
+    reason to start interpreting origination state itself. Deriving and
+    reconciling project truth stays entirely in this package; the
+    governor only refuses execution authority when provenance no longer
+    matches what this package already reconciled.
+    """
+    try:
+        projection = load_projection(store)
+    except OriginationProjectionError:
+        return None
+    matches = tuple(
+        row
+        for row in projection.records
+        if row.state not in _INACTIVE_STATES
+        and row.work_node is not None
+        and row.work_node.get("package_id") == package_id
+    )
+    if len(matches) != 1:
+        return None
+    return matches[0].origination_identity
+
+
 def has_ever_had_multiple_revisions(store: Path, package_id: str) -> bool:
     """True iff more than one distinct ``origination_identity`` has ever
     been durably attached (any state -- active, ``SUPERSEDED``, or

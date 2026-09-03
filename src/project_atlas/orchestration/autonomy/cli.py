@@ -312,6 +312,16 @@ def run_governor_loop_tick(
             current_tree=inventory.current_tree,
             trusted_anchor=trusted,
             lease_projection_store=lease_store,
+            # Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE
+            # §8: the SAME `origin_store` this tick already resolves for
+            # `rehydrate_governor()` below. Wiring it here is what makes
+            # `governor.lease()` able to refuse an origination-derived
+            # node whose revision is no longer current -- including
+            # inside a single long-lived process, with no restart and no
+            # base_pin movement. This is the one real autonomous
+            # lease-granting path; the pilot-only entry points do not
+            # need it (a pilot node carries no origination provenance).
+            origination_projection_store=origin_store,
         )
         store = loop_store or (root / STATE_DIR_RELATIVE)
         # AS-ORCH-LOCAL-DISPATCH-001 (PR-C review finding, chatgpt-codex-

@@ -28,11 +28,14 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import cast
+
+import pytest
 
 from project_atlas.orchestration.autonomy.cli import run_governor_loop_tick
 from project_atlas.orchestration.autonomy.continuation import select_next
 from project_atlas.orchestration.autonomy.dag import TERMINAL_STATES
-from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
 from project_atlas.orchestration.autonomy.lease_projection import (
     PROJECTION_NAME as LEASE_PROJECTION_NAME,
 )
@@ -46,8 +49,10 @@ from project_atlas.orchestration.autonomy.lease_projection import (
 from project_atlas.orchestration.autonomy.lease_projection import (
     load_projection as load_lease_projection,
 )
+from project_atlas.orchestration.autonomy.loop import AutonomousLoop, LoopPhase
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
+    ORIGINATION_SURFACE_SEMANTIC,
     AdvancementReason,
     AgentCapability,
     ExecutionHostClass,
@@ -55,6 +60,7 @@ from project_atlas.orchestration.autonomy.models import (
     MutationSurface,
     NodeState,
     OwnerGateKind,
+    StopReason,
     TrustedAnchorRecord,
     WorkNode,
 )
@@ -65,6 +71,9 @@ from project_atlas.orchestration.autonomy.trust import (
     seal_anchor,
 )
 from project_atlas.orchestration.origination.cli import run_origination_scan
+from project_atlas.orchestration.origination.projection import (
+    RELATIVE_DEFAULT as ORIGINATION_PROJECTION_RELATIVE_DEFAULT,
+)
 from project_atlas.orchestration.origination.projection import (
     OriginationRecord,
     list_materialized_work_nodes,
@@ -1539,3 +1548,919 @@ def test_a_revision_that_becomes_blocked_is_never_leased_by_a_later_real_tick(
     # discover, independent of the tick's own outcome above.
     active_nodes = list_materialized_work_nodes(origination_store)
     assert not any(node.package_id == work_id for node in active_nodes)
+
+
+# --------------------------------------------------------------------------- #
+# Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE:
+# READY != LEASE, extended -- a node whose ORIGINATION REVISION went stale
+# must not receive NEW execution authority, even inside one long-lived
+# governor process (no restart, no base_pin movement).
+# --------------------------------------------------------------------------- #
+def _write_contract(repo: Path, *, proposed_scope: str, success_criteria: str) -> None:
+    """Declare one acceptance contract for ``_eligible_repo``'s feature-x item."""
+    _write_plain_file(
+        repo,
+        "docs/acceptance-contracts.yaml",
+        "contracts:\n"
+        "  - item_id: feature-x\n"
+        "    source_path: docs/ROADMAP.md\n"
+        "    evidence: [docs/REQUIREMENTS.md]\n"
+        f"    proposed_scope: [{proposed_scope}]\n"
+        f"    success_criteria: [{success_criteria!r}]\n",
+    )
+    _write_plain_file(
+        repo,
+        ".atlas-project.yaml",
+        "schema_version: 1\n"
+        "project:\n"
+        "  id: demo-project\n"
+        "origination_acceptance_contracts: docs/acceptance-contracts.yaml\n",
+    )
+
+
+def _scan_and_load_node(repo: Path, trust_store: Path, origination_store: Path) -> WorkNode:
+    payload, exit_code = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert exit_code == 0, payload
+    assert payload["materialized_count"] == 1, payload
+    nodes = list_materialized_work_nodes(origination_store)
+    assert len(nodes) == 1
+    return nodes[0]
+
+
+def test_origination_node_leases_normally_while_its_revision_is_current(
+    tmp_path: Path,
+) -> None:
+    """Control for the stale-revision test below (regression matrix A/H):
+    the new lease-time currentness check must not break the NORMAL path.
+    A node whose origination revision IS still current leases exactly as
+    it always did -- proving a denial in the sibling test below is caused
+    by staleness specifically, not by the check rejecting everything."""
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    # D-ATLAS-PR678 §5: the materialized node carries the exact identity
+    # its own durable origination record was written under.
+    record = next(
+        row
+        for row in load_projection(origination_store).records
+        if row.work_node is not None and row.work_node.get("package_id") == node.package_id
+    )
+    assert node.origination_identity is not None
+    assert node.origination_identity == record.origination_identity
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    lease = governor.lease(
+        node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+    assert lease.package_id == node.package_id
+
+
+def test_long_lived_governor_refuses_lease_for_stale_origination_revision(
+    tmp_path: Path,
+) -> None:
+    """THE load-bearing regression for owner directive
+    D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE §10.
+
+    ``rehydration.py::has_ever_had_multiple_revisions()`` already refuses
+    to RESUME a durably-leased node across a process RESTART once its
+    package_id has been revised. Nothing protected the same node inside a
+    single LONG-LIVED governor: ``_originate()``'s discovery pass skips
+    any package_id the governor already knows, so a node that reached
+    READY under revision A and then sat unleased while a scan superseded
+    it with revision B was never refreshed or evicted -- and ``lease()``
+    had no field to notice, because a ``WorkNode`` carried no origination
+    provenance at all.
+
+    Deliberately adversarial about what it does NOT rely on:
+
+    - the governor object is never rebuilt, and never rehydrated;
+    - ``docs/ROADMAP.md`` is never touched (the task text is
+      byte-identical across both scans) -- ONLY the acceptance contract's
+      mutation scope changes, which is exactly the case that used to
+      leave ``origination_identity`` unchanged and therefore invisible;
+    - ``base_pin`` never moves (no commit between the scans), so this
+      cannot pass by accident through the pre-existing stale-base_pin
+      path.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node_a = _scan_and_load_node(repo, trust_store, origination_store)
+    identity_a = node_a.origination_identity
+    assert identity_a is not None
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(node_a)
+    governor.mark_ready(node_a.package_id)
+
+    # Authority-bearing input changes: roadmap/task text untouched, only
+    # the acceptance contract's mutation scope widens. Then reconcile via
+    # the supported production scanner -- no manual .atlas state edits.
+    _write_contract(
+        repo,
+        proposed_scope="src/thing.py, src/extra.py",
+        success_criteria="K1: thing works",
+    )
+    second_payload, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+    assert second_payload["materialized_count"] == 1
+    second_entry = cast(list[dict[str, object]], second_payload["materialized"])[0]
+    assert second_entry["superseded_prior_revisions"] == [identity_a]
+
+    # SAME governor object, never restarted, still holding node A at READY.
+    stale = next(
+        item for item in governor.snapshot().nodes if item.package_id == node_a.package_id
+    )
+    assert stale.state == NodeState.READY
+    assert stale.origination_identity == identity_a
+    assert stale.base_pin == main  # base_pin did NOT move
+
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(
+            node_a.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+    assert excinfo.value.code == "STALE_ORIGINATION_IDENTITY"
+
+    # The refusal is a refusal, not a mutation: no lease was granted, and
+    # the node is left exactly as it was for a deliberate later refresh.
+    assert governor.snapshot().leases == ()
+
+
+def test_success_criteria_only_change_also_denies_a_stale_lease(tmp_path: Path) -> None:
+    """Regression matrix D: the sibling test above changes the contract's
+    mutation SCOPE; this one changes only its SUCCESS CRITERIA. Both are
+    authority-bearing acceptance-contract outputs bound into
+    ``origination_identity`` (``identity.py``), so both must produce a new
+    revision and deny the old node a new lease -- criteria are what a
+    result is judged against, so a node carrying obsolete criteria is
+    exactly as stale as one carrying an obsolete scope."""
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node_a = _scan_and_load_node(repo, trust_store, origination_store)
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(node_a)
+    governor.mark_ready(node_a.package_id)
+
+    _write_contract(
+        repo, proposed_scope="src/thing.py", success_criteria="K2: a materially different bar"
+    )
+    _, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(
+            node_a.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+    assert excinfo.value.code == "STALE_ORIGINATION_IDENTITY"
+
+
+def test_non_origination_node_leases_unaffected_by_the_currentness_check(
+    tmp_path: Path,
+) -> None:
+    """Regression matrix H / directive §9: a node that is not
+    origination-derived (``origination_identity is None`` -- the pilot
+    factory, and nodes built directly like this one) is not governed by
+    origination freshness at all. It must lease exactly as it did before
+    the check existed: no sentinel identity is fabricated for it, and no
+    projection record has to exist on its behalf -- note the governor
+    below IS wired to an origination store that contains nothing about
+    this package_id whatsoever."""
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    node = _minimal_work_node("MANUAL-NODE-001", base_pin=main, surface_id="manual-surface")
+    assert node.origination_identity is None
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT,
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    lease = governor.lease(
+        node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+    assert lease.package_id == "MANUAL-NODE-001"
+
+
+def test_work_node_persisted_before_provenance_existed_still_deserializes() -> None:
+    """Directive §4 backwards-compatibility, proven against the real
+    persisted shape rather than asserted: a ``work_node`` dict written
+    before ``origination_identity`` existed simply lacks the key. It must
+    still validate, defaulting to ``None``, so no store migration is
+    required -- which also means such a legacy node is treated as
+    non-origination (legacy lease behavior), never handed a fabricated
+    identity."""
+    legacy = _minimal_work_node(
+        "LEGACY-001", base_pin="a" * 40, surface_id="legacy"
+    ).model_dump(mode="json")
+    del legacy["origination_identity"]
+    assert "origination_identity" not in legacy
+
+    restored = WorkNode.model_validate(legacy)
+    assert restored.origination_identity is None
+    assert restored.package_id == "LEGACY-001"
+
+
+def test_result_from_stale_contract_revision_cannot_terminalize_the_current_one(
+    tmp_path: Path,
+) -> None:
+    """Regression matrix K / directive §13: make the EXISTING result-replay
+    guard load-bearing against the NEW acceptance-contract revision
+    semantics, rather than duplicating it.
+
+    ``sync_terminal_governed_states()`` already refuses to auto-sync any
+    package_id that has ever had more than one revision (the sibling test
+    above proves that for a roadmap-content revision). This proves the
+    same protection now covers a revision produced by a CONTRACT-ONLY
+    edit -- previously impossible to even reach, because a contract edit
+    left ``origination_identity`` unchanged and therefore produced no
+    second revision at all.
+
+    Attack shape: revision A is governed and legitimately reaches CLOSED,
+    but by then the current authority is revision B (a widened contract
+    scope). A's completion must not be credited to B -- B was never
+    executed, and silently marking it TERMINAL would permanently exclude
+    genuinely-unexecuted work from every future scan.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node_a = _scan_and_load_node(repo, trust_store, origination_store)
+    identity_a = node_a.origination_identity
+
+    # Contract-only authority change: roadmap bytes untouched.
+    _write_contract(
+        repo, proposed_scope="src/thing.py, src/extra.py", success_criteria="K1: thing works"
+    )
+    _, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+
+    records = load_projection(origination_store).records
+    states = {row.origination_identity: row.state for row in records}
+    assert len(states) == 2
+    identity_b = next(key for key in states if key != identity_a)
+    assert states[identity_a] == "SUPERSEDED"
+    assert states[identity_b] == "MATERIALIZED"
+
+    # A's own governed node now legitimately closes -- carrying A's
+    # provenance, which is exactly what a real in-flight governor holds.
+    closed_a = node_a.model_copy(update={"state": NodeState.CLOSED})
+    synced = sync_terminal_governed_states(origination_store, [closed_a])
+    assert synced == ()
+
+    after = {
+        row.origination_identity: row.state
+        for row in load_projection(origination_store).records
+    }
+    assert after[identity_a] == "SUPERSEDED"
+    # The critical assertion: B is NOT terminalized by A's result.
+    assert after[identity_b] == "MATERIALIZED"
+
+
+def test_origination_identity_is_deterministic_and_path_normalized(tmp_path: Path) -> None:
+    """Directive §14: ``proposed_scope``/``success_criteria`` now
+    participate in a durable primary identity, so identity determinism is
+    load-bearing.
+
+    Two properties proven here against the real scan path:
+
+    1. Repeated derivation from byte-identical inputs yields the SAME
+       identity -- no set-iteration or hash-seed leakage. (The derived
+       default scope is built from a ``set`` in
+       ``pipeline.py::_proposed_scope()`` but returned ``sorted()``;
+       contract-supplied scope keeps its declared order, which is itself
+       deterministic.)
+    2. A contract declaring Windows-style ``\\`` separators normalizes to
+       the SAME identity as one declaring ``/`` -- so a vault scanned on
+       Windows and on Linux agrees, rather than silently forking every
+       node's identity by platform.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    first = _scan_and_load_node(repo, trust_store, origination_store)
+
+    # Same inputs, a completely separate store: identity must be stable.
+    repo_again = _eligible_repo(tmp_path, name="repo-again")
+    _write_contract(
+        repo_again, proposed_scope="src/thing.py", success_criteria="K1: thing works"
+    )
+    again_store = repo_again / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+    again_main = _run_git(repo_again, "rev-parse", "origin/main")
+    again_tree = _run_git(repo_again, "rev-parse", "origin/main^{tree}")
+    again_trust = _make_trust_store(tmp_path, again_main, again_tree, name="trust-again")
+    second = _scan_and_load_node(repo_again, again_trust, again_store)
+    assert second.origination_identity == first.origination_identity
+
+    # Windows-style separators in the declared scope must normalize to the
+    # same canonical path -- and therefore the same identity.
+    repo_win = _eligible_repo(tmp_path, name="repo-win")
+    _write_contract(
+        repo_win, proposed_scope="src\\thing.py", success_criteria="K1: thing works"
+    )
+    win_store = repo_win / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+    win_main = _run_git(repo_win, "rev-parse", "origin/main")
+    win_tree = _run_git(repo_win, "rev-parse", "origin/main^{tree}")
+    win_trust = _make_trust_store(tmp_path, win_main, win_tree, name="trust-win")
+    win = _scan_and_load_node(repo_win, win_trust, win_store)
+    assert win.origination_identity == first.origination_identity
+
+
+def test_legacy_origination_node_without_provenance_is_denied_a_lease(
+    tmp_path: Path,
+) -> None:
+    """Owner directive D-ATLAS-PR678-LEGACY-ORIGINATION-NODE-FAIL-CLOSED-CHECK:
+
+        OPTIONAL FIELD != FAIL-OPEN MIGRATION.
+
+    ``WorkNode.origination_identity`` is additive and optional, so an
+    origination-derived node persisted BEFORE it existed deserializes as
+    ``None``. That absence must never be read as "this node needs no
+    provenance" -- if it were, every legacy row would silently bypass the
+    lease-time currentness check, which is exactly the authority the
+    check exists to gate.
+
+    The bypass is genuinely reachable, which is why this guard is not
+    redundant: ``rehydration._originate()`` loads active rows straight
+    out of the durable projection via
+    ``list_materialized_work_nodes()`` and marks them READY, and the
+    ``has_ever_had_multiple_revisions()`` guard only covers RESUMING an
+    already-projected lease, never a fresh grant.
+
+    The discriminator is the node's own historical provenance --
+    ``mutation_surface.semantic``, set by ``materialize.py`` (origination's
+    only WorkNode producer) and unchanged since that module was created,
+    so legacy rows carry it too. No migration metadata is invented.
+
+    This test builds the legacy shape the honest way: materialize a real
+    node through the production path, then DELETE the key from its
+    persisted dict, which is byte-for-byte what a pre-field store holds.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    assert node.origination_identity is not None
+    # The historical marker legacy rows really carry.
+    assert node.mutation_surface.semantic == ORIGINATION_SURFACE_SEMANTIC
+
+    legacy_payload = node.model_dump(mode="json")
+    del legacy_payload["origination_identity"]
+    legacy_node = WorkNode.model_validate(legacy_payload)
+    assert legacy_node.origination_identity is None
+    assert legacy_node.mutation_surface.semantic == ORIGINATION_SURFACE_SEMANTIC
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(legacy_node)
+    governor.mark_ready(legacy_node.package_id)
+
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(
+            legacy_node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+    assert excinfo.value.code == "MISSING_ORIGINATION_IDENTITY"
+    assert governor.snapshot().leases == ()
+
+
+def test_legacy_origination_node_is_denied_even_without_an_origination_store(
+    tmp_path: Path,
+) -> None:
+    """The legacy refusal must not be conditioned on the governor having
+    been wired to an origination store: an unprovable node is unprovable
+    either way, and a caller that simply forgot to wire the store must
+    not thereby WIDEN what can be leased. (Contrast the provenance-present
+    path, which deliberately preserves byte-identical legacy behavior for
+    an unwired governor -- proven by the sibling non-origination and
+    restart tests.)"""
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    legacy_payload = node.model_dump(mode="json")
+    del legacy_payload["origination_identity"]
+    legacy_node = WorkNode.model_validate(legacy_payload)
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        # deliberately NOT wired
+    )
+    governor.add_node(legacy_node)
+    governor.mark_ready(legacy_node.package_id)
+
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(
+            legacy_node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+    assert excinfo.value.code == "MISSING_ORIGINATION_IDENTITY"
+
+
+def test_legacy_origination_node_becomes_leasable_again_after_a_fresh_scan(
+    tmp_path: Path,
+) -> None:
+    """The legacy refusal is a transient migration state, not a dead end.
+
+    Re-running the supported production scanner re-derives the item,
+    supersedes the legacy row, and materializes a fresh node that DOES
+    carry its origination identity -- which then leases normally. Proven
+    here so the fail-closed guard cannot be mistaken for permanently
+    stranding pre-existing work.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    legacy_payload = node.model_dump(mode="json")
+    del legacy_payload["origination_identity"]
+    legacy_node = WorkNode.model_validate(legacy_payload)
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(legacy_node)
+    governor.mark_ready(legacy_node.package_id)
+    with pytest.raises(GovernorError):
+        governor.lease(
+            legacy_node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+
+    # The recovery path: a fresh governor picks up the node that the
+    # production scan actually persisted -- which carries its identity.
+    recovered = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    current_node = next(
+        item
+        for item in list_materialized_work_nodes(origination_store)
+        if item.package_id == legacy_node.package_id
+    )
+    assert current_node.origination_identity is not None
+    recovered.add_node(current_node)
+    recovered.mark_ready(current_node.package_id)
+    lease = recovered.lease(
+        current_node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+    assert lease.package_id == current_node.package_id
+
+
+def test_identity_bearing_node_is_denied_when_no_currentness_store_is_available(
+    tmp_path: Path,
+) -> None:
+    """Owner directive D-ATLAS-PR678-UNWIRED-GOVERNOR-FAIL-CLOSED-FINAL:
+
+        FAILURE TO VERIFY NEVER BECOMES PERMISSION TO EXECUTE.
+
+    A node carrying ``origination_identity`` makes a positive claim -- "I
+    was created from origination revision X". Granting it a NEW lease
+    requires PROVING X is still current. A governor with no origination
+    projection cannot perform that proof, so it must deny rather than
+    fall back to pre-provenance behavior.
+
+    The production tick does wire the store, but that is evidence about
+    today's callers, not an invariant: ``add_node()``/``lease()`` are
+    public, and a future integration, harness, or refactor that forgets
+    the dependency must not silently convert CURRENTNESS CHECK
+    UNAVAILABLE into CURRENTNESS CHECK SKIPPED.
+
+    Distinct from ``STALE_ORIGINATION_IDENTITY`` on purpose: that means
+    current authority WAS established and differs; this means current
+    authority could not be established at all.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    # A genuinely CURRENT, identity-bearing node -- nothing stale about
+    # it. The only thing missing is the governor's ability to check.
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    assert node.origination_identity is not None
+    assert node.mutation_surface.semantic == ORIGINATION_SURFACE_SEMANTIC
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        # deliberately NOT wired to an origination projection
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(
+            node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+    assert excinfo.value.code == "ORIGINATION_AUTHORITY_UNAVAILABLE"
+    assert governor.snapshot().leases == ()
+
+    # Control: the SAME node, same everything, leases fine once the
+    # governor can actually verify it -- proving the denial is caused by
+    # missing verification capability, not by the node being unleasable.
+    wired = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    wired.add_node(node)
+    wired.mark_ready(node.package_id)
+    lease = wired.lease(
+        node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+    assert lease.package_id == node.package_id
+
+
+def test_non_origination_node_still_leases_without_any_origination_store(
+    tmp_path: Path,
+) -> None:
+    """Directive §5 control: the fail-closed rules must not make
+    origination infrastructure MANDATORY for legitimate non-origination
+    work. A pilot-shaped node (no identity, non-origination semantic) on
+    a governor with no origination store at all must lease exactly as it
+    always did -- otherwise the autonomous pilot and every
+    non-origination integration would have been broken by this PR."""
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    node = _minimal_work_node("MANUAL-NODE-002", base_pin=main, surface_id="manual-surface-2")
+    assert node.origination_identity is None
+    assert node.mutation_surface.semantic != ORIGINATION_SURFACE_SEMANTIC
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        # no origination store, and none needed
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    lease = governor.lease(
+        node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+    assert lease.package_id == "MANUAL-NODE-002"
+
+
+def test_lease_denied_when_current_origination_record_is_ambiguous(tmp_path: Path) -> None:
+    """§9 matrix: CURRENT IDENTITY AMBIGUOUS = DENIED.
+
+    ``current_origination_identity()`` returns ``None`` when more than one
+    active row claims a package_id -- ambiguity is not authority, mirroring
+    ``find_materialized_work_node()``'s established contract. That collapses
+    into the same single mismatch comparison, so a corrupt/ambiguous store
+    can never be resolved by silently picking a winner.
+    """
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    main = "a" * 40
+    node = _minimal_work_node(
+        "ORIG-ambiguous", base_pin=main, surface_id="ambiguous-surface"
+    ).model_copy(update={"origination_identity": "a" * 64})
+
+    other = node.model_copy(update={"origination_identity": "b" * 64})
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [
+                    OriginationRecord(
+                        origination_identity="a" * 64,
+                        project_id="demo",
+                        proposal={"work_id": "ORIG-ambiguous"},
+                        policy_result={},
+                        work_node=node.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                    OriginationRecord(
+                        origination_identity="b" * 64,
+                        project_id="demo",
+                        proposal={"work_id": "ORIG-ambiguous"},
+                        policy_result={},
+                        work_node=other.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    repo = _make_repo(tmp_path)
+    real_main = _run_git(repo, "rev-parse", "origin/main")
+    real_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, real_main, real_tree)
+    leasable = node.model_copy(update={"base_pin": real_main})
+
+    governor = AutonomousGovernor(
+        current_main=real_main,
+        current_tree=real_tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(leasable)
+    governor.mark_ready(leasable.package_id)
+
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(
+            leasable.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+    assert excinfo.value.code == "STALE_ORIGINATION_IDENTITY"
+
+
+def test_lease_denied_when_no_current_origination_record_exists(tmp_path: Path) -> None:
+    """§9 matrix: CURRENT IDENTITY MISSING = DENIED.
+
+    A node claiming a revision that the projection no longer holds as
+    active (its row went TERMINAL, or the store holds nothing for this
+    package at all) has nothing to prove its authority against. Same
+    single comparison, same denial -- an absent current revision is not
+    an implicit yes.
+    """
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    node = _minimal_work_node(
+        "ORIG-orphan", base_pin=main, surface_id="orphan-surface"
+    ).model_copy(update={"origination_identity": "c" * 64})
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(
+            node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        )
+    assert excinfo.value.code == "STALE_ORIGINATION_IDENTITY"
+
+
+def _loop_for(governor: AutonomousGovernor, trusted, repo: Path, tmp_path: Path, name: str):
+    return AutonomousLoop(
+        governor=governor,
+        trusted=trusted,
+        store=tmp_path / f"loop-{name}",
+        root=repo,
+    )
+
+
+def _assert_hard_blocker_receipt(result, *, expected_code: str) -> None:
+    """Every property owner directive
+    D-MAIN-ATLAS-LOOP-HARD-BLOCKER-CLOSURE §2 requires of a
+    governor-authority refusal that reaches the loop boundary."""
+    # 3. intended HARD_BLOCKER outcome
+    assert result.stop_reason == StopReason.HARD_BLOCKER
+    # 4. receipt preserves the ACTUAL denial code, not just the bucket
+    assert result.stop_detail == expected_code
+    # 5. never mislabelled as retryable contention
+    assert result.stop_reason != StopReason.PROJECTION_CONTENTION
+    # 7. no lease granted
+    assert result.lease_id is None
+    # 8. no dispatch attempt created
+    assert result.dispatched is False
+    assert result.dispatch_id is None
+    # 9. no execution authority minted
+    assert result.authority_granted is False
+    assert result.execution_authorized is False
+    assert result.merge_authorized is False
+    assert result.phase == LoopPhase.STOPPED
+
+
+def test_loop_hard_blocks_on_stale_origination_identity(tmp_path: Path) -> None:
+    """§2 / STALE_ORIGINATION_IDENTITY across the real governor->loop
+    boundary: a node superseded while it sat READY and unleased."""
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    trusted = load_runtime_anchor(store=trust_store)
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=trusted,
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    _write_contract(
+        repo, proposed_scope="src/thing.py, src/extra.py", success_criteria="K1: thing works"
+    )
+    _, exit_code = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert exit_code == 0
+
+    loop = _loop_for(governor, trusted, repo, tmp_path, "stale")
+    # 6. the tick does not crash
+    result = loop.tick()
+    _assert_hard_blocker_receipt(result, expected_code="STALE_ORIGINATION_IDENTITY")
+
+    # 10/11. no automatic resume, and a subsequent tick does not spin
+    # against the same blocked node -- HARD_BLOCKER is explicitly not
+    # resumed by `_may_resume_from_no_eligible_work()`.
+    second = loop.tick()
+    assert second.stop_reason == StopReason.HARD_BLOCKER
+    assert second.dispatched is False
+    assert second.lease_id is None
+    assert governor.snapshot().leases == ()
+
+
+def test_loop_hard_blocks_when_origination_authority_is_unavailable(tmp_path: Path) -> None:
+    """§2 / ORIGINATION_AUTHORITY_UNAVAILABLE across the real boundary:
+    an identity-bearing node whose currentness cannot be established
+    because the governor has no origination projection wired."""
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    trusted = load_runtime_anchor(store=trust_store)
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=trusted,
+        # deliberately NOT wired
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    loop = _loop_for(governor, trusted, repo, tmp_path, "unavailable")
+    result = loop.tick()
+    _assert_hard_blocker_receipt(result, expected_code="ORIGINATION_AUTHORITY_UNAVAILABLE")
+    assert governor.snapshot().leases == ()
+
+
+def test_loop_hard_blocks_on_missing_origination_identity(tmp_path: Path) -> None:
+    """§2 / MISSING_ORIGINATION_IDENTITY across the real boundary: a
+    legacy origination-built node persisted before the provenance field
+    existed."""
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    legacy_payload = node.model_dump(mode="json")
+    del legacy_payload["origination_identity"]
+    legacy_node = WorkNode.model_validate(legacy_payload)
+    assert legacy_node.origination_identity is None
+
+    trusted = load_runtime_anchor(store=trust_store)
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=trusted,
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(legacy_node)
+    governor.mark_ready(legacy_node.package_id)
+
+    loop = _loop_for(governor, trusted, repo, tmp_path, "legacy")
+    result = loop.tick()
+    _assert_hard_blocker_receipt(result, expected_code="MISSING_ORIGINATION_IDENTITY")
+    assert governor.snapshot().leases == ()
+
+
+def test_loop_still_leases_a_current_node_normally(tmp_path: Path) -> None:
+    """§2 item 12 / §3 control: the loop's new refusal handling must not
+    convert a legitimate eligible node into a denial, a retryable
+    contention, or a silent omission. A current, identity-bearing node
+    still leases and dispatches through the very same loop path the three
+    tests above are blocked on."""
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    trusted = load_runtime_anchor(store=trust_store)
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=trusted,
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+
+    loop = _loop_for(governor, trusted, repo, tmp_path, "current")
+    result = loop.tick()
+
+    # Not blocked, and specifically not blocked by an authority refusal.
+    assert result.stop_reason != StopReason.HARD_BLOCKER
+    assert result.stop_detail is None
+    assert governor.snapshot().leases != ()

@@ -164,6 +164,116 @@ def test_scan_materializes_a_ready_o1_proposal(tmp_path: Path) -> None:
     assert record.work_node["state"] == NodeState.DISCOVERED.value
 
 
+def test_acceptance_contract_scope_change_supersedes_stale_authority_same_roadmap_bytes(
+    tmp_path: Path,
+) -> None:
+    """Owner directive D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE (P1 finding,
+    chatgpt-codex-connector, PR #678): a WorkNode's authority-bearing
+    scope can change while the roadmap item's own bytes stay identical --
+    an attached acceptance contract can be edited independently of
+    ``docs/ROADMAP.md``. Before this fix, ``origination_identity`` hashed
+    only the roadmap item's own content digest, so a contract-only edit
+    left it unchanged; ``run_origination_scan()`` then hit the
+    already-materialized "report AS-IS" shortcut (``cli.py``) for the
+    SAME identity and never even reached ``reconcile_revision()`` /
+    ``still_current`` -- the OLD contract's ``proposed_scope`` stayed the
+    durable, rehydratable authority forever, regardless of what the
+    project's own acceptance contract said NOW.
+
+    Real, production-path reproduction: two scans through
+    ``run_origination_scan()`` (never a manual API sequence), same
+    roadmap bytes throughout, only ``docs/acceptance-contracts.yaml``'s
+    ``proposed_scope`` changes (S1 -> S2) between them.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_plain_file(
+        repo,
+        "docs/acceptance-contracts.yaml",
+        "contracts:\n"
+        "  - item_id: feature-x\n"
+        "    source_path: docs/ROADMAP.md\n"
+        "    evidence: [docs/REQUIREMENTS.md]\n"
+        "    proposed_scope: [src/thing.py]\n"
+        "    success_criteria: ['K1: thing works']\n",
+    )
+    _write_plain_file(
+        repo,
+        ".atlas-project.yaml",
+        "schema_version: 1\n"
+        "project:\n"
+        "  id: demo-project\n"
+        "origination_acceptance_contracts: docs/acceptance-contracts.yaml\n",
+    )
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    # Revision A: contract C1 (proposed_scope=[src/thing.py]).
+    payload_a, exit_a = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+    assert exit_a == EXIT_OK
+    assert payload_a["materialized_count"] == 1
+    entry_a = cast(list[dict[str, object]], payload_a["materialized"])[0]
+    assert entry_a["already_materialized"] is False
+    work_id = entry_a["work_id"]
+
+    projection_a = load_projection(store)
+    assert len(projection_a.records) == 1
+    record_a = projection_a.records[0]
+    assert record_a.state == "MATERIALIZED"
+    assert record_a.proposal["proposed_scope"] == ["src/thing.py"]
+    identity_a = record_a.origination_identity
+
+    # Revision B: SAME roadmap bytes, contract widens to C2
+    # (proposed_scope S1 -> S2). No commit, no ROADMAP.md edit -- the
+    # ONLY authority-bearing input that changes is the contract.
+    _write_plain_file(
+        repo,
+        "docs/acceptance-contracts.yaml",
+        "contracts:\n"
+        "  - item_id: feature-x\n"
+        "    source_path: docs/ROADMAP.md\n"
+        "    evidence: [docs/REQUIREMENTS.md]\n"
+        "    proposed_scope: [src/thing.py, src/extra.py]\n"
+        "    success_criteria: ['K1: thing works']\n",
+    )
+
+    payload_b, exit_b = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+    assert exit_b == EXIT_OK
+    assert payload_b["materialized_count"] == 1
+    entry_b = cast(list[dict[str, object]], payload_b["materialized"])[0]
+
+    # The stale (A) authority must NOT be what this scan reports: a new
+    # revision materialized fresh, under the SAME logical work_id, and
+    # explicitly superseded the old one -- never silently reused it.
+    assert entry_b["work_id"] == work_id
+    assert entry_b["already_materialized"] is False
+    assert entry_b["superseded_prior_revisions"] == [identity_a]
+
+    projection_b = load_projection(store)
+    by_identity = {row.origination_identity: row for row in projection_b.records}
+    assert len(by_identity) == 2
+    assert by_identity[identity_a].state == "SUPERSEDED"
+    # The superseded row's own frozen work_node is preserved exactly as
+    # it was materialized -- history, not silently rewritten.
+    assert by_identity[identity_a].proposal["proposed_scope"] == ["src/thing.py"]
+
+    identity_b = next(k for k in by_identity if k != identity_a)
+    assert by_identity[identity_b].state == "MATERIALIZED"
+    assert by_identity[identity_b].proposal["proposed_scope"] == ["src/thing.py", "src/extra.py"]
+    assert by_identity[identity_b].work_node is not None
+    assert by_identity[identity_b].work_node["package_id"] == work_id
+
+
 def test_scan_with_no_eligible_work_is_a_clean_empty_result(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
     main = _run_git(repo, "rev-parse", "origin/main")

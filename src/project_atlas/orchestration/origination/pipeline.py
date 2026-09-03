@@ -97,6 +97,49 @@ def originate_new_only(
     )
 
 
+def effective_authority_fields(
+    item: EligibleRoadmapItem,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The ``(proposed_scope, success_criteria)`` pair this pipeline
+    derives for ``item`` -- its complete authority-bearing surface
+    downstream of the roadmap item itself.
+
+    Single source of truth for this derivation (owner directive
+    D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE, P1 finding on PR #678): both
+    ``_build_outcome()`` (proposal construction) and
+    ``cli.py::_source_identity_still_current()`` (the freshness
+    recheck ``reconcile_revision()`` runs before any write) MUST derive
+    these two fields identically from a live ``EligibleRoadmapItem``, or
+    the freshness check could pass/fail on a derivation that silently
+    disagrees with what was actually proposed -- exactly the "second,
+    drift-prone copy of the payload format" ``identity.py`` already
+    warns against for the sibling identity formula.
+
+    AS-ORIGIN-ACCEPTANCE-001 (PR-D): when an explicit acceptance
+    contract (``acceptance_contracts.py``) attached these overrides at
+    the ``sources.py`` merge step, they are used INSTEAD OF the derived
+    defaults below, never in addition to them -- an explicit,
+    human-authored scope/criteria is authoritative over a generically
+    derived one. Every other item (the overwhelming majority, with no
+    contract) is completely unaffected: both fields stay ``None`` and
+    this branch is not taken, identical to this pipeline's behavior
+    before PR-D existed.
+    """
+    if item.contract_success_criteria is not None:
+        success_criteria = item.contract_success_criteria
+    else:
+        success_criteria = (
+            f"Implement {item.item_id} exactly per its declared evidence",
+            *(f"Evidence available: {path}" for path in item.evidence),
+        )
+    proposed_scope = (
+        item.contract_proposed_scope
+        if item.contract_proposed_scope is not None
+        else _proposed_scope(item.evidence)
+    )
+    return proposed_scope, success_criteria
+
+
 def _build_outcome(
     project_root: Path, project_id: str, item: EligibleRoadmapItem
 ) -> OriginationOutcome:
@@ -115,27 +158,7 @@ def _build_outcome(
     source_evidence = (authoritative_fact, *acceptance_facts)
     source_locations = tuple(dict.fromkeys(fact.location for fact in source_evidence))
 
-    # AS-ORIGIN-ACCEPTANCE-001 (PR-D): when an explicit acceptance
-    # contract (acceptance_contracts.py) attached these overrides at the
-    # sources.py merge step, they are used INSTEAD OF the derived
-    # defaults below, never in addition to them -- an explicit,
-    # human-authored scope/criteria is authoritative over a generically
-    # derived one. Every other item (the overwhelming majority, with no
-    # contract) is completely unaffected: both fields stay `None` and
-    # this branch is not taken, identical to pipeline.py's behavior
-    # before PR-D existed.
-    if item.contract_success_criteria is not None:
-        success_criteria = item.contract_success_criteria
-    else:
-        success_criteria = (
-            f"Implement {item.item_id} exactly per its declared evidence",
-            *(f"Evidence available: {path}" for path in item.evidence),
-        )
-    proposed_scope = (
-        item.contract_proposed_scope
-        if item.contract_proposed_scope is not None
-        else _proposed_scope(item.evidence)
-    )
+    proposed_scope, success_criteria = effective_authority_fields(item)
 
     risk = classify(
         proposed_scope=proposed_scope,
@@ -146,7 +169,12 @@ def _build_outcome(
         EvidenceCompleteness.COMPLETE if acceptance_facts else EvidenceCompleteness.INTENT_ONLY
     )
 
-    origination_id = origination_identity(project_id, authoritative_fact)
+    origination_id = origination_identity(
+        project_id,
+        authoritative_fact,
+        proposed_scope=proposed_scope,
+        success_criteria=success_criteria,
+    )
     work_id = work_id_for(project_id, item.item_id)
 
     if item.depends_on:
