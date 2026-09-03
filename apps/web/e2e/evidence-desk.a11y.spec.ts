@@ -210,3 +210,78 @@ test.describe("Responsive behaviour", () => {
     });
   }
 });
+
+test.describe("Ask form semantics (AX-004)", () => {
+  test("the query input is labelled and described", async ({ page }) => {
+    await page.goto("/#/ask");
+    const input = page.getByLabel(/Query/);
+    await expect(input).toBeVisible();
+    const described = await input.getAttribute("aria-describedby");
+    expect(described).toContain("ask-query-hint");
+    expect(described).toContain("ask-query-error");
+  });
+
+  test("every aria-describedby target exists in the DOM", async ({ page }) => {
+    await page.goto("/#/ask");
+    const ids = (await page.getByLabel(/Query/).getAttribute("aria-describedby"))?.split(/\s+/) ?? [];
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) {
+      // A dangling reference is worse than no reference — it silently drops.
+      await expect(page.locator(`#${id}`)).toHaveCount(1);
+    }
+  });
+
+  test("an error is associated with the field and marks it invalid", async ({ page }) => {
+    await page.goto("/#/ask?q=deployment");
+    const input = page.getByLabel(/Query/);
+    const errorNode = page.locator("#ask-query-error");
+    const errored = await errorNode.innerText().then((t) => t.trim().length > 0);
+    test.skip(!errored, "environment produced no ask error to assert against");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+    await expect(errorNode).toContainText(/unavailable/i);
+    // The failure must also reach a live region, not only the page.
+    await expect(page.getByTestId("truth-announcer-assertive")).not.toHaveText("");
+  });
+
+  test("submitting does not steal focus from the input", async ({ page }) => {
+    await page.goto("/#/ask");
+    const input = page.getByLabel(/Query/);
+    await input.fill("deployment target");
+    await input.press("Enter");
+    await page.waitForTimeout(500);
+    // Announcements must not move focus (SC 4.1.3).
+    await expect(input).toBeFocused();
+  });
+});
+
+test.describe("Density (AX-007)", () => {
+  const DATA_ROUTES = ["/#/intelligence", "/#/knowledge", "/#/time-machine", "/#/source-health"];
+
+  for (const route of DATA_ROUTES) {
+    test(`${route} uses the wide data measure`, async ({ page }) => {
+      await page.setViewportSize({ width: 1600, height: 900 });
+      await page.goto(route);
+      const main = page.locator("main.shell-data");
+      await expect(main).toHaveCount(1);
+      const width = await main.evaluate((el) => el.getBoundingClientRect().width);
+      // 42rem prose measure is ~672px; the data measure must be materially wider.
+      expect(width).toBeGreaterThan(700);
+    });
+
+    test(`${route} still does not scroll horizontally on mobile`, async ({ page }) => {
+      await page.setViewportSize({ width: 360, height: 740 });
+      await page.goto(route);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(1);
+    });
+  }
+
+  test("prose surfaces keep the narrow measure", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.goto("/#/");
+    // Home is prose: it must not have opted into the data measure.
+    await expect(page.locator("main.shell-data")).toHaveCount(0);
+  });
+});

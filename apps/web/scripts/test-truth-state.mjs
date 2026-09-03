@@ -100,23 +100,35 @@ console.log("\nContrast (WCAG 2.2 AA, 4.5:1 normal text)");
 
 const tokensSrc = read("src/tokens.css");
 
-/** Extract --truth-* declarations from the CSS block starting at `fromIndex`. */
-function truthTokensAt(fromIndex) {
-  if (fromIndex === -1) return {};
-  const open = tokensSrc.indexOf("{", fromIndex);
-  const close = tokensSrc.indexOf("}", open);
+/**
+ * Extract literal --truth-* colour declarations from the CSS block whose
+ * selector matches `selectorRe`.
+ *
+ * Blocks are matched by selector and then filtered to those that actually
+ * declare truth colours, rather than by file position: tokens.css has several
+ * :root blocks and more may be appended, so a positional lookup would silently
+ * find the wrong one and under-report the check count.
+ */
+function truthTokensFor(selectorRe) {
   const out = {};
-  for (const m of tokensSrc.slice(open, close).matchAll(/--(truth-[\w-]+):\s*(#[0-9a-fA-F]{6})/g)) {
-    out[m[1]] = m[2];
+  for (const block of tokensSrc.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    // The capture runs back to the previous "}", so it can include a preceding
+    // comment. The selector is the last non-empty line of it.
+    const selector = block[1]
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "")
+      .pop();
+    if (!selector || !selectorRe.test(selector)) continue;
+    for (const m of block[2].matchAll(/--(truth-[\w-]+):\s*(#[0-9a-fA-F]{6})/g)) {
+      out[m[1]] = m[2];
+    }
   }
   return out;
 }
 
-// Light values live in the last :root block; dark values in the shared
-// dark-theme selector. Both are located by selector, so reordering the file
-// cannot silently skip a set.
-const lightPairs = truthTokensAt(tokensSrc.lastIndexOf(":root {"));
-const darkPairs = truthTokensAt(tokensSrc.indexOf('[data-theme="signal-rack"],'));
+const lightPairs = truthTokensFor(/^:root$/);
+const darkPairs = truthTokensFor(/data-theme="(signal-rack|terminal-honest)"/);
 
 const LIGHT_BG = { panel: "#fffdf8", paper: "#f5f0e8" };
 const DARK_BG = { panel: "#1c1917", paper: "#0c0a09" };

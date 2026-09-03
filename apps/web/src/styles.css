@@ -607,3 +607,23 @@ code,
   gap: 0.5rem;
   margin-top: 0.75rem;
 }
+
+/* --- Density (AX-007) ---------------------------------------------------- */
+
+/*
+ * Opt-in wide measure for table- and comparison-heavy surfaces. Prose keeps the
+ * default --atlas-max measure; only data surfaces widen.
+ */
+.shell-data {
+  max-width: var(--atlas-max-data);
+}
+
+/*
+ * Wide content scrolls inside its own container so the page itself never
+ * scrolls horizontally — verified at 360/480/768/1440px.
+ */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}

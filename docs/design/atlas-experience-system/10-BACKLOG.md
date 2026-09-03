@@ -3,7 +3,12 @@
 **Session:** `AS-20260903T132018Z-claude-design-continuation-20260903-project-atlas-60ba98bb`
 **Derived from:** audit `00`, research `01`, IA `02`, selected direction `04`
 
-Counts: **P0 = 3** (2 delivered, 1 open) · **P1 = 5** · **P2 = 3** · **P3 = 3**
+Counts: **P0 = 3** (2 delivered, 1 open) · **P1 = 5** (2 delivered) · **P2 = 3** · **P3 = 3**
+
+**Delivered in this lane:** AX-002, AX-003, AX-004, AX-007.
+**Claimed by another active lane:** AX-013 — the shared checkout already carries an
+uncommitted `axe-core` devDependency, so that work is in flight elsewhere and was
+deliberately not duplicated here (see `11-HANDOFF.md` §7).
 
 > `PROMOTE_ELIGIBLE != MERGED/DEPLOYED/AUTHORITATIVE`. This backlog is a recommendation
 > derived from evidence. It is not a committed roadmap, and no item below is owner-approved.
@@ -69,12 +74,17 @@ cli-only rows show a copyable command and do not execute; result count announced
 **A11y:** the widget *is* the a11y risk — must be tested with a screen reader, not only
 by attribute assertions.
 
-### AX-004 — Form semantics on Ask
+### AX-004 — Form semantics on Ask · **IMPLEMENTED**
 
 `aria-describedby`, `aria-invalid`, `role="alert"` all measured at 0 app-wide (A-6).
-**AC:** every input has a programmatic label; errors associated via `aria-describedby`;
-`aria-invalid` on failure; error announced; focus not stolen. **Deps:** AX-003.
-**Risk:** low. **Complexity:** S.
+**AC (all met):** the query input is labelled and `aria-describedby` references a hint and
+an error node; **both targets exist in the DOM at all times** so the reference never
+dangles; `aria-invalid` is set on failure; the error is announced assertively; UNKNOWN is
+announced **politely as a result, not as an error**; focus is not moved by announcing.
+**Deps:** AX-003. **Risk:** low. **Complexity:** S.
+**Evidence:** `src/pages/production/AskPage.tsx`; 4 rendered tests in
+`e2e/evidence-desk.a11y.spec.ts`. Also migrated the page's four lowercase `unknown` strings
+onto `TruthChip`.
 
 ### AX-005 — Responsive system
 
@@ -85,11 +95,15 @@ never dropped**; no horizontal page scroll; touch targets ≥ 44px; 400% zoom re
 **Note:** overflow and chip-label retention already verified at 4 viewports; touch-target
 and zoom audits are **not** done.
 
-### AX-007 — Density tokens
+### AX-007 — Density tokens · **IMPLEMENTED**
 
-`--atlas-max: 42rem` applied to 400-line operator tables (A-3). **AC:** `--atlas-max-prose`
-and `--atlas-max-data`; tables scroll in their own container; page never scrolls
-horizontally. **Deps:** none. **Risk:** low. **Complexity:** S.
+`--atlas-max: 42rem` applied to 400-line operator tables (A-3). **AC (all met):**
+`--atlas-max-prose` and `--atlas-max-data` (96rem) added; `.shell-data` opt-in applied to
+the four table-heavy pages the audit named (Intelligence, Knowledge, Time Machine, Source
+Health); `.table-scroll` container added; prose surfaces keep the narrow measure; no page
+scrolls horizontally. `--atlas-max` is unchanged, so nothing widens by default.
+**Deps:** none. **Risk:** low. **Complexity:** S.
+**Evidence:** `src/tokens.css`, `src/styles.css`, 4 page files; 9 rendered tests.
 
 ### AX-006 — Product copy revision
 
@@ -131,14 +145,19 @@ sourceless claim renders `UNKNOWN` inline where the fact belongs, never omitted.
 **AC:** `08` §7. **Deps:** AX-008. **Risk:** medium (new surface + dependency).
 **Complexity:** L.
 
-### AX-013 — Automated accessibility gate in CI
+### AX-013 — Automated accessibility gate in CI · **CLAIMED BY ANOTHER LANE — do not duplicate**
 
-There is no axe/`@axe-core/playwright` integration; `AX-002`/`AX-003` are verified by
+There is no axe integration on `origin/main`; `AX-002`/`AX-003`/`AX-004` are verified by
 targeted assertions, which is narrower than a full audit. **AC:** axe runs on every
 production route in CI; violations fail the build; the current baseline is recorded so
 regressions are distinguishable from pre-existing issues. **Deps:** none.
-**Risk:** low. **Complexity:** S. **This is the most valuable remaining a11y item** —
-without it, coverage depends on tests someone remembered to write.
+**Risk:** low. **Complexity:** S.
+
+This was identified as the highest-value remaining owner-independent item and then **not
+implemented here**, because the shared checkout at `D:\project-atlas` already carries an
+uncommitted `axe-core` devDependency in `apps/web/package.json`. Another lane is already
+doing this work, and adding the same dependency on this branch would collide on exactly
+that file. Recorded rather than duplicated.
 
 ### AX-014 — Split `cli.py`
 

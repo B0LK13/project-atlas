@@ -138,3 +138,19 @@
   --truth-fixture: #fcd34d;
   --truth-failed: #f87171;
 }
+
+/**
+ * Density tokens (AX-007).
+ *
+ * A single --atlas-max: 42rem was applied to everything, including operator
+ * tables (Intelligence, Knowledge, Time Machine, Source Health). 42rem is a
+ * prose measure; a conflict list, a T1->T2 diff and a source-health matrix were
+ * all being served a blog column.
+ *
+ * --atlas-max stays as-is so nothing changes by default; a surface opts into
+ * the wide measure with the .shell-data class.
+ */
+:root {
+  --atlas-max-prose: var(--atlas-max);
+  --atlas-max-data: 96rem;
+}

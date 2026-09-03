@@ -60,8 +60,10 @@ behind `origin/main`. The design worktree was fast-forwarded; none of the 7 comm
 | Contrast-verified tokens, light + dark | `apps/web/src/tokens.css` |
 | Announcement wiring on the real LIVE→DEMO path | `apps/web/src/hooks/useReadStatus.ts` |
 | `ReadStatusPanel` migrated onto the chip system | `apps/web/src/components/ReadStatusPanel.tsx` |
+| Form semantics + announced outcomes on Ask (AX-004) | `apps/web/src/pages/production/AskPage.tsx` |
+| Density tokens + wide data measure (AX-007) | `apps/web/src/tokens.css`, `src/styles.css`, 4 production pages |
 | Automated spec verification (91 checks) | `apps/web/scripts/test-truth-state.mjs` |
-| Rendered a11y + responsive suite (20 tests) | `apps/web/e2e/evidence-desk.a11y.spec.ts` |
+| Rendered a11y + responsive suite (33 tests) | `apps/web/e2e/evidence-desk.a11y.spec.ts` |
 
 ### PROTOTYPED
 
@@ -81,18 +83,18 @@ AX-004–AX-014).
 | **BUILD** | **PASS** | `npm run build` — 85 modules, clean |
 | **TYPECHECK** | **PASS** | `tsc -b` inside the build |
 | **Truth-state spec** | **PASS — 91/91** | `node scripts/test-truth-state.mjs` |
-| **Rendered a11y + responsive** | **PASS — 20/20** | `npx playwright test e2e/evidence-desk.a11y.spec.ts` |
+| **Rendered a11y + responsive** | **PASS — 33/33** | `npx playwright test e2e/evidence-desk.a11y.spec.ts` |
 | **Contrast** | **PASS** | all 26 token/background pairs ≥ 4.5:1; lowest 5.58:1 |
 | **Regression** | **NONE** | see below |
 | **LINT (web)** | **NOT RUN** | no JS/TS linter is configured in `apps/web` — see §5 |
 
 ### Regression check, done properly
 
-The full Playwright suite reports **3 failed / 22 passed**. Those 3 failures were verified
+The full Playwright suite reports **3 failed / 35 passed**. Those 3 failures were verified
 against a clean `origin/main` worktree, where the *same 3 tests fail* (**3 failed / 2
 passed**). They are pre-existing environment failures — the suite needs
 `VITE_ATLAS_API_TOKEN` and this host has none, so LIVE_API reads fail closed by SEC-009
-design. **No regression was introduced.** The delta is +20 passing tests.
+design. **No regression was introduced.** The delta is +33 passing tests.
 
 ### Truth-boundary validation
 
@@ -114,14 +116,15 @@ skipping — this environment's fail-closed read exercised the real error path.
    **4.47:1** on `#f5f0e8` paper — just under AA for normal text. The new
    `--truth-unknown: #8a5300` (5.58:1) supersedes it wherever chips are used, but the old
    token is still referenced elsewhere. Not fixed here to avoid widening the diff into
-   pages other lanes may touch. → `AX-007` / `AX-013`.
-2. **No axe/automated a11y gate exists.** The 20 rendered tests are targeted assertions,
-   which is narrower than an audit. Full-route coverage is unverified. → `AX-013`, the most
-   valuable remaining accessibility item.
+   pages other lanes may touch. → follow-on to `AX-007`.
+2. **No axe/automated a11y gate exists on this branch.** The 33 rendered tests are targeted
+   assertions, which is narrower than an audit; full-route coverage is unverified. This is
+   `AX-013`, and it is **already in flight in another lane** — see §7.
 3. **Touch-target and 400%-zoom audits not performed.** Stated as not done in `09` §B.5
    rather than assumed passing.
-4. **`aria-live` remains 0 outside `useReadStatus`.** The other 11 live-data hooks are not
-   yet wired to the announcer. The mechanism exists; adoption is incomplete. → `AX-004`.
+4. **`aria-live` adoption is partial.** `useReadStatus` and `AskPage` announce; the other
+   10 live-data hooks do not yet. The mechanism exists and two surfaces use it; adoption
+   across the remaining lenses is outstanding.
 5. **Web has no linter.** `apps/web` has no ESLint config, so `LINT` cannot be reported as
    a pass. Python `ruff`/`mypy` were not run because no Python file was touched.
 6. **Screen-reader verification is by attribute assertion, not by a real AT.** Correct
@@ -156,9 +159,55 @@ Stated explicitly, because this lane produced polish and polish invites overclai
 - `PROMOTE_ELIGIBLE != MERGED/DEPLOYED/AUTHORITATIVE` — the backlog is a recommendation.
 - **Design-lab directions A–D are preserved**, per ADR-010. Direction E is additive.
 
-## 7. Next node
+## 7. Next node, and a collision that changed it
 
-`AX-013` (axe gate in CI) is the highest-value owner-independent item: low risk, no
-cross-lane collision, and it converts the accessibility work from "tests someone
-remembered to write" into an enforced gate. `AX-001` and `AX-008` are higher value but
-have blast radius that makes them owner-sequenced.
+`AX-013` (an axe gate in CI) was identified as the highest-value remaining
+owner-independent item, and then **deliberately not implemented**.
+
+Checking for collisions before touching `apps/web/package.json` showed that the shared
+checkout at `D:\project-atlas` already carries an **uncommitted `axe-core` devDependency**
+in that exact file. Another lane is already doing this work. Adding the same dependency on
+this branch would collide on the one file that is actively being edited elsewhere, which
+is precisely the case the directive says to defer. Recorded, not duplicated.
+
+Work continued instead on the unclaimed nodes: **`AX-004`** (form semantics — closes audit
+finding A-6) and **`AX-007`** (density tokens — closes A-3). Both are now implemented and
+test-covered.
+
+**Remaining owner-independent:** `AX-010` (command palette; medium risk, ARIA correctness
+is the whole job), `AX-011` and `AX-012` (evidence drawer and `ClaimText`; both partly
+prototyped already).
+
+**Owner-sequenced:** `AX-001`, `AX-005`, `AX-006`, `AX-008` — each has wide blast radius or
+is governance-sensitive.
+
+**Blocked externally:** `FINAL_SYNC_STATUS`. See §8.
+
+## 8. Governed evidence and the sync blocker
+
+Six events are captured in `.atlas-spool` for this session: `session-start`,
+`implementation`, `validation`, `decision`, `completion`, `blocked`.
+
+`postflight` returns `ok: false, status: incomplete` with
+`["pending spool events", "capture pipeline is not normalized, verified and routed"]`, so
+the canonical `receipt` command **cannot** be issued. The cause was established rather than
+assumed:
+
+- The spool has no `.atlas/vault.json`, so bootstrap ran in spool mode with
+  `vault_uuid: unknown` and `vault.verified: false`.
+- A bounded search found exactly one real vault on this host,
+  `D:tlas-governed\dark-factory`, whose `vault_id` (`atlas-main`) *matches* the spool.
+  But its `projects/` contains only `dark-factory-02ee94d0`, it holds **zero** `AE-*.md`
+  agent-event files, and it has no `PRJ-PROJECT-ATLAS` record. It is a **different
+  project's vault that merely shares a `vault_id`.**
+
+Syncing this lane's evidence there would pollute another project's knowledge base, so
+`sync-spool` was deliberately not run.
+
+**`FINAL_SYNC_STATUS = PENDING_EXTERNAL_VAULT_AVAILABILITY`.** Synchronisation is **not**
+claimed and no receipt is claimed. This is the same blocker the predecessor Codex session
+hit — its four sessions also remain `pending_spool`, `normalized: 0`, `routed: 0`.
+
+**Unblock:** given a reachable canonical `PRJ-PROJECT-ATLAS` vault root —
+`atlas_agent.py sync-spool --spool-root <spool> --vault-root <canonical> --mda-command <cmd>`,
+then `postflight`, then `receipt`. Supplying that root is an owner action.
