@@ -195,10 +195,13 @@ integration targets._
   `docs/product/CODER-ALPHA-NORTH-STAR.md` and
   `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md`. A fixture-backed bounded
   technical-acceptance pilot has run and passed
-  (`tests/integration/test_int_013_bounded_multi_project_pilot.py`, run
-  unskipped and passing during authorship, currently kept `pytest.mark.skip`
-  pending deliberate certification) but does not itself clear this
-  blocker.)
+  (`tests/integration/test_int_013_bounded_multi_project_pilot.py`, now run
+  unskipped on every CI invocation) but does not itself clear this
+  blocker. Note that unskipping it also means it no longer counts as
+  `extract_corroborating_facts()` corroborating evidence — that heuristic
+  only credits skip/xfail-marked files — so INT-013's
+  `evidence_completeness` is `INTENT_ONLY`, which is strictly more
+  conservative and leaves the item blocked either way.)
 
 ## AS-CORE-002 — Semantic domain model and source lifecycle hardening
 
