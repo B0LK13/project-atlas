@@ -2023,16 +2023,30 @@ def test_legacy_origination_node_is_denied_even_without_an_origination_store(
     assert excinfo.value.code == "MISSING_ORIGINATION_IDENTITY"
 
 
-def test_legacy_origination_node_becomes_leasable_again_after_a_fresh_scan(
+def test_legacy_origination_row_heals_through_a_real_second_scan(
     tmp_path: Path,
 ) -> None:
-    """The legacy refusal is a transient migration state, not a dead end.
+    """The legacy refusal is transient for a GENUINE UPGRADE -- proven by
+    actually performing one, not by asserting it.
 
-    Re-running the supported production scanner re-derives the item,
-    supersedes the legacy row, and materializes a fresh node that DOES
-    carry its origination identity -- which then leases normally. Proven
-    here so the fail-closed guard cannot be mistaken for permanently
-    stranding pre-existing work.
+    Independent verification (PR #678) correctly rejected the earlier
+    version of this test: it built an in-memory legacy node by stripping
+    a copy, then "recovered" by reading back the SAME durable row, which
+    had never lost its identity. It never mutated the store and never
+    re-ran the scanner, so it proved nothing about healing.
+
+    This version reproduces the real upgrade shape:
+
+    1. materialize through the production scanner;
+    2. rewrite the DURABLE row the way a pre-provenance Atlas would have
+       left it -- ``work_node`` with no ``origination_identity`` key, and
+       the row keyed under an OLD-FORMULA identity (the payload format
+       changed, so a genuine legacy row's identity never equals what the
+       current formula derives -- see ``identity.py``'s migration note);
+    3. prove the rehydrated legacy node is refused;
+    4. run a REAL second ``run_origination_scan()``;
+    5. prove it supersedes the legacy row and materializes a fresh,
+       provenance-carrying node that leases.
     """
     repo = _eligible_repo(tmp_path)
     _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
@@ -2042,45 +2056,73 @@ def test_legacy_origination_node_becomes_leasable_again_after_a_fresh_scan(
     origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
 
     node = _scan_and_load_node(repo, trust_store, origination_store)
-    legacy_payload = node.model_dump(mode="json")
-    del legacy_payload["origination_identity"]
-    legacy_node = WorkNode.model_validate(legacy_payload)
+    package_id = node.package_id
 
-    governor = AutonomousGovernor(
+    # Rewrite the DURABLE store into genuine pre-provenance shape: the row
+    # keyed under an old-formula identity, and a work_node with no
+    # origination_identity key at all.
+    legacy_identity = "1" * 64
+    store_file = origination_store / "origination.json"
+    raw = json.loads(store_file.read_text(encoding="utf-8"))
+    assert len(raw["records"]) == 1
+    row = raw["records"][0]
+    row["origination_identity"] = legacy_identity
+    del row["work_node"]["origination_identity"]
+    store_file.write_text(json.dumps(raw), encoding="utf-8")
+
+    legacy_node = next(
+        item
+        for item in list_materialized_work_nodes(origination_store)
+        if item.package_id == package_id
+    )
+    assert legacy_node.origination_identity is None  # genuinely stripped on disk
+    assert legacy_node.mutation_surface.semantic == ORIGINATION_SURFACE_SEMANTIC
+
+    trusted = load_runtime_anchor(store=trust_store)
+    blocked = AutonomousGovernor(
         current_main=main,
         current_tree=tree,
-        trusted_anchor=load_runtime_anchor(store=trust_store),
+        trusted_anchor=trusted,
         origination_projection_store=origination_store,
     )
-    governor.add_node(legacy_node)
-    governor.mark_ready(legacy_node.package_id)
-    with pytest.raises(GovernorError):
-        governor.lease(
-            legacy_node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
-        )
+    blocked.add_node(legacy_node)
+    blocked.mark_ready(package_id)
+    with pytest.raises(GovernorError) as excinfo:
+        blocked.lease(package_id, "governor-pilot-local", branch="feat/x", worktree="wt")
+    assert excinfo.value.code == "MISSING_ORIGINATION_IDENTITY"
 
-    # The recovery path: a fresh governor picks up the node that the
-    # production scan actually persisted -- which carries its identity.
+    # THE ACTUAL RECOVERY STEP the previous version omitted.
+    _, scan_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert scan_exit == 0
+
+    states = {
+        row.origination_identity: row.state
+        for row in load_projection(origination_store).records
+    }
+    assert states[legacy_identity] == "SUPERSEDED"  # legacy row retired, not deleted
+
+    healed = next(
+        item
+        for item in list_materialized_work_nodes(origination_store)
+        if item.package_id == package_id
+    )
+    assert healed.origination_identity is not None
+    assert healed.origination_identity != legacy_identity
+
     recovered = AutonomousGovernor(
         current_main=main,
         current_tree=tree,
-        trusted_anchor=load_runtime_anchor(store=trust_store),
+        trusted_anchor=trusted,
         origination_projection_store=origination_store,
     )
-    current_node = next(
-        item
-        for item in list_materialized_work_nodes(origination_store)
-        if item.package_id == legacy_node.package_id
-    )
-    assert current_node.origination_identity is not None
-    recovered.add_node(current_node)
-    recovered.mark_ready(current_node.package_id)
+    recovered.add_node(healed)
+    recovered.mark_ready(package_id)
     lease = recovered.lease(
-        current_node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+        package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
     )
-    assert lease.package_id == current_node.package_id
-
-
+    assert lease.package_id == package_id
 def test_identity_bearing_node_is_denied_when_no_currentness_store_is_available(
     tmp_path: Path,
 ) -> None:
@@ -2464,3 +2506,69 @@ def test_loop_still_leases_a_current_node_normally(tmp_path: Path) -> None:
     assert result.stop_reason != StopReason.HARD_BLOCKER
     assert result.stop_detail is None
     assert governor.snapshot().leases != ()
+
+
+def test_tampered_row_with_current_identity_but_no_provenance_does_not_heal(
+    tmp_path: Path,
+) -> None:
+    """The documented NON-healing counter-case, locked as executable truth.
+
+    Independent verification (PR #678) found that the recovery story holds
+    for a genuine upgrade but NOT for a row whose stored identity already
+    equals what the current formula derives while its ``work_node``
+    provenance has been stripped -- store tampering, not an upgrade.
+    ``reconcile_revision()`` takes its idempotent already-current fast
+    path, writes nothing, and the node stays refused.
+
+    That is the correct outcome for a tampered store (Atlas must not
+    invent provenance), but the docstrings must not call it self-healing,
+    and this test exists so that claim cannot silently drift back.
+    """
+    repo = _eligible_repo(tmp_path)
+    _write_contract(repo, proposed_scope="src/thing.py", success_criteria="K1: thing works")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    origination_store = repo / ORIGINATION_PROJECTION_RELATIVE_DEFAULT
+
+    node = _scan_and_load_node(repo, trust_store, origination_store)
+    package_id = node.package_id
+    current_identity = node.origination_identity
+
+    # Strip ONLY the node's provenance, leaving the row keyed under the
+    # identity the current formula still derives.
+    store_file = origination_store / "origination.json"
+    raw = json.loads(store_file.read_text(encoding="utf-8"))
+    del raw["records"][0]["work_node"]["origination_identity"]
+    store_file.write_text(json.dumps(raw), encoding="utf-8")
+
+    _, scan_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert scan_exit == 0
+
+    # The scan wrote nothing new: same single row, same identity, still
+    # provenance-less. No fabricated identity, no silent repair.
+    records = load_projection(origination_store).records
+    assert len(records) == 1
+    assert records[0].origination_identity == current_identity
+    assert "origination_identity" not in records[0].work_node
+
+    still_blocked = next(
+        item
+        for item in list_materialized_work_nodes(origination_store)
+        if item.package_id == package_id
+    )
+    assert still_blocked.origination_identity is None
+
+    governor = AutonomousGovernor(
+        current_main=main,
+        current_tree=tree,
+        trusted_anchor=load_runtime_anchor(store=trust_store),
+        origination_projection_store=origination_store,
+    )
+    governor.add_node(still_blocked)
+    governor.mark_ready(package_id)
+    with pytest.raises(GovernorError) as excinfo:
+        governor.lease(package_id, "governor-pilot-local", branch="feat/x", worktree="wt")
+    assert excinfo.value.code == "MISSING_ORIGINATION_IDENTITY"

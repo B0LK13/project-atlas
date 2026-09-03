@@ -419,11 +419,23 @@ class AutonomousGovernor:
           only producer, and has set that marker unchanged since the
           module was created, so historical rows carry it too). Its
           provenance is missing and therefore UNPROVABLE: fail closed
-          with `MISSING_ORIGINATION_IDENTITY`. Transient and
-          self-healing rather than a dead end -- the next
-          `run_origination_scan()` re-derives the item, supersedes the
-          legacy row, and materializes a fresh node that does carry an
-          identity.
+          with `MISSING_ORIGINATION_IDENTITY`.
+
+          Recovery, stated precisely rather than optimistically (an
+          earlier draft said simply "transient and self-healing", which
+          independent verification showed is only conditionally true):
+          a genuine UPGRADE does heal, because the identity formula
+          itself changed (see `identity.py`'s migration note), so the
+          next `run_origination_scan()` derives a DIFFERENT identity,
+          supersedes the legacy row, and materializes a fresh node that
+          carries provenance. What does NOT heal is a row whose stored
+          identity already equals what the CURRENT formula derives but
+          whose `work_node` provenance was stripped -- store tampering,
+          not an upgrade. There `reconcile_revision()` takes its
+          idempotent already-current fast path, writes nothing, and the
+          node stays refused until the source content actually changes.
+          That is the correct outcome for a tampered store, but it is
+          not self-healing and must not be described as such.
         - Any other semantic means the node is genuinely not
           origination-derived (`_pilot_node()` uses its own
           `ORCHESTRATION_AUTONOMY_CONTROL_PLANE`; tests build their
@@ -449,6 +461,19 @@ class AutonomousGovernor:
         lease is untouched. This runs only on the path that grants NEW
         authority; nothing here revokes, cancels, or reaches into a live
         lease.
+
+        Operational consequence, worth knowing before relying on this in
+        an unattended loop: a refusal here reaches
+        `AutonomousLoop._select_and_lease()` and stops the tick with
+        `HARD_BLOCKER`, which `_may_resume_from_no_eligible_work()`
+        deliberately never auto-resumes. That mechanism is pre-existing
+        (it already governed TARGET_MOVED / SURFACE_OVERLAP /
+        NODE_NOT_READY / DEPENDENCIES_NOT_SATISFIED) and this package does
+        not change it -- but these three codes add new, ordinary-operation
+        triggers for it. Independent verification confirmed that once a
+        node is blocked this way, REPAIRING the store does not by itself
+        release the loop: an operator must retire the stale loop state.
+        Fail-closed, but not self-clearing.
 
         With provenance present AND a store to check it against,
         everything else fails CLOSED through a single comparison:

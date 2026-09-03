@@ -36,18 +36,32 @@ interpretation this revision was derived from" without introducing a
 second, parallel identity concept that the existing supersession/
 freshness machinery would need to be separately taught to consult.
 
-Migration note: this widens what the hash covers, so upgrading changes
-the identity value computed for every item that has ever had a contract
-attached (items with no contract are unaffected in practice, since their
-scope/criteria are themselves a deterministic function of already-hashed
-evidence paths -- same inputs, same output). Any existing durably
-PROPOSED/MATERIALIZED row survives as history under its old identity; the
-next scan computes a new identity for the same logical work, supersedes
-the old row (never deletes it -- see ``reconcile_revision()``), and
-materializes fresh. That one-time supersede-and-rematerialize on upgrade
-is this system's own designed self-healing transition, not a special
-case -- exactly what a legitimate revision-identity change is supposed to
-produce.
+Migration note -- read before upgrading a store with in-flight work.
+This does NOT affect only items carrying an acceptance contract. The
+payload FORMAT itself changed (a ``::``-joined string became a canonical
+JSON object), so upgrading changes the identity computed for EVERY item,
+contract or not. An earlier draft of this note claimed contract-free
+items were "unaffected in practice"; that was wrong, and independent
+verification disproved it by comparing baseline and candidate on
+identical inputs.
+
+Two consequences, both fail-closed, neither silent:
+
+1. Every existing durably PROPOSED/MATERIALIZED row survives as history
+   under its old identity. The next scan computes a new identity for the
+   same logical work, supersedes the old row (never deletes it -- see
+   ``reconcile_revision()``), and materializes fresh. That one-time
+   supersede-and-rematerialize is this system's own designed transition,
+   not a special case.
+2. Because every package therefore acquires a second revision on that
+   first post-upgrade scan, ``projection.has_ever_had_multiple_
+   revisions()`` becomes true for all of them -- so loop state left
+   mid-flight ACROSS the upgrade (``LEASED`` / ``DISPATCHING`` /
+   ``AWAITING_RESULT``) is no longer rehydratable and fails closed with
+   ``REVISION_IDENTITY_UNVERIFIABLE``. That guard is deliberate: such a
+   lease cannot be proven to belong to the current revision. But it means
+   upgrading WHILE work is in flight strands that work until an operator
+   retires the stale loop state. Upgrade from a quiescent loop.
 """
 
 from __future__ import annotations
