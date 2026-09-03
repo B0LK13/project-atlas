@@ -1756,6 +1756,7 @@ def test_crash_recovery_of_a_leased_node_denies_promotion_once_its_revision_is_s
         current_tree=inventory.current_tree,
         trusted_anchor=trusted,
         lease_projection_store=lease_store,
+        origination_projection_store=origination_store,
     )
     node = next(
         n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
@@ -1904,6 +1905,7 @@ def test_crash_recovery_refuses_to_resume_a_leased_revision_that_was_swapped_for
         current_tree=inventory.current_tree,
         trusted_anchor=trusted,
         lease_projection_store=lease_store,
+        origination_projection_store=origination_store,
     )
     node_a = next(
         n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
@@ -1981,6 +1983,173 @@ def test_crash_recovery_refuses_to_resume_a_leased_revision_that_was_swapped_for
     )
     assert lease_row.status == "ACTIVE"
     assert lease_row.package_id == work_id
+
+
+def test_crash_recovery_refuses_to_resume_a_lease_whose_acceptance_contract_changed(
+    tmp_path: Path,
+) -> None:
+    """Owner directive D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE (source/
+    projection TOCTOU finding, chatgpt-codex-connector, PR #678): the
+    sibling test above (``...swapped_for_another``) proves this exact
+    restart-boundary guard already refuses a stale lease once the
+    ROADMAP ITEM's own bytes are revised. This proves the SAME guard now
+    ALSO covers the narrower, previously-invisible case: the roadmap item
+    is untouched, ONLY its acceptance contract's ``proposed_scope``
+    changes (see ``identity.py``'s widened ``origination_identity``).
+    Before that widening, this exact scenario's second scan would have
+    hit ``persist_proposed()``'s idempotent replay for the SAME identity
+    (the contract change was invisible to it), never produced a second
+    revision at all, and this restart-recovery guard would have had
+    nothing to trigger on -- crash recovery would have silently resumed
+    lease A's authority with no way to know a newer contract now
+    authorizes a different mutation surface.
+    """
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+    from project_atlas.orchestration.origination.cli import run_origination_scan
+    from project_atlas.orchestration.origination.projection import (
+        RELATIVE_DEFAULT as ORIGIN_RELATIVE_DEFAULT,
+    )
+    from project_atlas.orchestration.origination.projection import (
+        list_materialized_work_nodes,
+    )
+
+    repo = _make_repo(tmp_path)
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "REQUIREMENTS.md").write_text("# Requirements\nFR-1: do the thing.\n")
+    test_path = repo / "tests" / "test_feature_x.py"
+    test_path.parent.mkdir(parents=True, exist_ok=True)
+    test_path.write_text(
+        'import pytest\n\npytestmark = pytest.mark.skip(reason="not yet implemented")\n\n'
+        "def test_placeholder():\n    assert True\n"
+    )
+    roadmap = {
+        "roadmap_items": [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ]
+    }
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    (repo / "docs" / "acceptance-contracts.yaml").write_text(
+        "contracts:\n"
+        "  - item_id: feature-x\n"
+        "    source_path: docs/ROADMAP.md\n"
+        "    evidence: [docs/REQUIREMENTS.md]\n"
+        "    proposed_scope: [src/thing.py]\n"
+        "    success_criteria: ['K1: thing works']\n"
+    )
+    (repo / ".atlas-project.yaml").write_text(
+        "schema_version: 1\n"
+        "project:\n"
+        "  id: demo-project\n"
+        "origination_acceptance_contracts: docs/acceptance-contracts.yaml\n"
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "seed roadmap")
+    sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", sha)
+
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+    origination_store = repo / ORIGIN_RELATIVE_DEFAULT
+
+    scan_payload, scan_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert scan_exit == 0
+    assert scan_payload["materialized_count"] == 1
+    work_id = scan_payload["materialized"][0]["work_id"]  # type: ignore[index]
+
+    trusted = load_runtime_anchor(store=trust_store)
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+        origination_projection_store=origination_store,
+    )
+    node_a = next(
+        n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
+    )
+    governor.add_node(node_a)
+    governor.mark_ready(node_a.package_id)
+    lease = governor.lease(
+        node_a.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.LEASED,
+            "active_package_id": work_id,
+            "active_lease_id": lease.lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    # The roadmap item's own bytes are NEVER touched below -- only its
+    # acceptance contract's proposed_scope widens (S1 -> S2). Same
+    # base_pin, on purpose: proves this is not merely a base_pin
+    # staleness check, and not a roadmap-content check either.
+    (repo / "docs" / "acceptance-contracts.yaml").write_text(
+        "contracts:\n"
+        "  - item_id: feature-x\n"
+        "    source_path: docs/ROADMAP.md\n"
+        "    evidence: [docs/REQUIREMENTS.md]\n"
+        "    proposed_scope: [src/thing.py, src/extra.py]\n"
+        "    success_criteria: ['K1: thing works']\n"
+    )
+    second_scan, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+    assert second_scan["materialized_count"] == 1
+    second_entry = second_scan["materialized"][0]  # type: ignore[index]
+    assert second_entry["work_id"] == work_id  # same package_id/work_id -- a real revision swap
+    assert second_entry["superseded_prior_revisions"] != []
+
+    # Confirm the dangerous precondition is real: the current active
+    # WorkNode for this package_id genuinely authorizes a wider surface
+    # than what lease A was actually granted against.
+    active_now = next(
+        n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
+    )
+    assert set(active_now.mutation_surface.paths) != set(node_a.mutation_surface.paths)
+
+    # Simulated crash: a fresh governor recovering LEASED state for A's
+    # lease. Must refuse -- never resume against the widened-scope B.
+    fresh = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    with pytest.raises(RehydrationError) as excinfo:
+        rehydrate_governor(
+            fresh,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=loop_store,
+            lease_projection_store=lease_store,
+            origination_projection_store=origination_store,
+        )
+    assert excinfo.value.code == "REVISION_IDENTITY_UNVERIFIABLE"
+    assert fresh.snapshot().nodes == ()
 
 
 def test_dispatching_phase_recovery_also_refuses_a_swapped_revision(tmp_path: Path) -> None:
@@ -2062,6 +2231,7 @@ def test_dispatching_phase_recovery_also_refuses_a_swapped_revision(tmp_path: Pa
         current_tree=inventory.current_tree,
         trusted_anchor=trusted,
         lease_projection_store=lease_store,
+        origination_projection_store=origination_store,
     )
     node_a = next(
         n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id

@@ -162,6 +162,17 @@ def _lease_origination_node(
         current_tree=inventory.current_tree,
         trusted_anchor=trusted,
         lease_projection_store=lease_store,
+        # Wired exactly like the real production tick
+        # (`autonomy/cli.py::run_governor_loop_tick`), which is what this
+        # Process-A helper stands in for. Leasing an origination-derived
+        # node requires proving its revision is still current, and a
+        # governor with no origination projection cannot prove that
+        # (owner directive
+        # D-ATLAS-PR678-UNWIRED-GOVERNOR-FAIL-CLOSED-FINAL: failure to
+        # verify is not permission to execute). The node materialized
+        # just above IS the current revision in this same store, so the
+        # check passes on its own merits here -- it is not bypassed.
+        origination_projection_store=origination_store,
     )
     governor.add_node(node)
     governor.mark_ready(node.package_id)

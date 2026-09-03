@@ -737,3 +737,390 @@ def test_list_materialized_work_nodes_contract_missing_vs_ambiguous(tmp_path: Pa
         raise AssertionError("expected OriginationProjectionError")
     except OriginationProjectionError as exc:
         assert exc.code == "AMBIGUOUS_ACTIVE_REVISION"
+
+
+def test_reconcile_revision_denies_a_stale_source_snapshot_and_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    """Independent-verification finding F2 on PR #677: ``reconcile_
+    revision()`` alone is last-caller-wins -- a scan stalled across a
+    source edit could replay a reconciliation derived from a STALE
+    snapshot and dethrone the genuinely newer revision (empirically
+    reproduced pre-fix: final states v2=SUPERSEDED, v1=MATERIALIZED,
+    with the stale revision served as the sole rehydratable authority
+    until the next fresh scan). With the production checker
+    (``cli._source_identity_still_current``, run INSIDE the reconcile
+    lock exactly as ``run_origination_scan()`` now passes it), the stale
+    replay is denied with ``STALE_SOURCE_SNAPSHOT`` before anything is
+    superseded or materialized -- the store is byte-identical after the
+    denial -- while a genuine source REVERT back to the old revision's
+    exact content (same ``origination_identity``, but genuinely current
+    again) still reconciles, preserving owner gate (d)'s verified revert
+    semantics for an identity that never itself materialized. (An
+    identity that DID once materialize and was then superseded is a
+    different case: ``IDENTITY_ALREADY_RESOLVED`` permanently refuses it
+    -- owner directive §4, see
+    ``test_reconcile_revision_never_resurrects_a_permanently_resolved_
+    identity`` above. Here v1's stale replay was denied before any
+    ``work_node`` ever attached, so its revert is a legitimate
+    first-time materialization of a genuinely current identity.)"""
+    from functools import partial
+
+    import pytest
+
+    from project_atlas.orchestration.origination.cli import _source_identity_still_current
+
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    # The soon-to-stall scan takes its source snapshot at revision v1.
+    outcomes_v1 = originate_all(repo, "demo-project")
+    proposal_v1, policy_v1 = outcomes_v1[0].proposal, outcomes_v1[0].policy
+
+    # Source truth is edited to v2; a FRESH scan reconciles v2 first,
+    # through the same checker production now always passes.
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X v2 (current truth)",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ],
+    )
+    outcomes_v2 = originate_all(repo, "demo-project")
+    proposal_v2, policy_v2 = outcomes_v2[0].proposal, outcomes_v2[0].policy
+    assert proposal_v2.origination_identity != proposal_v1.origination_identity
+    assert proposal_v2.work_id == proposal_v1.work_id
+    persist_proposed(store, proposal_v2, policy_v2)
+    classification_v2 = classify_risk(
+        proposed_scope=proposal_v2.proposed_scope,
+        success_criteria=proposal_v2.success_criteria,
+    )
+    node_v2 = materialize_work_node(
+        proposal_v2, classification_v2, base_pin=main, surface_id=f"{proposal_v2.project_id}-x"
+    )
+    current = reconcile_revision(
+        store,
+        origination_identity=proposal_v2.origination_identity,
+        package_id=proposal_v2.work_id,
+        work_node=node_v2,
+        still_current=partial(
+            _source_identity_still_current,
+            repo,
+            "demo-project",
+            proposal_v2.origination_identity,
+        ),
+    )
+    assert current.materialized is not None  # current truth passes the checker
+
+    # The stalled scan resumes and replays its v1-derived reconciliation
+    # -- the exact production call shape, checker included.
+    persist_proposed(store, proposal_v1, policy_v1)
+    classification_v1 = classify_risk(
+        proposed_scope=proposal_v1.proposed_scope,
+        success_criteria=proposal_v1.success_criteria,
+    )
+    node_v1 = materialize_work_node(
+        proposal_v1, classification_v1, base_pin=main, surface_id=f"{proposal_v1.project_id}-x"
+    )
+    before = (store / PROJECTION_NAME).read_bytes()
+    with pytest.raises(OriginationProjectionError) as excinfo:
+        reconcile_revision(
+            store,
+            origination_identity=proposal_v1.origination_identity,
+            package_id=proposal_v1.work_id,
+            work_node=node_v1,
+            still_current=partial(
+                _source_identity_still_current,
+                repo,
+                "demo-project",
+                proposal_v1.origination_identity,
+            ),
+        )
+    assert excinfo.value.code == "STALE_SOURCE_SNAPSHOT"
+    # Fail closed to a no-op: byte-identical store, v2 still the sole
+    # active revision, nothing superseded, nothing resurrected.
+    assert (store / PROJECTION_NAME).read_bytes() == before
+    states = {r.origination_identity: r.state for r in load_projection(store).records}
+    assert states[proposal_v2.origination_identity] == "MATERIALIZED"
+    assert states[proposal_v1.origination_identity] == "PROPOSED"
+    active = list_materialized_work_nodes(store)
+    assert len(active) == 1
+
+    # Genuine revert: source truth goes BACK to v1's exact content --
+    # v1's identity is current again, and the same checker now passes.
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ],
+    )
+    reverted = reconcile_revision(
+        store,
+        origination_identity=proposal_v1.origination_identity,
+        package_id=proposal_v1.work_id,
+        work_node=node_v1,
+        still_current=partial(
+            _source_identity_still_current,
+            repo,
+            "demo-project",
+            proposal_v1.origination_identity,
+        ),
+    )
+    assert reverted.materialized is not None
+    assert [row.origination_identity for row in reverted.superseded] == [
+        proposal_v2.origination_identity
+    ]
+
+
+def test_reconcile_revision_still_current_false_denies_before_any_write(tmp_path: Path) -> None:
+    """Unit-level, primitive-only proof (independent of ``cli.py``'s own
+    real checker): ``reconcile_revision(still_current=...)`` returning
+    ``False`` must deny with ``STALE_SOURCE_SNAPSHOT`` and leave the
+    store completely unchanged -- checked directly against the
+    ``reconcile_revision()`` contract itself, not through a real scan.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal, policy = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal, policy)
+    classification = classify_risk(
+        proposed_scope=proposal.proposed_scope, success_criteria=proposal.success_criteria
+    )
+    node = materialize_work_node(
+        proposal, classification, base_pin=main, surface_id=f"{proposal.project_id}-a"
+    )
+
+    before = load_projection(store)
+    try:
+        reconcile_revision(
+            store,
+            origination_identity=proposal.origination_identity,
+            package_id=proposal.work_id,
+            work_node=node,
+            still_current=lambda: False,
+        )
+        raise AssertionError("expected OriginationProjectionError")
+    except OriginationProjectionError as exc:
+        assert exc.code == "STALE_SOURCE_SNAPSHOT"
+
+    after = load_projection(store)
+    assert before == after
+    assert list_materialized_work_nodes(store) == ()
+
+
+def test_reconcile_revision_still_current_raising_denies_before_any_write(
+    tmp_path: Path,
+) -> None:
+    """Independent-IV finding on PR #678 (also independently flagged by
+    an automated review on the same PR): a ``still_current`` callback
+    that *raises* -- rather than cleanly returning ``False`` -- must be
+    treated exactly like ``False`` (unverifiable is stale, not a crash).
+    Before the fix, ``reconcile_revision()`` only guarded the boolean
+    case (``not still_current()``); an exception from the callback
+    propagated straight out of the locked critical section instead of
+    denying with ``STALE_SOURCE_SNAPSHOT``, contradicting this
+    function's own documented contract. Proven at the primitive level,
+    independent of ``cli.py``'s own real checker (which happened to be
+    safe only because it had its own separate try/except).
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal, policy = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal, policy)
+    classification = classify_risk(
+        proposed_scope=proposal.proposed_scope, success_criteria=proposal.success_criteria
+    )
+    node = materialize_work_node(
+        proposal, classification, base_pin=main, surface_id=f"{proposal.project_id}-a"
+    )
+
+    before = load_projection(store)
+
+    def _raises() -> bool:
+        raise RuntimeError("source tree unreadable mid-scan")
+
+    try:
+        reconcile_revision(
+            store,
+            origination_identity=proposal.origination_identity,
+            package_id=proposal.work_id,
+            work_node=node,
+            still_current=_raises,
+        )
+        raise AssertionError("expected OriginationProjectionError")
+    except OriginationProjectionError as exc:
+        assert exc.code == "STALE_SOURCE_SNAPSHOT"
+
+    after = load_projection(store)
+    assert before == after
+    assert list_materialized_work_nodes(store) == ()
+
+
+def test_reconcile_revision_still_current_callback_never_consulted_on_idempotent_or_permanent_paths(
+    tmp_path: Path,
+) -> None:
+    """The ``still_current`` callback is documented to be skipped on the
+    two no-op paths (idempotent replay, permanent ``IDENTITY_ALREADY_
+    RESOLVED`` refusal) since neither writes anything -- verified
+    directly by supplying a callback that raises if ever called, proving
+    it genuinely never runs on those paths (not merely "returns True by
+    coincidence" in the shipped test above).
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    def _boom() -> bool:
+        raise AssertionError("still_current must not be consulted on this path")
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal_a, policy_a = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal_a, policy_a)
+    classification = classify_risk(
+        proposed_scope=proposal_a.proposed_scope, success_criteria=proposal_a.success_criteria
+    )
+    node_a = materialize_work_node(
+        proposal_a, classification, base_pin=main, surface_id=f"{proposal_a.project_id}-a"
+    )
+    first = reconcile_revision(
+        store,
+        origination_identity=proposal_a.origination_identity,
+        package_id=proposal_a.work_id,
+        work_node=node_a,
+        still_current=None,
+    )
+    assert first.materialized is not None
+
+    # Idempotent replay: must not consult _boom.
+    replay = reconcile_revision(
+        store,
+        origination_identity=proposal_a.origination_identity,
+        package_id=proposal_a.work_id,
+        work_node=node_a,
+        still_current=_boom,
+    )
+    assert replay.already_current is True
+
+    # Supersede A with B, then attempt to resurrect A -- IDENTITY_ALREADY_
+    # RESOLVED must fire before _boom is ever consulted.
+    proposal_b = proposal_a.model_copy(
+        update={"origination_identity": "3" * 64, "blockers": ("EXTERNAL_BLOCKED: x",)}
+    )
+    persist_proposed(store, proposal_b, policy_a)
+    reconcile_revision(
+        store,
+        origination_identity=proposal_b.origination_identity,
+        package_id=proposal_b.work_id,
+        work_node=None,
+        still_current=None,
+    )
+    try:
+        reconcile_revision(
+            store,
+            origination_identity=proposal_a.origination_identity,
+            package_id=proposal_a.work_id,
+            work_node=node_a,
+            still_current=_boom,
+        )
+        raise AssertionError("expected OriginationProjectionError")
+    except OriginationProjectionError as exc:
+        assert exc.code == "IDENTITY_ALREADY_RESOLVED"
+
+
+def test_reconcile_revision_still_current_closes_the_toctou_race_under_real_threads(
+    tmp_path: Path,
+) -> None:
+    """Real multi-threaded race, `still_current` included on both sides:
+    a "stale" reconcile (whose checker always returns ``False``, as a
+    genuinely-stale snapshot's would) races against a "current" one
+    (whose checker always returns ``True``) for the SAME package_id,
+    ``Barrier``-synchronized to maximize actual lock contention. The
+    stale side must NEVER win, regardless of thread scheduling order --
+    proving the checker's own denial is enforced INSIDE the lock, not
+    racily checked-then-written.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal_a, policy_a = outcomes[0].proposal, outcomes[0].policy
+    classification = classify_risk(
+        proposed_scope=proposal_a.proposed_scope, success_criteria=proposal_a.success_criteria
+    )
+    node_stale = materialize_work_node(
+        proposal_a, classification, base_pin=main, surface_id=f"{proposal_a.project_id}-stale"
+    )
+    proposal_current = proposal_a.model_copy(update={"origination_identity": "4" * 64})
+    node_current = materialize_work_node(
+        proposal_current,
+        classification,
+        base_pin=main,
+        surface_id=f"{proposal_a.project_id}-current",
+    )
+    persist_proposed(store, proposal_a, policy_a)
+    persist_proposed(store, proposal_current, policy_a)
+
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+    results: dict[str, object] = {}
+
+    def _race(label: str, identity: str, node: object, current: bool) -> None:
+        try:
+            barrier.wait()
+            try:
+                outcome = reconcile_revision(
+                    store,
+                    origination_identity=identity,
+                    package_id=proposal_a.work_id,
+                    work_node=node,  # type: ignore[arg-type]
+                    still_current=lambda c=current: c,
+                )
+                results[label] = ("ok", outcome)
+            except OriginationProjectionError as exc:
+                results[label] = ("denied", exc.code)
+        except BaseException as exc:
+            errors.append(exc)
+
+    t_stale = threading.Thread(
+        target=_race, args=("stale", proposal_a.origination_identity, node_stale, False)
+    )
+    t_current = threading.Thread(
+        target=_race,
+        args=("current", proposal_current.origination_identity, node_current, True),
+    )
+    t_stale.start()
+    t_current.start()
+    t_stale.join(timeout=10)
+    t_current.join(timeout=10)
+    assert not t_stale.is_alive()
+    assert not t_current.is_alive()
+    assert errors == []
+
+    # The stale side must always be denied -- regardless of which thread
+    # the OS scheduled first, `still_current` is checked fresh for each
+    # call, immediately before that call's own write, inside the lock.
+    assert results["stale"] == ("denied", "STALE_SOURCE_SNAPSHOT")
+    assert results["current"][0] == "ok"
+
+    active = list_materialized_work_nodes(store)
+    assert len(active) == 1
+    assert active[0].mutation_surface.surface_id == f"{proposal_a.project_id}-current"

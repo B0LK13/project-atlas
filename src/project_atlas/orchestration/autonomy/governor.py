@@ -20,6 +20,7 @@ from project_atlas.orchestration.autonomy.models import (
     AUTONOMY_PACKAGE_ID,
     BOOTSTRAP_MAIN,
     BOOTSTRAP_TREE,
+    ORIGINATION_SURFACE_SEMANTIC,
     PILOT_PACKAGE_ID,
     AgentCapability,
     AgentLease,
@@ -114,9 +115,36 @@ class AutonomousGovernor:
         trusted_anchor: TrustedAnchorRecord,
         agents: tuple[AgentRecord, ...] = DEFAULT_AGENTS,
         lease_projection_store: Path | None = None,
+        origination_projection_store: Path | None = None,
     ) -> None:
         self._trusted = trusted_anchor
         self._lease_projection_store = lease_projection_store
+        # Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE
+        # §8: the ONLY origination dependency this governor takes -- a
+        # path to the durable projection whose current-revision state
+        # `lease()` consults before granting NEW execution authority to
+        # an origination-derived node. Deliberately NOT a project root:
+        # the governor never rescans project sources, never re-derives
+        # anything, and never decides what current truth IS. Origination
+        # reconciles truth; the governor only refuses authority when a
+        # node's provenance no longer matches what was already
+        # reconciled.
+        #
+        # `None` (the default) is NOT "skip the check". A node that
+        # CLAIMS an origination revision but cannot be verified against
+        # one is denied a new lease outright
+        # (`ORIGINATION_AUTHORITY_UNAVAILABLE` -- see
+        # `_require_current_origination_authority()`). Leaving this unset
+        # is therefore safe-but-restrictive, never permissive: failure to
+        # verify must not expand authority.
+        #
+        # Nodes that are not origination-derived are unaffected either
+        # way, so the pilot-only entry points legitimately do not wire it
+        # (a pilot node carries no `origination_identity`). The real
+        # production tick (`autonomy/cli.py::run_governor_loop_tick`)
+        # does wire it, which is what keeps origination-derived work
+        # leasable there.
+        self._origination_projection_store = origination_projection_store
         target_moved = evaluate_target_moved(current_main, current_tree, trusted_anchor)
         self._nodes: list[WorkNode] = []
         self._agents = list(agents)
@@ -354,6 +382,159 @@ class AutonomousGovernor:
     def mark_ready(self, package_id: str) -> TransitionRecord:
         return self.transition(package_id, NodeState.READY, "GOVERNOR_MARK_READY")
 
+    def _require_current_origination_authority(self, node: WorkNode) -> None:
+        """Refuse a NEW lease for an origination-derived node whose
+        origination revision is no longer the current one (owner
+        directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE §6).
+
+        The gap this closes: `rehydration.py` already refuses to RESUME
+        a durably-leased node across a process restart once its
+        package_id has been revised
+        (`has_ever_had_multiple_revisions()`), but nothing protected a
+        node inside a single LONG-LIVED governor. `_originate()`'s
+        discovery pass skips any package_id already known to this
+        governor, so a node that reached READY under revision A and then
+        sat unleased while a scan superseded it with revision B was
+        never refreshed or evicted -- and `lease()` had no field to
+        notice, because a `WorkNode` carried no origination provenance
+        at all. It does now (`WorkNode.origination_identity`), so this
+        is the check that field exists for.
+
+        Deliberately NOT dependent on base_pin drift, main movement, or
+        a process restart: a contract-only revision changes none of
+        those, and that is exactly the case that previously slipped
+        through.
+
+        A MISSING `origination_identity` is deliberately NOT read as
+        "this node needs no provenance". That would turn an additive,
+        optional field into a fail-OPEN migration: an origination-derived
+        node persisted before the field existed is exactly what
+        `list_materialized_work_nodes()` rehydrates and `_originate()`
+        marks READY, and it deserializes with `None` -- so it would skip
+        precisely the check this method exists to apply. Absence is
+        therefore split by what the node itself already records:
+
+        - `mutation_surface.semantic == ORIGINATION_SURFACE_SEMANTIC`
+          means origination BUILT this node (`materialize.py` is its
+          only producer, and has set that marker unchanged since the
+          module was created, so historical rows carry it too). Its
+          provenance is missing and therefore UNPROVABLE: fail closed
+          with `MISSING_ORIGINATION_IDENTITY`.
+
+          Recovery, stated precisely rather than optimistically (an
+          earlier draft said simply "transient and self-healing", which
+          independent verification showed is only conditionally true):
+          a genuine UPGRADE does heal, because the identity formula
+          itself changed (see `identity.py`'s migration note), so the
+          next `run_origination_scan()` derives a DIFFERENT identity,
+          supersedes the legacy row, and materializes a fresh node that
+          carries provenance. What does NOT heal is a row whose stored
+          identity already equals what the CURRENT formula derives but
+          whose `work_node` provenance was stripped -- store tampering,
+          not an upgrade. There `run_origination_scan()` short-circuits
+          at its already-materialized AS-IS branch (origination/cli.py)
+          and never reaches `reconcile_revision()` at all, so nothing is
+          written and the node stays refused until the source content
+          actually changes. (An earlier draft of this note named
+          `reconcile_revision()`'s idempotent fast path as the mechanism;
+          independent verification instrumented the scan and showed
+          `reconcile_revision()` is called zero times. The outcome was
+          right, the mechanism named was not.)
+          That is the correct outcome for a tampered store, but it is
+          not self-healing and must not be described as such.
+        - Any other semantic means the node is genuinely not
+          origination-derived (`_pilot_node()` uses its own
+          `ORCHESTRATION_AUTONOMY_CONTROL_PLANE`; tests build their
+          own). It is not governed by origination freshness at all and
+          leases exactly as it did before this check existed -- no
+          sentinel identity is invented for it, and no projection row
+          has to exist on its behalf.
+
+        A node whose provenance IS present makes a positive claim -- "I
+        was created from origination revision X" -- and that claim must
+        be PROVEN current before it earns new authority. If this governor
+        has no origination store, that proof is simply unavailable, and
+        unavailable verification is NOT permission: deny with
+        `ORIGINATION_AUTHORITY_UNAVAILABLE`, deliberately distinct from
+        `STALE_ORIGINATION_IDENTITY` (which means current authority WAS
+        established and differs). The real production tick does wire the
+        store, but that is evidence about today's callers, not an
+        invariant -- `add_node()`/`lease()` are public, and a future
+        integration, harness, or refactor that forgets the dependency
+        must never thereby widen what can be leased.
+
+        One remaining non-case, which does not deny: an ALREADY-granted
+        lease is untouched. This runs only on the path that grants NEW
+        authority; nothing here revokes, cancels, or reaches into a live
+        lease.
+
+        Operational consequence, worth knowing before relying on this in
+        an unattended loop: a refusal here reaches
+        `AutonomousLoop._select_and_lease()` and stops the tick with
+        `HARD_BLOCKER`, which `_may_resume_from_no_eligible_work()`
+        deliberately never auto-resumes. That mechanism is pre-existing
+        (it already governed TARGET_MOVED / SURFACE_OVERLAP /
+        NODE_NOT_READY / DEPENDENCIES_NOT_SATISFIED) and this package does
+        not change it -- but these three codes add new, ordinary-operation
+        triggers for it. Independent verification confirmed that once a
+        node is blocked this way, REPAIRING the store does not by itself
+        release the loop: an operator must retire the stale loop state.
+        Fail-closed, but not self-clearing.
+
+        With provenance present AND a store to check it against,
+        everything else fails CLOSED through a single comparison:
+        `current_origination_identity()` returns `None` for "no current
+        revision", "ambiguous/corrupt store", and "unreadable store"
+        alike, so each is a mismatch and therefore a denial, without this
+        method having to distinguish or catch them.
+
+        Identity matching is NECESSARY, never sufficient: a match falls
+        straight through to every pre-existing gate (dependencies,
+        owner gate, surface overlap) unchanged. This is not an
+        authorization token.
+        """
+        if node.origination_identity is None:
+            if node.mutation_surface.semantic == ORIGINATION_SURFACE_SEMANTIC:
+                raise GovernorError(
+                    f"node {node.package_id!r} was built by origination "
+                    f"(mutation surface {ORIGINATION_SURFACE_SEMANTIC}) but carries "
+                    "no origination_identity -- its authority provenance predates "
+                    "that field and cannot be proven current, so it must not "
+                    "receive a new lease; re-run an origination scan to supersede "
+                    "this legacy revision and materialize a fresh, provable one",
+                    code="MISSING_ORIGINATION_IDENTITY",
+                )
+            return
+        store = self._origination_projection_store
+        if store is None:
+            raise GovernorError(
+                f"node {node.package_id!r} claims origination revision "
+                f"{node.origination_identity!r}, but this governor has no "
+                "origination projection to verify that claim against -- refusing "
+                "to grant a new lease on unverifiable authority (failure to verify "
+                "is not permission to execute)",
+                code="ORIGINATION_AUTHORITY_UNAVAILABLE",
+            )
+        # Local import: `origination.projection` imports this package's
+        # own `models`/`lease_projection`, so a module-level import here
+        # would be circular. Same reason `rehydration.py` imports that
+        # module inside its functions.
+        from project_atlas.orchestration.origination.projection import (
+            current_origination_identity,
+        )
+
+        current = current_origination_identity(store, node.package_id)
+        if current != node.origination_identity:
+            raise GovernorError(
+                f"node {node.package_id!r} was materialized from origination "
+                f"revision {node.origination_identity!r}, which is no longer the "
+                f"current authoritative revision for this work "
+                f"(current: {current!r}) -- refusing to grant NEW execution "
+                f"authority to a superseded, ambiguous, or no-longer-present "
+                f"origination revision",
+                code="STALE_ORIGINATION_IDENTITY",
+            )
+
     def lease(
         self,
         package_id: str,
@@ -369,6 +550,7 @@ class AutonomousGovernor:
         node = self._require_node(package_id)
         if node.state != NodeState.READY:
             raise GovernorError("node is not READY", code="NODE_NOT_READY")
+        self._require_current_origination_authority(node)
         # D-PHASE2A-1a: WorkNode.dependencies was accepted and stored by
         # every layer (adapter, policy, materialize) but never actually
         # enforced at the one place that grants real execution access --

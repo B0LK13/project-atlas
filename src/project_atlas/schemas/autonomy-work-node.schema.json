@@ -100,7 +100,12 @@
     },
     "destructive": { "const": false },
     "merge_authorized": { "const": false },
-    "execution_authorized": { "const": false }
+    "execution_authorized": { "const": false },
+    "origination_identity": {
+      "description": "Provenance only: which origination revision created this node. Never an authority token. Null for nodes that are not origination-derived. Deliberately NOT in required, so a node persisted before this field existed stays valid.",
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    }
   },
   "$defs": {
     "surface": {

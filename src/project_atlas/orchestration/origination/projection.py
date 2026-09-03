@@ -20,7 +20,7 @@ authority once a node is added.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Final, Literal
 
@@ -157,6 +157,47 @@ def find_materialized_work_node(store: Path, package_id: str) -> WorkNode | None
         # fail closed to None rather than propagate a raw pydantic
         # error out of a function documented to never raise.
         return None
+
+
+def current_origination_identity(store: Path, package_id: str) -> str | None:
+    """The ``origination_identity`` of the ONE currently-active
+    materialized record for ``package_id`` -- the narrow currentness
+    lookup ``governor.lease()`` uses to refuse a stale node (owner
+    directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE §6/§8).
+
+    Returns ``None`` -- never raises -- when there is no such record, the
+    store is unreadable/absent, or MORE THAN ONE active row claims this
+    ``package_id``. Ambiguity is not authority, exactly as
+    ``find_materialized_work_node()`` above already treats it: a caller
+    comparing its node's own provenance against this value therefore
+    fails CLOSED on every one of "no current revision", "a different
+    current revision", "corrupt/ambiguous store", and "unreadable
+    store", without needing to distinguish them at the call site or
+    catch anything.
+
+    Deliberately returns the identity STRING rather than the record or
+    the node: the governor needs exactly one question answered ("is my
+    node's origination revision still the current one for this work?")
+    and giving it any more than that would hand the execution layer a
+    reason to start interpreting origination state itself. Deriving and
+    reconciling project truth stays entirely in this package; the
+    governor only refuses execution authority when provenance no longer
+    matches what this package already reconciled.
+    """
+    try:
+        projection = load_projection(store)
+    except OriginationProjectionError:
+        return None
+    matches = tuple(
+        row
+        for row in projection.records
+        if row.state not in _INACTIVE_STATES
+        and row.work_node is not None
+        and row.work_node.get("package_id") == package_id
+    )
+    if len(matches) != 1:
+        return None
+    return matches[0].origination_identity
 
 
 def has_ever_had_multiple_revisions(store: Path, package_id: str) -> bool:
@@ -393,6 +434,7 @@ def reconcile_revision(
     package_id: str,
     work_node: WorkNode | None,
     state: RecordState = "MATERIALIZED",
+    still_current: Callable[[], bool] | None = None,
 ) -> ReconciliationOutcome:
     """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
     D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION): the one
@@ -465,6 +507,25 @@ def reconcile_revision(
     ``IDENTITY_ALREADY_RESOLVED`` in that case -- the idempotent-replay
     fast path above only ever applies to a row that is CURRENTLY active.
 
+    ``still_current`` (independent-verification finding F2 on PR #677):
+    this call is otherwise last-caller-wins -- a delayed scan still
+    holding a STALE source snapshot could replay an older revision's
+    reconcile and dethrone the genuinely newer one (transient, but until
+    the next fresh scan the stale revision would be the sole durably
+    rehydratable authority). When provided, the callback is invoked
+    INSIDE this same lock, immediately before any write: it must return
+    ``True`` only if ``origination_identity`` is still derivable from
+    CURRENT source truth (the caller re-reads the authoritative source
+    to decide -- see ``run_origination_scan()``). ``False`` fails closed
+    with ``STALE_SOURCE_SNAPSHOT`` before anything is superseded or
+    materialized -- a no-op on the store; the caller reports the denial
+    as a per-item receipt. The callback must not raise (make it return
+    ``False`` on any of its own failures: unverifiable is stale). It is
+    deliberately NOT consulted on the idempotent already-current replay
+    above (nor on the permanent ``IDENTITY_ALREADY_RESOLVED`` refusal) --
+    both write nothing. ``None`` (the default) preserves the prior
+    behavior byte-for-byte for direct callers.
+
     Everything above happens inside ONE ``ProjectIdentityLock`` critical
     section -- there is no window where a crash could leave the store
     with the old revision superseded but the new one not yet reflected
@@ -524,6 +585,43 @@ def reconcile_revision(
                     "exact same evidence is proposed again",
                     code="IDENTITY_ALREADY_RESOLVED",
                 )
+
+            if still_current is not None:
+                # Independent-IV finding (PR #678, MEDIUM -- also
+                # independently flagged by an automated review on this
+                # same PR): the docstring above promises "the callback
+                # must not raise (make it return False on any of its own
+                # failures: unverifiable is stale)", but that promise was
+                # previously only honored by the one real caller
+                # (`_source_identity_still_current()`'s own internal
+                # try/except) -- nothing in THIS function actually
+                # enforced it. A future caller that trusted the
+                # documented contract literally would get an unhandled
+                # exception propagating out of a locked critical section
+                # instead of a clean STALE_SOURCE_SNAPSHOT refusal. Fixed
+                # by enforcing the contract here, at the one place that
+                # can actually guarantee it: any exception from
+                # `still_current()` is treated exactly like a `False`
+                # return -- unverifiable evidence is stale evidence,
+                # never "trust and proceed".
+                try:
+                    current_ok = still_current()
+                except Exception:  # unverifiable is stale, not a crash
+                    current_ok = False
+                if not current_ok:
+                    # IV F2 (PR #677): the caller's evidence no longer
+                    # matches current source truth -- a stale snapshot
+                    # must never supersede (or materialize over) the
+                    # revision derived from newer truth. Nothing has been
+                    # written yet; deny everything this call would have
+                    # done.
+                    raise OriginationProjectionError(
+                        f"origination_identity {origination_identity!r} is no "
+                        f"longer derivable from current source truth -- refusing "
+                        f"a stale-snapshot reconcile for package_id "
+                        f"{package_id!r}; superseding and materializing nothing",
+                        code="STALE_SOURCE_SNAPSHOT",
+                    )
 
             others = [
                 row

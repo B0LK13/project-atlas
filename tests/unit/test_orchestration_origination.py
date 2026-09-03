@@ -190,7 +190,12 @@ def test_conflicting_requirements_fail_closed_at_policy_gate() -> None:
         authority_class=AuthorityClass.AUTHORITATIVE,
         evidence_completeness=EvidenceCompleteness.COMPLETE,
         provenance=Provenance(adapter_version="test", consulted_digests=(fact.content_digest,)),
-        origination_identity=identity.origination_identity("demo-project", fact),
+        origination_identity=identity.origination_identity(
+            "demo-project",
+            fact,
+            proposed_scope=("src/",),
+            success_criteria=("Implement X",),
+        ),
     )
     result = policy.evaluate(proposal)
     assert result.execution_ready is False
@@ -909,7 +914,12 @@ def test_materialize_owner_held_sets_owner_gate() -> None:
         authority_class=AuthorityClass.AUTHORITATIVE,
         evidence_completeness=EvidenceCompleteness.INTENT_ONLY,
         provenance=Provenance(adapter_version="test", consulted_digests=(fact.content_digest,)),
-        origination_identity=identity.origination_identity("demo-project", fact),
+        origination_identity=identity.origination_identity(
+            "demo-project",
+            fact,
+            proposed_scope=(".env",),
+            success_criteria=("do it",),
+        ),
     )
     node = materialize.materialize_work_node(
         proposal, classification, base_pin="a" * 40, surface_id="demo-project-x"
@@ -932,10 +942,47 @@ def test_identity_is_stable_for_identical_inputs() -> None:
         subject_id="x",
         subject_digest=_digest("item-x"),
     )
-    a = identity.origination_identity("demo-project", fact)
-    b = identity.origination_identity("demo-project", fact)
+    a = identity.origination_identity(
+        "demo-project", fact, proposed_scope=("src/",), success_criteria=("done",)
+    )
+    b = identity.origination_identity(
+        "demo-project", fact, proposed_scope=("src/",), success_criteria=("done",)
+    )
     assert a == b
     assert len(a) == 64
+
+
+def test_identity_changes_when_authority_bearing_fields_change() -> None:
+    """Owner directive D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE (P1 finding,
+    PR #678): the roadmap item's own bytes (``fact``) can stay byte-
+    identical while an attached acceptance contract revises
+    ``proposed_scope`` / ``success_criteria`` -- the WorkNode's entire
+    authority-bearing surface downstream of the item. The identity must
+    move when either does, or a contract-only edit would be invisible to
+    every consumer keyed on ``origination_identity``
+    (``projection.py::persist_proposed()`` / ``reconcile_revision()``,
+    ``pipeline.py::originate_new_only()``'s TERMINAL filter)."""
+    fact = SourceFact(
+        kind=SourceFactKind.AUTHORITATIVE_ROADMAP_ITEM,
+        project_id="demo-project",
+        location="docs/ROADMAP.md",
+        content_digest=_digest("same content"),
+        excerpt="id=x",
+        subject_id="x",
+        subject_digest=_digest("item-x"),
+    )
+    base = identity.origination_identity(
+        "demo-project", fact, proposed_scope=("src/a.py",), success_criteria=("K1",)
+    )
+    scope_changed = identity.origination_identity(
+        "demo-project", fact, proposed_scope=("src/a.py", "src/b.py"), success_criteria=("K1",)
+    )
+    criteria_changed = identity.origination_identity(
+        "demo-project", fact, proposed_scope=("src/a.py",), success_criteria=("K2",)
+    )
+    assert scope_changed != base
+    assert criteria_changed != base
+    assert scope_changed != criteria_changed
 
 
 # --------------------------------------------------------------------------
