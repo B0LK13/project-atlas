@@ -45,7 +45,7 @@ items were "unaffected in practice"; that was wrong, and independent
 verification disproved it by comparing baseline and candidate on
 identical inputs.
 
-Two consequences, both fail-closed, neither silent:
+Three consequences, all fail-closed, none silent:
 
 1. Every existing durably PROPOSED/MATERIALIZED row survives as history
    under its old identity. The next scan computes a new identity for the
@@ -53,15 +53,33 @@ Two consequences, both fail-closed, neither silent:
    ``reconcile_revision()``), and materializes fresh. That one-time
    supersede-and-rematerialize is this system's own designed transition,
    not a special case.
-2. Because every package therefore acquires a second revision on that
-   first post-upgrade scan, ``projection.has_ever_had_multiple_
-   revisions()`` becomes true for all of them -- so loop state left
-   mid-flight ACROSS the upgrade (``LEASED`` / ``DISPATCHING`` /
-   ``AWAITING_RESULT``) is no longer rehydratable and fails closed with
-   ``REVISION_IDENTITY_UNVERIFIABLE``. That guard is deliberate: such a
-   lease cannot be proven to belong to the current revision. But it means
-   upgrading WHILE work is in flight strands that work until an operator
-   retires the stale loop state. Upgrade from a quiescent loop.
+2. Loop state left mid-flight ACROSS the upgrade (``LEASED`` /
+   ``DISPATCHING`` / ``AWAITING_RESULT``) is no longer rehydratable and
+   fails closed with ``REVISION_IDENTITY_UNVERIFIABLE``, because the
+   durably-projected lease cannot be proven to belong to the current
+   revision. Upgrading from a quiescent loop avoids THIS one.
+3. It does NOT avoid the next one, which is permanent and larger.
+   ``projection.has_ever_had_multiple_revisions()`` counts identities in
+   ANY state -- active, ``SUPERSEDED``, or ``TERMINAL`` -- so once the
+   first post-upgrade scan supersedes a package's pre-upgrade row, that
+   predicate is true for that package FOREVER. Every package that
+   existed before the upgrade therefore permanently loses crash-recovery
+   rehydration: a lease granted weeks later, against the correct current
+   revision, still cannot be resumed after a crash
+   (``REVISION_IDENTITY_UNVERIFIABLE``); the work must be re-originated
+   instead of recovered.
+
+   An earlier draft of this note claimed only consequence 2 and offered
+   "upgrade from a quiescent loop" as the mitigation. Independent
+   verification showed that is not operationally sufficient -- quiescence
+   does not help here, because the loss is a property of the store's
+   revision history rather than of anything in flight. The guard itself
+   is pre-existing (PR #677); what this package changes is that it now
+   applies to every pre-existing package rather than only to genuinely
+   revised ones. Fail-closed, never fail-open, but plan for it: a store
+   upgraded across this change trades crash-recovery rehydration of its
+   OLD packages for provable authority. Packages originated after the
+   upgrade are unaffected until they are themselves revised.
 """
 
 from __future__ import annotations

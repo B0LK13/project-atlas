@@ -431,9 +431,15 @@ class AutonomousGovernor:
           carries provenance. What does NOT heal is a row whose stored
           identity already equals what the CURRENT formula derives but
           whose `work_node` provenance was stripped -- store tampering,
-          not an upgrade. There `reconcile_revision()` takes its
-          idempotent already-current fast path, writes nothing, and the
-          node stays refused until the source content actually changes.
+          not an upgrade. There `run_origination_scan()` short-circuits
+          at its already-materialized AS-IS branch (origination/cli.py)
+          and never reaches `reconcile_revision()` at all, so nothing is
+          written and the node stays refused until the source content
+          actually changes. (An earlier draft of this note named
+          `reconcile_revision()`'s idempotent fast path as the mechanism;
+          independent verification instrumented the scan and showed
+          `reconcile_revision()` is called zero times. The outcome was
+          right, the mechanism named was not.)
           That is the correct outcome for a tampered store, but it is
           not self-healing and must not be described as such.
         - Any other semantic means the node is genuinely not

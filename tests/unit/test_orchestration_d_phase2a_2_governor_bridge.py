@@ -2517,8 +2517,9 @@ def test_tampered_row_with_current_identity_but_no_provenance_does_not_heal(
     for a genuine upgrade but NOT for a row whose stored identity already
     equals what the current formula derives while its ``work_node``
     provenance has been stripped -- store tampering, not an upgrade.
-    ``reconcile_revision()`` takes its idempotent already-current fast
-    path, writes nothing, and the node stays refused.
+    ``run_origination_scan()`` short-circuits at its already-materialized
+    AS-IS branch and never reaches ``reconcile_revision()``, so nothing
+    is written and the node stays refused.
 
     That is the correct outcome for a tampered store (Atlas must not
     invent provenance), but the docstrings must not call it self-healing,
