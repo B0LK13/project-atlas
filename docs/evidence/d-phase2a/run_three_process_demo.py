@@ -172,6 +172,13 @@ projection.persist_materialized(Path({str(origination_store)!r}), proposal.origi
 governor = AutonomousGovernor(
     current_main=inventory.current_main, current_tree=inventory.current_tree,
     trusted_anchor=trusted, lease_projection_store=Path({str(lease_store)!r}),
+    # Leasing an origination-derived node requires proving its revision is
+    # still current, so this Process-A governor must be wired to the same
+    # projection it just wrote to -- exactly as the real production tick
+    # (autonomy/cli.py::run_governor_loop_tick) is. Without it the lease is
+    # refused ORIGINATION_AUTHORITY_UNAVAILABLE, because failure to verify
+    # is not permission to execute.
+    origination_projection_store=Path({str(origination_store)!r}),
 )
 governor.add_node(node)
 governor.mark_ready(node.package_id)
