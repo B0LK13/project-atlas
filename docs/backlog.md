@@ -189,6 +189,16 @@ integration targets._
   (AS-INT-012 tip-safe compat/migrate-dry-run report under
   `generated/ops/schema-compat-report.json`; never Layer B / never authority)
 - [ ] INT-013 Run the bounded multi-project integration pilot
+  (EXTERNAL_BLOCKED — authentic INT-013 requires owner-provided authentic
+  project roots; committed DEMO_FIXTURE projects (e.g.
+  `tests/fixtures/demo/estate/`) do not satisfy this gate; see
+  `docs/product/CODER-ALPHA-NORTH-STAR.md` and
+  `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md`. A fixture-backed bounded
+  technical-acceptance pilot has run and passed
+  (`tests/integration/test_int_013_bounded_multi_project_pilot.py`, run
+  unskipped and passing during authorship, currently kept `pytest.mark.skip`
+  pending deliberate certification) but does not itself clear this
+  blocker.)
 
 ## AS-CORE-002 — Semantic domain model and source lifecycle hardening
 

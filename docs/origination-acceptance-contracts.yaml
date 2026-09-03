@@ -16,11 +16,25 @@ schema_version: 1
 contracts:
   - item_id: INT-013
     source_path: docs/backlog.md
-    # A real, currently-skipped integration test defining exactly what
-    # "the bounded multi-project integration pilot" means and proving
-    # it is genuinely runnable today (it was run unskipped during
-    # authorship and passed) -- not yet certified, which is why it
-    # stays skipped and INT-013 stays unchecked.
+    # Origination-truth reconciliation (owner review, 2026-09-02): this
+    # contract widens EVIDENCE for the bounded, fixture-backed technical
+    # pilot only -- it does not and cannot clear INT-013's real blocker.
+    # docs/backlog.md's own INT-013 line now carries an explicit
+    # EXTERNAL_BLOCKED continuation (owner-provided authentic project
+    # roots required); acceptance_contracts.py's own module docstring
+    # states the invariant this relies on: "a contract widens evidence,
+    # never authority" -- verified for this exact keyword by
+    # tests/unit/test_orchestration_acceptance_contracts.py::
+    # test_external_blocked_item_stays_blocked_even_with_a_valid_contract.
+    # The evidence path below names the fixture-backed bounded
+    # multi-project pilot test. That test has been executed
+    # successfully as real supervised-run evidence and is intended to
+    # remain an ongoing fixture-backed integration regression going
+    # forward -- but regardless of its skip state on any given carrier
+    # commit, passing it proves the bounded pilot composes correctly
+    # against committed fixture data; it does NOT prove authentic
+    # INT-013, and this contract must never be read as claiming
+    # otherwise.
     evidence:
       - tests/integration/test_int_013_bounded_multi_project_pilot.py
     proposed_scope:
