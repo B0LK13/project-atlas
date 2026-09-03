@@ -27,6 +27,7 @@ to real project evidence. Never leases, never dispatches, never merges.
 from __future__ import annotations
 
 import re
+from functools import partial
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -37,24 +38,29 @@ from project_atlas.orchestration.autonomy.trust import TrustError, load_runtime_
 from project_atlas.orchestration.origination.acceptance_contracts import (
     AcceptanceContractConfigError,
 )
+from project_atlas.orchestration.origination.identity import origination_identity_from_parts
 from project_atlas.orchestration.origination.materialize import (
     MaterializationError,
     materialize_work_node,
 )
-from project_atlas.orchestration.origination.pipeline import originate_new_only
+from project_atlas.orchestration.origination.pipeline import (
+    effective_authority_fields,
+    originate_new_only,
+)
 from project_atlas.orchestration.origination.projection import (
     RELATIVE_DEFAULT as ORIGINATION_PROJECTION_RELATIVE_DEFAULT,
 )
 from project_atlas.orchestration.origination.projection import (
     OriginationProjectionError,
-    persist_materialized_if_no_active_conflict,
     persist_proposed,
+    reconcile_revision,
 )
 from project_atlas.orchestration.origination.proposal import RiskClass
 from project_atlas.orchestration.origination.risk import classify as classify_risk
 from project_atlas.orchestration.origination.sources import (
     DuplicateItemIdError,
     OriginationSourceConfigError,
+    eligible_work_items,
 )
 
 EXIT_OK = 0
@@ -87,6 +93,58 @@ def _fail_closed(detail: str, *, blocker: str) -> dict[str, object]:
         "merge_authorized": False,
         "execution_authorized": False,
     }
+
+
+def _source_identity_still_current(root: Path, project_id: str, expected_identity: str) -> bool:
+    """Re-read authoritative source truth NOW and report whether
+    ``expected_identity`` is still one of the identities it yields.
+
+    IV finding F2 on PR #677: ``reconcile_revision()`` was last-caller-
+    wins -- a scan stalled across a source edit could replay a
+    reconciliation derived from a STALE snapshot and dethrone the
+    genuinely newer revision. This checker is handed to
+    ``reconcile_revision(still_current=...)`` and runs INSIDE its
+    projection lock, immediately before any write, so only evidence that
+    matches CURRENT source truth at write time can supersede or
+    materialize. A genuine source revert back to an earlier revision's
+    exact content re-derives that revision's same identity and correctly
+    passes (owner gate (d): revert semantics are unchanged).
+
+    P1 finding on PR #678 (chatgpt-codex-connector), owner directive
+    D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE: ``expected_identity`` now
+    covers ``proposed_scope`` / ``success_criteria`` too (see
+    ``identity.py``), so this recheck must derive the SAME two fields
+    the same way ``_build_outcome()`` did -- via the shared
+    ``effective_authority_fields()`` -- and fold them into the fresh
+    identity it compares. A stalled scan holding an OLD acceptance
+    contract's scope/criteria therefore recomputes a DIFFERENT identity
+    from current source truth and correctly fails this check, exactly
+    like a roadmap-content edit already did before this fix.
+
+    Never raises: an unreadable/misconfigured source at this instant is
+    UNVERIFIABLE evidence, and unverifiable fails closed to "not
+    current" -- the item is denied with a per-item receipt, never
+    reconciled on a guess.
+    """
+    try:
+        items = eligible_work_items(root)
+    except Exception:
+        return False
+    for item in items:
+        proposed_scope, success_criteria = effective_authority_fields(item)
+        if (
+            origination_identity_from_parts(
+                project_id,
+                item.source_path,
+                item.item_id,
+                item.item_digest,
+                proposed_scope,
+                success_criteria,
+            )
+            == expected_identity
+        ):
+            return True
+    return False
 
 
 def run_origination_scan(
@@ -217,20 +275,17 @@ def run_origination_scan(
             # run at any time, including while that same node is actively
             # leased.
             #
-            # Disclosed gap (fresh IV round, PR #663, acceptance-contracts
-            # work): this same AS-IS behavior means a REVOKED/altered
-            # acceptance contract does not retract an already-materialized
-            # identity's frozen WorkNode fields (owner_gate, mutation_
-            # surface) either -- only this scan's own informational
-            # `execution_ready`/`reason` for the CURRENT run reflects the
-            # revocation; the durable WorkNode itself is untouched, same
-            # as the crash-safety case above. Not live-exploitable today
-            # (origination is not wired to the governed lease/dispatch
-            # loop -- nothing here can turn a stale record into an actual
-            # dispatch), but must be closed -- e.g. an explicit retraction
-            # path keyed on acceptance-contract identity/revision -- before
-            # that wiring lands, or a revoked contract's prior authority
-            # could silently keep governing a real lease.
+            # Formerly-disclosed gap (fresh IV round, PR #663, acceptance-
+            # contracts work), CLOSED by AS-ORIGIN-MATERIALIZED-
+            # SUPERSESSION-001: this AS-IS branch only ever fires for a
+            # repeat scan of THIS SAME `origination_identity` -- it is
+            # correctly silent about a REVOKED/altered acceptance contract
+            # or a changed blocker, because that always produces a
+            # DIFFERENT `origination_identity` (the content digest
+            # changed) and is handled below, where `reconcile_revision()`
+            # supersedes this exact AS-IS row once a newer revision for
+            # the same `package_id` is scanned -- see
+            # D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION.
             if (
                 existing is not None
                 and existing.work_node is not None
@@ -266,6 +321,7 @@ def run_origination_scan(
                         ),
                         "owner_gate": node.owner_gate.value if node.owner_gate else None,
                         "already_materialized": True,
+                        "superseded_prior_revisions": [],
                     }
                 )
                 continue
@@ -281,6 +337,52 @@ def run_origination_scan(
                     surface_id=f"{proposal.project_id}-{proposal.work_id}",
                 )
             except MaterializationError as exc:
+                # AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+                # D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION
+                # §5 Case B): even though THIS revision cannot itself
+                # materialize (most commonly PROPOSAL_BLOCKED --
+                # `proposal.blockers` non-empty), the fact that a NEWER
+                # authoritative-source revision exists at all still
+                # supersedes whatever OTHER revision currently holds
+                # execution authority for this same `work_id` -- a
+                # newly-blocked revision must revoke a stale unblocked
+                # one's durable rehydratability, not merely fail to add
+                # a second one alongside it.
+                try:
+                    reconciliation = reconcile_revision(
+                        store,
+                        origination_identity=proposal.origination_identity,
+                        package_id=proposal.work_id,
+                        work_node=None,
+                        still_current=partial(
+                            _source_identity_still_current,
+                            root,
+                            project_id,
+                            proposal.origination_identity,
+                        ),
+                    )
+                except OriginationProjectionError as reconcile_exc:
+                    # IDENTITY_ALREADY_RESOLVED (owner directive §4: a
+                    # TERMINAL/SUPERSEDED revision permanently cannot
+                    # regain authority, even on an exact-content revert)
+                    # and STALE_SOURCE_SNAPSHOT (IV F2, PR #677: this
+                    # scan's snapshot of the item no longer matches
+                    # current source truth; the store is untouched and a
+                    # fresh scan will reconcile the genuinely current
+                    # revision) -- both isolated to this one work_id,
+                    # never fatal to the rest of the scan, matching every
+                    # other per-item materialization failure in this loop.
+                    not_materialized.append(
+                        {
+                            "work_id": proposal.work_id,
+                            "execution_ready": policy.execution_ready,
+                            "reason": policy.reason.value,
+                            "materialization_error": str(reconcile_exc),
+                            "materialization_error_code": reconcile_exc.code,
+                            "superseded_prior_revisions": [],
+                        }
+                    )
+                    continue
                 not_materialized.append(
                     {
                         "work_id": proposal.work_id,
@@ -288,56 +390,70 @@ def run_origination_scan(
                         "reason": policy.reason.value,
                         "materialization_error": str(exc),
                         "materialization_error_code": exc.code,
+                        "superseded_prior_revisions": [
+                            row.origination_identity for row in reconciliation.superseded
+                        ],
                     }
                 )
                 continue
-            # D-PHASE2A-2 independent-IV finding, round 2 (+ delta-IV
-            # follow-up): `origination_identity` includes the item's
-            # content digest (identity.py), but `proposal.work_id` (->
-            # WorkNode.package_id) does not -- it is stable across a
-            # content revision to the same roadmap item (`work_id_for()`
-            # hashes only project_id+item_id). A revision to an item
-            # while the PRIOR non-TERMINAL record for that same item is
-            # still in flight therefore reaches this point as a
-            # genuinely NEW origination_identity (the `existing is not
-            # None` branch above does not catch it) that would otherwise
-            # materialize a SECOND live record sharing the first one's
-            # package_id -- exactly the ambiguity
-            # `sync_terminal_governed_states()` cannot safely resolve.
-            # `persist_materialized_if_no_active_conflict()` performs
-            # this check and the write inside ONE lock, closing the
-            # TOCTOU window a separate check-then-write pair would leave
-            # open (delta-IV finding: two concurrent scans could both
-            # pass a standalone pre-check before either wrote).
-            materialized_record, conflict = persist_materialized_if_no_active_conflict(
-                store, proposal.origination_identity, node
-            )
-            if conflict is not None:
+            # AS-ORIGIN-MATERIALIZED-SUPERSESSION-001: `origination_
+            # identity` includes the item's content digest (identity.py),
+            # but `proposal.work_id` (-> WorkNode.package_id) does not --
+            # it is stable across a content revision to the same roadmap
+            # item (`work_id_for()` hashes only project_id+item_id). A
+            # revision to an item while a PRIOR active (non-TERMINAL,
+            # non-SUPERSEDED) record for that same item still holds
+            # `package_id` therefore reaches this point as a genuinely
+            # NEW `origination_identity` (the `existing is not None`
+            # branch above does not catch it) whose newly-eligible
+            # proposal must REPLACE the incumbent -- supersede it, then
+            # materialize this one -- not merely report a conflict and
+            # leave stale authority durably rehydratable (owner directive
+            # §5 Case C; this replaces the old refuse-only
+            # `PACKAGE_ID_ALREADY_ACTIVE` behavior entirely).
+            # `reconcile_revision()` performs the supersession and this
+            # identity's own materialization inside ONE lock, closing the
+            # same TOCTOU window the old check-then-write pair would
+            # leave open (delta-IV finding, PR #654: two concurrent scans
+            # could otherwise both observe "no conflict" before either
+            # wrote).
+            try:
+                reconciliation = reconcile_revision(
+                    store,
+                    origination_identity=proposal.origination_identity,
+                    package_id=proposal.work_id,
+                    work_node=node,
+                    still_current=partial(
+                        _source_identity_still_current,
+                        root,
+                        project_id,
+                        proposal.origination_identity,
+                    ),
+                )
+            except OriginationProjectionError as reconcile_exc:
+                # Same isolation as the blocked-path branch above --
+                # IDENTITY_ALREADY_RESOLVED, STALE_SOURCE_SNAPSHOT (IV F2)
+                # or, defensively, AMBIGUOUS_ACTIVE_REVISION/
+                # PACKAGE_ID_MISMATCH must not abort the rest of this scan
+                # batch.
                 not_materialized.append(
                     {
                         "work_id": proposal.work_id,
                         "execution_ready": policy.execution_ready,
                         "reason": policy.reason.value,
-                        "materialization_error": (
-                            "a different non-terminal origination record "
-                            f"(origination_identity={conflict.origination_identity!r}) "
-                            "already holds this package_id -- this looks like a "
-                            "content revision to the same roadmap item while prior "
-                            "governed work for it is still in flight; not "
-                            "materialized as a second live node for the same "
-                            "package_id"
-                        ),
-                        "materialization_error_code": "PACKAGE_ID_ALREADY_ACTIVE",
+                        "materialization_error": str(reconcile_exc),
+                        "materialization_error_code": reconcile_exc.code,
+                        "superseded_prior_revisions": [],
                     }
                 )
                 continue
-            assert materialized_record is not None  # guaranteed by the (None, conflict) contract
-            # Cursor Bugbot finding on PR #654 (Low): persist_materialized_
-            # if_no_active_conflict() can return a pre-existing durable row
-            # unchanged (a concurrent scan for this same identity won the
-            # lock first) rather than the WorkNode just built above -- the
-            # exact TOCTOU window the surrounding comment describes. Report
-            # what was actually durable, not what this call would have
+            assert reconciliation.materialized is not None  # work_node was given above
+            materialized_record = reconciliation.materialized
+            # Cursor Bugbot finding on PR #654 (Low), still applicable to
+            # `reconcile_revision()`'s own same idempotent-replay shape: a
+            # concurrent scan for this SAME identity can win the lock
+            # first (`reconciliation.already_current=True`) -- report
+            # what is actually durable, not what this call would have
             # written had it won the race.
             #
             # Independent-verification note (delta round on PR #654): mirror
@@ -357,7 +473,7 @@ def run_origination_scan(
                     }
                 )
                 continue
-            already_materialized = durable_node != node
+            already_materialized = reconciliation.already_current
             reported_node = durable_node if already_materialized else node
             materialized.append(
                 {
@@ -369,6 +485,9 @@ def run_origination_scan(
                     if reported_node.owner_gate
                     else None,
                     "already_materialized": already_materialized,
+                    "superseded_prior_revisions": [
+                        row.origination_identity for row in reconciliation.superseded
+                    ],
                 }
             )
     except OriginationProjectionError as exc:

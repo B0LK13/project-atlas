@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from project_atlas.orchestration.autonomy.models import (
+    ORIGINATION_SURFACE_SEMANTIC,
     AgentCapability,
     ExecutionHostClass,
     IvRequirements,
@@ -157,7 +158,7 @@ def materialize_work_node(
         mutation_surface=MutationSurface(
             surface_id=surface_id,
             paths=mutation_paths,
-            semantic="ORIGINATION_SPECIFICATION_BOUND",
+            semantic=ORIGINATION_SURFACE_SEMANTIC,
         ),
         execution_host_class=ExecutionHostClass.IN_PROCESS,
         # IMPLEMENT only: VERIFY is a separate routing step
@@ -177,4 +178,20 @@ def materialize_work_node(
         ),
         owner_gate=owner_gate,
         risk_tags=risk_tags_for(classification),
+        # Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE
+        # §5: bind the node to the exact origination revision it was
+        # derived from, copied straight off the proposal that produced
+        # it -- never recomputed here from parts, so this can never
+        # disagree with the identity `persist_proposed()` durably
+        # records for the very same proposal (that column is set from
+        # this same `proposal.origination_identity`).
+        #
+        # This is what lets `governor.lease()` refuse a node whose
+        # origination authority is no longer current WITHOUT a process
+        # restart -- previously impossible, because a WorkNode carried
+        # nothing that could be compared against the durable projection
+        # (see `projection.py::has_ever_had_multiple_revisions()` and
+        # `sync_terminal_governed_states()`, both of which had to work
+        # around exactly that absence).
+        origination_identity=proposal.origination_identity,
     )

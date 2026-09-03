@@ -1,27 +1,160 @@
 """Stable, deterministic origination identity. No wall-clock component.
 
-``origination_identity()`` is a pure function of the project id plus one
-explicit structured roadmap subject (item id + canonical item digest).
-Sibling roadmap edits therefore cannot rename unchanged work, while a
-material edit to that item's own record creates a new revision identity.
+``origination_identity()`` is a pure function of the project id, one
+explicit structured roadmap subject (item id + canonical item digest),
+AND the complete authority-bearing interpretation this pipeline derives
+for it (``proposed_scope`` / ``success_criteria`` -- see
+``pipeline.py::effective_authority_fields()``). Sibling roadmap edits
+therefore cannot rename unchanged work, while a material edit to that
+item's own record -- OR to the acceptance contract that governs what it
+may do -- creates a new revision identity.
+
+Owner directive D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE (P1 finding,
+PR #678, chatgpt-codex-connector): before this, the identity hashed only
+the raw roadmap subject (``item_digest``), not ``proposed_scope`` /
+``success_criteria`` -- the two fields an attached acceptance contract
+(``acceptance_contracts.py``) can override independently of the roadmap
+item's own bytes (``pipeline.py::_build_outcome()``). Because
+``origination_identity`` is this pipeline's actual store primary key
+(``projection.py``'s ``persist_proposed()`` / ``reconcile_revision()``
+both key their "is this a known/current revision?" lookup on it, and
+``pipeline.py::originate_new_only()`` keys its TERMINAL-exclusion filter
+on it too), a contract-only edit left the identity unchanged: a stalled
+scan -- or a fresh one, for that matter -- reusing the OLD, now-obsolete
+scope/criteria on the SAME ``origination_identity`` looked exactly like
+"nothing changed, this row is already current" and never reached the
+``still_current`` freshness check at all (that check only runs on the
+"this looks like a new revision" path). Folding ``proposed_scope`` /
+``success_criteria`` into the identity itself closes the gap at its
+actual root: those two fields ARE this pipeline's entire authority-bearing
+surface downstream of the roadmap item (``risk.classify()`` and
+``materialize_work_node()`` consume nothing else from an
+``EligibleRoadmapItem`` beyond what ``item_digest`` already covers, plus
+these two), so hashing them alongside the existing parts makes
+``origination_identity`` correctly represent "the exact authority-bearing
+interpretation this revision was derived from" without introducing a
+second, parallel identity concept that the existing supersession/
+freshness machinery would need to be separately taught to consult.
+
+Migration note -- read before upgrading a store with in-flight work.
+This does NOT affect only items carrying an acceptance contract. The
+payload FORMAT itself changed (a ``::``-joined string became a canonical
+JSON object), so upgrading changes the identity computed for EVERY item,
+contract or not. An earlier draft of this note claimed contract-free
+items were "unaffected in practice"; that was wrong, and independent
+verification disproved it by comparing baseline and candidate on
+identical inputs.
+
+Three consequences, all fail-closed, none silent:
+
+1. Every existing durably PROPOSED/MATERIALIZED row survives as history
+   under its old identity. The next scan computes a new identity for the
+   same logical work, supersedes the old row (never deletes it -- see
+   ``reconcile_revision()``), and materializes fresh. That one-time
+   supersede-and-rematerialize is this system's own designed transition,
+   not a special case.
+2. Loop state left mid-flight ACROSS the upgrade (``LEASED`` /
+   ``DISPATCHING`` / ``AWAITING_RESULT``) is no longer rehydratable and
+   fails closed with ``REVISION_IDENTITY_UNVERIFIABLE``, because the
+   durably-projected lease cannot be proven to belong to the current
+   revision. Upgrading from a quiescent loop avoids THIS one.
+3. It does NOT avoid the next one, which is permanent and larger.
+   ``projection.has_ever_had_multiple_revisions()`` counts identities in
+   ANY state -- active, ``SUPERSEDED``, or ``TERMINAL`` -- so once the
+   first post-upgrade scan supersedes a package's pre-upgrade row, that
+   predicate is true for that package FOREVER. Every package that
+   existed before the upgrade therefore permanently loses crash-recovery
+   rehydration: a lease granted weeks later, against the correct current
+   revision, still cannot be resumed after a crash
+   (``REVISION_IDENTITY_UNVERIFIABLE``); the work must be re-originated
+   instead of recovered.
+
+   An earlier draft of this note claimed only consequence 2 and offered
+   "upgrade from a quiescent loop" as the mitigation. Independent
+   verification showed that is not operationally sufficient -- quiescence
+   does not help here, because the loss is a property of the store's
+   revision history rather than of anything in flight. The guard itself
+   is pre-existing (PR #677); what this package changes is that it now
+   applies to every pre-existing package rather than only to genuinely
+   revised ones. Fail-closed, never fail-open, but plan for it: a store
+   upgraded across this change trades crash-recovery rehydration of its
+   OLD packages for provable authority. Packages originated after the
+   upgrade are unaffected until they are themselves revised.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 
 from project_atlas.orchestration.origination.facts import SourceFact
 
 
-def origination_identity(project_id: str, authoritative_source: SourceFact) -> str:
-    """Return a stable per-item, per-revision origination identity."""
+def origination_identity_from_parts(
+    project_id: str,
+    location: str,
+    item_id: str,
+    item_digest: str,
+    proposed_scope: tuple[str, ...],
+    success_criteria: tuple[str, ...],
+) -> str:
+    """The one identity formula, spelled out over its raw parts.
+
+    Split out of ``origination_identity()`` (IV finding F2 on PR #677)
+    so a scan can cheaply re-derive "is this identity still what current
+    source truth yields for this item?" from a fresh
+    ``eligible_work_items()`` read (via
+    ``pipeline.py::effective_authority_fields()``), without constructing
+    a full ``SourceFact`` -- and without a second, drift-prone copy of
+    the payload format.
+
+    ``proposed_scope`` / ``success_criteria`` are hashed as an ordered
+    JSON array, not string-joined, so no boundary-shifting combination of
+    entries (e.g. ``["a::b"]`` vs. ``["a", "b"]``) can collide.
+    """
+    payload = json.dumps(
+        {
+            "project_id": project_id,
+            "location": location,
+            "item_id": item_id,
+            "item_digest": item_digest,
+            "proposed_scope": list(proposed_scope),
+            "success_criteria": list(success_criteria),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def origination_identity(
+    project_id: str,
+    authoritative_source: SourceFact,
+    *,
+    proposed_scope: tuple[str, ...],
+    success_criteria: tuple[str, ...],
+) -> str:
+    """Return a stable per-item, per-revision, per-authority-interpretation
+    origination identity.
+
+    ``proposed_scope`` / ``success_criteria`` are keyword-only and
+    required (no default) so every caller states explicitly which
+    authority-bearing interpretation this identity is for -- see this
+    module's own docstring for why both are part of the identity.
+    """
     loc = authoritative_source.location
     item_id = authoritative_source.subject_id
     item_digest = authoritative_source.subject_digest
     if item_id is None or item_digest is None:
         raise ValueError("authoritative source is missing its structured roadmap subject")
-    payload = f"{project_id}::{loc}::{item_id}::{item_digest}"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return origination_identity_from_parts(
+        project_id,
+        loc,
+        item_id,
+        item_digest,
+        proposed_scope,
+        success_criteria,
+    )
 
 
 def work_id_for(project_id: str, item_id: str) -> str:

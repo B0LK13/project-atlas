@@ -278,6 +278,36 @@ demo-root directories are removed.
 
 ## Known limitations
 
+- **An origination-authority denial halts the governed loop, and repairing
+  the store does not release it** (independent-verification finding, PR
+  #678). `governor.lease()` refuses a node whose originating revision is
+  no longer current (`STALE_ORIGINATION_IDENTITY`), cannot be verified
+  (`ORIGINATION_AUTHORITY_UNAVAILABLE`), or predates origination
+  provenance (`MISSING_ORIGINATION_IDENTITY`). That refusal reaches
+  `AutonomousLoop._select_and_lease()` and stops the tick with
+  `HARD_BLOCKER`, naming the specific code in the tick payload's
+  `stop_detail`. `_may_resume_from_no_eligible_work()` deliberately never
+  auto-resumes `HARD_BLOCKER`, and verification confirmed that re-running
+  a scan to repair the store does **not** by itself release the loop --
+  an operator must retire the stale loop state before ticking again. The
+  mechanism is pre-existing (it already governed `TARGET_MOVED`,
+  `SURFACE_OVERLAP`, `NODE_NOT_READY`, `DEPENDENCIES_NOT_SATISFIED`);
+  PR #678 adds three new, ordinary-operation triggers for it. Fail-closed
+  -- no authority is ever granted -- but not self-clearing.
+
+- **Upgrading a pre-existing origination store permanently costs those
+  packages crash-recovery rehydration** (independent-verification
+  finding, PR #678). PR #678 changed the `origination_identity` payload
+  format, so the first post-upgrade scan supersedes every pre-existing
+  row. `has_ever_had_multiple_revisions()` counts identities in any state
+  (including `SUPERSEDED`), so from then on every package that existed
+  before the upgrade is permanently non-rehydratable after a crash
+  (`REVISION_IDENTITY_UNVERIFIABLE`) -- even for a lease granted later
+  against the correct current revision. Such work must be re-originated
+  rather than recovered. Quiescing the loop before upgrading avoids
+  stranding in-flight work, but does not avoid this. See
+  `origination/identity.py`'s migration note.
+
 - **Dependency-completion enforcement is caller-discipline-only, not a
   library-level chokepoint** (IV finding, exact-head `c4e1cba1` review):
   `policy.evaluate()` correctly refuses `execution_ready=True` while a

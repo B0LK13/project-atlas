@@ -156,6 +156,13 @@ class LoopTickResult(BaseModel):
 
     phase: LoopPhase
     stop_reason: StopReason | None = None
+    #: The specific refusal code behind a coarse ``stop_reason`` when one
+    #: is known (e.g. ``STALE_ORIGINATION_IDENTITY`` under
+    #: ``HARD_BLOCKER``). Diagnostic detail for the operator-visible
+    #: receipt only -- never authority, and deliberately not persisted
+    #: into the digest-sealed ``LoopState``. ``None`` for stops that have
+    #: no more specific code than their reason.
+    stop_detail: str | None = None
     dispatched: bool = False
     recovered: bool = False
     package_id: str | None = None
@@ -327,9 +334,30 @@ class AutonomousLoop:
         )
 
     def _stop(self, reason: StopReason, *, code: str | None = None) -> LoopTickResult:
-        del code
+        """Stop the loop, optionally naming the specific refusal behind a
+        coarse ``StopReason``.
+
+        Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE:
+        ``code`` was previously accepted and immediately discarded, so
+        every distinct refusal that maps to ``HARD_BLOCKER`` (TARGET_MOVED,
+        SURFACE_OVERLAP, the three origination-authority denials, ...)
+        produced an operator-visible receipt that named only the bucket.
+        An operator reading "HARD_BLOCKER" could not tell a superseded
+        revision from a surface overlap. It is now carried through to the
+        returned receipt (`LoopTickResult.stop_detail`), which
+        ``run_governor_loop_tick()`` dumps straight into its JSON payload.
+
+        Deliberately NOT persisted into ``LoopState``: that record is
+        digest-sealed, and widening it would be a persisted-schema change
+        (and a migration) for what is diagnostic detail, not authority.
+        The stop itself -- the part that governs behavior -- is already
+        durable via ``stop_reason``.
+        """
         self._save(phase=LoopPhase.STOPPED, stop_reason=reason)
-        return self._result()
+        result = self._result()
+        if code is None:
+            return result
+        return result.model_copy(update={"stop_detail": code})
 
     def _fail(self, message: str, *, code: str) -> NoReturn:
         self._save(phase=LoopPhase.FAILED_CLOSED, stop_reason=StopReason.SAFETY_BOUNDARY)
@@ -670,13 +698,34 @@ class AutonomousLoop:
             # two checks ever disagree (e.g. a future WorkNode shape
             # neither one anticipated), fail closed with a StopReason
             # instead of letting the loop crash on an uncaught exception.
+            #
+            # Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE:
+            # the three origination-authority refusals belong in exactly
+            # this bucket for exactly the reason above. `lease()` now
+            # denies a node whose originating revision is stale,
+            # unverifiable, or missing its provenance -- all correct, all
+            # fail-CLOSED, and all reachable in ordinary operation (a scan
+            # can supersede a READY-but-unleased node between ticks).
+            # Unlisted, they would `raise` and crash the tick on an
+            # uncaught exception instead of stopping honestly with a
+            # receipt naming the real reason. No lease is granted either
+            # way, but a crash is not a governed stop.
+            #
+            # HARD_BLOCKER rather than PROJECTION_CONTENTION: unlike a
+            # lock-wait timeout, this durable state IS known to be wrong
+            # for this node and does NOT self-clear on the next tick --
+            # only a fresh origination scan can supersede the stale
+            # revision, so auto-resuming every tick would merely spin.
             if exc.code in {
                 "TARGET_MOVED",
                 "SURFACE_OVERLAP",
                 "NODE_NOT_READY",
                 "DEPENDENCIES_NOT_SATISFIED",
+                "STALE_ORIGINATION_IDENTITY",
+                "ORIGINATION_AUTHORITY_UNAVAILABLE",
+                "MISSING_ORIGINATION_IDENTITY",
             }:
-                return self._stop(StopReason.HARD_BLOCKER)
+                return self._stop(StopReason.HARD_BLOCKER, code=exc.code)
             raise
         if lease.lease_id in self._state.completed_lease_ids:
             raise LoopError("lease replay is forbidden", code="LEASE_REPLAY")

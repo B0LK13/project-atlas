@@ -173,6 +173,56 @@ def rehydrate_governor(
     same in-memory fact a live, uninterrupted process would still have
     had. Applied identically for LEASED/DISPATCHING/AWAITING_RESULT
     reconstruction (see ``_restore_leased_node``).
+
+    AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+    D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §12, in-flight
+    sibling audit): ``governor`` MUST be a freshly-constructed instance
+    this function has not been called on before, and this function must
+    never be called twice on the SAME ``governor`` instance across an
+    intervening state change (e.g. a ``run_origination_scan()`` call that
+    supersedes a revision this same governor already discovered/added).
+    Architectural finding, verified empirically: as of this package, the
+    ONLY production call site in this repository is
+    ``orchestration.autonomy.cli.run_governor_loop_tick()``, which
+    constructs a brand-new ``AutonomousGovernor()`` immediately before
+    every single call (never reused across invocations, never passed in
+    from a caller) -- so a governor that already holds a since-superseded
+    origination-derived node in memory, while this function's OWN read of
+    ``list_materialized_work_nodes()`` reflects the newer, reconciled
+    truth, cannot occur through any real, currently-existing driver of
+    this system. This is a caller-discipline precondition, not something
+    this function can itself detect or enforce (it has no way to know
+    whether ``governor`` is genuinely fresh) -- a future caller that
+    violates it would be introducing a new, currently-nonexistent
+    execution path, at which point THAT caller's own review must
+    establish it is safe against a stale in-memory node, not assume this
+    function makes it safe automatically.
+
+    D-ATLAS-PR677-REVISION-IDENTITY-BINDING-FINALIZATION §8 (result/
+    receipt binding audit, recorded here rather than adding new binding
+    fields -- see that directive's own §2/§15: identify the narrow
+    authoritative boundary, do not add redundant checks mechanically at
+    every function): a dispatch receipt/result is never independently
+    checked against origination revision identity anywhere, and does not
+    need to be. Every path that could ever CONSUME a receipt (``AutonomousLoop
+    .recover()``, ``apply_observed_result()``) is reached only via a
+    ``WorkNode`` already sitting in ``governor.snapshot().nodes`` -- and
+    within one process, that node list is populated EXCLUSIVELY by this
+    function (``rehydrate_governor()``) plus ``AutonomousLoop`` itself
+    calling ``governor.lease()``/``add_node()`` against nodes THIS SAME
+    function already vetted this tick. Combined with the §12 finding
+    above (every real caller constructs a fresh governor and calls this
+    function exactly once per tick) and the ``has_ever_had_multiple_
+    revisions()`` guard in ``_restore_leased_node()`` below (refusing to
+    even reconstruct a node/lease once its package_id has ever been
+    revised), there is no reachable path where a dispatch result could
+    be bound to, or replayed against, a stale/superseded revision's
+    ``WorkNode`` -- the tick that would have produced or consumed such a
+    binding is refused upstream, before dispatch or result-processing
+    code ever runs. A separate revision-identity field on receipts would
+    duplicate this guarantee at a boundary that is never actually
+    reachable in a stale state, which is exactly the "redundant check"
+    this package's own directive says not to add.
     """
     try:
         loop_state = load_loop_state(loop_store)
@@ -378,12 +428,37 @@ def _originate(
 
     if origination_projection_store is not None:
         from project_atlas.orchestration.origination.projection import (
+            OriginationProjectionError,
             list_materialized_work_nodes,
         )
 
         known = {item.package_id for item in governor.snapshot().nodes}
         known.update(active_ids)
-        for candidate in list_materialized_work_nodes(origination_projection_store):
+        # AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+        # D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §7):
+        # `list_materialized_work_nodes()` is this bridge's only source of
+        # "what origination-derived work is currently discoverable" -- it
+        # now fails closed (`AMBIGUOUS_ACTIVE_REVISION`) rather than
+        # silently returning two candidates sharing one `package_id`
+        # (which this loop's own `known` dedup would otherwise resolve by
+        # first-seen order -- exactly the "pick one arbitrarily" this
+        # bridge must never do). Load-bearing for that specific failure:
+        # an AMBIGUOUS_ACTIVE_REVISION store must stop this rehydration
+        # pass, never silently proceed with a partial/arbitrary node
+        # list -- caught and converted below. An unreadable/missing
+        # store, by contrast, is NOT treated as corruption here (matching
+        # `list_materialized_work_nodes()`'s own, narrower "never raises
+        # except for ambiguity" contract, unchanged from before this
+        # package): it returns no candidates, the same fail-open-toward-
+        # doing-nothing-new posture this bridge already had before
+        # `SUPERSEDED`/ambiguity existed at all -- this is not a new
+        # correctness gap this package introduces, and widening it is a
+        # separate, deliberate hardening decision, not made here.
+        try:
+            candidates = list_materialized_work_nodes(origination_projection_store)
+        except OriginationProjectionError as exc:
+            raise RehydrationError(str(exc), code=exc.code) from exc
+        for candidate in candidates:
             if candidate.package_id in known:
                 continue
             try:
@@ -428,8 +503,30 @@ def _restore_leased_node(
         if origination_projection_store is not None:
             from project_atlas.orchestration.origination.projection import (
                 find_materialized_work_node,
+                has_ever_had_multiple_revisions,
             )
 
+            # AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 independent-IV
+            # finding (chatgpt-codex-connector, PR #677, P1): a durably
+            # projected lease names only `package_id` -- never the
+            # `origination_identity` it was actually granted against
+            # (`WorkNode` carries no such field). If this package_id has
+            # ever had more than one origination revision,
+            # `find_materialized_work_node()`'s honestly-current result
+            # cannot be proven to be the SAME revision this lease (or the
+            # loop state naming it) was originally recorded against --
+            # refuse rather than risk resuming a stale lease's authority
+            # against a swapped, possibly more-restricted revision. See
+            # `has_ever_had_multiple_revisions()`'s own docstring.
+            if has_ever_had_multiple_revisions(origination_projection_store, package_id):
+                raise RehydrationError(
+                    f"package {package_id!r} has had more than one "
+                    "origination revision -- a durably-leased lease cannot "
+                    "be safely proven to still belong to the current "
+                    "active revision, refusing to recover it rather than "
+                    "risk resuming against a swapped revision's authority",
+                    code="REVISION_IDENTITY_UNVERIFIABLE",
+                )
             origination_node = find_materialized_work_node(
                 origination_projection_store, package_id
             )

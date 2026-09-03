@@ -22,6 +22,10 @@ from project_atlas.orchestration.autonomy.lease_projection import (
 from project_atlas.orchestration.autonomy.lease_projection import (
     ProjectionError,
 )
+from project_atlas.orchestration.autonomy.lease_recovery import (
+    LeaseRecoveryError,
+    release_stalled_lease_after_exhausted_dispatch,
+)
 from project_atlas.orchestration.autonomy.local_dispatch_port import (
     LocalDispatchError,
     LocalProcessDispatchPort,
@@ -308,6 +312,16 @@ def run_governor_loop_tick(
             current_tree=inventory.current_tree,
             trusted_anchor=trusted,
             lease_projection_store=lease_store,
+            # Owner directive D-ATLAS-PR678-CASE-A-LEASE-AUTHORITY-CLOSURE
+            # §8: the SAME `origin_store` this tick already resolves for
+            # `rehydrate_governor()` below. Wiring it here is what makes
+            # `governor.lease()` able to refuse an origination-derived
+            # node whose revision is no longer current -- including
+            # inside a single long-lived process, with no restart and no
+            # base_pin movement. This is the one real autonomous
+            # lease-granting path; the pilot-only entry points do not
+            # need it (a pilot node carries no origination provenance).
+            origination_projection_store=origin_store,
         )
         store = loop_store or (root / STATE_DIR_RELATIVE)
         # AS-ORCH-LOCAL-DISPATCH-001 (PR-C review finding, chatgpt-codex-
@@ -574,6 +588,56 @@ def run_trust_check_before_merge(
     }, EXIT_OK
 
 
+def run_release_stalled_lease(
+    *,
+    root: Path,
+    lease_id: str,
+    loop_store: Path | None = None,
+    lease_projection_store: Path | None = None,
+) -> tuple[dict[str, object], int]:
+    """AS-ORCH-LEASE-RECOVERY-001, real operator surface (same
+    standalone-entrypoint precedent as ``trust-checkpoint``/
+    ``trust-check-before-merge``): the one legitimate way to mark a lease
+    ``ABANDONED`` after its owning loop reached a genuine ``RESOURCE_
+    BOUNDARY`` stop with every dispatch attempt exhausted in real failure.
+    See ``lease_recovery.py``'s own module docstring for the incident
+    this closes and why evidence-gating (not a caller-supplied claim) is
+    the only thing that makes it safe to expose here. Never merges, never
+    grants execution/merge authority, never touches trust or
+    ``origination.json`` directly.
+    """
+    resolved_loop_store = loop_store or (root / STATE_DIR_RELATIVE)
+    resolved_lease_store = lease_projection_store or (root / LEASE_PROJECTION_RELATIVE_DEFAULT)
+    try:
+        result = release_stalled_lease_after_exhausted_dispatch(
+            root,
+            lease_id=lease_id,
+            loop_store=resolved_loop_store,
+            lease_projection_store=resolved_lease_store,
+        )
+    except (LeaseRecoveryError, LoopError, ProjectionError, LocalDispatchError) as exc:
+        code = getattr(exc, "code", None) or "LEASE_RECOVERY_ERROR"
+        return {
+            "schema_version": 1,
+            "package_id": AUTONOMY_PACKAGE_ID,
+            "case": "RELEASE-STALLED-LEASE",
+            "lease_id": lease_id,
+            "abandoned": False,
+            "blocker": code,
+            "detail": str(exc),
+            "merge_authorized": False,
+            "execution_authorized": False,
+        }, EXIT_ERROR
+    return {
+        "schema_version": 1,
+        "package_id": AUTONOMY_PACKAGE_ID,
+        "case": "RELEASE-STALLED-LEASE",
+        **result,
+        "merge_authorized": False,
+        "execution_authorized": False,
+    }, EXIT_OK
+
+
 def _build_standalone_parser() -> argparse.ArgumentParser:
     """Standalone parser for ``trust-checkpoint``.
 
@@ -662,6 +726,36 @@ def _build_standalone_parser() -> argparse.ArgumentParser:
         help="Non-empty reason for the TrustRepairCarrier exception "
         "(requires --repair-pr too).",
     )
+    release_stalled = sub.add_parser(
+        "release-stalled-lease",
+        help=(
+            "AS-ORCH-LEASE-RECOVERY-001: mark a lease ABANDONED after its "
+            "loop reached a genuine RESOURCE_BOUNDARY stop with every real "
+            "dispatch attempt exhausted in failure. Refuses without real, "
+            "on-disk evidence. Never merges; never grants authority."
+        ),
+    )
+    release_stalled.add_argument(
+        "--root", type=Path, default=None, help="Repository root (default: cwd)."
+    )
+    release_stalled.add_argument(
+        "--lease-id",
+        type=str,
+        required=True,
+        help="The stalled lease to evaluate for abandonment (required -- never implicit).",
+    )
+    release_stalled.add_argument(
+        "--loop-store",
+        type=Path,
+        default=None,
+        help="Durable loop-state store (default: <root>/.atlas/orchestration/autonomy/loop).",
+    )
+    release_stalled.add_argument(
+        "--lease-store",
+        type=Path,
+        default=None,
+        help="Durable lease-projection store (default: <root>/.atlas/orchestration/autonomy).",
+    )
     return parser
 
 
@@ -683,6 +777,15 @@ def main(argv: list[str] | None = None) -> int:
             trust_store=args.trust_store,
             repair_source_pr=args.repair_pr,
             repair_reason=args.repair_reason,
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return exit_code
+    if args.command == "release-stalled-lease":
+        report, exit_code = run_release_stalled_lease(
+            root=Path(args.root or Path.cwd()),
+            lease_id=args.lease_id,
+            loop_store=args.loop_store,
+            lease_projection_store=args.lease_store,
         )
         print(json.dumps(report, indent=2, sort_keys=True))
         return exit_code
