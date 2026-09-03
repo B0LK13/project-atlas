@@ -63,7 +63,8 @@ behind `origin/main`. The design worktree was fast-forwarded; none of the 7 comm
 | Form semantics + announced outcomes on Ask (AX-004) | `apps/web/src/pages/production/AskPage.tsx` |
 | Density tokens + wide data measure (AX-007) | `apps/web/src/tokens.css`, `src/styles.css`, 4 production pages |
 | Automated spec verification (91 checks) | `apps/web/scripts/test-truth-state.mjs` |
-| Rendered a11y + responsive suite (33 tests) | `apps/web/e2e/evidence-desk.a11y.spec.ts` |
+| `ClaimText` — sourceless claims forced to UNKNOWN (AX-012) | `apps/web/src/components/ClaimText.tsx` |
+| Rendered a11y + responsive suite (38 tests) | `apps/web/e2e/evidence-desk.a11y.spec.ts` |
 
 ### PROTOTYPED
 
@@ -83,18 +84,18 @@ AX-004–AX-014).
 | **BUILD** | **PASS** | `npm run build` — 85 modules, clean |
 | **TYPECHECK** | **PASS** | `tsc -b` inside the build |
 | **Truth-state spec** | **PASS — 91/91** | `node scripts/test-truth-state.mjs` |
-| **Rendered a11y + responsive** | **PASS — 33/33** | `npx playwright test e2e/evidence-desk.a11y.spec.ts` |
+| **Rendered a11y + responsive** | **PASS — 38/38** | `npx playwright test e2e/evidence-desk.a11y.spec.ts` |
 | **Contrast** | **PASS** | all 26 token/background pairs ≥ 4.5:1; lowest 5.58:1 |
 | **Regression** | **NONE** | see below |
 | **LINT (web)** | **NOT RUN** | no JS/TS linter is configured in `apps/web` — see §5 |
 
 ### Regression check, done properly
 
-The full Playwright suite reports **3 failed / 35 passed**. Those 3 failures were verified
+The full Playwright suite reports **3 failed / 40 passed**. Those 3 failures were verified
 against a clean `origin/main` worktree, where the *same 3 tests fail* (**3 failed / 2
 passed**). They are pre-existing environment failures — the suite needs
 `VITE_ATLAS_API_TOKEN` and this host has none, so LIVE_API reads fail closed by SEC-009
-design. **No regression was introduced.** The delta is +33 passing tests.
+design. **No regression was introduced.** The delta is +38 passing tests.
 
 ### Truth-boundary validation
 
@@ -128,8 +129,8 @@ skipping — this environment's fail-closed read exercised the real error path.
 5. **Web has no linter.** `apps/web` has no ESLint config, so `LINT` cannot be reported as
    a pass. Python `ruff`/`mypy` were not run because no Python file was touched.
 6. **Screen-reader verification is by attribute assertion, not by a real AT.** Correct
-   roles are necessary, not sufficient. `AX-010`'s combobox especially needs manual
-   verification.
+   roles are necessary, not sufficient. This is the stated reason `AX-010` (command
+   palette) was left specified rather than implemented — see §7.
 
 ## 5. Owner decisions required
 
@@ -174,9 +175,16 @@ Work continued instead on the unclaimed nodes: **`AX-004`** (form semantics — 
 finding A-6) and **`AX-007`** (density tokens — closes A-3). Both are now implemented and
 test-covered.
 
-**Remaining owner-independent:** `AX-010` (command palette; medium risk, ARIA correctness
-is the whole job), `AX-011` and `AX-012` (evidence drawer and `ClaimText`; both partly
-prototyped already).
+Then **`AX-012`** (`ClaimText`) was implemented too: the claim-rendering pattern was
+extracted from the prototype into a real component whose contract is enforced by tests —
+absence of a source outranks any declared state, so a sourceless claim cannot render as
+fact. The prototype was migrated onto it rather than keeping a parallel copy.
+
+**Remaining owner-independent:** `AX-010` (command palette) and `AX-011` (evidence drawer).
+`AX-010` is deliberately left specified: its entire value is ARIA-combobox correctness, and
+that is the one thing this environment cannot discharge — it needs verification with a real
+screen reader, not attribute assertions. Shipping it on assertions alone would add a widget
+whose primary risk is unverified.
 
 **Owner-sequenced:** `AX-001`, `AX-005`, `AX-006`, `AX-008` — each has wide blast radius or
 is governance-sensitive.

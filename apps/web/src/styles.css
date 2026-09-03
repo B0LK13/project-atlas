@@ -627,3 +627,33 @@ code,
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
 }
+
+/* --- Claim reading surface (AX-012) ------------------------------------- */
+
+.claim {
+  margin: 0 0 0.9rem;
+  line-height: 1.65;
+  max-width: var(--atlas-max-prose);
+}
+
+.claim-sources cite {
+  font-style: normal;
+  font-family: var(--atlas-mono);
+  font-size: 0.8rem;
+  color: var(--atlas-muted);
+}
+
+.claim-resolve {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--atlas-muted);
+}
+
+/* An unsourced claim is marked in the text itself, not by colour alone. */
+.claim[data-truth-state="unknown"] .claim-text {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--truth-unknown);
+  text-underline-offset: 0.25em;
+}

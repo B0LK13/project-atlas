@@ -285,3 +285,58 @@ test.describe("Density (AX-007)", () => {
     await expect(page.locator("main.shell-data")).toHaveCount(0);
   });
 });
+
+test.describe("ClaimText contract (AX-012)", () => {
+  async function gotoClaims(page: Page) {
+    await page.goto(DESK);
+    await page.getByRole("button", { name: /Project/ }).click();
+    await expect(page.getByRole("region", { name: "What Atlas knows" })).toBeVisible();
+  }
+
+  test("a claim with no source is forced to UNKNOWN even if it declares ok", async ({ page }) => {
+    await gotoClaims(page);
+    // The fixture declares state "ok" with an empty sources array. Absence of a
+    // source must outrank the declared state.
+    const claim = page.locator('.claim[data-truth-state="unknown"]').filter({
+      hasText: "external security revalidation status",
+    });
+    await expect(claim).toHaveCount(1);
+    await expect(claim.locator(".truth-chip-label")).toHaveText("UNKNOWN");
+    // It is rendered in place, not omitted.
+    await expect(claim).toContainText("The external security revalidation status is");
+  });
+
+  test("an unsourced claim carries a non-colour text marker", async ({ page }) => {
+    await gotoClaims(page);
+    const decoration = await page
+      .locator('.claim[data-truth-state="unknown"] .claim-text')
+      .first()
+      .evaluate((el) => getComputedStyle(el).textDecorationLine);
+    expect(decoration).toContain("underline");
+  });
+
+  test("a sourced claim cites every source", async ({ page }) => {
+    await gotoClaims(page);
+    const contested = page.locator('.claim[data-truth-state="contested"]').first();
+    await expect(contested).toBeVisible();
+    const cites = contested.locator("cite");
+    expect(await cites.count()).toBe(2);
+    await expect(contested).toContainText("pyproject.toml");
+    await expect(contested).toContainText("docs/plan.md");
+  });
+
+  test("a contested claim states that no winner is shown", async ({ page }) => {
+    await gotoClaims(page);
+    const contested = page.locator('.claim[data-truth-state="contested"]').first();
+    await expect(contested).toContainText("No winner is shown");
+    await expect(contested).toContainText("atlas review decide");
+    await expect(contested.locator(".truth-chip-detail")).toContainText("2 competing sources");
+  });
+
+  test("a stale claim states its validity window", async ({ page }) => {
+    await gotoClaims(page);
+    const stale = page.locator('.claim[data-truth-state="stale"]').first();
+    await expect(stale).toBeVisible();
+    await expect(stale.locator(".truth-chip-detail")).toContainText("valid until 2026-08-30");
+  });
+});

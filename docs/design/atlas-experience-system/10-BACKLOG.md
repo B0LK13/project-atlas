@@ -3,9 +3,9 @@
 **Session:** `AS-20260903T132018Z-claude-design-continuation-20260903-project-atlas-60ba98bb`
 **Derived from:** audit `00`, research `01`, IA `02`, selected direction `04`
 
-Counts: **P0 = 3** (2 delivered, 1 open) · **P1 = 5** (2 delivered) · **P2 = 3** · **P3 = 3**
+Counts: **P0 = 3** (2 delivered, 1 open) · **P1 = 5** (2 delivered) · **P2 = 3** (1 delivered) · **P3 = 3**
 
-**Delivered in this lane:** AX-002, AX-003, AX-004, AX-007.
+**Delivered in this lane:** AX-002, AX-003, AX-004, AX-007, AX-012.
 **Claimed by another active lane:** AX-013 — the shared checkout already carries an
 uncommitted `axe-core` devDependency, so that work is in flight elsewhere and was
 deliberately not duplicated here (see `11-HANDOFF.md` §7).
@@ -131,11 +131,18 @@ claim; shows source, ingest time, provenance hash, authority precedence; contest
 all sources with no winner; **no trust score of any kind**. **Deps:** AX-001, AX-002.
 **Risk:** low. **Complexity:** M.
 
-### AX-012 — `ClaimText` reading surface
+### AX-012 — `ClaimText` reading surface · **IMPLEMENTED**
 
-Dossier's contribution (J-1). **AC:** claims render as prose with inline citations; a
-sourceless claim renders `UNKNOWN` inline where the fact belongs, never omitted.
-**Deps:** AX-002. **Risk:** low. **Complexity:** S. Prototyped already.
+Dossier's contribution (J-1). **AC (all met):** claims render as prose with inline
+citations; **a claim with no source is forced to UNKNOWN even when it declares another
+state** — absence of a source outranks the declared state, so the only way to show a
+sourceless value as fact is to not use the component; the UNKNOWN claim renders *in place*
+in the sentence where the fact belongs rather than being omitted; an unsourced claim also
+carries a non-colour text marker (dotted underline); every source is cited; a contested
+claim states "No winner is shown" and names `atlas review decide`; a stale claim states its
+validity window. **Deps:** AX-002. **Risk:** low. **Complexity:** S.
+**Evidence:** `src/components/ClaimText.tsx`; 5 rendered tests. The design-lab prototype was
+migrated onto the real component rather than keeping a parallel copy.
 
 ## P3
 

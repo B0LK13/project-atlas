@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { LabShell } from "../../components/LabShell";
 import { TruthChip } from "../../components/TruthChip";
-import { truthStateFor, type TruthState } from "../../lib/truthState";
+import { ClaimText, type ClaimSource } from "../../components/ClaimText";
+import { type TruthState } from "../../lib/truthState";
 
 /**
  * Design-lab prototype E — "Evidence Desk" (selected synthesis direction).
@@ -61,29 +62,37 @@ const ACTIVITY: readonly QueueRow[] = [
 interface Claim {
   readonly text: string;
   readonly state: TruthState;
-  readonly source: string | null;
+  readonly sources: readonly ClaimSource[];
+  readonly validUntil?: string;
 }
 
 const CLAIMS: readonly Claim[] = [
   {
     text: "The Core pipeline is discover → ingest → build-indexes → build-portfolio → validate.",
     state: "ok",
-    source: "CLAUDE.md",
+    sources: [{ label: "CLAUDE.md" }],
   },
   {
     text: "Atlas 2.2 capabilities are unlocked per-capability.",
     state: "ok",
-    source: "docs/atlas-2.2/PACKAGE-MATURITY.json",
+    sources: [{ label: "docs/atlas-2.2/PACKAGE-MATURITY.json" }],
   },
   {
+    // No source: ClaimText forces UNKNOWN regardless of any declared state.
     text: "The external security revalidation status is",
-    state: "unknown",
-    source: null,
+    state: "ok",
+    sources: [],
   },
   {
     text: "The supported minimum Python version is",
     state: "contested",
-    source: "pyproject.toml vs docs/plan.md",
+    sources: [{ label: "pyproject.toml" }, { label: "docs/plan.md" }],
+  },
+  {
+    text: "The lexical index was last rebuilt on 2026-08-14.",
+    state: "stale",
+    sources: [{ label: "generated/indexes/manifest.json" }],
+    validUntil: "2026-08-30",
   },
 ];
 
@@ -152,18 +161,17 @@ export default function EvidenceDeskPage() {
               Job J-1, Dossier surface. A claim with no source renders as UNKNOWN in the
               sentence where the fact belongs — it is never quietly omitted.
             </p>
-            <ul className="rows">
+            <div className="claims">
               {CLAIMS.map((claim) => (
-                <li key={claim.text}>
-                  <span>{claim.text}</span>{" "}
-                  {claim.source === null ? (
-                    <TruthChip state={truthStateFor(null)} compact />
-                  ) : (
-                    <TruthChip state={claim.state} detail={claim.source} compact />
-                  )}
-                </li>
+                <ClaimText
+                  key={claim.text}
+                  text={claim.text}
+                  state={claim.state}
+                  sources={claim.sources}
+                  validUntil={claim.validUntil}
+                />
               ))}
-            </ul>
+            </div>
             <h3>Contested claim, shown without a winner</h3>
             <div className="truth-pair">
               <p>
