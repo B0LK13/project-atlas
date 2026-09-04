@@ -28,9 +28,11 @@ class PolicyResult(BaseModel):
     because that guarantee is easy to miss from ``policy.py`` alone,
     which carries no cross-reference to it.
 
-    Verified by direct source inspection (retraction of a false P1
-    authority-escalation claim, D-ATLAS): ``execution_ready`` has exactly
-    one production consumer in the entire codebase -- it is read into the
+    Verified by direct source inspection, during investigation of a P1
+    authority-escalation claim that this repository's own review process
+    subsequently found insufficiently qualified and required narrowing
+    (see git history for both): ``execution_ready`` has exactly one
+    production consumer in the entire codebase -- it is read into the
     scan's own JSON report (``cli.py``) and nowhere else. It is never
     checked as a conditional anywhere. In particular,
     ``materialize.materialize_work_node()`` materializes a proposal
@@ -45,8 +47,16 @@ class PolicyResult(BaseModel):
     specification-backed enough, by this pipeline's advisory heuristic"
     -- not "is this work authorized to run." Do not treat a `True` value
     as a security boundary, and do not treat a `False` value as proof a
-    node cannot be leased: an item with no declared blocker materializes
-    and leases identically whether this field is `True` or `False`.
+    node cannot be leased -- but do not over-read that as "any two
+    proposals lease identically regardless of this field" either: real
+    gates that DO determine leaseability (``proposal.dependencies``,
+    ``risk_class``/``owner_gate``, origination-identity freshness) are
+    free to differ between two otherwise-similar proposals for reasons
+    that happen to correlate with `execution_ready`. What is proven is
+    narrower and precise: holding every OTHER policy input fixed and
+    varying only the evidence that feeds `execution_ready`
+    (`corroborating_signal`) does not by itself change whether the
+    resulting node materializes, gets an `owner_gate`, or leases.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
