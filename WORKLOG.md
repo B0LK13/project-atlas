@@ -10969,8 +10969,9 @@ folded into one blanket "proves ... end to end":
         the one test file) is byte-exactly the WorkNode's own
         `proposed_scope`; independently verifiable from the diff alone.
     DISPATCH_ID_FORMAT_PROOF    = YES -- `local-process:LEASE-14:0` matches
-        `local_dispatch_port.py`'s actual `f"{_dispatch_id_for(lease.lease_id)}:
-        {attempt}"` construction exactly.
+        `local_dispatch_port.py`'s actual construction
+        (`f"{_dispatch_id_for(lease.lease_id)}:{attempt}"`, one line, no
+        separator beyond the literal colons) exactly.
     AUTHENTIC_RUNTIME_EVENT_PROOF = NOT PROVEN -- that lease `LEASE-14` was
         actually granted, that a real `AS-ORCH-AUTONOMY-001E` dispatch
         occurred, and that a result receipt was written, is asserted by
