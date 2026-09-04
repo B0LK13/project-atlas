@@ -90,8 +90,13 @@
   /* WCAG 2.x AA (4.5:1) for normal text. #737373 failed against both of this
      theme's surfaces -- 4.18:1 on --atlas-paper (#0a0a0a) and 3.98:1 on
      --atlas-panel (#111111). #858585 clears both with margin (5.37:1 and
-     5.12:1); the AA thresholds sit at #797979 and #7c7c7c respectively, so
-     this is not borderline. Keep any future muted value at or above #7c7c7c. */
+     5.12:1); the AA thresholds against THESE TWO SURFACES specifically sit
+     at #797979 and #7c7c7c, so this is not borderline. That #7c7c7c number
+     is not a general invariant -- it is only valid while --atlas-paper and
+     --atlas-panel keep their current values above. If either surface
+     changes, or --atlas-muted is ever rendered over a different underlay,
+     recompute the threshold against the actual surfaces in use rather than
+     reusing this number. */
   --atlas-muted: #858585;
   --atlas-paper: #0a0a0a;
   --atlas-panel: #111111;
