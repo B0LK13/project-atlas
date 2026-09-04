@@ -18,11 +18,53 @@ from project_atlas.orchestration.origination.proposal import (
 
 
 class PolicyResult(BaseModel):
+    """The origination policy gate's own verdict. ADVISORY ONLY.
+
+    Nothing in this class grants execution, lease, dispatch, or merge
+    authority -- ``run_origination_scan()`` (``cli.py``) already documents
+    that origination as a whole "never leases, never dispatches, never
+    merges" and always reports fixed ``merge_authorized: False`` /
+    ``execution_authorized: False`` sentinels; this docstring exists
+    because that guarantee is easy to miss from ``policy.py`` alone,
+    which carries no cross-reference to it.
+
+    Verified by direct source inspection (retraction of a false P1
+    authority-escalation claim, D-ATLAS): ``execution_ready`` has exactly
+    one production consumer in the entire codebase -- it is read into the
+    scan's own JSON report (``cli.py``) and nowhere else. It is never
+    checked as a conditional anywhere. In particular,
+    ``materialize.materialize_work_node()`` materializes a proposal
+    regardless of this value (its own docstring: "a proposal that has
+    already cleared the policy gate, OR is being materialized precisely
+    because it did *not* clear it"), and ``governor.lease()`` grants a
+    lease based on node state, dependencies, owner_gate, and origination-
+    identity freshness -- never on this field, which ``WorkNode`` does
+    not even carry.
+
+    ``execution_ready`` therefore answers "does this proposal look
+    specification-backed enough, by this pipeline's advisory heuristic"
+    -- not "is this work authorized to run." Do not treat a `True` value
+    as a security boundary, and do not treat a `False` value as proof a
+    node cannot be leased: an item with no declared blocker materializes
+    and leases identically whether this field is `True` or `False`.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     origination_proposal_valid: bool
     authoritative_intent_signal: bool
+    #: Advisory only -- see the class docstring. Presently driven solely
+    #: by ``adapter.py::extract_corroborating_facts()``, which credits a
+    #: module-level skip/xfail-marked evidence file and nothing else; a
+    #: known, owner-level, non-emergency design inconsistency (weaker/
+    #: disabled-test evidence can outscore a passing test in THIS
+    #: advisory signal) that does not affect real execution authority.
     corroborating_signal: bool
+    #: Advisory only -- see the class docstring. `True` does not
+    #: authorize a lease; `False` does not prevent one. The real
+    #: authority boundary is `proposal.blockers` (materialization-time)
+    #: and `governor.lease()`'s own checks (state, dependencies,
+    #: owner_gate, origination-identity freshness).
     execution_ready: bool
     reason: ExecutionReadyReason
 

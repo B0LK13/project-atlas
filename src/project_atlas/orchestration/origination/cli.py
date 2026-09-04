@@ -170,6 +170,14 @@ def run_origination_scan(
     owner grant"; that distinction lives on the node's own ``owner_gate``
     field, exactly as it does for every other governed node.
 
+    Every ``materialized``/``not_materialized`` entry's own ``execution_ready``
+    key is advisory metadata (see ``PolicyResult`` in ``policy.py``), not an
+    authority signal -- a materialized item with ``execution_ready: false``
+    leases identically to one with ``execution_ready: true``. The real
+    authority gates are ``proposal.blockers`` (checked before this point) and
+    ``governor.lease()``'s own checks (state, dependencies, owner_gate,
+    origination-identity freshness).
+
     Returns ``EXIT_OK`` whenever the scan itself completed (including zero
     eligible candidates -- the correct, honest ``NO_ELIGIBLE_WORK``
     outcome, not an error). Returns ``EXIT_ERROR`` only for a fail-closed
