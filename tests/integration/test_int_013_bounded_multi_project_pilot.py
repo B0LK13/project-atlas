@@ -26,13 +26,18 @@ not and cannot clear INT-013's real external blocker.
 Previously marked ``skip`` pending a real, governed run proving it was
 genuinely runnable (written un-skipped during authorship and confirmed
 passing cleanly end to end, then marked ``skip`` again because it had
-not yet actually been RUN and recorded that way). A real supervised
-autonomous run (AS-ORCH-AUTONOMY-001E, dispatch ``local-process:
-LEASE-14:0``) later removed the marker for real -- see WORKLOG.md's "M3
--- first supervised autonomous Atlas run" entry for that evidence. Now
-enabled as an ongoing fixture-backed integration regression, kept
-un-skipped going forward. ``docs/backlog.md``'s own INT-013 checkbox
-stays unchecked, both outside this change's authorized scope and
+not yet actually been RUN and recorded that way). The marker was later
+removed for real -- see WORKLOG.md's "M3" entry, and its own
+claim-boundary correction immediately below it, for exactly what that
+run does and does not prove: the fixture pipeline composing and this
+change's mutation scope are independently verifiable; the specific
+``AS-ORCH-AUTONOMY-001E`` / ``local-process:LEASE-14:0`` dispatch claim
+is asserted there and not independently corroborated anywhere in this
+repository (a genuine receipt is not committable -- see
+``.gitignore``'s ``.atlas/orchestration/`` exclusion). Now enabled as an
+ongoing fixture-backed integration regression, kept un-skipped going
+forward. ``docs/backlog.md``'s own INT-013 checkbox stays unchecked,
+both outside this change's authorized scope and
 substantively not owed a check while INT-013 remains
 ``EXTERNAL_BLOCKED``.
 
