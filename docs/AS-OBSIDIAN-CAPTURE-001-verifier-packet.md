@@ -9,11 +9,11 @@ target is an attack to attempt, not a result to confirm.
 | --- | --- |
 | Branch | `feat/as-obs-001-conversational-knowledge-capture` |
 | Base | `origin/main` @ `31e07770992723e340f82e7e79c8483da17fa32e` (tree `b32950090463e7186896c0791bf3a840a673cf4b`) |
-| Head | `d4bd4a8b` (tree `8ebdfcd7`) |
-| Commits | `1e41a97c` feature · `610821f8` schema · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs · `816d937e` IV packet · `8c39e0d8` Windows atomic-write · `729acb65` IV rebase · `d4bd4a8b` **R1 projection anchor** |
+| Head | `bac590cf` (tree `c4f6ebe2`) |
+| Commits | `1e41a97c` feature · `610821f8` schema · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs · `816d937e` IV packet · `8c39e0d8` Windows atomic-write · `729acb65` IV rebase · `d4bd4a8b` **R1 projection anchor** · `bac590cf` **canonical path validation** |
 | Superseded | `816d937e` (Windows), `729acb65` (**IV FAIL** — default projection root escape) |
 
-`git log --oneline 31e07770..HEAD` should show exactly those eight. **Do not reuse
+`git log --oneline 31e07770..HEAD` should show exactly those ten. **Do not reuse
 evidence from `729acb65` or earlier**: those heads are historical only, and
 `729acb65` failed independent verification on the finding re-attacked in V7.
 
@@ -167,6 +167,8 @@ link planted, assert **nothing at all** is created on the far side — not even
 an empty directory. `mkdir(parents=True)` past a symlinked ancestor is
 already a boundary violation. Confirm the walk uses `lstat`, not `realpath`,
 and that no containment failure is retried.
+
+Attack the *input* validation too, on both platform families. `materialize_under_root` originally used a hand-rolled `is_absolute()`, which is False on Windows for `Path("/etc")` (root, no drive); it now uses `atlas_contracts.paths.safe_relative_path`. Push `/etc`, `C:evil`, `../outside`, `a/../../b`, `con`, `trailing.` and `trailing ` through it and confirm each is rejected *and* that nothing is created for a rejected path.
 
 In every blocked case the raw evidence must still be readable via
 `atlas capture show` and its hash must still verify.
