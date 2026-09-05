@@ -74,11 +74,13 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "reserved agent-event routing scope reached neither inventory "
             "and produced no diagnostic), including R4-D (a real document, or a "
             "whole subtree behind a directory symlink, escaping the source "
-            "root was excluded without any diagnostic)"
+            "root was excluded without any diagnostic), and owner grant "
+            "R_READY-5 residual R5 (an unreadable scope under the agent-event "
+            "inbox aborted the entire discovery run)"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c"
+            "f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847"
         ),
     },
     {

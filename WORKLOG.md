@@ -11622,11 +11622,11 @@ table earlier in this file is historical, whatever its heading says.**
 
 | Path | sha256 | Status |
 | --- | --- | --- |
-| `src/project_atlas/discovery.py` | `57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c` | **CURRENT** |
+| `src/project_atlas/discovery.py` | `f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847` | **CURRENT** |
 | `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | **CURRENT** (unchanged since the first grant) |
 
 Superseded `discovery.py` pins, newest first:
-`6433b1d6`, `1bfc4d35`, `c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
+`57726941`, `6433b1d6`, `1bfc4d35`, `c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
 `a4c55877` (R_READY, pre-R4), `d8ee84fc` (R_READY, pre-remediation),
 `e43d97b2` (first grant).
 
@@ -11756,8 +11756,15 @@ not for the agent-event inventory.
 **Matrix rows corrected accordingly.** `UNREADABLE_DIRECTORY`,
 `ZERO_PERMISSION_DIRECTORY` and `DISCOVERY_CONTINUES_WHERE_ALLOWED`, and the
 prose "one unreachable entry must never abort the run", are true **for the
-main discovery walk only**. They do not hold for a mode-000 directory under
-the reserved agent-event inbox. Not remediated here: R_READY-2 authorizes
+main discovery walk only**. They do not hold for an unreadable directory under
+the reserved agent-event inbox.
+
+> **UPDATED after R5 remediation:** mode-000 under the inbox now holds. What
+> did *not* hold until the later correction was **mode 0444** -- listable but
+> not traversable -- because `is_dir()` itself raises `EACCES` there while
+> only `iterdir()` had been guarded. See "R5 fresh IV returned FAIL" below.
+
+Not remediated here: R_READY-2 authorizes
 discovery.py for the R4 silent-loss class and states "do not use this grant
 for unrelated discovery behavior" -- this is the abort class, and closing it
 is a separate decision.
@@ -11855,3 +11862,57 @@ device link all correctly not sources. Six of six.
 | `PIN_ENTRY_COUNT` | **1** for `discovery.py` (replaced in place, asserted programmatically) |
 
 `ingestion.py` byte-identical and its pre-existing two-hash `any()` untouched.
+
+### R5 fresh IV returned **FAIL** — one introduced regression, corrected
+
+Independent verification of `78db0b95` returned **FAIL**. It confirmed E1-E4,
+E7-E9 and the gates -- including that a genuinely `valid` package (built with
+the repository's own fully-verified builder, stronger than my `pending`
+helper) produces a **byte-identical** manifest base vs head under fixed root
+and mtimes -- and confirmed 42/42 error-classification probes, so the guard is
+not catch-everything. It then found two things I had wrong.
+
+1. **I INTRODUCED silent loss. Corrected.** My fix deliberately emitted no
+   diagnostic, resting on the claim that `discover()`'s walk always reports
+   the same path first. **That coupling is unsound.** With `.atlas-inbox` at
+   mode **0111** -- execute-only, an ordinary "traverse but do not list"
+   permission -- `rglob` cannot list it, so the walk reports only
+   `.atlas-inbox` and never reaches the descendants, while
+   `_discover_agent_events` needs only `+x`, traverses straight past, and
+   dropped the unreadable child with **no diagnostic naming it and exit 0**.
+   Base aborted loudly naming the exact path. Reproduced directly. This is
+   precisely the silent-loss class this branch already retracted a universal
+   for, and I created it while fixing an abort.
+
+   The inventory now reports for itself:
+   `agent-event scope not readable, packages not inventoried: <path>`. That
+   also states a materially different fact from the walk's "contents not
+   inventoried" -- event packages, not source documents -- which is the
+   justification SS5 of the directive requires for a second diagnostic. My
+   earlier "one diagnostic per scope" reasoning traded a real safety property
+   for a cosmetic one; the test that encoded it
+   (`..._reported_exactly_once`) asserted the wrong contract and is replaced
+   by one that pins the 0111 case.
+
+2. **The R5 claim was overstated. Corrected.** I guarded `iterdir()` but not
+   `is_dir()`, and `pathlib` swallows only `ENOENT/ENOTDIR/EBADF/ELOOP` -- so
+   `EACCES` still propagated from four sites and **mode 0444 scopes still
+   aborted the run**: inbox parent 0444 and 000, `agent-events` 0444, project
+   dir 0444. Pre-existing (identical on base), but the claim "EACCES/EPERM
+   exercised directly ... observable and non-fatal" read as though it were
+   already covered. All four sites now use `_reachable_is_dir`, and all four
+   configurations exit 0 with the inventory diagnostic. Parametrised
+   regressions added.
+
+Both corrections are load-bearing: reverting only `discovery.py` fails all
+four new tests.
+
+Also fixed from that review: the freeze exception's recorded reason now names
+R5 (the pin had moved to content it did not describe), and the inverted prose
+above is corrected -- mode-000 holds; it was mode-0444 that did not.
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c` |
+| `NEW_PIN` | `f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847` |
+| `PIN_ENTRY_COUNT` | **1** for `discovery.py` |

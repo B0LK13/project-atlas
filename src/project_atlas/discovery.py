@@ -219,6 +219,43 @@ def _is_inaccessible_scope(exc: OSError) -> bool:
     return exc.errno in _INACCESSIBLE_SCOPE_ERRNOS
 
 
+def _reachable_is_dir(path: Path) -> bool | None:
+    """`path.is_dir()`, or None when the answer itself is unreachable.
+
+    `pathlib` only swallows ENOENT/ENOTDIR/EBADF/ELOOP, so `is_dir()` raises
+    EACCES for an entry whose parent is readable but not traversable (mode
+    0444). Guarding only `iterdir()` therefore left a whole class of
+    unreadable scopes still aborting the run.
+    """
+    try:
+        return path.is_dir()
+    except OSError as exc:
+        if not _is_inaccessible_scope(exc):
+            raise
+        return None
+
+
+def _report_unreadable_event_scope(path: Path, root: Path) -> None:
+    """Report an agent-event scope whose packages could not be inventoried.
+
+    This diagnostic is emitted by the inventory itself rather than inherited
+    from `discover()`'s walk. Relying on the walk was unsound: with the inbox
+    at mode 0111 the walk cannot *list* it -- so it reports only `.atlas-inbox`
+    and never reaches the descendants -- while this inventory needs only `+x`
+    and traverses straight past, dropping an unreadable child silently. It
+    also states a different fact: event packages were not inventoried, which
+    is not what "contents not inventoried" tells a reader about a source walk.
+    """
+    try:
+        relative = path.relative_to(root).as_posix()
+    except ValueError:  # pragma: no cover - path is always under root here
+        relative = str(path)
+    _log.warning(
+        "agent-event scope not readable, packages not inventoried: %s",
+        _reportable(relative),
+    )
+
+
 def _is_listable(path: Path) -> bool:
     """True when this directory's entries can actually be enumerated.
 
@@ -281,7 +318,11 @@ def _is_recordable(relative: str) -> bool:
 def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
     """Inventory Control Plane packages without importing its implementation."""
     inbox = root / ".atlas-inbox" / "agent-events"
-    if not inbox.is_dir() or inbox.is_symlink():
+    inbox_is_dir = _reachable_is_dir(inbox)
+    if inbox_is_dir is None:
+        _report_unreadable_event_scope(inbox, root)
+        return []
+    if not inbox_is_dir or inbox.is_symlink():
         return []
     inventories: list[EventPackageInventory] = []
     try:
@@ -289,16 +330,14 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
     except OSError as exc:
         if not _is_inaccessible_scope(exc):
             raise
-        # Deliberately no diagnostic here. `discover()`'s own walk reaches this
-        # same path first and already emits exactly one
-        # "inaccessible discovery scope" warning naming it -- before any
-        # exclusion logic runs, so the report is emitted even when the subtree
-        # is excluded from `sources`. A second warning would restate one fact
-        # about one path. What must not happen is what used to: the whole run
-        # aborting because one scope could not be read.
+        _report_unreadable_event_scope(inbox, root)
         return []
     for project_dir in project_dirs:
-        if not project_dir.is_dir():
+        project_is_dir = _reachable_is_dir(project_dir)
+        if project_is_dir is None:
+            _report_unreadable_event_scope(project_dir, root)
+            continue
+        if not project_is_dir:
             # AS-INT-001: only `<project-id>/<event-id>/` package directories
             # are valid here, and `discover()` excludes this whole subtree from
             # `sources` so package components are not double-counted as
@@ -318,9 +357,14 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
         except OSError as exc:
             if not _is_inaccessible_scope(exc):
                 raise
-            continue  # already reported by the main walk; see the note above
+            _report_unreadable_event_scope(project_dir, root)
+            continue
         for event_dir in event_dirs:
-            if not event_dir.is_dir():
+            event_is_dir = _reachable_is_dir(event_dir)
+            if event_is_dir is None:
+                _report_unreadable_event_scope(event_dir, root)
+                continue
+            if not event_is_dir:
                 _log.warning(
                     "unexpected non-package entry in reserved agent-event scope: %s "
                     "(only <project-id>/<event-id>/ package directories are valid here)",
@@ -335,9 +379,9 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
             except OSError as exc:
                 if not _is_inaccessible_scope(exc):
                     raise
-                # The package contents could not be read, so no inventory row
-                # is appended: a partially-read package would be fabricated
-                # evidence. Already reported by the main walk; see above.
+                # No inventory row: a partially-read package would be
+                # fabricated evidence.
+                _report_unreadable_event_scope(event_dir, root)
                 continue
     by_event_id: dict[str, list[EventPackageInventory]] = {}
     for inventory in inventories:
@@ -417,7 +461,7 @@ def discover(
                         _reportable(escaped),
                     )
             continue
-        if event_root.is_dir() and path.is_relative_to(event_root):
+        if _reachable_is_dir(event_root) and path.is_relative_to(event_root):
             continue
         if not _is_recordable(relative):
             # Reported rather than recorded: a sanitized path would be a

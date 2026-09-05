@@ -714,29 +714,72 @@ def test_unreadable_event_package_dir_does_not_abort(
 
 
 @pytest.mark.skipif(_IS_ROOT, reason="root reads regardless of mode bits")
-def test_inaccessible_agent_event_scope_is_reported_exactly_once(
+def test_event_inventory_reports_unreadable_scope_without_relying_on_the_walk(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """One deterministic diagnostic per inaccessible scope, not two.
+    """The inventory must report for itself, not inherit the walk's diagnostic.
 
-    The main walk reaches the same path first and reports it before any
-    exclusion logic runs. The inventory therefore stays quiet rather than
-    restating one fact about one path.
+    An earlier version of this fix emitted nothing here, on the theory that
+    `discover()`'s walk always reports the same path first. That is unsound:
+    with the inbox at mode 0111 the walk cannot *list* it, so it reports only
+    `.atlas-inbox` and never reaches the descendants, while this inventory
+    needs only `+x` and traverses straight past -- dropping an unreadable
+    child with no diagnostic naming it at all. That was silent loss
+    introduced by the very change meant to prevent aborts.
+    """
+    source = _write_source(tmp_path / "source")
+    inbox = _inbox_with(source, "locked", "ok")
+    (inbox / "locked").chmod(0o000)
+    (source / ".atlas-inbox").chmod(0o111)  # traversable, NOT listable
+    try:
+        if os.access(source / ".atlas-inbox", os.R_OK):
+            pytest.skip("filesystem does not enforce directory mode bits")
+        with caplog.at_level("WARNING"):
+            manifest = _discover(tmp_path, source)
+    finally:
+        (source / ".atlas-inbox").chmod(0o755)
+        (inbox / "locked").chmod(0o755)
+
+    events = manifest["agent_events"]
+    assert isinstance(events, list)
+    assert [(e["project_id"], e["event_id"]) for e in events] == [("ok", "evt-2")]
+    assert any(
+        "agent-event scope not readable" in m and "locked" in m for m in caplog.messages
+    ), "the inventory must name the scope it could not read"
+
+
+@pytest.mark.skipif(_IS_ROOT, reason="root reads regardless of mode bits")
+@pytest.mark.parametrize(
+    "target",
+    ["inbox_parent", "agent_events_root", "project_dir"],
+    ids=["inbox-parent-0444", "agent-events-0444", "project-dir-0444"],
+)
+def test_listable_but_untraversable_event_scopes_do_not_abort(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, target: str
+) -> None:
+    """Mode 0444 is readable but not traversable, so `is_dir()` itself raises.
+
+    `pathlib` swallows only ENOENT/ENOTDIR/EBADF/ELOOP, so guarding just
+    `iterdir()` left every 0444 scope still aborting the whole run.
     """
     source = _write_source(tmp_path / "source")
     inbox = _inbox_with(source, "proj-a")
-    locked = inbox / "proj-a"
-    locked.chmod(0o000)
+    locked = {
+        "inbox_parent": source / ".atlas-inbox",
+        "agent_events_root": inbox,
+        "project_dir": inbox / "proj-a",
+    }[target]
+    locked.chmod(0o444)
     try:
-        if os.access(locked, os.R_OK):
-            pytest.skip("filesystem does not enforce directory mode bits")
+        if os.access(locked / "probe", os.F_OK):
+            pytest.skip("filesystem does not enforce the missing execute bit")
         with caplog.at_level("WARNING"):
-            _discover(tmp_path, source)
+            manifest = _discover(tmp_path, source)
     finally:
         locked.chmod(0o755)
 
-    naming = [m for m in caplog.messages if "agent-events/proj-a" in m]
-    assert len(naming) == 1, f"expected exactly one diagnostic, got {naming}"
+    assert "README.md" in _by_path(manifest), "the run completes"
+    assert any("agent-event scope not readable" in m for m in caplog.messages)
 
 
 def test_unexpected_oserror_in_event_inventory_still_propagates(
