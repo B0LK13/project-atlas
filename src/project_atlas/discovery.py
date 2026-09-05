@@ -199,6 +199,34 @@ def _is_listable(path: Path) -> bool:
     return True
 
 
+def _uninventoried_symlink_target(path: Path, root: Path) -> str | None:
+    """Physical target of a symlink whose content the walk will never reach.
+
+    A symlink is never evidence in its own right: following one would either
+    duplicate a document already inventoried under its real path, or escape
+    the source root. When the target resolves *inside* the root that
+    duplication argument holds and nothing is lost, so this returns None.
+
+    When it resolves *outside* the root, the content is real, readable and
+    reachable at a path under the root, yet `rglob` neither yields it (a file
+    symlink is skipped as non-regular) nor descends it (a directory symlink is
+    not followed) -- so a real document, or an entire subtree behind a
+    directory symlink, would disappear with no record and no diagnostic.
+    Returns the physical path so the exclusion can be reported.
+    """
+    try:
+        resolved = Path(os.path.realpath(path))
+        if not resolved.exists():
+            return None  # broken link: there is no document to lose
+        if resolved.is_relative_to(root):
+            return None  # inventoried under its own real path
+        if not (resolved.is_file() or resolved.is_dir()):
+            return None  # FIFO, device, socket: not a document
+    except OSError:
+        return None
+    return resolved.as_posix()
+
+
 def _is_recordable(relative: str) -> bool:
     """False when a path cannot appear in the UTF-8 JSON manifest at all.
 
@@ -299,8 +327,9 @@ def discover(
             # The first metadata access, not `stat()` below: a directory that
             # lists but does not traverse (mode 0444) makes even is_file()
             # raise EACCES. One unreachable entry must never abort the run.
-            regular_file = path.is_file() and not path.is_symlink()
-            directory = path.is_dir() and not path.is_symlink()
+            is_link = path.is_symlink()
+            regular_file = path.is_file() and not is_link
+            directory = path.is_dir() and not is_link
         except OSError as exc:
             _log.warning(
                 "skipped unreadable path: %s (%s)", _reportable(relative), exc.strerror
@@ -315,6 +344,15 @@ def discover(
             )
             continue
         if not regular_file:
+            if is_link:
+                escaped = _uninventoried_symlink_target(path, root)
+                if escaped is not None:
+                    _log.warning(
+                        "symlink target outside the source root is not inventoried: "
+                        "%s -> %s",
+                        _reportable(relative),
+                        _reportable(escaped),
+                    )
             continue
         if event_root.is_dir() and path.is_relative_to(event_root):
             continue

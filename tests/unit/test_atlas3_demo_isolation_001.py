@@ -72,11 +72,13 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "observable; ordering key made total for NFR-001 determinism), and "
             "owner grant R_READY-2 residual R4 (a real document in the "
             "reserved agent-event routing scope reached neither inventory "
-            "and produced no diagnostic)"
+            "and produced no diagnostic), including R4-D (a real document, or a "
+            "whole subtree behind a directory symlink, escaping the source "
+            "root was excluded without any diagnostic)"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "7dc3907ff81c65a9106417fa0f480e8518f442f8db21a523185606e306935d0d"
+            "62d781b63b5b1f0f59c244bca5b7d1c725dd06206238a281976565f8a6fc9c3e"
         ),
     },
     {

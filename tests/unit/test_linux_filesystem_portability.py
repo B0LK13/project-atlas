@@ -416,7 +416,9 @@ def test_unexpected_document_in_reserved_scope_is_not_silently_lost(
     assert [(e["project_id"], e["event_id"]) for e in events] == [("proj-a", "evt-1")]
 
 
-def test_valid_agent_event_package_still_routes(tmp_path: Path) -> None:
+def test_valid_agent_event_package_still_routes(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """R4-B: the diagnostic must not disturb valid package routing."""
     source = _write_source(tmp_path / "source")
     inbox = source / ".atlas-inbox" / "agent-events"
@@ -424,12 +426,21 @@ def test_valid_agent_event_package_still_routes(tmp_path: Path) -> None:
     _valid_package(inbox, "proj-a", "evt-1")
     _valid_package(inbox, "proj-b", "evt-2")
 
-    events = _discover(tmp_path, source)["agent_events"]
+    with caplog.at_level("WARNING"):
+        events = _discover(tmp_path, source)["agent_events"]
+
     assert isinstance(events, list)
     assert sorted((e["project_id"], e["event_id"]) for e in events) == [
         ("proj-a", "evt-1"),
         ("proj-b", "evt-2"),
     ]
+    # The diagnostic must never fire for a well-formed package directory.
+    assert not [m for m in caplog.messages if "reserved agent-event scope" in m]
+    # Scope note: this exercises package *layout* routing, not envelope
+    # verification -- these components are structurally present but not
+    # cryptographically valid, so status stays "pending".
+    # tests/integration/test_agent_event_ingestion.py covers fully-verified
+    # packages end to end, and this change cannot affect envelope validation.
 
 
 def test_ordinary_sources_outside_reserved_scope_are_unchanged(tmp_path: Path) -> None:
@@ -446,11 +457,13 @@ def test_ordinary_sources_outside_reserved_scope_are_unchanged(tmp_path: Path) -
     assert records["README.md"]["exclusion_reason"] is None
 
 
-def test_reserved_scope_diagnostic_keeps_inventory_deterministic(tmp_path: Path) -> None:
+def test_reserved_scope_diagnostic_keeps_inventory_deterministic(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """R4-E: the new diagnostic must not reintroduce order dependence."""
     fixed = 1_700_000_000
 
-    def inventory(root: Path, order: list[str]) -> tuple[str, list[str]]:
+    def inventory(root: Path, order: list[str]) -> tuple[str, list[str], list[str]]:
         inbox = root / ".atlas-inbox" / "agent-events"
         inbox.mkdir(parents=True)
         (root / ".atlas-project.yaml").write_text(
@@ -462,8 +475,15 @@ def test_reserved_scope_diagnostic_keeps_inventory_deterministic(tmp_path: Path)
         _valid_package(inbox, "proj-a", "evt-1")
         for entry in [*root.rglob("*"), root]:
             os.utime(entry, (fixed, fixed))
-        manifest = discover(root)
-        return manifest["inventory_sha256"], [s["path"] for s in manifest["sources"]]
+        with caplog.at_level("WARNING"):
+            caplog.clear()
+            manifest = discover(root)
+            warnings = [m for m in caplog.messages if "reserved agent-event scope" in m]
+        return (
+            manifest["inventory_sha256"],
+            [s["path"] for s in manifest["sources"]],
+            warnings,
+        )
 
     root = tmp_path / "tree"
     first = inventory(root, ["a.md", "b.md", "c.md"])
@@ -472,3 +492,62 @@ def test_reserved_scope_diagnostic_keeps_inventory_deterministic(tmp_path: Path)
 
     assert first[1] == second[1]
     assert first[0] == second[0], "reserved-scope diagnostics must not perturb the inventory"
+    assert first[2] == second[2], "diagnostic order must not follow creation order"
+
+
+def test_symlink_escaping_the_root_is_reported_not_silently_lost(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """R4-D: a real document reachable only through an escaping symlink.
+
+    A symlink is never evidence itself -- following one would duplicate a
+    document already inventoried under its real path, or escape the source
+    root. That reasoning holds only when the target is *inside* the root.
+    When it resolves outside, the content is real, readable and reachable at
+    a path under the root, yet `rglob` neither yields it (a file symlink is
+    non-regular) nor descends it (a directory symlink is not followed) -- so
+    a document, or an entire subtree behind a directory symlink, vanished
+    with no record and no diagnostic.
+    """
+    outside = tmp_path / "outside"
+    (outside / "buried").mkdir(parents=True)
+    (outside / "handbook.md").write_text("# real, readable, outside\n", encoding="utf-8")
+    (outside / "buried" / "deep.md").write_text("# behind a dir symlink\n", encoding="utf-8")
+
+    source = _write_source(tmp_path / "source")
+    (source / "escape.md").symlink_to(outside / "handbook.md")
+    (source / "mirror").symlink_to(outside / "buried")
+
+    with caplog.at_level("WARNING"):
+        records = _by_path(_discover(tmp_path, source))
+
+    # Still excluded -- following the link would escape the approved root.
+    assert "escape.md" not in records
+    assert not any(path.startswith("mirror") for path in records)
+
+    escaped = [m for m in caplog.messages if "outside the source root" in m]
+    assert any("escape.md" in m for m in escaped), "escaping file symlink must be observable"
+    assert any("mirror" in m for m in escaped), "escaping directory symlink must be observable"
+
+
+def test_non_escaping_symlinks_stay_quiet(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The escape diagnostic must not fire where nothing is actually lost.
+
+    An in-root target is already inventoried under its own real path, a
+    broken link has no document behind it, and a FIFO is not a document.
+    Warning on those would be noise, not evidence.
+    """
+    source = _write_source(tmp_path / "source")
+    (source / "docs" / "target.md").write_text("# in tree\n", encoding="utf-8")
+    (source / "dup.md").symlink_to(source / "docs" / "target.md")
+    (source / "mirror_in").symlink_to(source / "docs")
+    (source / "broken.md").symlink_to(source / "nowhere.md")
+    os.mkfifo(source / "pipe.md")
+
+    with caplog.at_level("WARNING"):
+        records = _by_path(_discover(tmp_path, source))
+
+    assert "docs/target.md" in records, "the real document is inventoried under its own path"
+    assert not [m for m in caplog.messages if "outside the source root" in m]

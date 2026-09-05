@@ -11527,3 +11527,86 @@ real document is lost there. The universal `NO_SILENT_LOSS` remains
 return `False` into branch B. Reaching the `stat()` handler requires `stat()`
 to succeed inside `is_file()` and fail microseconds later. No deterministic
 test exists and none was manufactured by weakening production behaviour.
+
+### R4 second-round IV: my branch-B classification was WRONG (retracted)
+
+Independent verification of `8fd27537` returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`, confirming R4-A on base and fixed at head,
+byte-identical manifests under fixed root and mtimes (the *only* base-vs-head
+difference in the entire discover output being the two added warning lines),
+`0 of 2,766` re-measured, and the freeze guard load-bearing by tampering. It
+also refuted my classification of the second branch and part of my reasoning.
+
+1. **Branch B is the SAME defect class. Classification retracted; remediated.**
+   I claimed "either the document is recorded under its real path, or no
+   document exists". That dichotomy is **false for a symlink whose target
+   resolves outside the source root** -- the real path is then not under
+   `root`, so it is never recorded, and the document plainly exists. Worse, my
+   enumeration omitted **directory symlinks** entirely, dismissing "a
+   directory is not a document" while conflating a real directory with a
+   directory *symlink* whose entire subtree goes un-inventoried: `rglob`
+   yields `mirror_out` but never descends it, and it is neither `regular_file`
+   nor `directory` (both are `and not is_link`), so it fell through the silent
+   `continue` without ever reaching the `_is_listable` scope probe.
+   Reproduced: `handbook.md -> <outside>/handbook.md` and
+   `mirror_out -> <outside>/buriedir` are both readable real documents at
+   paths under the root, recorded nowhere, with no diagnostic. My "reproduced
+   case by case" had not reproduced the one case that mattered, because the
+   repository's only symlink test points at a target that is never created --
+   i.e. a *broken* link.
+
+   Remediated in `_uninventoried_symlink_target`: a symlink is still never
+   followed (escape and duplication both remain refused), but when its target
+   resolves **outside** the root and exists as a real file or directory, the
+   exclusion is now reported --
+   `symlink target outside the source root is not inventoried: <path> -> <physical>`.
+   It stays silent exactly where nothing is lost: an in-root target is already
+   inventoried under its own real path, a broken link has no document behind
+   it, and a FIFO/device/socket is not a document. Verified against all six
+   cases.
+
+2. **My R4 justification was partly wrong.** I wrote that an
+   `EventPackageInventory` for a loose file would require fabricating
+   `project_id`/`event_id` "which the contract forbids". For
+   `agent-events/<project>/stray.md` that is **false**:
+   `inspect_event_package(root, project_dir.name, event_dir.name, ...)`
+   already takes both ids straight from directory names, and emits a durable
+   `status="invalid"` record for a malformed package. Only the *top-level*
+   `agent-events/loose.md` genuinely lacks a project id. The warning remains a
+   defensible disposition -- a loose file is not a package -- but the stated
+   reason was not the true reason, and the stronger native alternative
+   (`status="invalid"`, machine-readable, inside `inventory_sha256`, visible
+   in `quarantine/agent-events/index.json`) was not considered. Recorded as a
+   known alternative, not adopted here: adopting it would widen R4 from
+   "make the exclusion observable" into changing what the manifest asserts.
+
+3. **Test gaps closed.** R4-E now asserts warning *order*, not only manifest
+   order and hash. R4-B now asserts no diagnostic fires for a well-formed
+   package, and carries an explicit scope note: its components are
+   structurally present but not cryptographically valid, so `status` is
+   `pending`; fully-verified packages are covered end to end by
+   `tests/integration/test_agent_event_ingestion.py`, and this change cannot
+   affect envelope validation.
+
+**Corrected claim, again scoped to what is proven:** every real document
+encountered within discovery scope now produces either a manifest record or an
+observable diagnostic -- including documents reachable only through a symlink
+that escapes the source root, and whole subtrees behind an escaping directory
+symlink. The universal `NO_SILENT_LOSS` remains **withdrawn**.
+`TOCTOU_BRANCH = UNPROVEN`, unchanged.
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `7dc3907ff81c65a9106417fa0f480e8518f442f8db21a523185606e306935d0d` |
+| `NEW_PIN` | `62d781b63b5b1f0f59c244bca5b7d1c725dd06206238a281976565f8a6fc9c3e` |
+| `WHY_REQUIRED` | R4-D remediation is in `discover()`'s non-regular-entry branch, inside the hash-pinned `discovery.py` |
+
+Pin replaced in place; `discovery.py` still has exactly one exception entry
+(asserted programmatically). `ingestion.py` untouched and its pre-existing
+two-hash `any()` condition neither broadened nor cleaned up.
+
+**Method for the "2,051 sources" figure** (flagged as unmethodded): three
+in-repo trees discovered with no config excludes --
+`./docs` (1,108), `./tests` (657), `./atlas-vault-documentation` (286) --
+each containing no case-tied names, compared base vs head; all three inventory
+hashes byte-identical.
