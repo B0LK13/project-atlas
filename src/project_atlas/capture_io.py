@@ -32,7 +32,7 @@ import time
 import uuid
 from pathlib import Path
 
-from atlas_contracts.identity import ensure_under_root
+from atlas_contracts.identity import ensure_under_root, safe_relative_path
 
 #: Attempts for an operation that can lose a benign Windows race.
 MAX_ATTEMPTS = 5
@@ -147,10 +147,14 @@ def materialize_under_root(root: Path, relative: Path, *, label: str) -> Path:
     Security failures are never retried; only the benign concurrent-creation
     races inside :func:`_mkdir_p` are.
     """
-    if relative.is_absolute():
-        raise ValueError(f"unsafe {label}: {relative} must be vault-relative")
+    # Canonical validation, not an ad-hoc is_absolute() check: on Windows
+    # ``Path("/etc")`` is not "absolute" (it carries a root but no drive), so a
+    # hand-rolled test silently accepts it. ``safe_relative_path`` enforces the
+    # same rules on every platform -- leading separators, drive-relative
+    # ``C:foo``, UNC prefixes, reserved device names, trailing dot/space.
+    segments = safe_relative_path(relative.as_posix(), label=label)
     current = root
-    for segment in relative.parts:
+    for segment in segments:
         current = current / segment
         if not is_lexically_under(root, current):
             raise ValueError(f"unsafe {label} escapes root: {current}")

@@ -925,8 +925,20 @@ def test_materialize_under_root_creates_a_clean_chain(tmp_path: Path) -> None:
     assert materialize_under_root(root, Path("a/b/c"), label="test") == created
 
 
-def test_materialize_under_root_rejects_an_absolute_relative(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "hostile",
+    ["/etc", "C:evil", "../outside", "a/../../b", "con", "trailing.", "trailing "],
+)
+def test_materialize_under_root_rejects_non_relative_or_unsafe_paths(
+    tmp_path: Path, hostile: str
+) -> None:
+    """Validated with the canonical primitive, so the rules hold on Windows too.
+
+    ``Path("/etc")`` is not ``is_absolute()`` on Windows -- it carries a root
+    but no drive -- so an ad-hoc check would let it through there.
+    """
     root = tmp_path / "root"
     root.mkdir()
-    with pytest.raises(ValueError, match="vault-relative"):
-        materialize_under_root(root, Path("/etc"), label="test")
+    with pytest.raises(ValueError, match="unsafe test"):
+        materialize_under_root(root, Path(hostile), label="test")
+    assert list(root.iterdir()) == [], "nothing may be created for a rejected path"
