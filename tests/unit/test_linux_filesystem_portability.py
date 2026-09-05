@@ -368,3 +368,107 @@ def test_inventory_is_deterministic_across_creation_order(tmp_path: Path) -> Non
 
     assert first[1] == second[1], "manifest order must not follow creation order"
     assert first[0] == second[0], "inventory_sha256 must not follow creation order"
+
+
+def _valid_package(inbox: Path, project_id: str, event_id: str) -> Path:
+    """A structurally-shaped event package: <project-id>/<event-id>/ (AS-INT-001)."""
+    package = inbox / project_id / event_id
+    package.mkdir(parents=True)
+    for component in ("event.md", "event.json", "provenance.json", "receipt.yaml"):
+        (package / component).write_text("{}\n", encoding="utf-8")
+    return package
+
+
+def test_unexpected_document_in_reserved_scope_is_not_silently_lost(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """R4-A: a real document in the agent-event inbox reaches neither inventory.
+
+    `.atlas-inbox/agent-events/` is reserved routing scope: only
+    `<project-id>/<event-id>/` package directories are valid there (AS-INT-001),
+    and `discover()` excludes the whole subtree from `sources` so package
+    components are not double-counted as documentation. A loose file therefore
+    lands in neither `sources` nor `agent_events` -- previously without any
+    diagnostic at all, so a real document disappeared from observable output.
+    """
+    source = _write_source(tmp_path / "source")
+    inbox = source / ".atlas-inbox" / "agent-events"
+    inbox.mkdir(parents=True)
+    (inbox / "loose.md").write_text("# a real document\n", encoding="utf-8")
+    _valid_package(inbox, "proj-a", "evt-1")
+    (inbox / "proj-a" / "stray.md").write_text("# stray\n", encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        manifest = _discover(tmp_path, source)
+
+    records = _by_path(manifest)
+    assert not any(
+        ".atlas-inbox" in path for path in records
+    ), "reserved scope stays out of sources"
+
+    warned = [m for m in caplog.messages if "reserved agent-event scope" in m]
+    assert any("agent-events/loose.md" in m for m in warned), "top-level drop must be observable"
+    assert any("proj-a/stray.md" in m for m in warned), "package-level drop must be observable"
+
+    # No fabricated routed evidence: the loose files are not agent events.
+    events = manifest["agent_events"]
+    assert isinstance(events, list)
+    assert [(e["project_id"], e["event_id"]) for e in events] == [("proj-a", "evt-1")]
+
+
+def test_valid_agent_event_package_still_routes(tmp_path: Path) -> None:
+    """R4-B: the diagnostic must not disturb valid package routing."""
+    source = _write_source(tmp_path / "source")
+    inbox = source / ".atlas-inbox" / "agent-events"
+    inbox.mkdir(parents=True)
+    _valid_package(inbox, "proj-a", "evt-1")
+    _valid_package(inbox, "proj-b", "evt-2")
+
+    events = _discover(tmp_path, source)["agent_events"]
+    assert isinstance(events, list)
+    assert sorted((e["project_id"], e["event_id"]) for e in events) == [
+        ("proj-a", "evt-1"),
+        ("proj-b", "evt-2"),
+    ]
+
+
+def test_ordinary_sources_outside_reserved_scope_are_unchanged(tmp_path: Path) -> None:
+    """R4-C: documents outside the inbox keep behaving exactly as before."""
+    source = _write_source(tmp_path / "source")
+    (source / "docs" / "ordinary.md").write_text("# ordinary\n", encoding="utf-8")
+    inbox = source / ".atlas-inbox" / "agent-events"
+    inbox.mkdir(parents=True)
+    (inbox / "loose.md").write_text("# reserved\n", encoding="utf-8")
+
+    records = _by_path(_discover(tmp_path, source))
+
+    assert records["docs/ordinary.md"]["exclusion_reason"] is None
+    assert records["README.md"]["exclusion_reason"] is None
+
+
+def test_reserved_scope_diagnostic_keeps_inventory_deterministic(tmp_path: Path) -> None:
+    """R4-E: the new diagnostic must not reintroduce order dependence."""
+    fixed = 1_700_000_000
+
+    def inventory(root: Path, order: list[str]) -> tuple[str, list[str]]:
+        inbox = root / ".atlas-inbox" / "agent-events"
+        inbox.mkdir(parents=True)
+        (root / ".atlas-project.yaml").write_text(
+            "schema_version: 1\nproject:\n  id: reserved\n", encoding="utf-8"
+        )
+        (root / "README.md").write_text("# root\n", encoding="utf-8")
+        for name in order:
+            (inbox / name).write_text("# loose\n", encoding="utf-8")
+        _valid_package(inbox, "proj-a", "evt-1")
+        for entry in [*root.rglob("*"), root]:
+            os.utime(entry, (fixed, fixed))
+        manifest = discover(root)
+        return manifest["inventory_sha256"], [s["path"] for s in manifest["sources"]]
+
+    root = tmp_path / "tree"
+    first = inventory(root, ["a.md", "b.md", "c.md"])
+    shutil.rmtree(root)
+    second = inventory(root, ["c.md", "b.md", "a.md"])
+
+    assert first[1] == second[1]
+    assert first[0] == second[0], "reserved-scope diagnostics must not perturb the inventory"

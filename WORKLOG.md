@@ -11430,3 +11430,100 @@ also found a further false claim of mine.
    `_owner_approved_exception_permits` uses `any()`, so the guard accepts
    either. Introduced by PR #656, not here; `discovery.py` is correctly held
    to one pin, replaced in place. Worth an owner decision separately.
+
+---
+
+## R_READY-2 — R4 silent document drop in reserved routing scope
+
+**Date:** 2026-09-05
+**Directive:** R_READY-2 (narrowly scoped owner authorization)
+**Branch:** `feat/linux-filesystem-portability`
+
+### Routing contract, established from repository truth
+
+`docs/agent-event-ingestion-contract.md` (AS-INT-001) is explicit. Each package
+is rooted at `.atlas-inbox/agent-events/<project-id>/<event-id>/` and contains
+`event.md`, `event.json`, `provenance.json`, `receipt.yaml`. Control Plane owns
+the scope; Core consumes it only through `atlas_contracts` and "never infers
+package identity from unvalidated path text".
+
+1. **Valid object types:** two-level package *directories* only.
+2. **Why ordinary `.md` files are excluded:** `discover()` excludes the entire
+   subtree from `sources` so package components (`event.md` especially) are not
+   double-counted as ordinary project documentation, and
+   `_discover_agent_events` accepts only `<project>/<event>/` directories.
+3. **Intentional:** yes -- both exclusions are deliberate and correct.
+4. **Correct class for a loose file:** *neither* a normal source *nor* an agent
+   event. `EventPackageInventory` **requires** `project_id` and `event_id`; a
+   loose file has neither, and synthesizing them would fabricate routed
+   evidence, which the contract forbids. It is an unexpected entry in reserved
+   scope, and the repository-native disposition is therefore an observable
+   deterministic diagnostic -- exactly the owner's preferred behaviour.
+
+### Both silent routing-exclusion branches, classified
+
+| | Branch A -- reserved agent-event scope | Branch B -- `not regular_file` |
+| --- | --- | --- |
+| `BRANCH` | `event_root` guard in `discover()` + the two non-directory `continue`s in `_discover_agent_events` | `if not regular_file: continue` |
+| `INPUT_CLASS` | any file under `.atlas-inbox/agent-events/` that is not a valid package component | symlinks, broken symlinks, FIFOs, devices, directories |
+| `INTENDED_REASON_FOR_EXCLUSION` | reserved Control-Plane routing scope; prevents package components being double-counted as documentation | only regular files are evidence; blocks symlink escape and non-static content |
+| `CAN_REAL_DOCUMENT_REACH` | **YES** -- reproduced with `loose.md` | **NO** (see below) |
+| `CURRENT_OBSERVABILITY` | was: none. now: deterministic WARNING | none |
+| `SILENT_LOSS_POSSIBLE` | **YES -- remediated** | **NO** |
+
+Branch B was reproduced case by case and is **not the same defect class**. A
+symlink to an in-tree file loses nothing -- the document is recorded under its
+real path (`real.md`). A symlink pointing outside the source root is a
+deliberate security boundary, and its target is out of scope by design. A
+broken symlink and a FIFO are not documents at all; a directory is not a
+document. In every case either the document *is* recorded, or no document
+exists. Nothing real disappears, so branch B is **outside this grant** and was
+not modified.
+
+### R4 remediation
+
+`_discover_agent_events` now emits, for a non-directory at either level:
+`unexpected non-package entry in reserved agent-event scope: <path> (only
+<project-id>/<event-id>/ package directories are valid here)`. No source
+identity and no agent event is synthesized. Iteration is already `sorted()`,
+so the diagnostics are deterministic and the inventory is untouched.
+
+`LOOSE_MD_BASE_BEHAVIOR`: absent from `sources`, absent from `agent_events`,
+no warning -- reproduced. `LOOSE_MD_FIXED_BEHAVIOR`: still absent from both
+inventories (correct -- it is neither), now with a deterministic warning naming
+it. Verified at both levels (`agent-events/loose.md` and
+`agent-events/proj-a/stray.md`).
+
+### Hash discipline
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7` |
+| `NEW_PIN` | `7dc3907ff81c65a9106417fa0f480e8518f442f8db21a523185606e306935d0d` |
+| `WHY_REQUIRED` | R4's fix is in `_discover_agent_events`, inside the hash-pinned `discovery.py`; there is no non-frozen location for it |
+
+The pin was **replaced in place**: `discovery.py` still has exactly **one**
+exception entry. `ingestion.py` is byte-identical to
+`6911a99d...` and untouched. `source_identity.py` canonicalization and durable
+source-ID semantics are unchanged for R4; the verified NFC/NFD collision
+behaviour remains authoritative.
+
+`PRE_EXISTING_GOVERNANCE_FINDING`: `ingestion.py` is pinned to two alternative
+hashes (`DOGFOOD-001 @ e8d779a8...` and `OG-ATLAS @ 6911a99d...`) accepted via
+`any()`. From PR #656. **Not** remediated here -- explicitly outside this
+grant, and it did not obstruct R4 verification.
+
+### Claim, scoped to exactly what the matrix proves
+
+**Every real document encountered within discovery scope now produces either a
+manifest record or an observable diagnostic.** Non-regular filesystem entries
+(branch B) remain excluded without a diagnostic, which is correct because no
+real document is lost there. The universal `NO_SILENT_LOSS` remains
+**withdrawn** and is not restored.
+
+`TOCTOU_BRANCH = UNPROVEN`, unchanged. `Path.is_file()` ignores exactly
+`ENOENT`, `ENOTDIR`, `EBADF`, `ELOOP` and re-raises everything else, so
+`EACCES` is caught by the earlier `is_file()` guard and the ignored errnos
+return `False` into branch B. Reaching the `stat()` handler requires `stat()`
+to succeed inside `is_file()` and fail microseconds later. No deterministic
+test exists and none was manufactured by weakening production behaviour.

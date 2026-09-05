@@ -222,9 +222,27 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
     inventories: list[EventPackageInventory] = []
     for project_dir in sorted(inbox.iterdir(), key=lambda path: path.name.lower()):
         if not project_dir.is_dir():
+            # AS-INT-001: only `<project-id>/<event-id>/` package directories
+            # are valid here, and `discover()` excludes this whole subtree from
+            # `sources` so package components are not double-counted as
+            # ordinary documentation. A real file dropped in here therefore
+            # reaches neither inventory -- it must not do so silently. No
+            # source identity and no agent event are synthesized for it: it
+            # has neither a project_id nor an event_id, and inventing either
+            # would fabricate routed evidence.
+            _log.warning(
+                "unexpected non-package entry in reserved agent-event scope: %s "
+                "(only <project-id>/<event-id>/ package directories are valid here)",
+                _reportable(project_dir.relative_to(root).as_posix()),
+            )
             continue
         for event_dir in sorted(project_dir.iterdir(), key=lambda path: path.name.lower()):
             if not event_dir.is_dir():
+                _log.warning(
+                    "unexpected non-package entry in reserved agent-event scope: %s "
+                    "(only <project-id>/<event-id>/ package directories are valid here)",
+                    _reportable(event_dir.relative_to(root).as_posix()),
+                )
                 continue
             relative = event_dir.relative_to(root).as_posix()
             inventories.append(

@@ -69,11 +69,14 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "canonical-equivalence collision, R2 unreadable metadata "
             "boundary, R3 silent loss of inaccessible discovery scope, plus "
             "the post-verification remediation (unmeasurable-path skip now "
-            "observable; ordering key made total for NFR-001 determinism)"
+            "observable; ordering key made total for NFR-001 determinism), and "
+            "owner grant R_READY-2 residual R4 (a real document in the "
+            "reserved agent-event routing scope reached neither inventory "
+            "and produced no diagnostic)"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7"
+            "7dc3907ff81c65a9106417fa0f480e8518f442f8db21a523185606e306935d0d"
         ),
     },
     {
