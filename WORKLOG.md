@@ -10935,3 +10935,152 @@ WorkNode's authorized mutation surface (`proposed_scope`) regardless, and
 substantively not owed a check given the above. Result binding and
 independent verification of this dispatch attempt happen at the governor
 layer, outside this runner.
+
+---
+
+## OG-ATLAS-LINUX-FILESYSTEM-20260905 — Linux filesystem defects in discover/ingest
+
+**Date:** 2026-09-05
+**Directive:** D-OWNER-LINUX-CERTIFIED-SURFACE-EXCEPTION
+**Owner grant:** `OG-ATLAS-LINUX-FILESYSTEM-20260905`
+**Branch:** `feat/linux-filesystem-portability`
+
+### Owner grant record (certified-surface freeze exception)
+
+The Project Owner explicitly authorized two exact-content exceptions to the
+Atlas 3 certified-surface freeze (`tests/unit/test_atlas3_demo_isolation_001.py`,
+SS9.1 of `docs/atlas-3/ARCHITECTURE.md`):
+
+| Path | Authorized sha256 |
+| --- | --- |
+| `src/project_atlas/discovery.py` | `e43d97b2035aaeaa2a6f320170839e10e58a4f27b62321351e9e8368ae48e5a0` |
+| `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` |
+
+Bytes were verified to match both authorized hashes *before* the exception
+entries were added (`AUTHORIZED_HASH_MATCH = YES`). Purpose, in the owner's
+words: "Permit review and certification of the minimal Linux filesystem
+discovery and ingestion fixes at the implementation boundaries where the
+defects actually reside."
+
+**This grant is not a blanket unfreeze.** It applies only to these two paths
+at these exact hashes. It does not authorize additional protected files, does
+not authorize recomputing and silently accepting different hashes, does not
+waive tests / review / independent verification / CI / claim boundaries, does
+not certify the changes merely because the freeze guard turns green, and does
+not authorize merging or releasing the candidate. Any further edit to either
+file changes its hash, re-fires the guard, and requires a renewed owner
+decision.
+
+### Defects (all Linux-legal inputs; each aborted an entire run)
+
+Found by running the real CLI against a constructed hostile-but-legal source
+tree, not by inspection:
+
+1. **Unreadable file aborts `discover`.** One mode-000 file (or any file whose
+   content the caller cannot read -- foreign ownership under a readable
+   directory is routine on Linux) raised `PermissionError` out of the hashing
+   step and killed the whole inventory.
+2. **Non-portable names dead-end the pipeline.** `discover` happily emitted
+   paths containing `:` or control characters; `ingest` then refused the same
+   manifest with `unsafe manifest source path`. A Linux user could produce a
+   manifest that could never be ingested, with no route forward.
+3. **Backslash silently re-segmented.** `safe_relative_path` normalizes `\` to
+   `/`, so a Linux file literally named `back\slash.md` became
+   `docs/back/slash.md` -- a different file -- and ingest aborted with
+   `manifest source is missing`. Had that path existed, it would have been a
+   silent evidence mis-binding rather than an abort.
+4. **Non-UTF-8 filename crashes `discover`.** Linux filenames are byte strings;
+   an invalid-UTF-8 name decodes to lone surrogates and broke both the
+   inventory hash and the manifest write with
+   `'utf-8' codec can't encode character '\udcff'`.
+
+### Fix boundary (why these two files)
+
+`atlas_contracts.paths` was deliberately **not** weakened. Its module docstring
+states the intent plainly -- Windows semantics enforced on all platforms so
+Linux CI cannot accept identifiers that escape on Windows hosts -- and that
+portability guarantee is correct. The defect is not the contract; it is that
+`discover` emitted paths the contract could never accept and only `ingest`
+found out. The decision therefore moved to the earliest boundary, which is
+where the walk (`discovery.py`) and the manifest contract (`ingestion.py`)
+live. Both are certified surfaces; there is no non-frozen location for either
+change. Similarly, the symlinked-authorized-root refusal (CODEX-SEC-001 /
+SEC-SCAN-A-014) was **kept**; only its message now names the physical path,
+because symlinked project roots are ordinary on Linux and an operator refused
+an existing directory otherwise has nothing to act on.
+
+Non-portable and unreadable sources are now recorded as `EXCLUDED` evidence
+with reasons (`non-portable-path`, `unreadable`) through the manifest's
+existing exclusion mechanism -- never silently dropped, never ingested.
+Undecodable names are the one case that cannot be recorded at all (they cannot
+appear in a UTF-8 JSON manifest), so they are reported via a WARNING naming
+the backslash-escaped path rather than recorded under a sanitized name that
+would be a claim about a file that does not exist.
+
+`_manifest_records` no longer pre-resolves records the ingest loop already
+skips. Every record that is actually opened is still resolved through
+`_source_path` immediately before the read; the security boundary is unchanged.
+
+### Results
+
+- `tests/unit/test_linux_filesystem_portability.py` added (7 tests, POSIX-gated
+  so the Windows CI job skips them). Verified to **fail on the base and pass on
+  the candidate** for defects 1-4; the case-sensitivity and
+  symlink/FIFO/device tests pass on both and lock in already-correct behaviour.
+- Freeze guard suite: 23 passed.
+- Real-data no-op: a full `atlas discover` over this repository classified
+  **0 of 12,263** sources as `non-portable-path` or `unreadable`. The guard
+  changes nothing for legitimate content.
+- Full hostile tree (`:`; newline; backslash; `aux.md`; non-UTF-8 byte;
+  mode-000 file; symlink loop; FIFO; `/dev/zero` link; hardlink; three
+  case variants; NFC/NFD pair; 250-char name) runs
+  `discover -> ingest -> build-indexes -> build-portfolio -> validate`
+  green end to end.
+
+### Claim boundaries
+
+This entry claims that four reproducible Linux abort defects were fixed at the
+authorized boundary, with regression tests that fail on the base, and that the
+change is a no-op on this repository's own real content. It does **not** claim
+external security revalidation, `CODEX_VALIDATED`, `AUTHENTIC_PILOT`, or any
+release/GA status; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES` is
+unchanged. The freeze guard turning green certifies nothing beyond the owner
+grant being correctly recorded. Case-sensitivity is still decided by platform
+(`_casefold_paths()`), so a Linux host with a case-insensitive mount (ext4
+`casefold`, NTFS/exFAT/CIFS) is still treated as case-sensitive -- assessed and
+deliberately left alone, because probing per path would trade determinism
+(NFR-001) for a narrow edge. `MERGE_ELIGIBLE = NO` pending CI and independent
+verification; merge authority was explicitly withheld by the grant.
+
+### Pre-existing flake encountered during verification (NOT introduced)
+
+A full-suite run failed once on
+`tests/integration/test_core_semantic_lifecycle.py::test_concurrent_project_initializers_have_one_uuid_receipt`
+with `RuntimeError: promote orphan recovery incomplete (AS-CORE2-009
+fail-closed)`. Two threads ingest the same vault; the loser calls
+`recover_promote_orphans`, sees the winner's *in-flight* `.atlas-stage` files,
+cannot distinguish them from crash orphans, and fails closed. The test's
+`try_ingest` catches `(ValueError, PermissionError, FileNotFoundError)` but not
+`RuntimeError`, so that legitimate loser outcome escapes and fails the test.
+
+Established as pre-existing, not introduced, by direct A/B stress of the same
+two-thread scenario under identical 8x CPU load (`/tmp/race_repro.py`, 300
+races each):
+
+| Tree | Uncaught `RuntimeError` |
+| --- | --- |
+| base (this change stashed) | 1 / 300 |
+| candidate | 2 / 300 |
+
+Supporting evidence: the diff to `ingestion.py` is confined to
+`_resolve_authorized_source_root` (message text) and `_manifest_records`
+(a guard); it contains no promote / orphan / stage / lock lines at all, and
+the same test passed in an earlier full run against identical logic. Isolated
+reruns pass (20/20 under load).
+
+**Deliberately not fixed here.** Making the test catch `RuntimeError` would be
+a judgement about whether fail-closed orphan recovery *should* fire against a
+concurrent in-flight promote; fixing the underlying race would mean editing
+`ingestion.py`, whose bytes are pinned by this grant. Both are outside
+`OG-ATLAS-LINUX-FILESYSTEM-20260905`. Raised as an unresolved material finding
+for a separate owner decision. `INTRODUCED_FAILURE_COUNT = 0`.

@@ -13,8 +13,10 @@ from typing import Any
 import yaml
 
 from atlas_contracts.event_package import EventPackageInventory, inspect_event_package
+from atlas_contracts.paths import safe_relative_path
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import ClassificationState
+from project_atlas.logging import get_logger
 from project_atlas.quarantine import scan_identifier
 from project_atlas.source_identity import (
     TEXT_SOURCE_EXTENSIONS,
@@ -22,6 +24,8 @@ from project_atlas.source_identity import (
     canonicalize_project_path,
     validate_project_uuid,
 )
+
+_log = get_logger("discovery")
 
 SUPPORTED_EXTENSIONS = TEXT_SOURCE_EXTENSIONS
 SENSITIVE_NAMES = {".env", "credentials.json", "secrets.pem", "id_rsa", "id_ed25519"}
@@ -145,6 +149,43 @@ def _excluded(relative: str, path: Path, *, excludes: list[str]) -> str | None:
     return None
 
 
+def _non_portable_reason(relative: str) -> str | None:
+    """Reason a Linux-legal relative path cannot be represented portably.
+
+    Linux permits names the shared path contract (CODEX-SEC-004/014/017/018)
+    refuses on every platform: colons, control characters, Windows reserved
+    basenames, trailing dots or spaces. A backslash is a legal Linux filename
+    character too, but the contract reinterprets it as a separator, so the
+    round trip must be lossless or the recorded path would name a different
+    file than the one discovered. Such sources are recorded as excluded
+    evidence here rather than failing the whole run closed at the ingest
+    boundary, which is where they used to surface (a Linux-only dead end:
+    discovery emitted a path ingestion could never accept).
+    """
+    try:
+        segments = safe_relative_path(relative, label="source path")
+    except ValueError:
+        return "non-portable-path"
+    if "/".join(segments) != relative:
+        return "non-portable-path"
+    return None
+
+
+def _is_recordable(relative: str) -> bool:
+    """False when a path cannot appear in the UTF-8 JSON manifest at all.
+
+    Linux filenames are byte strings, not text. A name that is not valid
+    UTF-8 decodes to lone surrogates (``surrogateescape``), which cannot be
+    encoded back out -- it would break both the inventory hash and the
+    manifest write, aborting the whole run over one file.
+    """
+    try:
+        relative.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
     """Inventory Control Plane packages without importing its implementation."""
     inbox = root / ".atlas-inbox" / "agent-events"
@@ -203,12 +244,39 @@ def discover(
         if event_root.is_dir() and path.is_relative_to(event_root):
             continue
         relative = path.relative_to(root).as_posix()
+        if not _is_recordable(relative):
+            # Reported rather than recorded: a sanitized path would be a
+            # claim about a file that does not exist under that name, and
+            # could collide with one that does.
+            _log.warning(
+                "skipped source with undecodable filename: %s",
+                relative.encode("utf-8", "backslashreplace").decode("ascii"),
+            )
+            continue
         reason = _excluded(relative, path, excludes=excludes or [])
-        stat = path.stat()
+        if reason is None:
+            reason = _non_portable_reason(relative)
+        try:
+            stat = path.stat()
+        except OSError:
+            # Unmeasurable (raced deletion, unreadable parent directory):
+            # no metadata exists, so no evidence-backed record can be made.
+            continue
         if reason is None and stat.st_size > max_file_size:
             reason = "oversized"
         canonical_relative = canonicalize_project_path(relative)
-        digest = None if reason == "sensitive-metadata-only" else _sha256(path)
+        if reason == "sensitive-metadata-only":
+            digest = None
+        else:
+            try:
+                digest = _sha256(path)
+            except OSError:
+                # Linux routinely exposes files whose content the caller
+                # cannot read (mode 000, foreign ownership under a readable
+                # directory). Record the real stat metadata without a digest
+                # instead of aborting the entire discovery run.
+                digest = None
+                reason = reason or "unreadable"
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
         project_id, project_uuid = _project_context(path, root)
         source_id = _compatibility_source_id(

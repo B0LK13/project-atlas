@@ -77,7 +77,7 @@ packages is compare-before-write and produces no duplicate activity entries.
 
 ```bash
 atlas discover --source <project-root> --output <manifest.json>
-atlas ingest --manifest <manifest.json> --vault <vault>
+atlas ingest --manifest <manifest.json> --vault <vault> --source <project-root>
 atlas build-indexes --vault <vault>
 atlas validate --vault <vault>
 ```

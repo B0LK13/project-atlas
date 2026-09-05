@@ -153,7 +153,7 @@ Full Core pipeline:
 ```bash
 atlas init --output .tmp/vault
 atlas discover --source <project-root> --output .tmp/manifest.json
-atlas ingest --manifest .tmp/manifest.json --vault .tmp/vault
+atlas ingest --manifest .tmp/manifest.json --vault .tmp/vault --source <project-root>
 atlas build-indexes --vault .tmp/vault
 atlas build-portfolio --vault .tmp/vault   # derived portfolio + bitemporal validity catalog
 atlas validate --vault .tmp/vault

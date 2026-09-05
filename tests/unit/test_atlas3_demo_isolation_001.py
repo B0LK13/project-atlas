@@ -60,6 +60,32 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "e8d779a8ab2fe0b4327ae9cf8cae115f2a793eb96eb35e8b0024b6ee085168ef"
         ),
     },
+    {
+        "exception_id": "OG-ATLAS-LINUX-FILESYSTEM-20260905-DISCOVERY",
+        "owner_approved": "YES",
+        "reason": (
+            "owner grant OG-ATLAS-LINUX-FILESYSTEM-20260905: minimal Linux "
+            "filesystem discovery fixes at the boundary where the defects "
+            "reside (unreadable file, non-portable path, undecodable name)"
+        ),
+        "path": "src/project_atlas/discovery.py",
+        "allowed_sha256": (
+            "e43d97b2035aaeaa2a6f320170839e10e58a4f27b62321351e9e8368ae48e5a0"
+        ),
+    },
+    {
+        "exception_id": "OG-ATLAS-LINUX-FILESYSTEM-20260905-INGESTION",
+        "owner_approved": "YES",
+        "reason": (
+            "owner grant OG-ATLAS-LINUX-FILESYSTEM-20260905: excluded records "
+            "are no longer pre-resolved at the manifest boundary, and a "
+            "symlinked authorized root now names its physical path"
+        ),
+        "path": "src/project_atlas/ingestion.py",
+        "allowed_sha256": (
+            "6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159"
+        ),
+    },
 )
 
 
