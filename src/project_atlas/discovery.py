@@ -179,8 +179,19 @@ def _reportable(relative: str) -> str:
     problem. Encoding to ASCII (not UTF-8) is what escapes both: UTF-8 can
     encode an accented name happily, and the resulting bytes then fail an
     ASCII decode.
+
+    Control characters are ASCII, so `backslashreplace` leaves them intact.
+    They are escaped explicitly here because the escaping-symlink diagnostic
+    reports a *physical target outside the source root* -- a path this
+    repository never constrained -- and a newline in it would otherwise split
+    one warning into two, forging a second log line. An in-root path with a
+    control character never reaches a log at all: it is recorded as
+    `non-portable-path` instead.
     """
-    return relative.encode("ascii", "backslashreplace").decode("ascii")
+    ascii_only = relative.encode("ascii", "backslashreplace").decode("ascii")
+    return "".join(
+        char if char.isprintable() else f"\\x{ord(char):02x}" for char in ascii_only
+    )
 
 
 def _is_listable(path: Path) -> bool:

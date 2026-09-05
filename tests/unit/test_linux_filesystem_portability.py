@@ -528,6 +528,10 @@ def test_symlink_escaping_the_root_is_reported_not_silently_lost(
     escaped = [m for m in caplog.messages if "outside the source root" in m]
     assert any("escape.md" in m for m in escaped), "escaping file symlink must be observable"
     assert any("mirror" in m for m in escaped), "escaping directory symlink must be observable"
+    # Naming the physical target is half the point: without it the operator
+    # knows something was skipped but not what.
+    assert any(str(outside / "handbook.md") in m for m in escaped), "target must be named"
+    assert any(str(outside / "buried") in m for m in escaped), "target must be named"
 
 
 def test_non_escaping_symlinks_stay_quiet(
@@ -551,3 +555,32 @@ def test_non_escaping_symlinks_stay_quiet(
 
     assert "docs/target.md" in records, "the real document is inventoried under its own path"
     assert not [m for m in caplog.messages if "outside the source root" in m]
+
+
+def test_diagnostics_cannot_forge_log_lines(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A control character in a reported path must not split the diagnostic.
+
+    The escaping-symlink diagnostic reports a physical target *outside* the
+    source root -- a path this repository never constrained. A newline in it
+    would otherwise end the warning early and forge a second log line. An
+    in-root path with a control character never reaches a log at all: it is
+    recorded as `non-portable-path` instead.
+    """
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    hostile = os.path.join(os.fsencode(outside), b"evil\nWARNING forged line.md")
+    with open(hostile, "wb") as handle:
+        handle.write(b"# external\n")
+
+    source = _write_source(tmp_path / "source")
+    os.symlink(hostile, os.path.join(os.fsencode(source), b"link.md"))
+
+    with caplog.at_level("WARNING"):
+        _discover(tmp_path, source)
+
+    escaped = [m for m in caplog.messages if "outside the source root" in m]
+    assert escaped, "the escaping symlink must still be reported"
+    assert all("\n" not in message for message in escaped), "no diagnostic may span lines"
+    assert any("\\x0a" in message for message in escaped), "the newline must be escaped"

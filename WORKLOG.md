@@ -11326,7 +11326,7 @@ against the code. The shipped, pinned `discovery.py` for this grant is:
 
 | Path | Authorized sha256 | Note |
 | --- | --- | --- |
-| `src/project_atlas/discovery.py` | `a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7` | R_READY, final |
+| `src/project_atlas/discovery.py` | `a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7` | **SUPERSEDED** -- see the pin ledger at the end of this file |
 | `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | unchanged since the first grant |
 
 Superseded discovery.py pins, for trace only: `e43d97b2...` (first grant),
@@ -11610,3 +11610,57 @@ in-repo trees discovered with no config excludes --
 `./docs` (1,108), `./tests` (657), `./atlas-vault-documentation` (286) --
 each containing no case-tied names, compared base vs head; all three inventory
 hashes byte-identical.
+
+---
+
+## PIN LEDGER (authoritative; supersedes every pin table above)
+
+Independent verification flagged, twice, that a superseded hash was presented
+as current under a heading that read as authoritative. Rather than append
+another correction, this ledger is the single authoritative record. **Any pin
+table earlier in this file is historical, whatever its heading says.**
+
+| Path | sha256 | Status |
+| --- | --- | --- |
+| `src/project_atlas/discovery.py` | `c973b4a525f862e9c5c0223420f881dc623605db6f65da8d548e53d461713472` | **CURRENT** |
+| `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | **CURRENT** (unchanged since the first grant) |
+
+Superseded `discovery.py` pins, newest first:
+`62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
+`a4c55877` (R_READY, pre-R4), `d8ee84fc` (R_READY, pre-remediation),
+`e43d97b2` (first grant).
+
+### Log-injection defect introduced by R4-D, found by IV and fixed
+
+`_reportable()` escaped only non-ASCII. Control characters are ASCII, so
+newline, tab and ESC passed through verbatim. That was harmless while the
+helper only ever received in-root relative paths -- an in-root name containing
+a control character is *recorded* as `non-portable-path` and never logged.
+R4-D changed that by routing a **physical target outside the source root**, a
+path this repository never constrained, into a log line. Demonstrated: a
+symlink to `evil\nWARNING forged line.md` split one warning into two, the
+second reading as a genuine `WARNING` log entry. Now escaped as `\x0a`;
+regression test asserts no diagnostic spans lines. Console format only --
+the JSON log format was never affected.
+
+### Remaining IV findings, accepted and recorded
+
+- **Diagnostic granularity is per-link, not per-document.** An escaping
+  directory symlink over a subtree emits one warning naming the link and its
+  physical target, not one per document behind it. The operator learns a
+  subtree was skipped, not its contents -- which is correct, since those
+  contents were never read and inventing a list would fabricate evidence. The
+  claim is worded accordingly ("produces ... an observable diagnostic"), not
+  as one diagnostic per document.
+- **A symlink to an outside document behind an unsearchable parent** reports
+  the generic `skipped unreadable path ... (Permission denied)` without the
+  physical target. Observable, less specific. Not fixed.
+- **`test_non_escaping_symlinks_stay_quiet` is vacuous against this base**
+  (the base warns nothing at all), so it passes in both states. It guards
+  against future over-warning; it is not evidence for this change, and is not
+  claimed as such.
+- **PRE_EXISTING_GOVERNANCE_FINDING (sharpened).** `DOGFOOD-001` pins
+  `e8d779a8...` for `ingestion.py`, which matches **no current file** -- a
+  dead alternative inside the `any()` that would silently re-authorize
+  reverting `ingestion.py` to that content. From PR #656. Explicitly outside
+  every grant issued here; neither broadened nor cleaned up.
