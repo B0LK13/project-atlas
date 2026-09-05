@@ -12019,3 +12019,43 @@ line if wanted.
 and does not rely on ordinary `grep` output while the NUL remains. Other lanes
 appending to `WORKLOG.md` -- including AS-OBSIDIAN-CAPTURE-001 -- are exposed
 to the same false-negative hazard.
+
+**Precision correction (IV finding).** My earlier "0 conflict markers" checked
+only `<<<<<<<`, `=======` and `>>>>>>>`. `WORKLOG.md` also contains **29
+line-initial `||||||| parent of <sha>` diff3 markers**. They are **pre-existing
+committed residue**: the count is identically 29 at `origin/main`, at the
+merge-base `31e07770` and at HEAD, so the #683 merge introduced none. The
+accurate statement is that the merge left **zero unresolved
+`<<<`/`===`/`>>>` markers**, not that the file is marker-free. The
+binary-safe checker now counts all four forms.
+
+### Further IV observations — pre-existing, recorded not remediated
+
+Two more findings from the `6dcb8bbd` verification, both confirmed
+**identical on base and head** and therefore outside the R5 delta.
+
+1. **The module's stated errno contract is enforced at 4 of 9 `except OSError`
+   sites.** `_INACCESSIBLE_SCOPE_ERRNOS`' docstring says anything outside the
+   set "is a genuine failure and must stay visible". The four event-scope
+   guards enforce that. The main-walk metadata guard, `stat()`, `_sha256`,
+   `_is_listable` and `_uninventoried_symlink_target` remain catch-everything:
+   an injected `EIO` at `is_symlink()`/`stat()` yields exit 0 with
+   `skipped unreadable path: <path> (Input/output error)`. That is **not**
+   silent loss -- every one is named -- but the contract is narrower in
+   practice than the docstring reads. Site counts are 8/3 filtered on base and
+   9/4 on head, the single addition being errno-filtered, so this is
+   pre-existing rather than introduced. Tightening the other five is a
+   behaviour change to the main walk, outside the R5 grant.
+
+2. **Symlinked event scopes are inventoried inconsistently.** With
+   `.atlas-inbox` as an in-root symlink the package appears **both** as an
+   `agent_events` row and as `sources` rows under its real path -- the
+   double-count the exclusion is meant to prevent, because
+   `is_relative_to(event_root)` compares unresolved paths. With `agent-events`
+   itself a symlink, events come back empty and the content is captured as
+   sources instead. Identical on base and head. Recorded as a repository
+   residual; resolving it means changing how the source walk resolves the
+   reserved-scope exclusion, which is outside this grant.
+
+Neither is a regression and neither blocks #683. Both are stated here rather
+than left for a future reader to rediscover.
