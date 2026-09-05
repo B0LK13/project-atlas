@@ -188,11 +188,13 @@ def _reportable(relative: str) -> str:
     The reachable input set is wider than the escaping-symlink diagnostic
     that made it obvious. That one reports a *physical target outside the
     source root*, a path this repository never constrained -- but an in-root
-    name carrying a control character also reaches a log, because the
-    undecodable-filename branch logs before portability is evaluated, and a
+    name carrying a control character reaches a log by several routes too:
+    the undecodable-filename branch logs before portability is evaluated, a
     record excluded as `non-portable-path` is still reported if it later
-    collides canonically. Escaping therefore belongs here in the shared
-    helper rather than at any one call site.
+    collides canonically, and the reserved-scope, inaccessible-scope and
+    unreadable-path diagnostics all report paths verbatim. That list is
+    illustrative, not exhaustive -- which is exactly why escaping belongs
+    here in the shared helper rather than at any one call site.
     """
     ascii_only = relative.encode("ascii", "backslashreplace").decode("ascii")
     return "".join(

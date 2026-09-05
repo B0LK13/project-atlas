@@ -11622,11 +11622,11 @@ table earlier in this file is historical, whatever its heading says.**
 
 | Path | sha256 | Status |
 | --- | --- | --- |
-| `src/project_atlas/discovery.py` | `1bfc4d35e580a3ecc8c72963cc1873cd866823d47a23c70cb35020bec9c15e18` | **CURRENT** |
+| `src/project_atlas/discovery.py` | `6433b1d6711c5d66ad68c8b51226fa365f1481ad7312921bce1776542149c273` | **CURRENT** |
 | `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | **CURRENT** (unchanged since the first grant) |
 
 Superseded `discovery.py` pins, newest first:
-`c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
+`1bfc4d35`, `c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
 `a4c55877` (R_READY, pre-R4), `d8ee84fc` (R_READY, pre-remediation),
 `e43d97b2` (first grant).
 
@@ -11636,12 +11636,20 @@ Superseded `discovery.py` pins, newest first:
 newline, tab and ESC passed through verbatim. That was harmless while the
 helper only ever received in-root relative paths -- an in-root name containing
 a control character is *recorded* as `non-portable-path` and never logged.
+> **SUPERSEDED -- see "Final IV corrections" below.** The sentence above
+> ("an in-root name containing a control character is *recorded* as
+> `non-portable-path` and never logged") is **false**: in-root control-character
+> paths reach a log by several routes. The fix was already correct; only this
+> rationale was wrong.
+
 R4-D changed that by routing a **physical target outside the source root**, a
 path this repository never constrained, into a log line. Demonstrated: a
 symlink to `evil\nWARNING forged line.md` split one warning into two, the
 second reading as a genuine `WARNING` log entry. Now escaped as `\x0a`;
-regression test asserts no diagnostic spans lines. Console format only --
-the JSON log format was never affected.
+regression test asserts no diagnostic spans lines. ~~Console format only --
+the JSON log format was never affected.~~ **SUPERSEDED -- see "Final IV
+corrections" below:** `--log-format json` is inoperative, so a
+JSON-requesting deployment was vulnerable at base too.
 
 ### Remaining IV findings, accepted and recorded
 
@@ -11714,3 +11722,54 @@ Also noted by IV, accepted: `exc.strerror` is the one remaining unescaped
 interpolation (OS-supplied, fixed message table); `ruff format --check` fails
 at HEAD on `adv_release_cert.py`, untouched by this PR and not a CI gate
 (`ci.yml` runs `ruff check` and `mypy` only).
+
+### Delta IV (`ef5420f9`) — carry-over proven, and a new residual
+
+Delta verification returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`, and answered the question that mattered:
+**the prior head's verification legitimately carries over.** All 22 compiled
+code objects in `discovery.py` are byte-identical between `6e6ad6d6` and
+`ef5420f9` once docstrings are stripped -- `co_code`, `co_consts`, `co_names`,
+`co_varnames`, `co_freevars`, `co_cellvars`, flags, argcounts, stacksize --
+the sole unstripped difference being the `_reportable` docstring constant,
+with no doctest collection and no `__doc__` introspection of that module.
+Runtime behaviour provably cannot differ.
+
+**R5 (NEW RESIDUAL, not fixed, requires an owner decision).**
+`_discover_agent_events` calls `inbox.iterdir()` and `project_dir.iterdir()`
+with **no `OSError` handling**, so a mode-000 directory anywhere under
+`.atlas-inbox/agent-events/` aborts the entire run:
+
+```
+WARNING ... inaccessible discovery scope, contents not inventoried: .atlas-inbox/agent-events/proj-a
+ERROR project_atlas.cli: discover failed: [Errno 13] Permission denied: .../agent-events/proj-a
+exit=1
+```
+
+The main walk reports it correctly and *then* the event inventory crashes.
+**Pre-existing** -- the unguarded `iterdir()` calls are at
+`origin/main:src/project_atlas/discovery.py:154,157` and reproduce there
+verbatim -- but this is **the same defect class as R2**, which was recorded as
+CLOSED partly on my evidence. R2 is therefore closed only for the main walk,
+not for the agent-event inventory.
+
+**Matrix rows corrected accordingly.** `UNREADABLE_DIRECTORY`,
+`ZERO_PERMISSION_DIRECTORY` and `DISCOVERY_CONTINUES_WHERE_ALLOWED`, and the
+prose "one unreachable entry must never abort the run", are true **for the
+main discovery walk only**. They do not hold for a mode-000 directory under
+the reserved agent-event inbox. Not remediated here: R_READY-2 authorizes
+discovery.py for the R4 silent-loss class and states "do not use this grant
+for unrelated discovery behavior" -- this is the abort class, and closing it
+is a separate decision.
+
+Two further IV findings, both fixed in this commit: `_reportable`'s docstring
+enumerated 2 of at least 5 in-root routes that carry a control-character path
+into a log (now stated as illustrative, with the reserved-scope,
+inaccessible-scope and unreadable-path routes named); and
+`test_in_root_control_character_paths_cannot_forge_log_lines` asserted only
+over the aggregate `caplog.messages`, so either route alone satisfied every
+assertion -- each route is now pinned separately.
+
+Also corrected: the PR's older results table listed control-plane as 194
+passed; the suite is **242** (242 on `origin/main` too, so stale drift, not a
+regression).

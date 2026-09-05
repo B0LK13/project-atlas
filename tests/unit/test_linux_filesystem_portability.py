@@ -611,4 +611,12 @@ def test_in_root_control_character_paths_cannot_forge_log_lines(
 
     assert caplog.messages, "these inputs must still be reported"
     assert all("\n" not in message for message in caplog.messages), "no diagnostic may span lines"
-    assert any("\\x0a" in message for message in caplog.messages)
+
+    # Pin each route separately: an aggregate assertion is satisfied by
+    # either one alone, so it would not notice if a route stopped firing.
+    undecodable = [m for m in caplog.messages if "undecodable filename" in m]
+    collision = [m for m in caplog.messages if "canonical-path collision" in m]
+    assert undecodable, "the undecodable-filename route must fire"
+    assert collision, "the canonical-collision route must fire"
+    assert all("\\x0a" in m for m in undecodable), "escaped in the undecodable route"
+    assert all("\\x0a" in m for m in collision), "escaped in the collision route"
