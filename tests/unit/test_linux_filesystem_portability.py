@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 
 import pytest
 
 from project_atlas.cli import EXIT_OK, main
+from project_atlas.discovery import discover
 from project_atlas.ingestion import ingest
 
 pytestmark = pytest.mark.skipif(
@@ -238,6 +240,10 @@ def test_canonical_normalization_collision_is_reported_not_fatal(
 
     cafes = [path for path in records if "caf" in path]
     assert len(cafes) == 1, f"exactly one spelling may hold the identity, got {cafes}"
+    # Which spelling wins is part of the contract, not an accident: the first
+    # in deterministic sort order. NFD ("cafe\u0301.md") sorts before NFC
+    # ("caf\xe9.md") because 'e' precedes U+00E9.
+    assert cafes == ["cafe\u0301.md"], f"unexpected collision winner: {cafes}"
     assert any("canonical-path collision" in message for message in caplog.messages)
 
     # The pipeline must now complete rather than abort at ingest.
@@ -329,3 +335,36 @@ def test_unreadable_directory_is_reported_not_silently_lost(
     assert any(
         "inaccessible discovery scope" in message for message in caplog.messages
     ), "the lost scope must be observable, not silent"
+
+
+def test_inventory_is_deterministic_across_creation_order(tmp_path: Path) -> None:
+    """Identical trees must inventory identically regardless of dirent order.
+
+    The ordering key case-folds, so case variants tie; a stable sort then
+    inherited directory-entry order and the inventory hash depended on the
+    order files happened to be created in -- an NFR-001 determinism defect,
+    and the thing "first in deterministic order wins" silently rested on.
+    """
+    fixed = 1_700_000_000
+
+    def inventory(root: Path, order: list[str]) -> tuple[str, list[str]]:
+        root.mkdir(parents=True)
+        (root / ".atlas-project.yaml").write_text(
+            "schema_version: 1\nproject:\n  id: determinism\n", encoding="utf-8"
+        )
+        for name in order:
+            (root / name).write_text("# same content\n", encoding="utf-8")
+        for entry in [*root.rglob("*"), root]:
+            os.utime(entry, (fixed, fixed))
+        manifest = discover(root)
+        return manifest["inventory_sha256"], [s["path"] for s in manifest["sources"]]
+
+    # Same root path for both runs: source_id is root-fingerprinted, so a
+    # differing root would mask the ordering question being asked here.
+    root = tmp_path / "tree"
+    first = inventory(root, ["README.md", "readme.md", "ReadMe.md"])
+    shutil.rmtree(root)
+    second = inventory(root, ["ReadMe.md", "readme.md", "README.md"])
+
+    assert first[1] == second[1], "manifest order must not follow creation order"
+    assert first[0] == second[0], "inventory_sha256 must not follow creation order"

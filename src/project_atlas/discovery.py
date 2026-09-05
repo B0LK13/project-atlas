@@ -267,7 +267,15 @@ def discover(
     records: list[dict[str, Any]] = []
     event_root = root / ".atlas-inbox" / "agent-events"
     seen_canonical: dict[str, str] = {}
-    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().lower()):
+    for path in sorted(
+        root.rglob("*"),
+        # The case-folded key alone ties on case variants (README.md vs
+        # readme.md); a stable sort then inherits directory-entry order, so
+        # the inventory hash depended on creation order (NFR-001). Appending
+        # the raw path breaks every tie totally, which is also what makes
+        # "first in deterministic order wins" true for collision handling.
+        key=lambda item: (item.as_posix().lower(), item.as_posix()),
+    ):
         relative = path.relative_to(root).as_posix()
         try:
             # The first metadata access, not `stat()` below: a directory that
@@ -305,9 +313,13 @@ def discover(
             reason = _non_portable_reason(relative)
         try:
             stat = path.stat()
-        except OSError:
-            # Unmeasurable (raced deletion, unreadable parent directory):
-            # no metadata exists, so no evidence-backed record can be made.
+        except OSError as exc:
+            # No metadata at all, so no evidence-backed record can be made --
+            # but the skip must still be observable, or this is exactly the
+            # silent loss the scope probe above exists to prevent.
+            _log.warning(
+                "skipped unmeasurable path: %s (%s)", _reportable(relative), exc.strerror
+            )
             continue
         if reason is None and stat.st_size > max_file_size:
             reason = "oversized"

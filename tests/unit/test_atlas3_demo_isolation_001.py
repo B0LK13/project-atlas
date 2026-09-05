@@ -67,11 +67,13 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "owner grant R_READY (supersedes the discovery.py pin of "
             "OG-ATLAS-LINUX-FILESYSTEM-20260905): verified residuals R1 "
             "canonical-equivalence collision, R2 unreadable metadata "
-            "boundary, R3 silent loss of inaccessible discovery scope"
+            "boundary, R3 silent loss of inaccessible discovery scope, plus "
+            "the post-verification remediation (unmeasurable-path skip now "
+            "observable; ordering key made total for NFR-001 determinism)"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "d8ee84fcbf35bc8e90d511bf8c3d9efa4673c19ada325ea6c97610ed64141f03"
+            "a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7"
         ),
     },
     {

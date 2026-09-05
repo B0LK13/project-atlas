@@ -11308,3 +11308,68 @@ present in `origin/main`, not introduced here. Its effect is that `grep`
 classifies the entire worklog as binary and silently returns nothing without
 `-a`, which quietly breaks any tooling that greps this file. Left untouched:
 outside the R1-R3 grant.
+
+### Post-verification remediation (fresh IV of `d62a43f6`)
+
+Independent verification of `d62a43f6` returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`, confirming R1/R2/R3 on base and fixed at head by
+its own construction, no regression in the round-1 fixes, protected-surface
+discipline hash-verified, and all six earlier withdrawals intact with none
+quietly restored. It also found three claims of mine that were false. Each was
+reproduced before being acted on.
+
+**Authorized bytes for this grant (the audit-trail gap, now closed).** The
+`R_READY` grant table recorded the grant *name* but never the sha256 it
+authorizes; both WORKLOG and PR still showed the superseded
+`e43d97b2...`, so a reviewer auditing from the PR alone found a hash mismatch
+against the code. The shipped, pinned `discovery.py` for this grant is:
+
+| Path | Authorized sha256 | Note |
+| --- | --- | --- |
+| `src/project_atlas/discovery.py` | `a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7` | R_READY, final |
+| `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | unchanged since the first grant |
+
+Superseded discovery.py pins, for trace only: `e43d97b2...` (first grant),
+`d8ee84fc...` (R_READY, pre-remediation).
+
+1. **"0 of 3,051, pristine worktree" was false -- and dirty in exactly the way
+   I had already withdrawn a figure for.** That worktree contained **284
+   `__pycache__/*.pyc` files** written by my own measurement run.
+   `git status --porcelain` reported zero untracked, which is precisely why
+   the check was worthless: the artifacts are gitignored, so status is blind
+   to them, and they inflated `default-excluded-directory` from 475 to 760.
+   Re-measured over tracked files only (`git ls-files`, 2,766 files, zero
+   `.pyc`, `PYTHONDONTWRITEBYTECODE=1`): **0 of 2,766**, which matches the
+   verifier's independent `git archive` cross-check exactly. Certified figure
+   is now **0 of 2,766 (tracked files)**; 3,051, 5,798 and 12,263 are all
+   withdrawn. The numerator has been zero under every method ever run.
+2. **"The stale comment naming unreachable cases is gone" was false.** The
+   comment was byte-identical at base and at `d62a43f6`. It is gone now --
+   and the branch it sat on was itself the last silent skip: a bare
+   `continue` with no record and no warning, contradicting the
+   `NO_SILENT_LOSS` row's universal. It now emits
+   `skipped unmeasurable path: <path> (<reason>)`.
+3. **Determinism: the ordering key was not total (NFR-001).**
+   `key=item.as_posix().lower()` ties on case variants, and the stable sort
+   then inherited directory-entry order -- so "first in deterministic sort
+   order wins", the rule R1's whole contract rests on, was resting on dirent
+   order. Demonstrated on base with root, content and mtimes all held fixed:
+   creating `README.md`/`readme.md`/`ReadMe.md` in two different orders
+   produced two different manifest orders and two different
+   `inventory_sha256`. The key is now `(lower(), raw)`, which breaks every
+   tie totally; the same experiment is now byte-identical. Pre-existing, but
+   this round made it load-bearing, so it is fixed here rather than noted.
+   Regression test added, plus an assertion naming *which* spelling wins
+   (NFD sorts before NFC).
+
+**Accepted, not fixed, with reasons:** the collision winner is content-blind
+(an unreadable file can win over a readable one) -- recording the loser is
+genuinely blocked, since `_assert_manifest_source_identities` fails closed on
+duplicate `source_id` for excluded rows too, and the alternative is inventing
+identity. R3 remains observable-at-run-time rather than durably recorded; the
+verifier correctly noted a `sources` row with an `inaccessible-scope` reason
+*was* available without a manifest field-set change, so that choice is a
+design judgement ("a directory is not a source document"), not an
+impossibility, and the earlier framing overstated it. `trailing.md ` is
+reported as `unsupported-format` rather than `non-portable-path` because
+`_excluded()` runs first; excluded either way.
