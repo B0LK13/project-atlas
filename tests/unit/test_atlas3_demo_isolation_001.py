@@ -78,7 +78,7 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "c973b4a525f862e9c5c0223420f881dc623605db6f65da8d548e53d461713472"
+            "1bfc4d35e580a3ecc8c72963cc1873cd866823d47a23c70cb35020bec9c15e18"
         ),
     },
     {

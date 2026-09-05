@@ -11622,11 +11622,11 @@ table earlier in this file is historical, whatever its heading says.**
 
 | Path | sha256 | Status |
 | --- | --- | --- |
-| `src/project_atlas/discovery.py` | `c973b4a525f862e9c5c0223420f881dc623605db6f65da8d548e53d461713472` | **CURRENT** |
+| `src/project_atlas/discovery.py` | `1bfc4d35e580a3ecc8c72963cc1873cd866823d47a23c70cb35020bec9c15e18` | **CURRENT** |
 | `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | **CURRENT** (unchanged since the first grant) |
 
 Superseded `discovery.py` pins, newest first:
-`62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
+`c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
 `a4c55877` (R_READY, pre-R4), `d8ee84fc` (R_READY, pre-remediation),
 `e43d97b2` (first grant).
 
@@ -11664,3 +11664,53 @@ the JSON log format was never affected.
   dead alternative inside the `any()` that would silently re-authorize
   reverting `ingestion.py` to that content. From PR #656. Explicitly outside
   every grant issued here; neither broadened nor cleaned up.
+
+### Final IV corrections (`6e6ad6d6`)
+
+Independent verification returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`: the injection defect reproduced on base and is
+closed at head; 5,177 differential inputs show **zero** over-escaping
+regressions (the only 33 differences are exactly the 33 non-printable ASCII
+codepoints); determinism byte-exact across five creation orders; combined
+hostile tree green through all five stages; every hash and exception count
+matched, both guards proven load-bearing by tampering. Three claims of mine
+needed correcting.
+
+1. **The stated blast radius was too narrow. Corrected.** The docstring
+   claimed "an in-root path with a control character never reaches a log at
+   all: it is recorded as `non-portable-path` instead". **False**, reproduced:
+   `skipped canonical-path collision: docs/ev\x0ail-caf\xe9.md ...` and
+   `skipped source with undecodable filename: docs/ev\x0ail-\udcff-byte.md`.
+   The undecodable branch logs *before* portability is evaluated, and a record
+   excluded as `non-portable-path` is still reported when it later collides
+   canonically. So the forged-line risk was reachable from **in-root content
+   before R4-D existed** -- R4-D only made it obvious by adding an
+   unconstrained external path. The fix was already correct (escaping lives in
+   the shared helper, not at a call site); only the rationale was wrong. A
+   regression test now covers the in-root routes directly.
+
+2. **"Console format only" was misleading. Corrected.** The `JsonFormatter`
+   class is safe, but an operator who asks for it does not get it:
+   `configure_logging()` is idempotent and selects its formatter on first
+   call, and module-level `_log = get_logger("discovery")` triggers it with
+   defaults at import, before the CLI parses `--log-format`. Verified:
+   `atlas --log-format json discover ...` emits `WARNING project_atlas.discovery: ...`,
+   i.e. console output. So a JSON-requesting deployment was vulnerable at base
+   too. **Pre-existing, outside every grant issued here, not fixed** --
+   recorded as a second `PRE_EXISTING_GOVERNANCE_FINDING`.
+
+3. **The central claim is scoped once more.** The accurate form is: **every
+   real document encountered within discovery scope produces either a manifest
+   record, or an observable diagnostic naming it or its enclosing scope.** A
+   real `.md` nested at
+   `.atlas-inbox/agent-events/<project>/<event>/subdir/deep.md` gets no record
+   and no diagnostic naming *it*, but its enclosing package is reported
+   (`status="invalid"`, errors naming `subdir`). That is the same
+   enclosing-scope granularity already disclosed for mode-0000 directories and
+   escaping directory symlinks; the concession had only been written down for
+   symlinks. The universal `NO_SILENT_LOSS` remains **withdrawn**.
+
+Also noted by IV, accepted: `exc.strerror` is the one remaining unescaped
+interpolation (OS-supplied, fixed message table); `ruff format --check` fails
+at HEAD on `adv_release_cert.py`, untouched by this PR and not a CI gate
+(`ci.yml` runs `ruff check` and `mypy` only).

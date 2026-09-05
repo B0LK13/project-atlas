@@ -562,11 +562,12 @@ def test_diagnostics_cannot_forge_log_lines(
 ) -> None:
     """A control character in a reported path must not split the diagnostic.
 
-    The escaping-symlink diagnostic reports a physical target *outside* the
-    source root -- a path this repository never constrained. A newline in it
-    would otherwise end the warning early and forge a second log line. An
-    in-root path with a control character never reaches a log at all: it is
-    recorded as `non-portable-path` instead.
+    A newline in any reported path would end the warning early and forge what
+    reads as a second log record. The escaping-symlink diagnostic made this
+    obvious by reporting an unconstrained path from outside the root, but an
+    in-root name reaches a log too: the undecodable-filename branch logs
+    before portability is evaluated, and a `non-portable-path` record is
+    still reported if it later collides canonically. Both are covered here.
     """
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -584,3 +585,30 @@ def test_diagnostics_cannot_forge_log_lines(
     assert escaped, "the escaping symlink must still be reported"
     assert all("\n" not in message for message in escaped), "no diagnostic may span lines"
     assert any("\\x0a" in message for message in escaped), "the newline must be escaped"
+
+
+def test_in_root_control_character_paths_cannot_forge_log_lines(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The forged-line risk is not confined to escaping symlinks.
+
+    An in-root name carrying a newline reaches a diagnostic by two routes:
+    the undecodable-filename branch logs before portability is evaluated, and
+    a record excluded as `non-portable-path` is still reported when it later
+    collides canonically.
+    """
+    source = _write_source(tmp_path / "source")
+    docs = os.fsencode(source / "docs")
+    with open(os.path.join(docs, b"ev\x0ail-caf\xc3\xa9.md"), "wb") as handle:
+        handle.write(b"# nfc\n")
+    with open(os.path.join(docs, b"ev\x0ail-cafe\xcc\x81.md"), "wb") as handle:
+        handle.write(b"# nfd\n")
+    with open(os.path.join(docs, b"ev\x0ail-\xff-byte.md"), "wb") as handle:
+        handle.write(b"# undecodable\n")
+
+    with caplog.at_level("WARNING"):
+        _discover(tmp_path, source)
+
+    assert caplog.messages, "these inputs must still be reported"
+    assert all("\n" not in message for message in caplog.messages), "no diagnostic may span lines"
+    assert any("\\x0a" in message for message in caplog.messages)

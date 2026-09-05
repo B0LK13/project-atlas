@@ -181,12 +181,18 @@ def _reportable(relative: str) -> str:
     ASCII decode.
 
     Control characters are ASCII, so `backslashreplace` leaves them intact.
-    They are escaped explicitly here because the escaping-symlink diagnostic
-    reports a *physical target outside the source root* -- a path this
-    repository never constrained -- and a newline in it would otherwise split
-    one warning into two, forging a second log line. An in-root path with a
-    control character never reaches a log at all: it is recorded as
-    `non-portable-path` instead.
+    They are escaped explicitly here because a newline in a reported path
+    would otherwise end the warning early and forge what reads as a second
+    log record.
+
+    The reachable input set is wider than the escaping-symlink diagnostic
+    that made it obvious. That one reports a *physical target outside the
+    source root*, a path this repository never constrained -- but an in-root
+    name carrying a control character also reaches a log, because the
+    undecodable-filename branch logs before portability is evaluated, and a
+    record excluded as `non-portable-path` is still reported if it later
+    collides canonically. Escaping therefore belongs here in the shared
+    helper rather than at any one call site.
     """
     ascii_only = relative.encode("ascii", "backslashreplace").decode("ascii")
     return "".join(
