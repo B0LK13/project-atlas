@@ -8,12 +8,14 @@ path safety, and clipboard provider selection.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
 import pytest
 import yaml
 
+from project_atlas.capture_io import write_atomic_under_root
 from project_atlas.capture_sources import (
     MAX_CONTENT_BYTES,
     CaptureSourceError,
@@ -654,3 +656,123 @@ def test_render_note_is_a_pure_function_of_the_record(vault: Path) -> None:
         (vault / CAPTURE_DIR / f"{result['capture_id']}.json").read_text(encoding="utf-8")
     )
     assert render_note(record, content="pure") == render_note(record, content="pure")
+
+
+# --------------------------------------------------------------------------
+# Contained atomic writes (project_atlas.capture_io).
+#
+# The Windows leg of the exact-head CI matrix (run 33956239428) showed two
+# concurrency faults in this layer that Linux never exhibits, so both are
+# pinned here rather than left to the platform that happened to find them.
+# --------------------------------------------------------------------------
+
+
+def test_raw_store_symlinked_out_of_the_vault_fails_closed(
+    vault: Path, tmp_path: Path
+) -> None:
+    """A junction/symlink planted at the capture store must not leak evidence."""
+    stolen = tmp_path / "stolen"
+    stolen.mkdir()
+    (vault / "generated" / "ops").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "ops" / "raw-captures").symlink_to(
+        stolen, target_is_directory=True
+    )
+
+    with pytest.raises(CaptureError) as excinfo:
+        capture(vault, _request("secret evidence"))
+    assert excinfo.value.code == "PATH_ESCAPES_VAULT"
+    assert [p for p in stolen.rglob("*") if p.is_file()] == [], "no bytes may escape"
+
+
+def test_lexical_containment_precedes_any_directory_creation(tmp_path: Path) -> None:
+    """The cheap lexical gate runs before mkdir, so nothing is created outside."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside" / "nested"
+
+    with pytest.raises(ValueError, match="escapes root"):
+        write_atomic_under_root(outside / "f.txt", b"x", root=root, label="test")
+    assert not outside.exists(), "a rejected target must not be materialized"
+
+
+def test_atomic_write_retries_a_transient_permission_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows can raise EACCES on a benign replace race; a bounded retry wins.
+
+    Atomicity is preserved because each ``os.replace`` attempt either
+    replaces the destination wholly or leaves it untouched.
+    """
+    root = tmp_path / "root"
+    root.mkdir()
+    target = root / "out.txt"
+    real_replace = os.replace
+    calls = {"n": 0}
+
+    def flaky(src: object, dst: object) -> None:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise PermissionError(13, "Access is denied")
+        real_replace(src, dst)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("project_atlas.capture_io.os.replace", flaky)
+    monkeypatch.setattr("project_atlas.capture_io.RETRY_BACKOFF_SECONDS", 0)
+
+    write_atomic_under_root(target, b"payload", root=root, label="test")
+    assert target.read_bytes() == b"payload"
+    assert calls["n"] == 3
+    assert list(root.glob("*.tmp")) == [], "no temp file may survive"
+
+
+def test_atomic_write_gives_up_after_bounded_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The retry is bounded: a persistent failure surfaces, never loops."""
+    root = tmp_path / "root"
+    root.mkdir()
+
+    def always_denied(src: object, dst: object) -> None:
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr("project_atlas.capture_io.os.replace", always_denied)
+    monkeypatch.setattr("project_atlas.capture_io.RETRY_BACKOFF_SECONDS", 0)
+
+    with pytest.raises(PermissionError):
+        write_atomic_under_root(root / "out.txt", b"x", root=root, label="test")
+    assert list(root.glob("*.tmp")) == [], "the temp file is cleaned up on failure"
+
+
+def test_mkdir_tolerates_a_concurrent_creator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows may report EACCES rather than EEXIST for a concurrent mkdir."""
+    root = tmp_path / "root"
+    root.mkdir()
+    nested = root / "a" / "b"
+    real_mkdir = Path.mkdir
+    calls = {"n": 0}
+
+    def flaky(self: Path, *args: object, **kwargs: object) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            real_mkdir(self, *args, **kwargs)  # type: ignore[arg-type]
+            raise PermissionError(13, "Access is denied")
+        real_mkdir(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "mkdir", flaky)
+    monkeypatch.setattr("project_atlas.capture_io.RETRY_BACKOFF_SECONDS", 0)
+
+    write_atomic_under_root(nested / "f.txt", b"y", root=root, label="test")
+    monkeypatch.undo()
+    assert (nested / "f.txt").read_bytes() == b"y"
+
+
+def test_atomic_write_is_idempotent_for_identical_content(tmp_path: Path) -> None:
+    """Repeated writes of the same content-addressed bytes converge."""
+    root = tmp_path / "root"
+    root.mkdir()
+    target = root / "nested" / "out.txt"
+    for _ in range(5):
+        write_atomic_under_root(target, b"same", root=root, label="test")
+    assert target.read_bytes() == b"same"
+    assert list(target.parent.glob("*.tmp")) == []

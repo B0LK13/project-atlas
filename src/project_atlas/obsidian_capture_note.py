@@ -18,10 +18,8 @@ generated here; ``captured_at`` is emitted only when an operator supplied it.
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 import unicodedata
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +30,7 @@ from atlas_contracts.identity import (
     safe_relative_component,
     safe_relative_path,
 )
+from project_atlas.capture_io import is_lexically_under, write_atomic_under_root
 from project_atlas.secrets import redact_text
 
 PACKAGE_ID = "AS-OBSIDIAN-CAPTURE-001"
@@ -271,28 +270,11 @@ def _existing_capture_id(text: str) -> str | None:
 
 
 def _write_atomic(path: Path, content: bytes, *, root: Path) -> None:
-    """Atomic write with a post-resolution containment re-check (§32, §34)."""
+    """Contained atomic write of a projected note (§32, §34)."""
     try:
-        ensure_under_root(root, path.parent, label="obsidian note directory")
+        write_atomic_under_root(path, content, root=root, label="obsidian note directory")
     except ValueError as exc:
         raise ObsidianNoteError("PATH_ESCAPES_VAULT", str(exc)) from exc
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        ensure_under_root(root, path.parent, label="obsidian note directory")
-    except ValueError as exc:
-        raise ObsidianNoteError("PATH_ESCAPES_VAULT", str(exc)) from exc
-    # A per-writer temp name, not a shared ``<name>.tmp``: two concurrent
-    # writers of the same content-addressed path would otherwise race on one
-    # temp file and the loser's ``os.replace`` would fail with ENOENT
-    # (architecture §49). ``os.replace`` itself is atomic, so identical
-    # concurrent captures converge instead of colliding.
-    tmp = path.with_suffix(f"{path.suffix}.{os.getpid()}-{uuid.uuid4().hex}.tmp")
-    try:
-        tmp.write_bytes(content)
-        os.replace(tmp, path)
-    finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
 
 
 def write_note(
@@ -327,10 +309,18 @@ def write_note(
     for segment in segments:
         target = target / segment
     target = target / filename
-    try:
-        ensure_under_root(resolved_root, target.parent, label="obsidian note")
-    except ValueError as exc:
-        raise ObsidianNoteError("PATH_ESCAPES_VAULT", str(exc)) from exc
+    # Fail fast, lexically. A *resolved* check here would run against a
+    # directory that may not exist yet, and on Windows ``realpath`` is not
+    # stable for a non-existent path whose ancestors are being created
+    # concurrently (see project_atlas.capture_io). The authoritative
+    # resolved check -- the one that catches a symlink or junction escape --
+    # runs inside ``write_atomic_under_root`` against the materialized
+    # directory, still before any content is written.
+    if not is_lexically_under(resolved_root, target.parent):
+        raise ObsidianNoteError(
+            "PATH_ESCAPES_VAULT",
+            f"unsafe obsidian note escapes root: {target}",
+        )
 
     if target.is_symlink():
         raise ObsidianNoteError("PATH_ESCAPES_VAULT", f"note path is a symlink: {filename}")

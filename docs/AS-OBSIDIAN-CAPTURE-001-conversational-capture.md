@@ -147,6 +147,38 @@ Stable error codes (`ROUTING_UNSAFE`, `UNMATCHED_PROJECT`,
 `CLIPBOARD_UNAVAILABLE`, `CAPTURE_INPUT_TOO_LARGE`, …) are surfaced on stdout
 and in `--json` output.
 
+## Windows concurrency
+
+Both writers go through `project_atlas.capture_io.write_atomic_under_root`, so
+the containment ordering and the platform handling cannot drift apart between
+the raw store and the note adapter.
+
+The exact-head CI matrix for this package (run `33956239428`) surfaced two
+Windows-only faults that Linux never exhibits, from eight concurrent captures:
+
+- **Four spurious containment failures.** `os.path.realpath` — which
+  `ensure_under_root` uses — is not stable for a path that does not exist yet
+  while another thread is creating its ancestors: Windows falls back to
+  non-strict resolution and can leave the tail unresolved, so the result fails
+  containment against an otherwise-identical root. The fix is **ordering, not
+  tolerance**: a cheap lexical gate runs first (so nothing is ever created
+  outside the root), the directory is materialized, and only then does the
+  authoritative resolved check run — against a path where `realpath` is
+  deterministic and a symlink or junction still resolves out and fails closed,
+  before any content is written. Retrying a containment check until it passed
+  would have masked the problem instead of fixing it.
+- **Two `PermissionError(13, 'Access is denied')`.** `os.replace` and `mkdir`
+  can transiently fail when another thread momentarily holds the destination.
+  These are retried with a small bound (5 attempts, ≤150 ms total). `os.replace`
+  is atomic on both platforms — each attempt either replaces the destination
+  wholly or leaves it untouched — and every writer of a content-addressed path
+  writes identical bytes, so the retry preserves atomicity *and* idempotency.
+
+Both faults are pinned by regression tests rather than left to whichever
+platform happens to find them, and a stress of 32 concurrent captures × 12
+rounds produces exactly one record, one blob and one note with no leftover
+temp files.
+
 ## Privacy model
 
 Local-first, with no egress path in this package (INV-005, architecture §37):

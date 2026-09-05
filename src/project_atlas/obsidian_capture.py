@@ -27,18 +27,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import unicodedata
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import (
-    ensure_under_root,
     safe_relative_component,
     safe_relative_path,
 )
+from project_atlas.capture_io import write_atomic_under_root
 from project_atlas.capture_sources import CaptureRequest
 from project_atlas.logging import get_logger
 from project_atlas.obsidian_capture_note import ObsidianNoteError, write_note
@@ -122,27 +120,11 @@ class RoutingPolicy:
 
 
 def _write_atomic(path: Path, content: bytes, *, root: Path) -> None:
+    """Contained atomic write into the capture store."""
     try:
-        ensure_under_root(root, path.parent, label="capture store")
+        write_atomic_under_root(path, content, root=root, label="capture store")
     except ValueError as exc:
         raise CaptureError("PATH_ESCAPES_VAULT", str(exc)) from exc
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        ensure_under_root(root, path.parent, label="capture store")
-    except ValueError as exc:
-        raise CaptureError("PATH_ESCAPES_VAULT", str(exc)) from exc
-    # A per-writer temp name, not a shared ``<name>.tmp``: two concurrent
-    # writers of the same content-addressed path would otherwise race on one
-    # temp file and the loser's ``os.replace`` would fail with ENOENT
-    # (architecture §49). ``os.replace`` itself is atomic, so identical
-    # concurrent captures converge instead of colliding.
-    tmp = path.with_suffix(f"{path.suffix}.{os.getpid()}-{uuid.uuid4().hex}.tmp")
-    try:
-        tmp.write_bytes(content)
-        os.replace(tmp, path)
-    finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
 
 
 def canonical_content(content: str) -> str:

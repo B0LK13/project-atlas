@@ -11131,3 +11131,64 @@ collision with an `ATLAS3_COMMANDS` name is a violation.
 Also fixed in this pass: `tests/unit/test_schema.py::test_all_expected_schemas_available`
 enumerates every registered schema kind and needed the new `raw-capture` entry.
 That failure was this lane's, not pre-existing.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- Windows concurrency remediation (supersedes 816d937e)
+
+Exact-head CI on `816d937e` (run `33956242995`/`33956239428`): control-plane
+**success**, ubuntu-latest 3.12 **success**, ubuntu-latest 3.13 **success**,
+windows-latest 3.12 **failure** -- `1 failed, 5281 passed, 4 skipped,
+3 deselected in 1211.67s`. The single failure was this lane's own
+`test_concurrent_identical_captures_produce_one_capture`, with two distinct
+candidate-caused error classes from eight concurrent captures:
+
+```text
+CaptureError('unsafe capture store escapes root: ...\generated\ops\raw-captures')  x4
+PermissionError(13, 'Access is denied')                                            x2
+```
+
+### Class A -- spurious containment failure (ordering defect, not tolerance)
+
+`_write_atomic` ran `ensure_under_root` on `path.parent` **before** `mkdir`,
+i.e. against a directory that may not exist yet. `ensure_under_root` uses
+`os.path.realpath`, which on Windows is not stable for a non-existent path
+whose ancestors are being created concurrently: it falls back to non-strict
+resolution, can leave the tail unresolved, and the result then fails
+containment against an otherwise-identical root. The post-`mkdir` check never
+flaked, which is what isolated the pre-check as the culprit.
+
+Fixed by ordering, not by retrying: a purely lexical gate runs first (so a
+constructed-path bug can never create directories outside the root), the
+directory is materialized, and the authoritative resolved check then runs
+against a stable existing path -- still before any content is written. A
+retry here would have masked an unreliable security check rather than fixing
+it, so none was added.
+
+Verified not weakened: all 12 hostile routing shapes still rejected with
+nothing written; the pre-planted symlinked note directory still fails closed
+with zero files outside and evidence preserved; and a **new** case now
+covered -- the raw store's own parent symlinked out of the vault fails closed
+with zero bytes leaked.
+
+### Class B -- benign Windows replace/mkdir race (bounded retry, authorized)
+
+`os.replace` and `mkdir` can transiently raise `PermissionError` (WinError 5)
+when another thread momentarily holds the destination. Retried with a small
+bound (5 attempts, <=150ms). This preserves atomicity -- each `os.replace`
+attempt either replaces the destination wholly or leaves it untouched, so a
+retry can never publish a partial file -- and preserves idempotency, since
+every writer of a content-addressed path writes identical bytes.
+
+### Structure
+
+Both writers now share `project_atlas/capture_io.py`
+(`write_atomic_under_root`), so the containment ordering and platform
+handling cannot drift between the raw store and the note adapter. The scope
+stays local to this package's atomic-write implementation; no shared Atlas
+path primitive was changed and `atlas_contracts.paths` is untouched.
+
+Six regression tests pin both classes (transient-then-success retry, bounded
+give-up, concurrent-mkdir tolerance, lexical gate before creation, raw-store
+symlink escape, write idempotency) so neither is left to whichever platform
+happens to find it. Local stress: 32 concurrent captures x 12 rounds, each
+producing exactly one record, one blob, one note, zero leftover temp files.
