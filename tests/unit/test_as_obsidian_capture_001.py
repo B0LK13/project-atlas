@@ -942,3 +942,192 @@ def test_materialize_under_root_rejects_non_relative_or_unsafe_paths(
     with pytest.raises(ValueError, match="unsafe test"):
         materialize_under_root(root, Path(hostile), label="test")
     assert list(root.iterdir()) == [], "nothing may be created for a rejected path"
+
+
+# ---------------------------------------------------------------------------
+# Retry human-edit preservation (AT-011).
+#
+# ``atlas capture retry`` re-renders the same persisted capture. Before this
+# fix ``write_note()`` unconditionally replaced the whole file, so any human
+# edit made outside the generated region was silently destroyed. This is the
+# same contract already shipped for the living project projection
+# (``obsidian_projection.py``): content wrapped in a named
+# ``<!-- BEGIN HUMAN: name --> ... <!-- END HUMAN: name -->`` block survives
+# a re-render byte-for-byte via the shared ``protected_regions`` primitive.
+# ---------------------------------------------------------------------------
+
+
+def _note_path_for(vault: Path, result: dict[str, object]) -> Path:
+    outputs = result["outputs"]
+    assert isinstance(outputs, list) and outputs
+    output = outputs[0]
+    return Path(str(output["vault_root"])) / str(output["relative_path"])
+
+
+def test_render_note_ships_a_human_notes_placeholder(vault: Path) -> None:
+    """A discoverable, safe place to write persistent notes exists by default."""
+    result = capture(vault, build_capture_request(content="placeholder check"))
+    note = _note_path_for(vault, result).read_text(encoding="utf-8")
+    assert "<!-- BEGIN HUMAN: notes -->" in note
+    assert "<!-- END HUMAN: notes -->" in note
+
+
+def test_retry_with_unchanged_note_is_safe_and_idempotent(vault: Path) -> None:
+    """Retrying without any human edit reproduces byte-identical output."""
+    result = capture(vault, build_capture_request(content="idempotent retry"))
+    note_path = _note_path_for(vault, result)
+    before = note_path.read_bytes()
+
+    retry(vault, result["capture_id"])
+
+    assert note_path.read_bytes() == before
+
+
+def test_retry_preserves_human_edited_content(vault: Path) -> None:
+    """The exact scenario from the P1 finding: a human edit must survive."""
+    result = capture(vault, build_capture_request(content="human edit retry"))
+    note_path = _note_path_for(vault, result)
+    original = note_path.read_text(encoding="utf-8")
+    edited = original.replace(
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->",
+        "<!-- BEGIN HUMAN: notes -->\nDo not delete this. -- a human\n"
+        "<!-- END HUMAN: notes -->",
+    )
+    assert edited != original, "the placeholder must actually be present to edit"
+    note_path.write_text(edited, encoding="utf-8")
+
+    retry(vault, result["capture_id"])
+
+    after = note_path.read_text(encoding="utf-8")
+    assert "Do not delete this. -- a human" in after
+
+
+def test_retry_preserves_human_edit_across_repeated_identical_retries(vault: Path) -> None:
+    """Retrying twice more must not erode a preserved human edit."""
+    result = capture(vault, build_capture_request(content="repeated retry"))
+    note_path = _note_path_for(vault, result)
+    original = note_path.read_text(encoding="utf-8")
+    note_path.write_text(
+        original.replace(
+            "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->",
+            "<!-- BEGIN HUMAN: notes -->\nsurvive twice\n<!-- END HUMAN: notes -->",
+        ),
+        encoding="utf-8",
+    )
+
+    retry(vault, result["capture_id"])
+    retry(vault, result["capture_id"])
+
+    assert "survive twice" in note_path.read_text(encoding="utf-8")
+
+
+def test_retry_with_malformed_human_markers_fails_closed(vault: Path) -> None:
+    """A corrupted marker pair fails the render stage rather than guessing.
+
+    Rendering failure is isolated, never fatal (INV-007) -- ``retry()``
+    returns ``status: "partial"`` with the failure recorded, it does not
+    raise. What must never happen is a *silent* rewrite: the merge is
+    computed in memory before any write, so a rejected merge never reaches
+    ``_write_atomic`` and the existing (corrupted) note is left exactly as
+    it was for a human to fix.
+    """
+    result = capture(vault, build_capture_request(content="malformed markers"))
+    note_path = _note_path_for(vault, result)
+    original = note_path.read_text(encoding="utf-8")
+    # Unbalanced: a BEGIN with no matching END.
+    corrupted = original.replace(
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->",
+        "<!-- BEGIN HUMAN: notes -->\nunterminated",
+    )
+    note_path.write_text(corrupted, encoding="utf-8")
+
+    retried = retry(vault, result["capture_id"])
+
+    assert retried["status"] == "partial"
+    assert retried["errors"][0]["code"] == "OBSIDIAN_NOTE_CONFLICT"
+    assert note_path.read_text(encoding="utf-8") == corrupted, (
+        "a rejected merge must not silently rewrite or drop the existing note"
+    )
+    assert list(note_path.parent.glob("*.tmp")) == []
+
+
+def test_retry_after_source_disappears_still_preserves_human_edit(vault: Path) -> None:
+    """Retry reloads raw evidence independently; the human edit still survives.
+
+    Exercises the general contract (retry never depends on anything but the
+    persisted raw evidence and the existing note) alongside human-edit
+    preservation in the same call.
+    """
+    result = capture(vault, build_capture_request(content="reload from store"))
+    note_path = _note_path_for(vault, result)
+    note_path.write_text(
+        note_path.read_text(encoding="utf-8").replace(
+            "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->",
+            "<!-- BEGIN HUMAN: notes -->\nreloaded fine\n<!-- END HUMAN: notes -->",
+        ),
+        encoding="utf-8",
+    )
+
+    retried = retry(vault, result["capture_id"])
+
+    assert retried["status"] == "ok"
+    assert "reloaded fine" in note_path.read_text(encoding="utf-8")
+
+
+def test_concurrent_retries_never_corrupt_the_note(vault: Path) -> None:
+    """Concurrent retries race on one file; the result is always one whole,
+    valid render -- never a torn or mixed write (last-writer-wins is
+    acceptable, corruption is not; concurrent-signal linearizability is
+    NOT_CONTRACTED, matching the capture-race contract elsewhere)."""
+    import threading
+
+    result = capture(vault, build_capture_request(content="concurrent retry"))
+    note_path = _note_path_for(vault, result)
+    note_path.write_text(
+        note_path.read_text(encoding="utf-8").replace(
+            "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->",
+            "<!-- BEGIN HUMAN: notes -->\nmust survive the race\n<!-- END HUMAN: notes -->",
+        ),
+        encoding="utf-8",
+    )
+
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(8)
+
+    def worker() -> None:
+        try:
+            barrier.wait(timeout=15)
+            retry(vault, result["capture_id"])
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=30)
+
+    assert errors == [], f"concurrent retry raised: {errors}"
+    final = note_path.read_text(encoding="utf-8")
+    assert "must survive the race" in final
+    assert final.count("<!-- BEGIN HUMAN: notes -->") == 1
+    assert list(note_path.parent.glob("*.tmp")) == []
+
+
+def test_p1_symlink_containment_still_holds_after_retry_fix(vault: Path, tmp_path: Path) -> None:
+    """The retry fix must not reopen the default-projection symlink escape.
+
+    A projection failure is isolated, never fatal (INV-007): ``capture()``
+    returns ``status: "partial"`` with ``PATH_ESCAPES_VAULT`` recorded, it
+    does not raise. What matters is that raw evidence is preserved and zero
+    bytes land outside the vault.
+    """
+    stolen = tmp_path / "stolen"
+    stolen.mkdir()
+    (vault / "generated" / "obsidian").symlink_to(stolen, target_is_directory=True)
+
+    result = capture(vault, build_capture_request(content="containment still holds"))
+
+    assert result["status"] == "partial"
+    assert result["errors"][0]["code"] == "PATH_ESCAPES_VAULT"
+    assert [p for p in stolen.rglob("*") if p.is_file()] == []

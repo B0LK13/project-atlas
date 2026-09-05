@@ -31,6 +31,8 @@ from atlas_contracts.identity import (
     safe_relative_path,
 )
 from project_atlas.capture_io import is_lexically_under, write_atomic_under_root
+from project_atlas.protected_regions import GENERATED_END, GENERATED_START, ProtectedRegionError
+from project_atlas.protected_regions import merge_protected_regions as _merge_protected_regions
 from project_atlas.secrets import redact_text
 
 PACKAGE_ID = "AS-OBSIDIAN-CAPTURE-001"
@@ -39,10 +41,10 @@ NOTE_SCHEMA_VERSION = 1
 
 #: Managed-region markers. Architecture §45 proposes ``atlas:managed:*``;
 #: the repository already ships ``atlas:generated:*`` in
-#: :mod:`project_atlas.obsidian_projection`, and repository truth wins so a
-#: single marker vocabulary stays valid across every Atlas-written note.
-GENERATED_START = "<!-- atlas:generated:start -->"
-GENERATED_END = "<!-- atlas:generated:end -->"
+#: :mod:`project_atlas.protected_regions` (shared with
+#: :mod:`project_atlas.obsidian_projection`), and repository truth wins so a
+#: single marker vocabulary -- and a single HUMAN-region merge algorithm,
+#: AT-011 -- stays valid across every Atlas-written note.
 
 _SLUG_STRIP = re.compile(r"[^a-z0-9]+")
 _MAX_SLUG = 64
@@ -242,6 +244,9 @@ def render_note(
             "",
             GENERATED_END,
             "",
+            "<!-- BEGIN HUMAN: notes -->",
+            "<!-- END HUMAN: notes -->",
+            "",
         ]
     )
     return "\n".join(lines)
@@ -342,6 +347,8 @@ def write_note(
 
     if target.is_symlink():
         raise ObsidianNoteError("PATH_ESCAPES_VAULT", f"note path is a symlink: {filename}")
+    relative_path = "/".join((*segments, filename))
+    existing: str | None = None
     if target.is_file():
         try:
             existing = target.read_text(encoding="utf-8")
@@ -358,13 +365,34 @@ def write_note(
             )
 
     rendered = render_note(record, content=content, include_content=include_content)
+    # A re-render (``atlas capture retry``, or any second write for the same
+    # capture_id) must not silently destroy content a human wrote outside the
+    # generated region. AT-011 already establishes the contract for the
+    # living project projection: anything wrapped in a named
+    # ``<!-- BEGIN HUMAN: name --> ... <!-- END HUMAN: name -->`` block is
+    # spliced back into the fresh render byte-for-byte, at the same named
+    # position (or appended if the new render dropped that section). This is
+    # the one merge implementation (project_atlas.protected_regions) shared
+    # with obsidian_projection.py, not a second, divergent heuristic.
+    #
+    # A malformed marker pair in the existing file fails closed here rather
+    # than risk silently dropping or misplacing human content: the retry
+    # itself fails (OBSIDIAN_NOTE_CONFLICT), the raw capture is untouched,
+    # and the caller can inspect and fix the note by hand before retrying.
+    try:
+        rendered = _merge_protected_regions(
+            existing=existing,
+            rendered=rendered,
+            path=relative_path,
+        )
+    except ProtectedRegionError as exc:
+        raise ObsidianNoteError("OBSIDIAN_NOTE_CONFLICT", str(exc)) from exc
     encoded = rendered.encode("utf-8")
     # Atomic write is contained by the *anchor*: for the default projection
     # that is the Atlas vault, so a symlink under generated/obsidian cannot
     # widen the boundary it is checked against.
     _write_atomic(target, encoded, root=resolved_anchor)
 
-    relative_path = "/".join((*segments, filename))
     note_hash = "sha256:" + hashlib.sha256(encoded).hexdigest()
     artifact_id = "art-" + hashlib.sha256(
         f"obsidian_note:{record['capture_id']}:{relative_path}".encode()
