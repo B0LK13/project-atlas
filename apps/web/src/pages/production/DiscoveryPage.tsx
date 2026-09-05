@@ -31,7 +31,7 @@ export default function DiscoveryPage() {
 
   return (
     <ProdShell>
-      <main className="shell" id="main">
+      <main className="shell" id="main" tabIndex={-1}>
         <header className="hero">
           <p className="eyebrow">Production · Discovery</p>
           <h1>Knowledge estate</h1>

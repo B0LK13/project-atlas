@@ -162,11 +162,22 @@ anchor. Re-establish that independently:
 | normal default root | `ok`, note under `<vault>/generated/obsidian/captures` |
 | explicit `--obsidian-vault` | `ok` — must **not** have become a failure |
 
-Also check the ordering claim, not just the outcome: with an intermediate
-link planted, assert **nothing at all** is created on the far side — not even
-an empty directory. `mkdir(parents=True)` past a symlinked ancestor is
-already a boundary violation. Confirm the walk uses `lstat`, not `realpath`,
-and that no containment failure is retried.
+Also check the ordering claim, not just the outcome — but check the *narrow*
+claim, which is the only one that holds:
+
+* **Default projection chain** (`generated/obsidian`, `generated/obsidian/captures`),
+  protected by `materialize_under_root`: with a link planted at either, assert
+  nothing at all is created on the far side — not even an empty directory.
+* **Raw-store and routing-segment paths** (`generated`, `generated/ops`,
+  a routing segment such as `00 Inbox`): these go through
+  `write_atomic_under_root` only, which creates the parent before the
+  authoritative check, so an **empty external directory may appear**. That is
+  pre-existing (reproduces identically on `729acb65`) and non-blocking. What
+  must still hold everywhere: zero files, zero temp files, zero content bytes,
+  and a fail-closed result.
+
+Confirm the walk uses `lstat`, not `realpath`, and that no containment failure
+is retried.
 
 Attack the *input* validation too, on both platform families. `materialize_under_root` originally used a hand-rolled `is_absolute()`, which is False on Windows for `Path("/etc")` (root, no drive); it now uses `atlas_contracts.paths.safe_relative_path`. Push `/etc`, `C:evil`, `../outside`, `a/../../b`, `con`, `trailing.` and `trailing ` through it and confirm each is rejected *and* that nothing is created for a rejected path.
 

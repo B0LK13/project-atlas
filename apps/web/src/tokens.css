@@ -65,7 +65,12 @@
 
 [data-theme="cartograph-quiet"] {
   --atlas-ink: #1e293b;
-  --atlas-muted: #64748b;
+  /* WCAG 2.x AA (4.5:1). #64748b failed against --atlas-paper (#f1f5f9) at
+     4.34:1. It passed on --atlas-panel only because that surface is
+     rgba(255,255,255,0.82), which composites over paper to #fcfdfe (4.67:1) --
+     so the failure was surface-dependent and easy to miss. #5a6879 clears both
+     (5.19:1 on paper, 5.59:1 on the composited panel). */
+  --atlas-muted: #5a6879;
   --atlas-paper: #f1f5f9;
   --atlas-panel: rgba(255, 255, 255, 0.82);
   --atlas-line: #cbd5e1;
@@ -82,7 +87,17 @@
 
 [data-theme="terminal-honest"] {
   --atlas-ink: #d4d4d4;
-  --atlas-muted: #737373;
+  /* WCAG 2.x AA (4.5:1) for normal text. #737373 failed against both of this
+     theme's surfaces -- 4.18:1 on --atlas-paper (#0a0a0a) and 3.98:1 on
+     --atlas-panel (#111111). #858585 clears both with margin (5.37:1 and
+     5.12:1); the AA thresholds against THESE TWO SURFACES specifically sit
+     at #797979 and #7c7c7c, so this is not borderline. That #7c7c7c number
+     is not a general invariant -- it is only valid while --atlas-paper and
+     --atlas-panel keep their current values above. If either surface
+     changes, or --atlas-muted is ever rendered over a different underlay,
+     recompute the threshold against the actual surfaces in use rather than
+     reusing this number. */
+  --atlas-muted: #858585;
   --atlas-paper: #0a0a0a;
   --atlas-panel: #111111;
   --atlas-line: #262626;

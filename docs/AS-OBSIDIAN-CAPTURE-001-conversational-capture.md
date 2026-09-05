@@ -185,6 +185,33 @@ boundary even when it only creates an empty directory. `lstat` is also
 deterministic for a concurrently-created path, so this does not reintroduce
 the Windows spurious-failure class below.
 
+### Scope of the "no side effect" guarantee
+
+State this precisely, because the strong form is not true everywhere:
+
+> For the implicit/default Obsidian projection chain protected by
+> `materialize_under_root`, a planted symlink is rejected **before traversal**:
+> no external directory, file, temporary file, or content byte is created.
+
+Independent verification confirmed that, and also confirmed a narrower,
+**pre-existing** exception that this package does not change. Paths that reach
+`write_atomic_under_root` without going through `materialize_under_root` — the
+raw-capture store and the routing segments beneath a projection root — create
+their parent directory *before* the authoritative containment check, so a
+symlink planted at one of those ancestors can cause an **empty external
+directory** to be created before the rejection:
+
+| planted link | empty directories created outside |
+| --- | --- |
+| `generated -> outside` | 2 (`ops`, `ops/raw-captures`) |
+| `generated/ops -> outside` | 1 (`raw-captures`) |
+| routing segment `00 Inbox -> outside` | 1 (`Atlas Captures`) |
+
+In every one of those cases the operation still **fails closed** and writes
+**zero files, zero temporary files and zero content bytes**. The behaviour is
+identical on the pre-remediation head, so it is not introduced here; it is
+carried as a known non-blocking finding rather than claimed as fixed.
+
 Containment failures are never retried — only the benign concurrent-creation
 races (`FileExistsError`, `PermissionError` on `mkdir`/`os.replace`) are, and
 no arbitrary `OSError` is.
