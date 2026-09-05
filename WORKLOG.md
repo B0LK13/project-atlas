@@ -11274,3 +11274,37 @@ name -- runs `discover -> ingest -> build-indexes -> build-portfolio ->
 validate` **all exit 0**, emitting 5 warnings. This supersedes the withdrawn
 claim in the correction above, which was made without a true normalization
 pair in the tree.
+
+### Clean-tree denominator reconciliation (final candidate `6b51321b`)
+
+The owner directive required the previously corrected figure "0 of 5,798" to
+remain only if independently reproduced on the final candidate. **It did not
+reproduce.** Measured on a pristine `git worktree` of `6b51321b` (zero
+untracked files), importing the worktree's own `src/` and asserting the module
+path before measuring:
+
+| method | result |
+| --- | --- |
+| CLI (`atlas discover --source .`, config applied) | **0 of 3,051** |
+| direct `discovery.discover(root)` (no config excludes) | 0 of 2,797 |
+| earlier, this working tree (untracked + build artifacts present) | 0 of 12,263 |
+| earlier, independent verifier's checkout | 0 of 5,798 (not reproduced here) |
+
+The **numerator is zero under every method** -- no source in this repository
+is classified `non-portable-path` or `unreadable`, which is the claim that
+matters: the guards are a no-op on real content. The *denominator* is
+method- and tree-dependent (config-driven excludes, untracked and build
+artifacts, and whether the CLI's `[tool.atlas]` configuration is loaded), and
+should never have been quoted as a bare population figure without its method.
+
+Certified figure going forward: **0 of 3,051**, CLI method, clean worktree at
+`6b51321b`. The 5,798 and 12,263 figures are withdrawn.
+
+### Out-of-scope observation (not fixed)
+
+`WORKLOG.md` contains a NUL byte at line 5174, inside
+`**Base (open):** 38b8eac / tree \x0070e951b`. It is **pre-existing** and
+present in `origin/main`, not introduced here. Its effect is that `grep`
+classifies the entire worklog as binary and silently returns nothing without
+`-a`, which quietly breaks any tooling that greps this file. Left untouched:
+outside the R1-R3 grant.
