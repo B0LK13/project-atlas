@@ -11029,3 +11029,105 @@ work package. The seam is ready -- every entry point converges on
 `CaptureResult` is the shared machine contract. AI enrichment, message-level
 conversation parsing, and graph relations remain follow-ups; `derived_artifacts[]`
 already allows 1 capture -> N artifacts without a schema migration.
+
+
+## OWNER GRANT -- Atlas-3 CLI additive-only guard remediation
+
+Supersedes the "BLOCKER (owner decision required)" note in the
+AS-OBSIDIAN-CAPTURE-001 entry above. The owner authorized remediation of the
+Atlas-3 CLI additive-only governance guard because the contract as written
+blocks unrelated nested CLI additions while providing no valid registration
+path for them.
+
+Scope is limited to correcting the guard so it enforces Atlas-3
+ownership/isolation semantics without requiring unrelated CLI additions to
+fabricate Atlas-3 registration. No blanket bypass, package-specific exception,
+xfail, skip, freeze override, or weakening of Atlas-3 isolation is authorized,
+and none was taken. The `DENY` freeze list and
+`_OWNER_APPROVED_EXCEPTIONS` are untouched; this grant does not extend to them.
+
+### Root cause
+
+`test_cli_mutation_is_additive_only` (introduced in `cefc234e`, the Atlas-3
+first-vertical commit, alongside the two `cli.py` hook call sites it pinned)
+asserted properties of the **diff text**:
+
+```
+assert "register_atlas3_parsers" in text
+assert "dispatch_atlas3" in text
+assert removed == []
+assert any("register_atlas3_parsers" in line for line in added)
+```
+
+That pins one commit's diff shape rather than the invariant it stands for, and
+the repository has already paid for it twice:
+
+- **Unsatisfiable for unrelated work.** Atlas-3's seam receives only the
+  top-level `subparsers`, so a *nested* subcommand (`atlas capture text`) has
+  no honest way to add the required hook line. PR #656 (DOGFOOD-001) resolved
+  this by abandoning its `cli.py` change outright -- `91b24ab4`: "cli.py:
+  reverted to base entirely ... the guard never fires for this PR at all".
+  Legitimate disclosure work was dropped to satisfy a text match.
+- **Under-protective.** A diff merely *mentioning* both symbols, plus one
+  added line naming the registration hook, satisfied every assertion while
+  registering an Atlas-3 owned command directly in `cli.py` and bypassing the
+  seam. `test_g6b_seam_bypass_the_old_text_match_would_have_accepted` now
+  executes the superseded assertions against exactly such a diff to prove the
+  old form accepted it and the corrected form rejects it.
+
+### True invariant
+
+```text
+ATLAS3_GUARD_TRUE_INVARIANT =
+Atlas 3 owns project_atlas/atlas3/cli.py. The shared cli.py reaches it through
+exactly one register_atlas3_parsers(subparsers) call and exactly one
+dispatch_atlas3(args) call, both imported from project_atlas.atlas3.cli.
+That seam may not be removed, duplicated, rewired, or bypassed, and no cli.py
+change may delete an existing command registration. CLI work Atlas 3 does not
+own is out of scope and must not be required to impersonate an Atlas-3 change.
+```
+
+### Remediation
+
+`assert_cli_atlas3_contract(source, diff_text, atlas3_commands)` -- a pure,
+directly testable function -- now enforces that invariant structurally against
+the resulting file plus the removed lines, keyed off `ATLAS3_COMMANDS` (the
+real ownership registry) rather than filename or diff-text heuristics:
+
+1. both seam symbols imported from `project_atlas.atlas3.cli`, each called
+   exactly once, with the correct argument;
+2. no removed line may delete or rewrite the seam;
+3. `cli.py` may not register any `ATLAS3_COMMANDS` name on the top-level
+   `subparsers` (the bypass the old form could not see);
+4. no `cli.py` change may drop an existing command registration;
+5. the named certified commands stay reachable.
+
+Structural-analysis soundness was checked against the real `cli.py`: the
+top-level subparsers object is uniquely named `subparsers`, `cli.py` registers
+67 top-level commands, and neither its top-level nor its nested command names
+intersect `ATLAS3_COMMANDS` -- so check 3 cannot mistake a nested subcommand
+for a seam bypass.
+
+### Evidence
+
+Regression matrix `test_g0..test_g8` (13 cases) plus a live mutation test
+against the **real** `src/project_atlas/cli.py`:
+
+| case | mutation | result |
+| --- | --- | --- |
+| baseline | this lane's feature diff | PASS |
+| G1 | delete `register_atlas3_parsers(subparsers)` | FAIL (seam broken) |
+| G1b | delete `dispatch_atlas3(args)` | FAIL (seam broken) |
+| G2 | rewire hook to a nested parser | FAIL (seam broken) |
+| G6 | `subparsers.add_parser("pulse")` in cli.py | FAIL (seam bypassed) |
+| restore | revert mutation | PASS |
+
+G3 (valid additive Atlas-3 registration), G4 (unrelated nested command -- the
+`atlas capture text` shape), G4b (ruff-forced import merge), G5 (unrelated
+top-level command), G7/G7b (deleting or renaming a certified registration)
+are covered synthetically. G5's expected result is repository-backed: only a
+collision with an `ATLAS3_COMMANDS` name is a violation.
+
+Also fixed in this pass: `tests/unit/test_schema.py::test_all_expected_schemas_available`
+enumerates every registered schema kind and needed the new `raw-capture` entry.
+That failure was this lane's, not pre-existing.

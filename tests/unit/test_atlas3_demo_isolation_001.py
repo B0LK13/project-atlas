@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -405,7 +406,145 @@ def test_certified_surfaces_unmodified() -> None:
     assert violated == []
 
 
+# ---------------------------------------------------------------------------
+# Atlas 3 CLI ownership seam (D-191 / D-192).
+#
+# Atlas 3 does not register commands in the shared `cli.py`. It owns
+# `project_atlas/atlas3/cli.py`, and the shared CLI reaches it through exactly
+# two delegating call sites -- one parser hook, one dispatch hook. That seam,
+# not the *shape of a diff*, is the property this guard exists to protect.
+#
+# The original formulation asserted that any `cli.py` diff must itself contain
+# `register_atlas3_parsers` / `dispatch_atlas3` and must add a line mentioning
+# the former. That pinned one commit's diff rather than the invariant, with two
+# consequences the repository has already paid for:
+#
+#   * it is unsatisfiable for unrelated CLI work. A new *nested* subcommand
+#     (e.g. `atlas capture text`) hangs off a parser built in `cli.py`, and the
+#     Atlas 3 seam only receives the top-level `subparsers`, so there is no
+#     honest way to add the required hook line. PR #656 (DOGFOOD-001) resolved
+#     this by reverting its `cli.py` change entirely ("cli.py: reverted to base
+#     entirely ... the guard never fires for this PR at all", 91b24ab4) --
+#     legitimate work dropped to satisfy a text match.
+#   * it under-protected the real boundary. A diff that merely *mentioned*
+#     `register_atlas3_parsers` in a comment satisfied it, even while
+#     registering an Atlas 3 command directly in `cli.py` and bypassing the
+#     seam altogether.
+#
+# The checks below are structural and are evaluated against the resulting file
+# plus the removed lines, so they are strictly stronger for Atlas 3 while
+# staying silent about CLI work Atlas 3 does not own.
+# ---------------------------------------------------------------------------
+
+_ATLAS3_SEAM_MODULE = "project_atlas.atlas3.cli"
+
+#: symbol -> the argument the shared CLI must hand it.
+_ATLAS3_SEAM_CALLS = {
+    "register_atlas3_parsers": "subparsers",
+    "dispatch_atlas3": "args",
+}
+
+#: Certified command surface that must survive any `cli.py` change.
+_CERTIFIED_CLI_COMMANDS = ("connect", "ask2", "kdiff", "brief", "capture")
+
+#: Top-level registrations only. `cli.py`'s top-level subparsers object is
+#: uniquely named `subparsers`; nested groups use their own names
+#: (`capture_sub`, `ops_sub`, ...), so this cannot mistake a nested subcommand
+#: for a top-level one even if the two share a name.
+_TOP_LEVEL_ADD_PARSER = re.compile(r"\bsubparsers\.add_parser\(\s*[\"']([\w-]+)[\"']")
+
+#: Any command registration, at any nesting depth.
+_ANY_ADD_PARSER = re.compile(r"\.add_parser\(\s*[\"']([\w-]+)[\"']")
+
+
+def _seam_call_count(source: str, symbol: str, argument: str) -> int:
+    return len(
+        re.findall(
+            rf"(?<![\w.]){re.escape(symbol)}\(\s*{re.escape(argument)}\s*[,)]",
+            source,
+        )
+    )
+
+
+def assert_cli_atlas3_contract(
+    *,
+    source: str,
+    diff_text: str,
+    atlas3_commands: frozenset[str],
+) -> None:
+    """Enforce the Atlas 3 CLI ownership seam against a `cli.py` change.
+
+    ``source`` is the resulting file, ``diff_text`` a unified diff of it.
+    Raises ``AssertionError`` describing the first violation.
+
+    Deliberately says nothing about unrelated CLI additions: a lane adding a
+    command Atlas 3 does not own must not be forced to impersonate an Atlas 3
+    change to pass.
+    """
+    removed = [
+        line[1:]
+        for line in diff_text.splitlines()
+        if line.startswith("-") and not line.startswith("---")
+    ]
+
+    # (1) The seam still exists, is still delegated to atlas3/cli.py, and is
+    #     still wired exactly once each. Catches removal and rewiring.
+    for symbol, argument in sorted(_ATLAS3_SEAM_CALLS.items()):
+        assert f"from {_ATLAS3_SEAM_MODULE} import {symbol}" in source, (
+            f"Atlas 3 seam broken: cli.py no longer imports {symbol} from "
+            f"{_ATLAS3_SEAM_MODULE}"
+        )
+        count = _seam_call_count(source, symbol, argument)
+        assert count == 1, (
+            f"Atlas 3 seam broken: expected exactly one {symbol}({argument}) "
+            f"call site in cli.py, found {count}"
+        )
+
+    # (2) No change may delete or rewrite the seam itself. A modification
+    #     shows up as a removed line, so this covers in-place mutation too.
+    seam_removals = [
+        line
+        for line in removed
+        if any(symbol in line for symbol in _ATLAS3_SEAM_CALLS)
+        or _ATLAS3_SEAM_MODULE in line
+    ]
+    assert seam_removals == [], (
+        "Atlas 3 seam mutated: cli.py may not remove or rewrite the Atlas 3 "
+        f"registration/dispatch hooks; removed {seam_removals}"
+    )
+
+    # (3) The shared CLI must not register a command Atlas 3 owns. This is the
+    #     seam bypass the original text match could not see.
+    bypassed = sorted(set(_TOP_LEVEL_ADD_PARSER.findall(source)) & set(atlas3_commands))
+    assert bypassed == [], (
+        "Atlas 3 seam bypassed: cli.py registers Atlas 3 owned command(s) "
+        f"{bypassed} directly instead of via {_ATLAS3_SEAM_MODULE}"
+    )
+
+    # (4) Certified surfaces are additive-only: no existing command
+    #     registration may be deleted by a cli.py change.
+    dropped = sorted({name for line in removed for name in _ANY_ADD_PARSER.findall(line)})
+    still_present = set(_ANY_ADD_PARSER.findall(source))
+    lost = [name for name in dropped if name not in still_present]
+    assert lost == [], (
+        f"certified CLI surface removed: cli.py no longer registers {lost}"
+    )
+
+    # (5) The named certified commands remain reachable.
+    for command in _CERTIFIED_CLI_COMMANDS:
+        assert f'"{command}"' in source or f"'{command}'" in source, (
+            f"certified CLI surface removed: {command!r} is no longer registered"
+        )
+
+
 def test_cli_mutation_is_additive_only() -> None:
+    """The shared CLI must preserve the Atlas 3 ownership seam.
+
+    Enforced structurally against the resulting file and the removed lines
+    (see ``assert_cli_atlas3_contract``), not by pattern-matching the diff --
+    so removing, rewriting or bypassing the seam still fails, while CLI work
+    Atlas 3 does not own is neither required nor able to impersonate it.
+    """
     try:
         already_changed = _changed_paths()
     except DemoIsolationGuardNotApplicable as exc:
@@ -421,17 +560,13 @@ def test_cli_mutation_is_additive_only() -> None:
         text=True,
         timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
-    text = diff.stdout
-    assert "register_atlas3_parsers" in text
-    assert "dispatch_atlas3" in text
-    lines = text.splitlines()
-    added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
-    removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
-    assert removed == []
-    assert any("register_atlas3_parsers" in line for line in added)
-    source = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
-    for command in ("connect", "ask2", "kdiff", "brief", "capture"):
-        assert f'"{command}"' in source or f"'{command}'" in source
+    from project_atlas.atlas3.cli import ATLAS3_COMMANDS
+
+    assert_cli_atlas3_contract(
+        source=(ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8"),
+        diff_text=diff.stdout,
+        atlas3_commands=frozenset(ATLAS3_COMMANDS),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1138,4 +1273,253 @@ def test_fetch_timeout_is_actually_enforced_not_just_declared(
     assert elapsed < 10, (
         f"fetch-timeout conversion took {elapsed:.1f}s -- should be "
         "near-instant since the timeout itself is simulated, not waited out"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Atlas 3 CLI seam contract -- regression matrix.
+#
+# These exercise `assert_cli_atlas3_contract` directly against synthetic
+# (source, diff) pairs, so each case is pinned independently of whatever the
+# working tree's real `cli.py` diff happens to be. The point of the corrected
+# contract is generality: it must protect Atlas 3 from the next unrelated CLI
+# addition too, not just from this one.
+# ---------------------------------------------------------------------------
+
+_ATLAS3_FIXTURE_COMMANDS = frozenset({"pulse", "start", "proof"})
+
+_SEAM_SOURCE = '''
+def build_parser():
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("connect")
+    subparsers.add_parser("ask2")
+    subparsers.add_parser("kdiff")
+    subparsers.add_parser("brief")
+    capture_parser = subparsers.add_parser("capture")
+    capture_sub = capture_parser.add_subparsers(dest="capture_command")
+    capture_sub.add_parser("record")
+
+    from project_atlas.atlas3.cli import register_atlas3_parsers
+
+    register_atlas3_parsers(subparsers)
+    return parser
+
+
+def main(argv=None):
+    from project_atlas.atlas3.cli import dispatch_atlas3
+
+    atlas3_exit = dispatch_atlas3(args)
+    return atlas3_exit
+'''
+
+
+def _check(source: str, diff_text: str) -> None:
+    assert_cli_atlas3_contract(
+        source=source,
+        diff_text=diff_text,
+        atlas3_commands=_ATLAS3_FIXTURE_COMMANDS,
+    )
+
+
+def _diff(removed: tuple[str, ...] = (), added: tuple[str, ...] = ()) -> str:
+    lines = ["diff --git a/cli.py b/cli.py", "--- a/cli.py", "+++ b/cli.py", "@@ -1,1 +1,1 @@"]
+    lines += [f"-{line}" for line in removed]
+    lines += [f"+{line}" for line in added]
+    return "\n".join(lines) + "\n"
+
+
+def test_g0_unchanged_seam_passes() -> None:
+    """Baseline: the real seam shape satisfies the contract."""
+    _check(_SEAM_SOURCE, _diff())
+
+
+def test_g1_atlas3_hook_removal_fails() -> None:
+    """G1 -- deleting the Atlas 3 registration hook must still be caught."""
+    source = _SEAM_SOURCE.replace("    register_atlas3_parsers(subparsers)\n", "")
+    with pytest.raises(AssertionError, match="Atlas 3 seam broken"):
+        _check(source, _diff(removed=("    register_atlas3_parsers(subparsers)",)))
+
+
+def test_g1b_dispatch_hook_removal_fails() -> None:
+    source = _SEAM_SOURCE.replace("    atlas3_exit = dispatch_atlas3(args)\n", "")
+    with pytest.raises(AssertionError, match="Atlas 3 seam broken"):
+        _check(source, _diff(removed=("    atlas3_exit = dispatch_atlas3(args)",)))
+
+
+def test_g2_atlas3_hook_mutation_fails() -> None:
+    """G2 -- rewiring the hook to something other than the top-level parser."""
+    source = _SEAM_SOURCE.replace(
+        "    register_atlas3_parsers(subparsers)",
+        "    register_atlas3_parsers(capture_sub)",
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam broken"):
+        _check(
+            source,
+            _diff(
+                removed=("    register_atlas3_parsers(subparsers)",),
+                added=("    register_atlas3_parsers(capture_sub)",),
+            ),
+        )
+
+
+def test_g2b_reimplementing_the_seam_locally_fails() -> None:
+    """Re-pointing the import away from atlas3/cli.py is a mutation too."""
+    source = _SEAM_SOURCE.replace(
+        "from project_atlas.atlas3.cli import register_atlas3_parsers",
+        "from project_atlas.shadow_cli import register_atlas3_parsers",
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam broken"):
+        _check(source, _diff())
+
+
+def test_g2c_duplicate_seam_call_fails() -> None:
+    """A second registration call site is an ownership mutation."""
+    source = _SEAM_SOURCE.replace(
+        "    register_atlas3_parsers(subparsers)\n",
+        "    register_atlas3_parsers(subparsers)\n    register_atlas3_parsers(subparsers)\n",
+    )
+    with pytest.raises(AssertionError, match="expected exactly one"):
+        _check(source, _diff(added=("    register_atlas3_parsers(subparsers)",)))
+
+
+def test_g3_valid_additive_atlas3_registration_passes() -> None:
+    """G3 -- Atlas 3 grows inside its own module; cli.py keeps one seam."""
+    source = _SEAM_SOURCE.replace(
+        "    subparsers.add_parser(\"connect\")",
+        "    subparsers.add_parser(\"connect\")\n    subparsers.add_parser(\"doctor\")",
+    )
+    _check(source, _diff(added=('    subparsers.add_parser("doctor")',)))
+
+
+def test_g4_unrelated_nested_cli_addition_passes() -> None:
+    """G4 -- the case the previous contract made impossible.
+
+    A nested subcommand owned by another package (the shape of
+    ``atlas capture text``) must pass without fabricating an Atlas 3 hook.
+    """
+    source = _SEAM_SOURCE.replace(
+        '    capture_sub.add_parser("record")',
+        '    capture_sub.add_parser("record")\n    capture_sub.add_parser("text")',
+    )
+    _check(source, _diff(added=('    capture_sub.add_parser("text")',)))
+    assert "register_atlas3_parsers" not in _diff(
+        added=('    capture_sub.add_parser("text")',)
+    ), "the passing diff must not need to mention Atlas 3 at all"
+
+
+def test_g4b_unrelated_import_reformat_passes() -> None:
+    """Reformatting an unrelated import is not a certified-surface rewrite.
+
+    Merging two ``from x import y`` lines is a removal, but it deletes no
+    command registration and does not touch the Atlas 3 seam. The repository's
+    own ruff isort configuration forces this shape, so forbidding it would
+    make lint and governance mutually unsatisfiable.
+    """
+    _check(
+        _SEAM_SOURCE,
+        _diff(
+            removed=("from project_atlas.config import load_config",),
+            added=("from project_atlas.config import AtlasConfig, load_config",),
+        ),
+    )
+
+
+def test_g5_unrelated_top_level_cli_addition_passes() -> None:
+    """G5 -- a top-level command Atlas 3 does not own is permitted.
+
+    Repository-backed: ``ATLAS3_COMMANDS`` is the ownership registry, and
+    `cli.py` already registers 67 top-level commands outside it. Only a
+    collision with a name Atlas 3 owns is a violation (see G6).
+    """
+    source = _SEAM_SOURCE.replace(
+        '    subparsers.add_parser("connect")',
+        '    subparsers.add_parser("connect")\n    subparsers.add_parser("capture-serve")',
+    )
+    _check(source, _diff(added=('    subparsers.add_parser("capture-serve")',)))
+
+
+def test_g6_seam_bypass_fails() -> None:
+    """G6 -- registering an Atlas 3 owned command directly in cli.py."""
+    source = _SEAM_SOURCE.replace(
+        '    subparsers.add_parser("connect")',
+        '    subparsers.add_parser("connect")\n    subparsers.add_parser("pulse")',
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam bypassed"):
+        _check(source, _diff(added=('    subparsers.add_parser("pulse")',)))
+
+
+def _superseded_text_match_contract(source: str, diff_text: str) -> None:
+    """The pre-remediation assertions, kept only to prove the change is stronger.
+
+    Reproduces exactly what ``test_cli_mutation_is_additive_only`` asserted
+    before the seam contract replaced it, so the regression below can show a
+    diff the old form accepted and the new form rejects.
+    """
+    lines = diff_text.splitlines()
+    added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
+    removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
+    assert "register_atlas3_parsers" in diff_text
+    assert "dispatch_atlas3" in diff_text
+    assert removed == []
+    assert any("register_atlas3_parsers" in line for line in added)
+    for command in _CERTIFIED_CLI_COMMANDS:
+        assert f'"{command}"' in source or f"'{command}'" in source
+
+
+def test_g6b_seam_bypass_the_old_text_match_would_have_accepted() -> None:
+    """G6 (under-protection) -- a diff the superseded contract let through.
+
+    The old form only required the *diff text* to mention both seam symbols
+    and to add a line naming the registration hook. A change can satisfy all
+    of that while registering an Atlas 3 owned command directly in `cli.py`,
+    bypassing the seam entirely. This asserts both halves: the old contract
+    accepted it, the corrected one rejects it.
+    """
+    source = _SEAM_SOURCE.replace(
+        '    subparsers.add_parser("connect")',
+        '    subparsers.add_parser("connect")\n    subparsers.add_parser("start")',
+    )
+    diff = _diff(
+        added=(
+            '    subparsers.add_parser("start")',
+            "    register_atlas3_parsers(subparsers)  # re-registered here",
+            "    dispatch_atlas3(args)",
+        )
+    )
+
+    # The superseded contract accepted this bypass.
+    _superseded_text_match_contract(source, diff)
+
+    # The corrected contract does not.
+    with pytest.raises(AssertionError, match="Atlas 3 seam bypassed"):
+        _check(source, diff)
+
+
+def test_g7_deleting_a_certified_command_fails() -> None:
+    """Certified CLI surfaces stay additive: a dropped command is a rewrite."""
+    source = _SEAM_SOURCE.replace('    subparsers.add_parser("kdiff")\n', "")
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _check(source, _diff(removed=('    subparsers.add_parser("kdiff")',)))
+
+
+def test_g7b_renaming_a_command_registration_fails() -> None:
+    source = _SEAM_SOURCE.replace('subparsers.add_parser("ask2")', 'subparsers.add_parser("ask3")')
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _check(
+            source,
+            _diff(
+                removed=('    subparsers.add_parser("ask2")',),
+                added=('    subparsers.add_parser("ask3")',),
+            ),
+        )
+
+
+def test_g8_real_cli_satisfies_the_contract_against_its_own_base() -> None:
+    """The contract holds for the repository's actual current cli.py."""
+    from project_atlas.atlas3.cli import ATLAS3_COMMANDS
+
+    assert_cli_atlas3_contract(
+        source=(ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8"),
+        diff_text="",
+        atlas3_commands=frozenset(ATLAS3_COMMANDS),
     )
