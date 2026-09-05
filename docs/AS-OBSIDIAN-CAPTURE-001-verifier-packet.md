@@ -1,0 +1,147 @@
+# AS-OBSIDIAN-CAPTURE-001 — independent verification packet
+
+For a fresh agent in a fresh worktree. Nothing below is self-certified: each
+target is an attack to attempt, not a result to confirm.
+
+## Candidate
+
+| Field | Value |
+| --- | --- |
+| Branch | `feat/as-obs-001-conversational-knowledge-capture` |
+| Base | `origin/main` @ `31e07770992723e340f82e7e79c8483da17fa32e` (tree `b32950090463e7186896c0791bf3a840a673cf4b`) |
+| Commits | `1e41a97c` feature · `610821f8` schema registry · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs |
+
+`git log --oneline 31e07770..HEAD` should show exactly those four.
+
+## Environment (do not skip)
+
+The repository root `.venv` resolves to **whichever checkout owns it**. A
+verification worktree must build its own, or it will silently exercise another
+lane's source:
+
+```bash
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -e ".[dev]"
+.venv/bin/python -c "import project_atlas; print(project_atlas.__file__)"   # must be THIS worktree
+```
+
+## Changed surface
+
+```text
+src/project_atlas/capture_sources.py          new   source adapters + CaptureRequest
+src/project_atlas/obsidian_capture.py         new   capture service / raw store / dedupe / routing
+src/project_atlas/obsidian_capture_note.py    new   Obsidian output adapter
+src/project_atlas/schemas/raw-capture.schema.json  new
+src/project_atlas/schema.py                   +2    registry entry
+src/project_atlas/config.py                   +68   [tool.atlas.capture] / [tool.atlas.obsidian]
+src/project_atlas/cli.py                      +301  capture text|raw-list|retry|show
+tests/unit/test_as_obsidian_capture_001.py    new   59 tests
+tests/integration/test_as_obsidian_capture_001_journey.py  new  12 tests
+tests/unit/test_atlas3_demo_isolation_001.py  mod   guard remediation + G-matrix
+tests/unit/test_schema.py                     +1    raw-capture registry entry
+```
+
+Nothing on the demo-isolation `DENY` list is touched. `_OWNER_APPROVED_EXCEPTIONS`
+is unchanged.
+
+## Commands
+
+```bash
+.venv/bin/python -m ruff check .
+.venv/bin/python -m mypy src
+.venv/bin/python -m pytest
+.venv/bin/python -m pytest tests/unit/test_as_obsidian_capture_001.py \
+    tests/integration/test_as_obsidian_capture_001_journey.py \
+    tests/unit/test_atlas3_demo_isolation_001.py -q
+```
+
+CLI smoke (needs a vault; `atlas init --output <dir>` then a project dir):
+
+```bash
+echo "text" | atlas capture text --vault <v> --stdin
+atlas capture text --vault <v> --clipboard --source-type conversation --application chatgpt
+atlas capture text --vault <v> --project <id> --text "..."
+atlas capture raw-list --vault <v> --json
+atlas capture show  --vault <v> --capture-id rcap-...
+atlas capture retry --vault <v> --capture-id rcap-...
+```
+
+## Verification targets — try to break these
+
+### V1 — Raw evidence representation drift (INV-001)
+
+Capture payloads with `LF`, `CRLF`, lone `CR`, mixed endings, no trailing
+newline, trailing whitespace, a UTF-8 BOM, NFC/NFD pairs, and lone surrogates.
+Compare `rcap-*.txt` **bytes** against the input bytes, not the decoded string.
+Then `atlas capture retry` and confirm the content hash does not move.
+
+Attack the split deliberately: identity canonicalization normalizes line
+endings and applies NFC, but the *stored* bytes must not. A previous defect
+here was `Path.read_text` applying universal-newline translation on readback.
+
+### V2 — Path containment (§32, §64)
+
+Push absolute (`/etc`), traversal (`../../etc`), drive-relative (`C:evil`),
+UNC (`\\server\share`), Windows-reserved (`con`, `nul`), and trailing dot/space
+values through `[tool.atlas.obsidian] routing.*`, `--project`, `--title`, and
+`--obsidian-vault`. Symlink a routing directory to a location outside the
+configured root and confirm nothing lands there. Confirm that a rejected
+routing value writes **nothing at all**, including no raw evidence.
+
+### V3 — Redaction leakage (§38, NFR-004)
+
+Put each secret pattern from `project_atlas.secrets` on the **first line** of a
+capture — that is what feeds the title heuristic, which feeds the note filename
+on disk. Then grep for the literal secret in: the note body, the note
+frontmatter, the note *filename*, the capture record JSON, `latest.json`, and
+stderr logs. It must appear in exactly one place: `rcap-*.txt`.
+
+### V4 — Concurrent dedupe (§49)
+
+Fire N simultaneous identical captures at one vault. Expect exactly one
+`rcap-*.json`, one `rcap-*.txt`, one note, zero leftover `*.tmp`, and no
+`FileNotFoundError`. Note the honest nuance: under a true race several callers
+may each return `duplicate: false` while converging on one artifact set — the
+contract is *no uncontrolled duplicate output*, not *exactly one non-duplicate
+result*. Sequential re-capture must report `duplicate: true`.
+
+### V5 — Atlas-3 CLI guard
+
+Against the real `src/project_atlas/cli.py`:
+
+| mutation | expected |
+| --- | --- |
+| delete `register_atlas3_parsers(subparsers)` | FAIL |
+| delete `dispatch_atlas3(args)` | FAIL |
+| rewire a hook to a nested parser | FAIL |
+| add a second seam call site | FAIL |
+| re-point the import away from `project_atlas.atlas3.cli` | FAIL |
+| `subparsers.add_parser("pulse")` in `cli.py` | FAIL (seam bypass) |
+| add an unrelated nested subcommand | PASS, without any Atlas-3 hook in the diff |
+| add an unrelated top-level command not in `ATLAS3_COMMANDS` | PASS |
+| delete or rename an existing command registration | FAIL |
+| unmutated file | PASS |
+
+Also check the remediation did not merely relax: `test_g6b_...` asserts a diff
+the **superseded** text-match contract accepted and the current one rejects.
+
+### V6 — Source lineage
+
+From a note, read `atlas.capture_id`, resolve
+`generated/ops/raw-captures/<id>.json`, recompute the content hash from
+`<id>.txt` and confirm it matches the record and the note frontmatter, then
+confirm `project_id` names a real directory under `projects/`. Confirm the
+capture is **not** in `generated/ops/inbox/` and asserts
+`authority.level = quarantined-evidence`.
+
+## Known limitations to confirm, not to fix
+
+- No localhost capture API and no browser extension. `LIVE_API` is contractually
+  read-only; `source_adapter` already accepts `"api"` so the seam is ready.
+- No summarization or enrichment. The note prints `UNKNOWN` for
+  Summary/Decisions/Actions rather than inventing them.
+- Captures are never promoted into the Truth Core.
+- `captured_at` is operator-supplied or absent — Atlas never generates a
+  wall-clock value (NFR-001).
+- Pre-existing and unrelated: `atlas validate --vault <relative-path>` fails a
+  subpath check; reproduces without any captures.
