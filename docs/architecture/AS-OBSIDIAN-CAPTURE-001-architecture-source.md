@@ -1,3 +1,26 @@
+> [!IMPORTANT]
+> **Package identifier superseded.** This document was delivered titled
+> `AS-OBS-001`. That identifier is **already owned** by the CLOSED
+> *Operational Health Snapshot* package (`src/project_atlas/ops_health.py`,
+> `ops-health-snapshot.schema.json`,
+> `tests/unit/test_as_obs_001_health_snapshot.py`), consumed by `AS-OBS-002`
+> (operational events) and `AS-OBS-003` (ops-report). In this repository
+> `OBS` denotes **observability**, not Obsidian.
+>
+> Every occurrence of `AS-OBS-001` **below** refers to this Obsidian capture
+> work and is superseded by the canonical repository identity:
+>
+> ```text
+> AS-OBSIDIAN-CAPTURE-001
+> ```
+>
+> The existing observability package is unchanged and must not be renamed.
+> This file is retained verbatim as the delivered architecture of record; see
+> `docs/AS-OBSIDIAN-CAPTURE-001-conversational-capture.md` for what was built,
+> and for the four places where repository truth overrode this document.
+
+---
+
 # AS-OBS-001 Architecture
 
 ## Conversational Knowledge Capture & Obsidian Bridge

@@ -91,6 +91,85 @@ is an `is_file()` on a deterministic path. Two concurrent identical captures
 resolve to the same path with identical bytes, so the duplicate race of
 architecture §49 cannot occur — no lock and no mutable index are needed.
 
+## Ubuntu clipboard behaviour
+
+Clipboard acquisition is capability-detected at call time; nothing is assumed
+about the desktop session (architecture §22).
+
+| Session | Preference order |
+| --- | --- |
+| Wayland (`XDG_SESSION_TYPE=wayland` or `WAYLAND_DISPLAY` set) | `wl-paste --no-newline` → `xclip -selection clipboard -o` → `xsel --clipboard --output` |
+| Anything else (X11 assumed) | `xclip` → `xsel` → `wl-paste` |
+
+The first provider actually present on `PATH` wins, so a Wayland session
+without `wl-clipboard` installed falls through to `xclip` under XWayland
+rather than failing. Verified on the development host — Ubuntu 26.04.1,
+`XDG_SESSION_TYPE=wayland`, no `wl-paste`, `xclip` present — where
+`atlas capture text --clipboard` selects `xclip` and captures successfully.
+
+When no provider is available the error is actionable and names the
+alternatives:
+
+```text
+CLIPBOARD_UNAVAILABLE: no clipboard provider found; install one of
+wl-paste (wl-clipboard), xclip, or xsel — or pass --text/--stdin instead
+```
+
+Clipboard content is **data**. The provider is invoked with a fixed argument
+vector, `shell=False`, and a 5-second timeout; captured text is never
+evaluated (architecture §22, §64). Non-UTF-8 clipboard contents fail closed
+with `CLIPBOARD_NOT_TEXT` rather than being persisted as mojibake.
+
+`atlas capture chat` is spelled `atlas capture text --source-type conversation`
+in this implementation — one command with an explicit source type, rather than
+a second command whose only difference is a constant.
+
+## Failure semantics
+
+Stages after raw persistence are best-effort, and their failure is recorded on
+the capture rather than raised over it (INV-007):
+
+| Situation | `status` | Exit | Effect |
+| --- | --- | --- | --- |
+| Capture and projection succeed | `ok` | 0 | note written, record `rendered` |
+| Content already captured | `duplicate` | 0 | nothing written, existing id reported |
+| Raw persisted, projection failed | `partial` | **1** | evidence durable, `stage_failures` recorded, retry advertised |
+| Validation/routing/project error before persistence | `error` | 1 | nothing written at all |
+
+A `partial` result exits non-zero deliberately: the capture is safe, but a
+scripted caller must not read a missing note as success. The failure is
+resumable — `atlas capture retry --capture-id rcap-...` reloads the evidence
+from the store and re-renders, so recovery never depends on the original
+clipboard or pipe still existing.
+
+Stable error codes (`ROUTING_UNSAFE`, `UNMATCHED_PROJECT`,
+`PATH_SHAPED_PROJECT_ID`, `PATH_ESCAPES_VAULT`, `OBSIDIAN_NOTE_CONFLICT`,
+`CLIPBOARD_UNAVAILABLE`, `CAPTURE_INPUT_TOO_LARGE`, …) are surfaced on stdout
+and in `--json` output.
+
+## Privacy model
+
+Local-first, with no egress path in this package (INV-005, architecture §37):
+capture never opens a network connection, and every record asserts
+`honesty.external_transmission: false`. There is no AI processor, so there is
+nothing to send. Logs record identifiers, byte counts, the source application
+and a *count* of secret findings — never captured content (architecture §36).
+
+## Interoperability with the Atlas pipeline
+
+Captures live under `generated/` and are inert with respect to the compiler:
+`atlas build-indexes`, `atlas build-portfolio` and `atlas validate` all run
+cleanly on a vault containing captures (verified: `validated 61 Markdown
+files`, exit 0). Captures are **not** ingested into the Truth Core and write no
+Knowledge Inbox receipts — promotion stays an explicit human step through
+`atlas capture conversation`.
+
+> Note: `atlas validate --vault <relative-path>` reports
+> `'…/project.md' is not in the subpath of '<relative-path>'`. This reproduces
+> on a capture-free vault and is a pre-existing defect in `validation.py`
+> unrelated to this package; an absolute `--vault` (what `resolve_bound_vault`
+> yields) works.
+
 ## Decisions where repository truth overrode the architecture document
 
 The source architecture repeatedly states that repository truth takes
