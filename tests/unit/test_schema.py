@@ -115,6 +115,7 @@ def test_all_expected_schemas_available() -> None:
         "provider-quarantine-envelope",
         "query-diagnostic",
         "query-multi-plan",
+        "raw-capture",
         "reality-gap-inventory",
         "reality-gap-ui-catalog",
         "receipt-revocation-index",
