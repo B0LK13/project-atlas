@@ -11166,3 +11166,111 @@ incompletenesses of this change's own thesis, and both fixes live in
 touch source-identity canonicalization. Per the grant's terms, the
 protected-surface mutation stops here and is returned for a new decision
 rather than made under the existing grant.
+
+---
+
+## R_READY — verified Linux residuals R1/R2/R3
+
+**Date:** 2026-09-05
+**Directive:** R_READY (renewed, narrowly scoped owner authorization)
+**Branch:** `feat/linux-filesystem-portability`
+
+The prior grant was **not** extended implicitly. This entry records work done
+under the new grant only, for the three residuals the independent verifier
+reproduced.
+
+**Protected surface changed:** `src/project_atlas/discovery.py` only.
+`src/project_atlas/ingestion.py` is **byte-identical** to its
+`OG-ATLAS-LINUX-FILESYSTEM-20260905` pin
+(`6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159`) and was
+not touched. `src/atlas_contracts/paths.py` and
+`src/project_atlas/source_identity.py` are untouched.
+
+### Intended invariant (established from repository truth, not from the test)
+
+`source_identity.canonicalize_project_path` NFC-normalizes and maps `\` to `/`
+-- "canonicalize a project-relative path independently of host semantics"
+(AS-ID-001). Identity is therefore *deliberately* host-independent, and
+CODEX-SEC-002 fails closed on duplicate identity. Canonicalization was
+consequently **not** changed: doing so would break deterministic durable
+identity and cross-platform coherence, which the grant requires preserving.
+The defect is that discovery emitted two records claiming one identity and
+only ingestion found out. The contract is now explicit and enforced at
+discovery: **the first path in deterministic sort order holds the canonical
+identity; a later canonically-equivalent path is reported and never recorded
+under a synthesized identity the contract does not define.**
+
+**Claim boundary (tightened by owner directive).** An earlier draft of this
+entry asserted that such a pair cannot coexist on Windows or macOS and that
+the branch therefore never fires there. That claim is **withdrawn as
+unreproduced**: no Windows or macOS filesystem behaviour was directly
+observed. It is not merely unproven but plausibly wrong -- NTFS does not
+Unicode-normalize, so an NFC/NFD pair may well coexist and the branch may well
+fire on Windows. The POSIX-gated test module does not exercise this path on
+the Windows CI job, so no platform-specific behaviour is claimed in either
+direction.
+
+What is certified is the host-independent invariant only, which this
+implementation satisfies on every platform because the code path is not
+platform-conditional: **if two discoverable paths canonicalize to the same
+durable source identity, discovery does not abort, does not synthesize
+distinct identities, and reports the collision deterministically.**
+AS-ID-001 canonicalization was not altered to make platform behaviour
+uniform.
+
+### R1 canonical-equivalence collision
+
+`café.md` written NFC (`caf\xc3\xa9.md`) and NFD (`cafe\xcc\x81.md`) are two
+ordinary Linux files. Both canonicalize to one `source_id`. Same class: a
+literal `docs\slash.md` beside a real `docs/slash.md`. Both now warn and
+continue.
+
+### R2 unreadable metadata boundary
+
+The previous guard wrapped `stat()`, but the loop's *first* metadata access is
+`path.is_file()` / `path.is_symlink()`, which propagate `EACCES`. The boundary
+now covers that first access. The stale comment naming unreachable cases is
+gone.
+
+### R3 silent loss of inaccessible scope
+
+`rglob` swallows a directory it cannot read, so the subtree vanished with no
+record **and** no diagnostic. Directories are now probed with `os.scandir`;
+an unlistable one emits `inaccessible discovery scope, contents not
+inventoried: <path>`. Representation is a warning rather than a synthetic
+manifest record: a directory is not a source document, adding one would put a
+non-document in `sources` and require widening the manifest's `allowed` field
+set in `ingestion.py` -- outside this grant -- and the contents were never
+read, so no record may claim them.
+
+A defect introduced *and caught in this same round*: the first `_reportable`
+helper encoded to UTF-8 then decoded ASCII, which raises on an ordinary
+accented name. It encodes to ASCII with `backslashreplace` now. Caught by the
+adversarial matrix before CI.
+
+### Adversarial regression matrix
+
+"Base" is the prior head `4091a438` (which already carried round-1 fixes), so
+this isolates R1-R3.
+
+| case | BASE_REPRODUCTION | FIXED_RESULT | EXPECTED_CONTRACT |
+| --- | --- | --- | --- |
+| TRUE_NFC_NFD_PAIR | ingest aborts `duplicate source identity` | discover warns collision, pipeline exit 0 | first in deterministic order keeps identity; collider reported |
+| UNREADABLE_FILE_OR_STAT_PATH | exit 0 (fixed round 1) | exit 0, `unreadable` record, `sha256=None`, real size | metadata recorded, content never claimed |
+| UNREADABLE_DIRECTORY (0444) | `discover` aborts `[Errno 13]` | warns `skipped unreadable path`, exit 0 | one unreachable entry never aborts the run |
+| ZERO_PERMISSION_DIRECTORY (0000) | exit 0, **no record, no warning** | warns `inaccessible discovery scope` | existence observable; contents not invented |
+| NO_SILENT_LOSS | violated | every skip carries a record or a warning | evidence-preservation contract |
+| DISCOVERY_CONTINUES_WHERE_ALLOWED | aborted on 0444 | full tree still inventoried | partial inaccessibility is not fatal |
+| DUPLICATE_IDENTITY_CONTRACT | abort at ingest | preserved, enforced earlier at discovery | CODEX-SEC-002 unchanged |
+| WINDOWS_COLLECTION | `AttributeError: os.geteuid` | guarded module constant, short-circuits | collect on Windows, skip by platform contract |
+
+Revert-and-reconfirm: reverting **only** `discovery.py` fails 4 of 11 new
+tests for exactly these reasons; restoring passes 11/11.
+
+Full hostile tree -- now including a **true** NFC/NFD pair, the backslash
+collision, 0444 and 0000 directories, a non-UTF-8 name, mode-000 file, symlink
+loop, FIFO, `/dev/zero` link, hardlink, three case variants and a 250-char
+name -- runs `discover -> ingest -> build-indexes -> build-portfolio ->
+validate` **all exit 0**, emitting 5 warnings. This supersedes the withdrawn
+claim in the correction above, which was made without a true normalization
+pair in the tree.

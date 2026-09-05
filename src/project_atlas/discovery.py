@@ -171,6 +171,34 @@ def _non_portable_reason(relative: str) -> str | None:
     return None
 
 
+def _reportable(relative: str) -> str:
+    """An ASCII-safe rendering of a path for log messages.
+
+    Paths reaching the log may be undecodable (lone surrogates) or merely
+    non-ASCII, and a diagnostic must never itself raise while reporting a
+    problem. Encoding to ASCII (not UTF-8) is what escapes both: UTF-8 can
+    encode an accented name happily, and the resulting bytes then fail an
+    ASCII decode.
+    """
+    return relative.encode("ascii", "backslashreplace").decode("ascii")
+
+
+def _is_listable(path: Path) -> bool:
+    """True when this directory's entries can actually be enumerated.
+
+    `Path.rglob` swallows the failure for a directory it cannot read, so an
+    inaccessible subtree would otherwise vanish from the inventory with no
+    record and no diagnostic. Probing here is what makes that loss
+    observable.
+    """
+    try:
+        with os.scandir(path) as entries:
+            next(iter(entries), None)
+    except OSError:
+        return False
+    return True
+
+
 def _is_recordable(relative: str) -> bool:
     """False when a path cannot appear in the UTF-8 JSON manifest at all.
 
@@ -238,19 +266,38 @@ def discover(
         raise ValueError(f"source root is not a directory: {root}")
     records: list[dict[str, Any]] = []
     event_root = root / ".atlas-inbox" / "agent-events"
+    seen_canonical: dict[str, str] = {}
     for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().lower()):
-        if not path.is_file() or path.is_symlink():
+        relative = path.relative_to(root).as_posix()
+        try:
+            # The first metadata access, not `stat()` below: a directory that
+            # lists but does not traverse (mode 0444) makes even is_file()
+            # raise EACCES. One unreachable entry must never abort the run.
+            regular_file = path.is_file() and not path.is_symlink()
+            directory = path.is_dir() and not path.is_symlink()
+        except OSError as exc:
+            _log.warning(
+                "skipped unreadable path: %s (%s)", _reportable(relative), exc.strerror
+            )
+            continue
+        if directory and not _is_listable(path):
+            # Evidence that a scope exists and could not be inspected. Its
+            # contents are deliberately not invented -- they were never read.
+            _log.warning(
+                "inaccessible discovery scope, contents not inventoried: %s",
+                _reportable(relative),
+            )
+            continue
+        if not regular_file:
             continue
         if event_root.is_dir() and path.is_relative_to(event_root):
             continue
-        relative = path.relative_to(root).as_posix()
         if not _is_recordable(relative):
             # Reported rather than recorded: a sanitized path would be a
             # claim about a file that does not exist under that name, and
             # could collide with one that does.
             _log.warning(
-                "skipped source with undecodable filename: %s",
-                relative.encode("utf-8", "backslashreplace").decode("ascii"),
+                "skipped source with undecodable filename: %s", _reportable(relative)
             )
             continue
         reason = _excluded(relative, path, excludes=excludes or [])
@@ -265,6 +312,25 @@ def discover(
         if reason is None and stat.st_size > max_file_size:
             reason = "oversized"
         canonical_relative = canonicalize_project_path(relative)
+        collided_with = seen_canonical.get(canonical_relative)
+        if collided_with is not None:
+            # Two distinct Linux files can share one canonical path: NFC/NFD
+            # normalization equivalents, or a literal backslash that the
+            # canonical form reads as a separator. Identity is deliberately
+            # host-independent (AS-ID-001), so the canonical space cannot
+            # represent both, and emitting both would abort the whole run at
+            # the CODEX-SEC-002 duplicate-identity guard. The first in
+            # deterministic order keeps the identity; the collider is
+            # reported, never recorded under a synthesized identity the
+            # contract does not define.
+            _log.warning(
+                "skipped canonical-path collision: %s collides with %s (canonical %s)",
+                _reportable(relative),
+                _reportable(collided_with),
+                _reportable(canonical_relative),
+            )
+            continue
+        seen_canonical[canonical_relative] = relative
         if reason == "sensitive-metadata-only":
             digest = None
         else:

@@ -61,16 +61,17 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
         ),
     },
     {
-        "exception_id": "OG-ATLAS-LINUX-FILESYSTEM-20260905-DISCOVERY",
+        "exception_id": "R-READY-LINUX-RESIDUALS-20260905-DISCOVERY",
         "owner_approved": "YES",
         "reason": (
-            "owner grant OG-ATLAS-LINUX-FILESYSTEM-20260905: minimal Linux "
-            "filesystem discovery fixes at the boundary where the defects "
-            "reside (unreadable file, non-portable path, undecodable name)"
+            "owner grant R_READY (supersedes the discovery.py pin of "
+            "OG-ATLAS-LINUX-FILESYSTEM-20260905): verified residuals R1 "
+            "canonical-equivalence collision, R2 unreadable metadata "
+            "boundary, R3 silent loss of inaccessible discovery scope"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "e43d97b2035aaeaa2a6f320170839e10e58a4f27b62321351e9e8368ae48e5a0"
+            "d8ee84fcbf35bc8e90d511bf8c3d9efa4673c19ada325ea6c97610ed64141f03"
         ),
     },
     {

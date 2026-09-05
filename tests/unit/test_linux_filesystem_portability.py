@@ -213,3 +213,119 @@ def test_non_utf8_filename_is_reported_not_fatal(
     assert any(
         "undecodable filename" in message for message in caplog.messages
     ), "the skip must be reported, not silent"
+
+
+def test_canonical_normalization_collision_is_reported_not_fatal(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """NFC and NFD spellings of one name are two files on Linux, one identity.
+
+    `canonicalize_project_path` NFC-normalizes deliberately, so identity is
+    host-independent (AS-ID-001). Both spellings therefore claim one
+    `source_id`, which used to abort the whole ingest at the CODEX-SEC-002
+    duplicate-identity guard. The first in deterministic order keeps the
+    identity; the collider is reported and never recorded.
+    """
+    source = _write_source(tmp_path / "source")
+    raw = os.fsencode(source)
+    with open(os.path.join(raw, b"caf\xc3\xa9.md"), "wb") as handle:  # NFC
+        handle.write(b"# nfc\n")
+    with open(os.path.join(raw, b"cafe\xcc\x81.md"), "wb") as handle:  # NFD
+        handle.write(b"# nfd\n")
+
+    with caplog.at_level("WARNING"):
+        records = _by_path(_discover(tmp_path, source))
+
+    cafes = [path for path in records if "caf" in path]
+    assert len(cafes) == 1, f"exactly one spelling may hold the identity, got {cafes}"
+    assert any("canonical-path collision" in message for message in caplog.messages)
+
+    # The pipeline must now complete rather than abort at ingest.
+    vault = tmp_path / "vault"
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    assert (
+        main(
+            [
+                "ingest",
+                "--manifest",
+                str(tmp_path / "manifest.json"),
+                "--vault",
+                str(vault),
+                "--source",
+                str(source),
+            ]
+        )
+        == EXIT_OK
+    )
+
+
+def test_backslash_name_colliding_with_real_path_is_reported(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A literal backslash name and the real nested path share one canonical form."""
+    source = _write_source(tmp_path / "source")
+    (source / "docs" / "slash.md").write_text("# real\n", encoding="utf-8")
+    (source / "docs\\slash.md").write_text("# literal\n", encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        records = _by_path(_discover(tmp_path, source))
+
+    assert "docs/slash.md" in records
+    assert "docs\\slash.md" not in records
+    assert any("canonical-path collision" in message for message in caplog.messages)
+
+
+@pytest.mark.skipif(_IS_ROOT, reason="root traverses regardless of mode bits")
+def test_untraversable_directory_does_not_abort(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A listable-but-not-traversable directory (0444) must not kill the run.
+
+    This reaches `path.is_file()` -- the loop's *first* metadata access --
+    not the later `stat()`, which is why the earlier guard missed it.
+    """
+    source = _write_source(tmp_path / "source")
+    locked = source / "locked"
+    locked.mkdir()
+    (locked / "a.md").write_text("# locked\n", encoding="utf-8")
+    locked.chmod(0o444)
+    try:
+        if os.access(locked / "a.md", os.R_OK):
+            pytest.skip("filesystem does not enforce the missing execute bit")
+        with caplog.at_level("WARNING"):
+            records = _by_path(_discover(tmp_path, source))
+    finally:
+        locked.chmod(0o755)
+
+    assert "README.md" in records, "the rest of the tree still discovers"
+    assert "locked/a.md" not in records
+    assert any("skipped unreadable path" in message for message in caplog.messages)
+
+
+@pytest.mark.skipif(_IS_ROOT, reason="root reads regardless of mode bits")
+def test_unreadable_directory_is_reported_not_silently_lost(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable directory's existence must survive as observable evidence.
+
+    `rglob` swallows the failure, so without an explicit probe the entire
+    subtree vanished from the inventory with no record and no diagnostic --
+    silent evidence loss, which the evidence contract forbids.
+    """
+    source = _write_source(tmp_path / "source")
+    dark = source / "dark"
+    dark.mkdir()
+    (dark / "b.md").write_text("# dark\n", encoding="utf-8")
+    dark.chmod(0o000)
+    try:
+        if os.access(dark, os.R_OK):
+            pytest.skip("filesystem does not enforce directory mode bits")
+        with caplog.at_level("WARNING"):
+            records = _by_path(_discover(tmp_path, source))
+    finally:
+        dark.chmod(0o755)
+
+    assert "dark/b.md" not in records, "contents were never read, so never claimed"
+    assert any(
+        "inaccessible discovery scope" in message for message in caplog.messages
+    ), "the lost scope must be observable, not silent"
