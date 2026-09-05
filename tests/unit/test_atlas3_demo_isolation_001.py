@@ -457,6 +457,11 @@ _TOP_LEVEL_ADD_PARSER = re.compile(r"\bsubparsers\.add_parser\(\s*[\"']([\w-]+)[
 _ANY_ADD_PARSER = re.compile(r"\.add_parser\(\s*[\"']([\w-]+)[\"']")
 
 
+def _strip_comment(line: str) -> str:
+    """Drop a trailing ``#`` comment so prose cannot trip a code-level check."""
+    return line.split("#", 1)[0]
+
+
 def _seam_call_count(source: str, symbol: str, argument: str) -> int:
     return len(
         re.findall(
@@ -502,11 +507,14 @@ def assert_cli_atlas3_contract(
 
     # (2) No change may delete or rewrite the seam itself. A modification
     #     shows up as a removed line, so this covers in-place mutation too.
+    # Compare code only: a removed comment or docstring line that merely
+    # *mentions* a seam symbol is not a seam mutation, and failing on it would
+    # make the guard fire on unrelated documentation edits.
     seam_removals = [
         line
         for line in removed
-        if any(symbol in line for symbol in _ATLAS3_SEAM_CALLS)
-        or _ATLAS3_SEAM_MODULE in line
+        if any(symbol in _strip_comment(line) for symbol in _ATLAS3_SEAM_CALLS)
+        or _ATLAS3_SEAM_MODULE in _strip_comment(line)
     ]
     assert seam_removals == [], (
         "Atlas 3 seam mutated: cli.py may not remove or rewrite the Atlas 3 "
@@ -523,17 +531,26 @@ def assert_cli_atlas3_contract(
 
     # (4) Certified surfaces are additive-only: no existing command
     #     registration may be deleted by a cli.py change.
-    dropped = sorted({name for line in removed for name in _ANY_ADD_PARSER.findall(line)})
+    # Join before matching: a registration is routinely formatted across
+    # several lines, so scanning each removed line independently never matches
+    # `add_parser("name")` and a whole deleted command would slip through.
+    removed_text = "\n".join(removed)
+    dropped = sorted(set(_ANY_ADD_PARSER.findall(removed_text)))
     still_present = set(_ANY_ADD_PARSER.findall(source))
+    # A name occurring elsewhere (dispatch, help text) must NOT count as a
+    # surviving registration -- that is what let a deleted certified command
+    # pass the presence check below.
     lost = [name for name in dropped if name not in still_present]
     assert lost == [], (
         f"certified CLI surface removed: cli.py no longer registers {lost}"
     )
 
     # (5) The named certified commands remain reachable.
+    registered = set(_ANY_ADD_PARSER.findall(source))
     for command in _CERTIFIED_CLI_COMMANDS:
-        assert f'"{command}"' in source or f"'{command}'" in source, (
-            f"certified CLI surface removed: {command!r} is no longer registered"
+        assert command in registered, (
+            f"certified CLI surface removed: {command!r} is no longer registered "
+            "via add_parser"
         )
 
 
@@ -1523,3 +1540,49 @@ def test_g8_real_cli_satisfies_the_contract_against_its_own_base() -> None:
         diff_text="",
         atlas3_commands=frozenset(ATLAS3_COMMANDS),
     )
+
+
+# ---------------------------------------------------------------------------
+# Review-thread regressions (PR #684). Both were real holes in the corrected
+# guard, found by automated review after the structural rewrite landed.
+# ---------------------------------------------------------------------------
+
+
+def test_g9_removed_comment_mentioning_a_seam_symbol_is_not_a_mutation() -> None:
+    """A doc/comment edit must not read as a seam mutation (false positive)."""
+    _check(
+        _SEAM_SOURCE,
+        _diff(removed=("    # see register_atlas3_parsers for the Atlas 3 seam",)),
+    )
+
+
+def test_g10_multiline_certified_registration_deletion_is_caught() -> None:
+    """The deletion a per-line scan missed.
+
+    Registrations are routinely formatted across several lines, so matching
+    each removed line independently never sees ``add_parser("name")``. The
+    fallback string-presence check then passed too, because a name like
+    ``capture`` also appears in dispatch code -- so a whole certified command
+    could be deleted silently.
+    """
+    source = _SEAM_SOURCE.replace('    subparsers.add_parser("kdiff")\n', "")
+    diff = _diff(
+        removed=(
+            "    kdiff_parser = subparsers.add_parser(",
+            '        "kdiff",',
+            '        help="Knowledge diff.",',
+            "    )",
+        )
+    )
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _check(source, diff)
+
+
+def test_g11_certified_command_must_be_registered_not_merely_mentioned() -> None:
+    """A bare mention in dispatch code is not a registration."""
+    source = _SEAM_SOURCE.replace(
+        '    subparsers.add_parser("kdiff")',
+        '    if args.command == "kdiff":  # mentioned, not registered',
+    )
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _check(source, _diff(removed=('    subparsers.add_parser("kdiff")',)))

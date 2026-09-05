@@ -17,7 +17,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from project_atlas.logging import get_logger
 
@@ -108,6 +108,22 @@ class CaptureProcessingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ai_enrichment: bool = False
+
+    @field_validator("ai_enrichment")
+    @classmethod
+    def _reject_unsupported_enrichment(cls, value: bool) -> bool:
+        """Fail closed instead of silently ignoring an enabled feature.
+
+        No capture path reads this flag and no enrichment processor exists, so
+        accepting ``true`` would let a config claim a capability the build does
+        not have. Rejecting keeps the documented fail-closed behaviour honest.
+        """
+        if value:
+            raise ValueError(
+                "capture.processing.ai_enrichment is not implemented in this "
+                "build; remove it or set it to false"
+            )
+        return value
 
 
 class CaptureClipboardConfig(BaseModel):

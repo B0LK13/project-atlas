@@ -203,7 +203,16 @@ def build_capture_request(
         raise CaptureSourceError("MALFORMED_REQUEST", "content must be text")
     if not content.strip():
         raise CaptureSourceError("EMPTY_CONTENT", "capture content is empty")
-    encoded_len = len(content.encode("utf-8"))
+    try:
+        encoded_len = len(content.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        # Unpaired surrogates reach here from some clipboard/stdin sources;
+        # keep acquisition failures inside the stable CaptureSourceError codes.
+        raise CaptureSourceError(
+            "CONTENT_NOT_ENCODABLE",
+            "capture content is not encodable as UTF-8 "
+            "(unpaired surrogate or invalid code point)",
+        ) from exc
     if encoded_len > MAX_CONTENT_BYTES:
         raise CaptureSourceError(
             "CAPTURE_INPUT_TOO_LARGE",

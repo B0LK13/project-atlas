@@ -127,6 +127,74 @@ def _write_atomic(path: Path, content: bytes, *, root: Path) -> None:
         raise CaptureError("PATH_ESCAPES_VAULT", str(exc)) from exc
 
 
+def _encoded_length(content: str) -> int:
+    """UTF-8 byte length, surfaced as a stable code rather than a raw error.
+
+    ``build_capture_request`` already rejects unencodable input, so this only
+    fires for a hand-built ``CaptureRequest``; it keeps the failure inside the
+    documented ``CaptureError`` vocabulary either way.
+    """
+    try:
+        return len(content.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise CaptureError(
+            "MALFORMED_REQUEST",
+            "capture content is not encodable as UTF-8 "
+            "(unpaired surrogate or invalid code point)",
+        ) from exc
+
+
+def _reject_secret_bearing_request(request: CaptureRequest) -> None:
+    """Fail closed before any persistence when the payload carries a secret.
+
+    NFR-004 / AT-014 and AGENTS.md: "likely credentials must be detected and
+    excluded or redacted **before any generated output or log is written**",
+    with "0 secrets in output" as a key invariant. The raw capture store lives
+    under ``generated/``, so persisting a credential verbatim there — even as
+    preserved evidence — puts plaintext into generated output and into every
+    vault backup and sync that follows.
+
+    INV-001 (verbatim raw evidence) is therefore scoped: it governs content
+    that passes this gate. Security truth outranks evidence fidelity, and the
+    repository already resolves the same tension the same way — ``ingestion``
+    refuses secret-bearing marker fields outright, and
+    ``conversation_capture`` rejects secret-shaped envelopes with this exact
+    ``SECRET_CONTENT`` code. This reuses that vocabulary rather than inventing
+    a parallel one, and rejects rather than half-persisting, so there is no
+    window in which a plaintext credential exists under ``generated/``.
+
+    Every field that could reach disk is scanned, not just the body: a title
+    hint becomes the note filename, and a locator or metadata value is written
+    into the record and the frontmatter.
+
+    The error names only the matched *patterns*, never the matched value
+    (CODEX-SEC-006).
+    """
+    fields: list[str] = [request.content]
+    if request.title_hint:
+        fields.append(request.title_hint)
+    if request.source_locator:
+        fields.append(request.source_locator)
+    fields.extend(request.source_metadata.values())
+
+    patterns: set[str] = set()
+    for value in fields:
+        patterns.update(finding.pattern for finding in scan_text(value))
+    if not patterns:
+        return
+    names = ", ".join(sorted(patterns))
+    _log.warning(
+        "capture rejected: secret-shaped content",
+        extra={"context": {"patterns": sorted(patterns), "persisted": False}},
+    )
+    raise CaptureError(
+        "SECRET_CONTENT",
+        "capture rejected: secret-shaped content detected "
+        f"({names}); nothing was written. Remove or redact the credential and "
+        "re-capture.",
+    )
+
+
 def canonical_content(content: str) -> str:
     """Canonical representation used **only** for identity (architecture §7.3).
 
@@ -497,6 +565,9 @@ def capture(
         raise CaptureError("MALFORMED_REQUEST", "request must be a CaptureRequest")
     policy = routing or RoutingPolicy()
     policy.validate()
+    # Before anything is resolved, hashed, or written: no plaintext credential
+    # may reach generated output (NFR-004 / AT-014).
+    _reject_secret_bearing_request(request)
 
     project_id = resolve_project(resolved_vault, request.project_reference)
     kind = classify(request, explicit=classification)
@@ -509,6 +580,14 @@ def capture(
     capture_id = capture_id_for(identity)
 
     record_path = _record_path(resolved_vault, capture_id)
+    if record_path.is_symlink():
+        # A planted symlink here would make _load_record read outside the
+        # vault. retry()/list_captures() already reject this; align the
+        # dedupe read with them rather than leaving one unguarded path.
+        raise CaptureError(
+            "PATH_ESCAPES_VAULT",
+            f"capture record path is a symlink: {capture_id}",
+        )
     if record_path.is_file():
         # Deduplication (architecture §8): the deterministic path *is* the
         # index. No new note is produced (INV-006).
@@ -552,7 +631,7 @@ def capture(
             "line_endings": "lf",
             "whitespace_stripped": False,
         },
-        "content_bytes": len(request.content.encode("utf-8")),
+        "content_bytes": _encoded_length(request.content),
         "content_path": content_rel,
         "title": title,
         "classification": kind,
@@ -674,6 +753,16 @@ def retry(
         raise CaptureError(
             "CONTENT_HASH_MISMATCH",
             f"stored evidence for {cid} does not match its recorded content hash",
+        )
+    # A store written before the secret gate existed can still hold plaintext.
+    # Refuse to propagate it into a fresh projection rather than widening the
+    # blast radius of an artifact that should never have been persisted.
+    stored_patterns = sorted({finding.pattern for finding in scan_text(content)})
+    if stored_patterns:
+        raise CaptureError(
+            "SECRET_CONTENT",
+            f"stored evidence for {cid} contains secret-shaped content "
+            f"({', '.join(stored_patterns)}); refusing to re-render it.",
         )
     record, errors = _render_stage(
         resolved_vault,

@@ -321,10 +321,30 @@ secret material must not be persisted as metadata. Both are honoured:
 
 | Artifact | Behaviour |
 | --- | --- |
-| `rcap-*.txt` raw evidence | **verbatim**, never rewritten |
-| capture record `secret_scan.findings` | pattern *names* only, never the value |
-| capture record `title` | redacted — the title becomes the **filename on disk** |
-| Obsidian note | redacted via `redact_text` |
+| any capture whose content, title, locator or metadata matches a detector | **rejected before any write** (`SECRET_CONTENT`) |
+| `rcap-*.txt` raw evidence | verbatim — for content that cleared the gate |
+| Obsidian note | rendered from gate-cleared content |
+| a credential typed into a `BEGIN HUMAN` region | re-render refuses (`SECRET_CONTENT`); Atlas never re-persists it |
+| error text and logs | pattern *names* only, never the matched value |
+
+### Why rejection, not redaction
+
+An earlier revision preserved the raw payload verbatim and redacted only the
+projection. Independent review established that this was wrong: the raw store
+lives under `generated/`, so a live credential sat in plaintext in generated
+output — and therefore in every vault backup and sync.
+
+Repository truth settles the conflict. `AGENTS.md` requires that "likely
+credentials must be detected and **excluded or redacted before any generated
+output** or log is written (NFR-004, AT-014)" and lists "**0 secrets in
+output**" as a key invariant. **INV-001 is therefore scoped, not absolute: it
+governs content that clears the secret gate.** Security truth outranks
+verbatim-evidence fidelity.
+
+Rejection rather than partial persistence is the repository's own pattern —
+`ingestion.py` refuses secret-bearing marker fields outright, and
+`conversation_capture.py` rejects secret-shaped envelopes with this same
+`SECRET_CONTENT` code. There is no `--allow-secret-shaped` override.
 
 The title case matters: the derived title feeds the note's filename, so an
 unredacted secret on the first captured line would reach the filesystem even

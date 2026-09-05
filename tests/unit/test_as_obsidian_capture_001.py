@@ -490,39 +490,118 @@ def test_rewriting_atlas_own_note_is_allowed(vault: Path, tmp_path: Path) -> Non
 # --------------------------------------------------------------------------
 
 
-def test_secret_shaped_content_is_preserved_raw_and_redacted_in_projection(
-    vault: Path,
+def test_secret_bearing_capture_is_rejected_before_any_write(vault: Path) -> None:
+    """NFR-004 / AT-014: no plaintext credential may reach generated output.
+
+    This replaces an earlier contract that preserved the raw payload verbatim
+    and redacted only the projection. Independent review established that the
+    raw store lives under ``generated/``, so that design put a live credential
+    into generated output and into every vault backup and sync. Repository
+    truth (AGENTS.md: "excluded or redacted before any generated output",
+    "0 secrets in output") outranks verbatim-evidence fidelity, so INV-001 is
+    scoped to content that clears this gate.
+    """
+    payload = "deploy notes\napi_key = sk-FAKEFAKEFAKEFAKEFAKEFAKE0123\ntail"
+
+    with pytest.raises(CaptureError) as excinfo:
+        capture(vault, _request(payload))
+
+    assert excinfo.value.code == "SECRET_CONTENT"
+    # The matched value is never echoed back (CODEX-SEC-006).
+    assert "sk-FAKEFAKE" not in str(excinfo.value)
+    assert "api-key-assignment" in str(excinfo.value)
+    # Nothing at all was written.
+    assert not (vault / CAPTURE_DIR).exists()
+    assert not (vault / "generated" / "obsidian").exists()
+
+
+@pytest.mark.parametrize(
+    ("pattern", "secret"),
+    [
+        ("api-key-assignment", "api_key = sk-FAKEFAKEFAKEFAKEFAKEFAKE0123"),
+        ("cloud-access-key", "AKIAIOSFODNN7EXAMPLE"),
+        ("bearer-token", "Bearer FAKEfakeFAKEfakeFAKEfake0123456789"),
+        ("connection-string", "postgres://u:FAKEPW@db.internal:5432/x"),
+    ],
+)
+def test_no_secret_class_reaches_generated_output(
+    vault: Path, pattern: str, secret: str
 ) -> None:
-    payload = "notes\napi_key = AKIAIOSFODNN7EXAMPLE12345\ntail"
-    result = capture(vault, _request(payload))
+    """Every canonical detector class fails closed, verified on disk bytes."""
+    with pytest.raises(CaptureError) as excinfo:
+        capture(vault, _request(f"line one\n{secret}\nline two"))
+    assert excinfo.value.code == "SECRET_CONTENT"
 
-    assert result["secret_findings"], "detection must be reported to the operator"
-    assert result["warnings"]
-    # INV-001: raw evidence is never rewritten.
-    assert read_raw_content(vault, result["capture_id"]) == payload
-    # §38: the derived human artifact is redacted.
+    generated = vault / "generated"
+    on_disk = [
+        path
+        for path in generated.rglob("*")
+        if path.is_file() and secret in path.read_bytes().decode("utf-8", "replace")
+    ]
+    assert on_disk == [], f"{pattern} leaked into generated output"
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["title_hint", "source_locator", "metadata"],
+)
+def test_secret_in_secondary_fields_is_rejected(vault: Path, field: str) -> None:
+    """A title becomes the filename; a locator and metadata reach the record."""
+    secret = "AKIAIOSFODNN7EXAMPLE"
+    kwargs: dict[str, object] = {"content": "entirely clean body"}
+    if field == "title_hint":
+        kwargs["title_hint"] = secret
+    elif field == "source_locator":
+        kwargs["source_locator"] = f"https://example.test/{secret}"
+    else:
+        kwargs["source_metadata"] = {"page_title": secret}
+
+    with pytest.raises(CaptureError) as excinfo:
+        capture(vault, build_capture_request(**kwargs))  # type: ignore[arg-type]
+    assert excinfo.value.code == "SECRET_CONTENT"
+    assert not (vault / CAPTURE_DIR).exists()
+
+
+def test_retry_refuses_a_legacy_unsafe_raw_artifact(vault: Path) -> None:
+    """A store written before this gate must not be re-rendered."""
+    result = capture(vault, _request("clean body"))
+    raw = vault / result["raw_path"]
+    raw.write_text("clean body\nAKIAIOSFODNN7EXAMPLE", encoding="utf-8")
+    record_path = vault / CAPTURE_DIR / f"{result['capture_id']}.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["content_hash"] = content_hash(raw.read_text(encoding="utf-8"))
+    record_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(CaptureError) as excinfo:
+        retry(vault, result["capture_id"])
+    assert excinfo.value.code == "SECRET_CONTENT"
+
+
+def test_secret_typed_into_a_human_region_is_not_re_persisted(vault: Path) -> None:
+    """Atlas cannot unwrite what a human saved, but must not propagate it."""
+    result = capture(vault, _request("clean body"))
     note = next((vault / "generated" / "obsidian" / "captures").rglob("*.md"))
-    rendered = note.read_text(encoding="utf-8")
-    assert "AKIAIOSFODNN7EXAMPLE12345" not in rendered
-    assert "[redacted]" in rendered
-
-
-def test_secret_findings_are_metadata_only(vault: Path) -> None:
-    """NFR-004 / CODEX-SEC-006: never persist the matched value as metadata."""
-    payload = "AKIAIOSFODNN7EXAMPLE"
-    result = capture(vault, _request(payload))
-    record = json.loads(
-        (vault / CAPTURE_DIR / f"{result['capture_id']}.json").read_text(encoding="utf-8")
+    note.write_text(
+        note.read_text(encoding="utf-8").replace(
+            "<!-- BEGIN HUMAN: notes -->",
+            "<!-- BEGIN HUMAN: notes -->\nAKIAIOSFODNN7EXAMPLE",
+            1,
+        ),
+        encoding="utf-8",
     )
-    assert record["secret_scan"]["findings"] == ["cloud-access-key"]
-    # The matched value must not survive anywhere in derived metadata — the
-    # title feeds the note filename on disk, so a leak here reaches the
-    # filesystem even when the note body is redacted.
-    assert payload not in json.dumps(record)
-    assert record["title"] == "[redacted]"
-    note = next((vault / "generated" / "obsidian" / "captures").rglob("*.md"))
-    assert payload not in note.name
-    assert payload not in note.read_text(encoding="utf-8")
+
+    again = retry(vault, result["capture_id"])
+    assert again["status"] == "partial"
+    assert again["errors"][0]["code"] == "SECRET_CONTENT"
+
+
+def test_clean_capture_still_preserves_raw_verbatim(vault: Path) -> None:
+    """INV-001 is scoped, not removed: non-secret evidence stays byte-exact."""
+    payload = "ordinary notes\r\nwith CRLF and Ünicode ✅\n"
+    result = capture(vault, _request(payload))
+    assert result["status"] == "ok"
+    assert read_raw_content(vault, result["capture_id"]) == payload
+    assert result["secret_findings"] == []
 
 
 def test_capture_declares_no_external_transmission(vault: Path) -> None:
@@ -1131,3 +1210,35 @@ def test_p1_symlink_containment_still_holds_after_retry_fix(vault: Path, tmp_pat
     assert result["status"] == "partial"
     assert result["errors"][0]["code"] == "PATH_ESCAPES_VAULT"
     assert [p for p in stolen.rglob("*") if p.is_file()] == []
+
+
+def test_dedupe_rejects_a_symlinked_record_path(vault: Path, tmp_path: Path) -> None:
+    """The dedupe read must not follow a planted symlink out of the vault."""
+    result = capture(vault, _request("dedupe target"))
+    record = vault / CAPTURE_DIR / f"{result['capture_id']}.json"
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps({"identity_hash": "sha256:" + "0" * 64}), encoding="utf-8")
+    record.unlink()
+    record.symlink_to(outside)
+
+    with pytest.raises(CaptureError) as excinfo:
+        capture(vault, _request("dedupe target"))
+    assert excinfo.value.code == "PATH_ESCAPES_VAULT"
+
+
+def test_unencodable_content_fails_with_a_stable_code() -> None:
+    """Unpaired surrogates must not escape as a raw UnicodeEncodeError."""
+    with pytest.raises(CaptureSourceError) as excinfo:
+        build_capture_request(content="lead \ud800 surrogate")
+    assert excinfo.value.code == "CONTENT_NOT_ENCODABLE"
+
+
+def test_ai_enrichment_true_is_rejected_rather_than_silently_ignored() -> None:
+    """No capture path reads this flag; accepting it would claim a capability."""
+    from pydantic import ValidationError
+
+    from project_atlas.config import AtlasConfig
+
+    AtlasConfig.model_validate({"capture": {"processing": {"ai_enrichment": False}}})
+    with pytest.raises(ValidationError, match="not implemented"):
+        AtlasConfig.model_validate({"capture": {"processing": {"ai_enrichment": True}}})

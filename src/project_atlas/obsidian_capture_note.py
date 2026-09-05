@@ -31,9 +31,14 @@ from atlas_contracts.identity import (
     safe_relative_path,
 )
 from project_atlas.capture_io import is_lexically_under, write_atomic_under_root
-from project_atlas.protected_regions import GENERATED_END, GENERATED_START, ProtectedRegionError
+from project_atlas.protected_regions import (
+    GENERATED_END,
+    GENERATED_START,
+    ProtectedRegionError,
+    extract_human_regions,
+)
 from project_atlas.protected_regions import merge_protected_regions as _merge_protected_regions
-from project_atlas.secrets import redact_text
+from project_atlas.secrets import redact_text, scan_text
 
 PACKAGE_ID = "AS-OBSIDIAN-CAPTURE-001"
 GENERATOR_ID = "atlas-obsidian-capture-001"
@@ -282,6 +287,25 @@ def _write_atomic(path: Path, content: bytes, *, root: Path) -> None:
         raise ObsidianNoteError("PATH_ESCAPES_VAULT", str(exc)) from exc
 
 
+def _reject_secret_bearing_regions(existing: str | None) -> None:
+    """Refuse to carry a human-authored credential into a regenerated note."""
+    if not existing:
+        return
+    try:
+        regions = extract_human_regions(existing)
+    except ProtectedRegionError:
+        return  # malformed markers are reported by the merge itself
+    patterns: set[str] = set()
+    for block in regions.values():
+        patterns.update(finding.pattern for finding in scan_text(block))
+    if patterns:
+        raise ObsidianNoteError(
+            "SECRET_CONTENT",
+            "protected region contains secret-shaped content "
+            f"({', '.join(sorted(patterns))}); refusing to re-render the note.",
+        )
+
+
 def write_note(
     record: dict[str, Any],
     *,
@@ -380,6 +404,12 @@ def write_note(
     # itself fails (OBSIDIAN_NOTE_CONFLICT), the raw capture is untouched,
     # and the caller can inspect and fix the note by hand before retrying.
     try:
+        # A human can type a credential straight into the protected region.
+        # Merging carries that block forward verbatim, so Atlas would re-persist
+        # a plaintext secret into generated output on every refresh. Atlas
+        # cannot unwrite what the human already saved, but it must not
+        # propagate it (NFR-004 / AT-014); fail closed and leave the file alone.
+        _reject_secret_bearing_regions(existing)
         rendered = _merge_protected_regions(
             existing=existing,
             rendered=rendered,

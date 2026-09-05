@@ -11338,3 +11338,59 @@ This reproduces identically on the pre-remediation head `729acb65`, so it is
 chain, which previously leaked real note files. Carried forward as a known
 non-blocking finding, deliberately not remediated under the finalization
 directive's product-code freeze, and not claimed as fixed.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- credential-persistence P1 remediation (supersedes e796ea83)
+
+Automated review found, and I confirmed, that secret-bearing capture input was
+persisted **verbatim into `generated/ops/raw-captures/*.txt`**. Reproduced
+pre-fix across all five detector classes: the finding was detected, the
+capture still returned `status=ok`, and the live credential sat in plaintext
+under `generated/` -- and so in every vault backup and sync.
+
+Root cause: I resolved the INV-001 (verbatim raw evidence) vs NFR-004 (no
+secrets in output) tension in favour of the architecture document. That was
+wrong. `AGENTS.md:180` requires credentials "excluded or redacted before any
+generated output or log is written"; `AGENTS.md:194` lists "0 secrets in
+output". Repository truth outranks the proposal, which is the rule I applied
+everywhere else in this lane and failed to apply here. Both prior independent
+verifications tested secret handling against the contract I had defined, so
+they confirmed my design rather than checking it against AGENTS.md.
+
+Owner decision: security invariant wins. INV-001 is scoped to content that
+clears the gate. Fix follows the repository's own precedent -- `ingestion`
+refuses secret-bearing marker fields, `conversation_capture` rejects with
+`SECRET_CONTENT` -- so capture now fails closed with that same code before any
+resolution, hashing or write. Content, title hint, locator and metadata values
+are all scanned, because a title becomes the note filename and a locator and
+metadata reach the record and frontmatter. `retry` re-scans stored evidence so
+a pre-gate artifact cannot be re-rendered, and the note writer refuses to carry
+a credential typed into a `BEGIN HUMAN` region into a regenerated note.
+
+Verified on filesystem bytes, not status codes: 10-case matrix (normal,
+per-class secrets, multi-secret, title/locator/metadata, human region,
+failed write, 16-way concurrent, legacy retry, false-positive boundary) ->
+0 plaintext in generated output, 0 in logs, 0 in temp files. Both prior P1s
+re-verified unregressed: 8 containment shapes at 0 outside bytes, and
+human-edit retry preserved across sequential and 16-way concurrent retries.
+
+### Review threads triaged in the same cycle (all six confirmed, all fixed)
+
+- dedupe followed a symlinked record path -> now rejected, aligning with
+  `retry`/`list_captures`;
+- unpaired surrogates raised a raw `UnicodeEncodeError` -> stable
+  `CONTENT_NOT_ENCODABLE` / `MALFORMED_REQUEST` codes;
+- `ai_enrichment = true` was silently accepted while nothing reads it, and my
+  own docstring claimed fail-closed -> now rejected in validation;
+- the Atlas-3 seam guard fired on removal of a *comment* mentioning a seam
+  symbol -> comments stripped before the code check;
+- **the corrected seam guard permitted deleting a certified command** when the
+  registration spanned multiple lines and its name appeared elsewhere in
+  dispatch. Confirmed against the real `cli.py`: deleting the 8-line `capture`
+  registration passed. Removed lines are now joined before matching, and the
+  certified-surface check requires an actual `add_parser` registration rather
+  than any occurrence of the string. This was a real weakening I introduced
+  versus the original `removed == []`, caught by review, not by me.
+
+F1-F4 remain separate and unaddressed here; `graph_projections.py` was not
+touched.
