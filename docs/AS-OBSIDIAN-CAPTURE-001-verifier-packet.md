@@ -9,10 +9,13 @@ target is an attack to attempt, not a result to confirm.
 | --- | --- |
 | Branch | `feat/as-obs-001-conversational-knowledge-capture` |
 | Base | `origin/main` @ `31e07770992723e340f82e7e79c8483da17fa32e` (tree `b32950090463e7186896c0791bf3a840a673cf4b`) |
-| Commits | `1e41a97c` feature · `610821f8` schema registry · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs · `816d937e` IV packet · `8c39e0d8` Windows atomic-write |
-| Head | `8c39e0d8` |
+| Head | `d4bd4a8b` (tree `8ebdfcd7`) |
+| Commits | `1e41a97c` feature · `610821f8` schema · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs · `816d937e` IV packet · `8c39e0d8` Windows atomic-write · `729acb65` IV rebase · `d4bd4a8b` **R1 projection anchor** |
+| Superseded | `816d937e` (Windows), `729acb65` (**IV FAIL** — default projection root escape) |
 
-`git log --oneline 31e07770..HEAD` should show exactly those six.
+`git log --oneline 31e07770..HEAD` should show exactly those eight. **Do not reuse
+evidence from `729acb65` or earlier**: those heads are historical only, and
+`729acb65` failed independent verification on the finding re-attacked in V7.
 
 ## Environment (do not skip)
 
@@ -134,6 +137,40 @@ output*, not *exactly one non-duplicate result*.
 - Confirm the retry is bounded and re-raises (monkeypatch `os.replace` to fail
   permanently) rather than looping.
 - Confirm a temp file never survives either success or failure.
+### V7 — Default projection trust anchor (the R1 finding — attack this first)
+
+`729acb65` wrote the derived note **outside** the Atlas vault and still
+reported `status: ok` when a symlink was pre-planted at either
+
+```text
+<vault>/generated/obsidian/captures -> /outside      (leaf)
+<vault>/generated/obsidian          -> /outside      (intermediate)
+```
+
+The claim now is that the *implicit* projection is anchored on the **Atlas
+vault**, not on itself, while the *explicit* external opt-in keeps its own
+anchor. Re-establish that independently:
+
+| attack | required |
+| --- | --- |
+| leaf link | `partial` + `PATH_ESCAPES_VAULT`, 0 bytes outside |
+| intermediate link | same |
+| `generated -> outside` | same |
+| relative link target | same |
+| symlink chain (link → link → outside) | same |
+| link planted *after* the first capture, before a `retry` | same |
+| normal default root | `ok`, note under `<vault>/generated/obsidian/captures` |
+| explicit `--obsidian-vault` | `ok` — must **not** have become a failure |
+
+Also check the ordering claim, not just the outcome: with an intermediate
+link planted, assert **nothing at all** is created on the far side — not even
+an empty directory. `mkdir(parents=True)` past a symlinked ancestor is
+already a boundary violation. Confirm the walk uses `lstat`, not `realpath`,
+and that no containment failure is retried.
+
+In every blocked case the raw evidence must still be readable via
+`atlas capture show` and its hash must still verify.
+
 ### V5 — Atlas-3 CLI guard
 
 Against the real `src/project_atlas/cli.py`:
@@ -174,3 +211,7 @@ capture is **not** in `generated/ops/inbox/` and asserts
   wall-clock value (NFR-001).
 - Pre-existing and unrelated: `atlas validate --vault <relative-path>` fails a
   subpath check; reproduces without any captures.
+- Recorded NONBLOCKING by the previous verifier and **out of scope** for R1:
+  a governance obfuscation-class bypass, and secret shapes outside the
+  contracted `project_atlas.secrets` pattern set. Do not treat either as
+  fixed — they were not in scope, not that they were addressed.
