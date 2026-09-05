@@ -28,6 +28,11 @@ pytestmark = pytest.mark.skipif(
     os.name == "nt", reason="POSIX-only filenames and permission modes"
 )
 
+# `pytestmark` skips execution, not import: a decorator argument is still
+# evaluated at collection time on every platform, and `os.geteuid` does not
+# exist on Windows. Resolve it here, guarded, rather than inside the marker.
+_IS_ROOT = os.name != "nt" and os.geteuid() == 0
+
 #: Legal on Linux, unrepresentable under the portable path contract.
 NON_PORTABLE_NAMES = (
     "co:lon.md",  # Windows drive / alternate-data-stream separator
@@ -109,7 +114,7 @@ def test_pipeline_completes_with_non_portable_names(tmp_path: Path) -> None:
         assert not any(f"# {name}" in body for body in ingested), name
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses permission bits")
+@pytest.mark.skipif(_IS_ROOT, reason="root bypasses permission bits")
 def test_unreadable_file_is_recorded_not_fatal(tmp_path: Path) -> None:
     """An unreadable file yields real metadata, no digest, and no abort."""
     source = _write_source(tmp_path / "source")

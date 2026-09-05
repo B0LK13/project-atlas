@@ -11084,3 +11084,85 @@ concurrent in-flight promote; fixing the underlying race would mean editing
 `ingestion.py`, whose bytes are pinned by this grant. Both are outside
 `OG-ATLAS-LINUX-FILESYSTEM-20260905`. Raised as an unresolved material finding
 for a separate owner decision. `INTRODUCED_FAILURE_COUNT = 0`.
+
+### Correction after independent verification (2026-09-05)
+
+An independent verifier (isolated worktree, its own venv, verified to import
+from that worktree) returned `PASS_WITH_NONBLOCKING_FINDINGS` against
+`c9bdc307`. It confirmed C1-C5 and C7, including the decisive
+revert-and-reconfirm: reverting **only** the two authorized source files makes
+**5 of 7** new tests fail for the claimed reasons, and restoring them makes all
+7 pass. It found no security bypass. Several claims in the entry above were
+nevertheless wrong or broader than the evidence, and are corrected here rather
+than edited in place.
+
+1. **False claim, now withdrawn.** "Full hostile tree (... NFC/NFD pair ...)
+   runs `discover -> ... -> validate` green end to end" is **wrong for the
+   NFC/NFD case**. The tree used `café-nfc.md` / `café-nfd.md` -- different
+   base names, which never collide. A *true* normalization pair
+   (`café.md` written NFC and NFD: `caf\xc3\xa9.md` and `cafe\xcc\x81.md`,
+   two distinct, ordinary files on Linux) collapses to one `source_id` and
+   aborts: `duplicate source identity in manifest: source-91e69e39399496d2`.
+   Reproduced directly. **Pre-existing** (identical on base), not a
+   regression, but it was never tested green and the claim should not have
+   been made.
+2. **Defect (a) is only partially fixed.** The new `except OSError` wraps
+   `path.stat()`, but the loop's *first* stat is `path.is_file()`, which is
+   unguarded and propagates `EACCES`. A directory with mode `0444`
+   (listable, not traversable) therefore still aborts `discover` with the
+   identical `[Errno 13] Permission denied`. Reproduced directly. The comment
+   on that guard names "raced deletion, unreadable parent directory" -- cases
+   which do not reach that branch, since `is_file()` swallows `ENOENT` -- so
+   the comment overstates its coverage.
+3. **"Never silently dropped" is violated for directories.** A mode-`000`
+   directory's contents vanish with no manifest record *and* no warning
+   (`rglob` swallows the error). Reproduced: `dark/b.md` absent from
+   `sources`, no WARNING emitted. Pre-existing, but it contradicts the
+   central thesis of this change.
+4. **The backslash rationale was wrong.** The claim that a coexisting real
+   `docs/back/slash.md` "would have been a silent evidence mis-binding" is
+   incorrect: both names canonicalize to one `source_id` and ingest aborts
+   with `duplicate source identity`. Still failing at this head; pre-existing.
+5. **Population figure corrected.** "0 of 12,263" was measured on this
+   working tree (which carries untracked and build artifacts). A clean
+   checkout yields **0 of 5,798**. The *conclusion* -- zero sources newly
+   classified `non-portable-path` or `unreadable` -- reproduces exactly; only
+   the denominator was environment-specific.
+6. **Security wording tightened.** "Security posture unchanged" is precise for
+   anything **opened**: every record that is read is still resolved through
+   `_source_path`, and a hand-crafted traversal manifest with a valid digest
+   is still refused. It is *not* precise for what may be **recorded**: an
+   excluded record's path is now persisted verbatim into
+   `sources/manifests/source-manifest.json` without pre-resolution. No file
+   access, no leak, and downstream stages are unaffected (verified), but the
+   honest phrasing is "unchanged for anything opened; mildly relaxed for what
+   may be recorded".
+7. **Flake evidence re-ranked.** The dispositive argument is mechanistic:
+   `recover_promote_orphans(vault)` is called *outside and before* the ingest
+   lock, in code this diff does not touch (zero promote/orphan/stage/lock
+   lines). The 1/300 vs 2/300 stress table is statistically indistinguishable
+   from noise and should not have led; the verifier could not reproduce the
+   flake at all (0/200 on both trees). `INTRODUCED_FAILURE_COUNT = 0` rests on
+   the mechanism and on revert-and-reconfirm, not on those counts.
+8. **Unrecorded side effect, now recorded.** `.atlas-project.yaml` gained
+   `project_uuid: 57d0f9db-c037-47ef-a1f5-02f148a207a8`. This was allocated by
+   AS-ID-001 genesis during an authorized `atlas connect` dogfood run against
+   this repository, is durable and one-time, and was noted in the commit
+   message but not here or in the PR body. It pins this repository's identity
+   to a value minted by that run; drop it if that was not intended.
+9. **Windows CI collection error (mine, fixed).** The new test module used
+   `@pytest.mark.skipif(os.geteuid() == 0, ...)`. A module-level `pytestmark`
+   skips *execution*, not *import*, and a decorator argument is evaluated at
+   collection on every platform -- so Windows failed with
+   `AttributeError: module 'os' has no attribute 'geteuid'`, interrupting
+   collection (`5200 deselected, 1 error`). Resolved to a guarded
+   module constant (`os.name != "nt" and os.geteuid() == 0`), which
+   short-circuits before `geteuid` on Windows.
+
+**Blocked on a renewed owner decision.** Corrections 2 and 3 are genuine
+incompletenesses of this change's own thesis, and both fixes live in
+`src/project_atlas/discovery.py`, whose bytes are pinned by
+`OG-ATLAS-LINUX-FILESYSTEM-20260905`. Correction 1 (and 4) would additionally
+touch source-identity canonicalization. Per the grant's terms, the
+protected-surface mutation stops here and is returned for a new decision
+rather than made under the existing grant.
