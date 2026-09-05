@@ -11963,3 +11963,59 @@ above is corrected -- mode-000 holds; it was mode-0444 that did not.
 | `OLD_PIN` | `57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c` |
 | `NEW_PIN` | `f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847` |
 | `PIN_ENTRY_COUNT` | **1** for `discovery.py` |
+
+### Repository residual — WORKLOG.md NUL byte (classified, NOT remediated here)
+
+Recorded as a distinct repository-level residual on owner instruction, after
+the hazard recurred a second time during the moving-main merge for #683.
+
+```text
+WORKLOG_NUL_PRESENT           = YES (exactly 1 byte, offset 252585, line 5174)
+NUL_ORIGIN                    = commit 8cde605c (2026-08-09,
+                                "test(AS-ACCEPT-002): add Band B AX-GRF
+                                post-graph regression oracles"),
+                                an ancestor of origin/main
+INTRODUCED_BY_PR683           = NO  (absent from origin/main..HEAD commits)
+INTRODUCED_BY_OTHER_LANE      = NO  (predates AS-OBSIDIAN-CAPTURE-001 by ~4 weeks)
+PRE_EXISTING                  = YES (present at merge-base 31e07770,
+                                at origin/main, and at HEAD -- count 1 in all)
+IMPACT_ON_PR683_CERTIFICATION = NONE on conclusions; REAL on method
+```
+
+Established by binary search over all 405 commits touching `WORKLOG.md`,
+comparing each blob's NUL count -- not by inspection.
+
+**The hazard.** A single NUL makes `grep` classify the whole file as binary
+and emit *nothing* without `-a`. Both recurrences produced a **misleading
+empty result**, not an error: first when searching for withdrawn platform
+claims, then when checking the moving-main merge for conflict markers -- a
+check whose empty output would normally mean "resolved cleanly". Any
+claim-discipline audit of this file by ordinary `grep` yields false negatives,
+which is precisely the verification method this branch's certification depends
+on.
+
+**Certification impact is method-only.** Every conclusion drawn about this
+file was re-derived with binary-safe checks (`/tmp/binsafe_check.py`, reading
+bytes and matching in Python): 0 conflict markers, ledger row hash equals the
+actual `discovery.py` sha256, and the `NO_SILENT_LOSS` withdrawal, `TOCTOU
+UNPROVEN`, branch-B retraction and the preserved main-lane entry all confirmed
+present. No prior conclusion changed. The independent verifiers that audited
+this file used `grep -an` or Python and were unaffected.
+
+**The corruption is fully recoverable, and a fix would be a correction rather
+than an invention.** The line reads
+`**Base (open):** 38b8eac / tree \x0070e951b`; `git rev-parse 38b8eac^{tree}`
+is `070e951b86c7c0db8a98b006dc59b36a49fe3f5e`, so the NUL stands exactly where
+the leading `0` belongs. The one-byte fix is `\x00` -> `0`.
+
+**Deliberately NOT remediated in #683.** The byte sits inside an unrelated work
+package's historical evidence entry. Editing another package's record from a
+Linux-filesystem-portability PR is mutation outside this grant's surface, and
+the owner's instruction is explicit that such a case is recorded rather than
+folded in unilaterally. It is fully specified above and authorizable in one
+line if wanted.
+
+**Interim control:** `#683` certification uses binary-safe checks for this file
+and does not rely on ordinary `grep` output while the NUL remains. Other lanes
+appending to `WORKLOG.md` -- including AS-OBSIDIAN-CAPTURE-001 -- are exposed
+to the same false-negative hazard.
