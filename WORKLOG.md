@@ -11373,3 +11373,60 @@ design judgement ("a directory is not a source document"), not an
 impossibility, and the earlier framing overstated it. `trailing.md ` is
 reported as `unsupported-format` rather than `non-portable-path` because
 `_excluded()` runs first; excluded either way.
+
+### Second-round IV corrections (`674bbe98`)
+
+Independent verification of `674bbe98` returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`. It reproduced every remediation on base and
+confirmed it absent at head: the ordering defect (three creation orders, three
+different `inventory_sha256` on base, collapsing to one at head), the collision
+winner independent of dirent order, `0 of 2,766` to the file, the freeze guard
+proven load-bearing by tampering, and all seven prior withdrawals intact. It
+also found a further false claim of mine.
+
+1. **`NO_SILENT_LOSS` is asserted as a universal and is FALSE. Retracted.**
+   The matrix row reads "every skip carries a record or a warning", and the
+   entry above compounds it with "the branch it sat on was itself **the last
+   silent skip**". Both are wrong: `discover()` has seven `continue` branches
+   and **two are still silent**.
+   - `if not regular_file: continue` -- symlinks, FIFOs, devices, directories.
+     Deliberate and covered by `test_symlinks_and_special_files_are_never_sources`,
+     which asserts absence from `sources` but never a diagnostic.
+   - `event_root.is_dir() and path.is_relative_to(event_root)` -- anything
+     under `.atlas-inbox/agent-events/`. **Reproduced:** an ordinary
+     `loose.md` regular file placed directly there is dropped from *both*
+     `sources` and `agent_events`, with no warning and no test coverage.
+     That is real silent loss of a real document, and it is a sharper case
+     than the R3 defect this change set out to fix.
+
+   Corrected claim, scoped to what is actually true: **every skip of a
+   would-be source document now carries a record or a warning, except two
+   deliberate routing exclusions -- non-regular filesystem entries, and paths
+   under the agent-event inbox.** The first is intended. The second is a
+   newly identified evidence gap, is **not** part of R1/R2/R3, and is
+   **not** fixed here: fixing it means either warning on that branch or
+   carving it out explicitly, both of which are scope expansion into
+   `discovery.py` beyond this grant. Raised for a separate owner decision.
+
+2. **The new `skipped unmeasurable path` branch is effectively unreachable
+   and untested -- UNPROVEN as exercised behaviour.** `Path.is_file()` ignores
+   only `ENOENT`, `ENOTDIR`, `EBADF` and `ELOOP` and re-raises the rest, so
+   `EACCES` is caught earlier by the `is_file()` guard and the ignored errnos
+   return `False` into the silent non-regular-file branch. Reaching the
+   `stat()` handler requires `stat()` to succeed inside `is_file()` and fail
+   microseconds later -- a TOCTOU race. It is a strict improvement over a bare
+   `continue`, but no test exercises it and none is claimed to.
+
+3. **Disclosed consequence of the ordering fix.** A vault whose
+   `inventory_sha256` was computed over a case-tied pair *will* see that hash
+   change, because it previously recorded one arbitrary member of the tie.
+   This is unavoidable and is the point of the fix. Verified there is **no**
+   collateral change otherwise: three real trees (2,051 sources, no case ties)
+   produce byte-identical inventory hashes before and after.
+
+4. **Observation, pre-existing, not fixed:** `ingestion.py` is not pinned to a
+   single byte sequence. Two exception entries name it -- `DOGFOOD-001` at
+   `e8d779a8...` and the first grant's at `6911a99d...` -- and
+   `_owner_approved_exception_permits` uses `any()`, so the guard accepts
+   either. Introduced by PR #656, not here; `discovery.py` is correctly held
+   to one pin, replaced in place. Worth an owner decision separately.
