@@ -9,9 +9,10 @@ target is an attack to attempt, not a result to confirm.
 | --- | --- |
 | Branch | `feat/as-obs-001-conversational-knowledge-capture` |
 | Base | `origin/main` @ `31e07770992723e340f82e7e79c8483da17fa32e` (tree `b32950090463e7186896c0791bf3a840a673cf4b`) |
-| Commits | `1e41a97c` feature · `610821f8` schema registry · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs |
+| Commits | `1e41a97c` feature · `610821f8` schema registry · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs · `816d937e` IV packet · `8c39e0d8` Windows atomic-write |
+| Head | `8c39e0d8` |
 
-`git log --oneline 31e07770..HEAD` should show exactly those four.
+`git log --oneline 31e07770..HEAD` should show exactly those six.
 
 ## Environment (do not skip)
 
@@ -28,6 +29,7 @@ uv pip install --python .venv/bin/python -e ".[dev]"
 ## Changed surface
 
 ```text
+src/project_atlas/capture_io.py               new   contained atomic write (shared by both writers)
 src/project_atlas/capture_sources.py          new   source adapters + CaptureRequest
 src/project_atlas/obsidian_capture.py         new   capture service / raw store / dedupe / routing
 src/project_atlas/obsidian_capture_note.py    new   Obsidian output adapter
@@ -35,7 +37,7 @@ src/project_atlas/schemas/raw-capture.schema.json  new
 src/project_atlas/schema.py                   +2    registry entry
 src/project_atlas/config.py                   +68   [tool.atlas.capture] / [tool.atlas.obsidian]
 src/project_atlas/cli.py                      +301  capture text|raw-list|retry|show
-tests/unit/test_as_obsidian_capture_001.py    new   59 tests
+tests/unit/test_as_obsidian_capture_001.py    new   65 tests
 tests/integration/test_as_obsidian_capture_001_journey.py  new  12 tests
 tests/unit/test_atlas3_demo_isolation_001.py  mod   guard remediation + G-matrix
 tests/unit/test_schema.py                     +1    raw-capture registry entry
@@ -81,6 +83,11 @@ here was `Path.read_text` applying universal-newline translation on readback.
 
 ### V2 — Path containment (§32, §64)
 
+Include the case that only appeared after the Windows fix: symlink the
+**capture store's own parent** (`generated/ops/raw-captures`) out of the vault
+and confirm the capture fails closed with `PATH_ESCAPES_VAULT` and zero bytes
+written outside.
+
 Push absolute (`/etc`), traversal (`../../etc`), drive-relative (`C:evil`),
 UNC (`\\server\share`), Windows-reserved (`con`, `nul`), and trailing dot/space
 values through `[tool.atlas.obsidian] routing.*`, `--project`, `--title`, and
@@ -96,15 +103,37 @@ on disk. Then grep for the literal secret in: the note body, the note
 frontmatter, the note *filename*, the capture record JSON, `latest.json`, and
 stderr logs. It must appear in exactly one place: `rcap-*.txt`.
 
-### V4 — Concurrent dedupe (§49)
+### V4 — Concurrent dedupe and the atomic-write layer (§49)
 
 Fire N simultaneous identical captures at one vault. Expect exactly one
 `rcap-*.json`, one `rcap-*.txt`, one note, zero leftover `*.tmp`, and no
-`FileNotFoundError`. Note the honest nuance: under a true race several callers
-may each return `duplicate: false` while converging on one artifact set — the
-contract is *no uncontrolled duplicate output*, not *exactly one non-duplicate
-result*. Sequential re-capture must report `duplicate: true`.
+raised exception.
 
+Honest contract boundary — do not over-read the result:
+
+```text
+PERSISTENCE_IDEMPOTENCY                        = contracted
+SEQUENTIAL_DUPLICATE_SIGNAL                    = contracted (2nd sequential capture -> duplicate: true)
+CONCURRENT_DUPLICATE_SIGNAL_LINEARIZABILITY    = NOT contracted
+```
+
+Under a genuine race several callers may each return `duplicate: false` while
+converging on one artifact set. The contract is *no uncontrolled duplicate
+output*, not *exactly one non-duplicate result*.
+
+**Windows specifically.** The Windows leg is where this layer failed before
+(CI run `33956239428` on the superseded head `816d937e`: 4 ×
+`unsafe capture store escapes root` + 2 × `PermissionError(13)`). Re-attack it:
+
+- A containment check must never be satisfied by retrying. Confirm the
+  authoritative `ensure_under_root` in `capture_io.write_atomic_under_root`
+  runs against an **existing** directory and is not wrapped in a retry loop;
+  the retries cover only `os.replace` and `mkdir`.
+- Confirm the lexical gate precedes any `mkdir`, so a rejected target is never
+  materialized.
+- Confirm the retry is bounded and re-raises (monkeypatch `os.replace` to fail
+  permanently) rather than looping.
+- Confirm a temp file never survives either success or failure.
 ### V5 — Atlas-3 CLI guard
 
 Against the real `src/project_atlas/cli.py`:
