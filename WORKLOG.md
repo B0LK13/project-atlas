@@ -10936,6 +10936,53 @@ substantively not owed a check given the above. Result binding and
 independent verification of this dispatch attempt happen at the governor
 layer, outside this runner.
 
+
+## M3 claim-boundary correction (retraction of overclaimed evidence tier)
+
+The "M3 -- first supervised autonomous Atlas run" entry above states this
+run "proves the supervised-autonomous execution path end to end (real
+origination, real lease, real LOCAL_PROCESS dispatch, real isolated
+worktree, real result receipt, ... independently re-checked)". That
+overstates what any artifact in this repository can support, and is
+corrected here rather than edited in place, per this file's own
+append-only convention.
+
+`LEASE-14` and `AS-ORCH-AUTONOMY-001E` appear in exactly two places in the
+entire repository: this WORKLOG entry, and the test module's own docstring
+-- which cites *this WORKLOG entry* as its evidence. That is one claim
+citing itself, not independent corroboration. No committed receipt,
+dispatch record, or lease record exists for this run: `.atlas/orchestration/`
+(where `RECEIPTS_RELATIVE`/`WORKTREES_RELATIVE` write) is gitignored by
+design (`.gitignore:90-91`), so a genuine receipt was never committable in
+the first place -- its absence proves nothing either way, but its absence
+also means this WORKLOG entry cannot be treated as durable, non-circular
+event evidence.
+
+Corrected evidence tiers for this run, stated explicitly rather than
+folded into one blanket "proves ... end to end":
+
+    STRUCTURAL_PIPELINE_PROOF   = YES -- the fixture pipeline (init/
+        discover/ingest/build-indexes/build-portfolio + AS-XPROJ-001/002/003)
+        composes and passes against two real, independent, committed
+        fixture projects (`harbor-api`, `harbor-ops`).
+    AUTHORIZED_SCOPE_PROOF      = YES -- the committed diff (WORKLOG.md +
+        the one test file) is byte-exactly the WorkNode's own
+        `proposed_scope`; independently verifiable from the diff alone.
+    DISPATCH_ID_FORMAT_PROOF    = YES -- `local-process:LEASE-14:0` matches
+        `local_dispatch_port.py`'s actual construction
+        (`f"{_dispatch_id_for(lease.lease_id)}:{attempt}"`, one line, no
+        separator beyond the literal colons) exactly.
+    AUTHENTIC_RUNTIME_EVENT_PROOF = NOT PROVEN -- that lease `LEASE-14` was
+        actually granted, that a real `AS-ORCH-AUTONOMY-001E` dispatch
+        occurred, and that a result receipt was written, is asserted by
+        this WORKLOG entry and nowhere independently corroborated in the
+        repository.
+
+Everything else in the original entry stands: `AUTHENTIC_PILOT = NO`,
+`INT013 = EXTERNAL_BLOCKED` (unchanged), the backlog checkbox stays
+unchecked, and `DEMO_FIXTURE != AUTHENTIC_PILOT` applies exactly as stated.
+Only the "real result receipt ... independently re-checked" language is
+withdrawn.
 ---
 
 ## OG-ATLAS-LINUX-FILESYSTEM-20260905 — Linux filesystem defects in discover/ingest

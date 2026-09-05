@@ -45,7 +45,7 @@ export default function CommandCenterPage() {
 
   return (
     <ProdShell>
-      <main className="shell">
+      <main id="main" className="shell" tabIndex={-1}>
         <header className="hero">
           <p className="eyebrow">Command Center · AS-WEB-003</p>
           <h1>Command Center</h1>

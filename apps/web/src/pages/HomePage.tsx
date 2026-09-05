@@ -70,7 +70,7 @@ export default function HomePage() {
 
   return (
     <ProdShell className="theme-ledger">
-      <main className="shell">
+      <main id="main" className="shell" tabIndex={-1}>
         <header className="hero">
           <p className="eyebrow">Project Atlas · AS-WEB-003</p>
           <h1>Atlas</h1>
