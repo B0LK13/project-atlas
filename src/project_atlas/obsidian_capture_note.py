@@ -282,9 +282,17 @@ def write_note(
     *,
     content: str,
     obsidian_root: Path,
+    containment_root: Path | None = None,
     include_content: bool = True,
 ) -> dict[str, Any]:
     """Render and write the note, returning an ``ObsidianArtifact`` mapping.
+
+    ``containment_root`` is the trust anchor every write must stay under. It
+    is **not** always ``obsidian_root``: for Atlas's own in-vault projection
+    the anchor is the Atlas vault, so a symlink planted under
+    ``generated/obsidian`` cannot redefine the boundary by becoming the root
+    it is checked against. It defaults to ``obsidian_root`` for an explicit,
+    operator-configured external Obsidian vault, which is its own anchor.
 
     Fails closed rather than overwriting a note Atlas does not manage
     (architecture §44). Re-writing the *same* capture is idempotent
@@ -296,7 +304,15 @@ def write_note(
             "OBSIDIAN_ROOT_NOT_FOUND",
             f"obsidian root is not a directory: {root}",
         )
-    resolved_root = ensure_under_root(root, root, label="obsidian root")
+    anchor = (containment_root or obsidian_root).expanduser()
+    try:
+        # The projection root must itself be contained by the trust anchor.
+        # Self-anchoring here is what let a symlinked default root pass.
+        ensure_under_root(anchor, root, label="obsidian projection root")
+        resolved_root = ensure_under_root(anchor, root, label="obsidian root")
+        resolved_anchor = ensure_under_root(anchor, anchor, label="obsidian anchor")
+    except ValueError as exc:
+        raise ObsidianNoteError("PATH_ESCAPES_VAULT", str(exc)) from exc
 
     destination = record["routing"]["destination"]
     try:
@@ -316,7 +332,9 @@ def write_note(
     # resolved check -- the one that catches a symlink or junction escape --
     # runs inside ``write_atomic_under_root`` against the materialized
     # directory, still before any content is written.
-    if not is_lexically_under(resolved_root, target.parent):
+    if not is_lexically_under(resolved_root, target.parent) or not is_lexically_under(
+        resolved_anchor, target.parent
+    ):
         raise ObsidianNoteError(
             "PATH_ESCAPES_VAULT",
             f"unsafe obsidian note escapes root: {target}",
@@ -341,7 +359,10 @@ def write_note(
 
     rendered = render_note(record, content=content, include_content=include_content)
     encoded = rendered.encode("utf-8")
-    _write_atomic(target, encoded, root=resolved_root)
+    # Atomic write is contained by the *anchor*: for the default projection
+    # that is the Atlas vault, so a symlink under generated/obsidian cannot
+    # widen the boundary it is checked against.
+    _write_atomic(target, encoded, root=resolved_anchor)
 
     relative_path = "/".join((*segments, filename))
     note_hash = "sha256:" + hashlib.sha256(encoded).hexdigest()

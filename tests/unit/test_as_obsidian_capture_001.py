@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from project_atlas.capture_io import write_atomic_under_root
+from project_atlas.capture_io import materialize_under_root, write_atomic_under_root
 from project_atlas.capture_sources import (
     MAX_CONTENT_BYTES,
     CaptureSourceError,
@@ -776,3 +776,157 @@ def test_atomic_write_is_idempotent_for_identical_content(tmp_path: Path) -> Non
         write_atomic_under_root(target, b"same", root=root, label="test")
     assert target.read_bytes() == b"same"
     assert list(target.parent.glob("*.tmp")) == []
+
+
+# --------------------------------------------------------------------------
+# AS-OBSIDIAN-CAPTURE-001-R1 — default projection root trust anchor.
+#
+# Independent verification found that a symlink planted under
+# generated/obsidian let the *default* projection root become its own
+# containment anchor, so a capture wrote the derived note outside the Atlas
+# vault and still reported status "ok". For the implicit in-vault projection
+# the Atlas vault is the trust anchor; an attacker-controlled symlink inside
+# generated/obsidian must never redefine it.
+# --------------------------------------------------------------------------
+
+
+def _outside_files(outside: Path) -> list[Path]:
+    return [p for p in outside.rglob("*") if p.is_file()]
+
+
+@pytest.mark.parametrize(
+    ("case", "link_at"),
+    [
+        ("R1-A leaf", "generated/obsidian/captures"),
+        ("R1-B intermediate", "generated/obsidian"),
+    ],
+)
+def test_default_projection_root_symlink_fails_closed(
+    vault: Path, tmp_path: Path, case: str, link_at: str
+) -> None:
+    """The default projection root is anchored on the vault, not on itself."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = vault / link_at
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(outside, target_is_directory=True)
+
+    result = capture(vault, _request("exfiltrate me"))
+
+    assert result["status"] == "partial", f"{case}: a blocked projection is not success"
+    assert result["errors"][0]["code"] == "PATH_ESCAPES_VAULT"
+    assert result["outputs"] == []
+    assert _outside_files(outside) == [], f"{case}: zero bytes may be written outside"
+    # INV-001: the raw evidence still survives and still verifies.
+    assert read_raw_content(vault, result["capture_id"]) == "exfiltrate me"
+    record = json.loads(
+        (vault / CAPTURE_DIR / f"{result['capture_id']}.json").read_text(encoding="utf-8")
+    )
+    assert record["content_hash"] == content_hash("exfiltrate me")
+
+
+def test_default_projection_symlink_chain_fails_closed(
+    vault: Path, tmp_path: Path
+) -> None:
+    """A chained link must not be followed out of the vault either."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    middle = tmp_path / "middle"
+    middle.symlink_to(outside, target_is_directory=True)
+    (vault / "generated" / "obsidian").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "obsidian" / "captures").symlink_to(
+        middle, target_is_directory=True
+    )
+
+    result = capture(vault, _request("chained"))
+    assert result["status"] == "partial"
+    assert result["errors"][0]["code"] == "PATH_ESCAPES_VAULT"
+    assert _outside_files(outside) == []
+
+
+def test_default_projection_relative_symlink_target_fails_closed(
+    vault: Path, tmp_path: Path
+) -> None:
+    """A relative link target escapes just as effectively; reject it too."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    obsidian = vault / "generated" / "obsidian"
+    obsidian.mkdir(parents=True, exist_ok=True)
+    relative = Path(os.path.relpath(outside, obsidian))
+    (obsidian / "captures").symlink_to(relative, target_is_directory=True)
+
+    result = capture(vault, _request("relative"))
+    assert result["status"] == "partial"
+    assert result["errors"][0]["code"] == "PATH_ESCAPES_VAULT"
+    assert _outside_files(outside) == []
+
+
+def test_blocked_default_projection_never_materializes_the_far_side(
+    vault: Path, tmp_path: Path
+) -> None:
+    """The walk must stop *before* descending through a planted link.
+
+    ``mkdir(parents=True)`` on the far side of a symlinked ancestor is already
+    a write outside the boundary, even when it only creates a directory.
+    """
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (vault / "generated" / "obsidian").symlink_to(outside, target_is_directory=True)
+
+    capture(vault, _request("no mkdir outside"))
+
+    assert list(outside.iterdir()) == [], "not even an empty directory may be created"
+
+
+def test_normal_default_projection_still_writes_inside_the_vault(vault: Path) -> None:
+    """R1-C: the ordinary path is unaffected by the remediation."""
+    result = capture(vault, _request("ordinary"))
+    assert result["status"] == "ok"
+    note = vault / "generated" / "obsidian" / "captures" / result["outputs"][0][
+        "relative_path"
+    ]
+    assert note.is_file()
+    assert note.resolve().is_relative_to(vault.resolve())
+
+
+def test_explicit_external_obsidian_root_remains_supported(
+    vault: Path, tmp_path: Path
+) -> None:
+    """R1-D: the documented external opt-in must not become a failure."""
+    external = tmp_path / "ExternalObsidianVault"
+    external.mkdir()
+    result = capture(vault, _request("external opt-in"), obsidian_root=external)
+    assert result["status"] == "ok"
+    note = next(external.rglob("*.md"))
+    assert note.is_relative_to(external)
+    assert read_raw_content(vault, result["capture_id"]) == "external opt-in"
+
+
+def test_materialize_under_root_rejects_a_symlinked_component(tmp_path: Path) -> None:
+    """Unit-level: the walk rejects at the link, before creating beyond it."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "a").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="escapes root"):
+        materialize_under_root(root, Path("a/b/c"), label="test")
+    assert list(outside.iterdir()) == []
+
+
+def test_materialize_under_root_creates_a_clean_chain(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    created = materialize_under_root(root, Path("a/b/c"), label="test")
+    assert created.is_dir()
+    assert created.resolve().is_relative_to(root.resolve())
+    # Idempotent.
+    assert materialize_under_root(root, Path("a/b/c"), label="test") == created
+
+
+def test_materialize_under_root_rejects_an_absolute_relative(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    with pytest.raises(ValueError, match="vault-relative"):
+        materialize_under_root(root, Path("/etc"), label="test")

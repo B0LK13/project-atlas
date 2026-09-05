@@ -125,3 +125,38 @@ def write_atomic_under_root(
     finally:
         if tmp.exists():
             tmp.unlink(missing_ok=True)
+
+
+def materialize_under_root(root: Path, relative: Path, *, label: str) -> Path:
+    """Create ``root/relative`` without ever following a planted symlink.
+
+    Each component is created (or accepted if already present) and then
+    checked with ``lstat`` -- never ``realpath`` -- so the walk stops at the
+    first symlinked component *before* descending through it. That ordering
+    matters: a symlink at ``generated/obsidian`` would otherwise let
+    ``mkdir(parents=True)`` create the leaf on the far side of the link, which
+    is already a write outside the trust boundary.
+
+    ``lstat`` is also deterministic for a path that is being created
+    concurrently, unlike ``realpath`` -- so this stays safe on Windows without
+    reintroducing the spurious-containment-failure class documented above.
+
+    A final authoritative :func:`ensure_under_root` runs against the fully
+    materialized directory, where resolution is stable on every platform.
+
+    Security failures are never retried; only the benign concurrent-creation
+    races inside :func:`_mkdir_p` are.
+    """
+    if relative.is_absolute():
+        raise ValueError(f"unsafe {label}: {relative} must be vault-relative")
+    current = root
+    for segment in relative.parts:
+        current = current / segment
+        if not is_lexically_under(root, current):
+            raise ValueError(f"unsafe {label} escapes root: {current}")
+        _mkdir_p(current)
+        if current.is_symlink():
+            raise ValueError(
+                f"unsafe {label} escapes root: {current} is a symlink"
+            )
+    return ensure_under_root(root, current, label=label)

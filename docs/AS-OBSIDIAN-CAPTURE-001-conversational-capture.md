@@ -147,6 +147,53 @@ Stable error codes (`ROUTING_UNSAFE`, `UNMATCHED_PROJECT`,
 `CLIPBOARD_UNAVAILABLE`, `CAPTURE_INPUT_TOO_LARGE`, …) are surfaced on stdout
 and in `--json` output.
 
+## Projection trust anchor
+
+The projection root and the root that *contains* it are deliberately two
+different things, because the two modes have different trust anchors.
+
+| Mode | Projection root | Trust anchor |
+| --- | --- | --- |
+| **Implicit / default** | `<vault>/generated/obsidian/captures` | **the Atlas vault** |
+| **Explicit opt-in** (`--obsidian-vault`, `[tool.atlas.obsidian] vault_path`) | the configured directory | that directory |
+
+The default projection is an Atlas-managed *in-vault* destination, so the
+Atlas vault is the boundary — a symlink planted anywhere under
+`generated/obsidian` must not be able to redefine it. Writing into an
+external Obsidian vault stays a deliberate operator decision and keeps its
+own anchor; that contract is unchanged.
+
+Independent verification found this exact defect: the default root was
+previously self-anchored (`ensure_under_root(root, root)`), so pre-planting
+
+```text
+<vault>/generated/obsidian/captures -> /outside      (leaf)
+<vault>/generated/obsidian          -> /outside      (intermediate)
+```
+
+made the symlink target *become* the containment root. The capture then wrote
+the derived note outside the vault **and reported `status: ok`** — a false
+success, which is worse than the leak. The raw evidence store was never
+affected: it anchors on the vault and already rejected `generated -> outside`.
+
+The fix anchors the default projection on the vault and materializes the
+directory chain one component at a time, rejecting at the first symlinked
+component with `lstat` — never `realpath` — so the walk stops *before*
+descending through a planted link. That ordering matters: `mkdir(parents=True)`
+on the far side of a symlinked ancestor is already a write outside the
+boundary even when it only creates an empty directory. `lstat` is also
+deterministic for a concurrently-created path, so this does not reintroduce
+the Windows spurious-failure class below.
+
+Containment failures are never retried — only the benign concurrent-creation
+races (`FileExistsError`, `PermissionError` on `mkdir`/`os.replace`) are, and
+no arbitrary `OSError` is.
+
+When the projection is blocked the capture reports `partial` with
+`PATH_ESCAPES_VAULT`, writes zero bytes outside, preserves the raw evidence
+and its hash, and remains resumable via `atlas capture retry` once the
+offending link is removed.
+
 ## Windows concurrency
 
 Both writers go through `project_atlas.capture_io.write_atomic_under_root`, so

@@ -36,7 +36,7 @@ from atlas_contracts.identity import (
     safe_relative_component,
     safe_relative_path,
 )
-from project_atlas.capture_io import write_atomic_under_root
+from project_atlas.capture_io import materialize_under_root, write_atomic_under_root
 from project_atlas.capture_sources import CaptureRequest
 from project_atlas.logging import get_logger
 from project_atlas.obsidian_capture_note import ObsidianNoteError, write_note
@@ -304,24 +304,43 @@ def _resolve_vault(vault: Path) -> Path:
     return resolved
 
 
-def _resolve_obsidian_root(vault: Path, obsidian_root: Path | None) -> Path:
-    """Default the projection inside the Atlas vault.
+def _resolve_obsidian_root(
+    vault: Path,
+    obsidian_root: Path | None,
+) -> tuple[Path, Path]:
+    """Resolve the projection root and the root that *contains* it.
 
-    Writing into an external Obsidian vault is real but must be an explicit
-    operator decision, so the default target stays under ``--vault`` beside
-    the existing ``generated/obsidian/projects`` projection.
+    Returns ``(projection_root, containment_anchor)``. The two differ by
+    design, because the two modes have different trust anchors:
+
+    * **Implicit / default** -- Atlas derives
+      ``<vault>/generated/obsidian/captures``. This is an Atlas-managed
+      in-vault destination, so **the Atlas vault is the trust anchor**. A
+      symlink planted anywhere under ``generated/obsidian`` must not be able
+      to redefine that boundary, so the chain is materialized component by
+      component and rejected at the first symlinked component.
+    * **Explicit** (``--obsidian-vault`` / ``[tool.atlas.obsidian] vault_path``)
+      -- writing into an external Obsidian vault is a deliberate operator
+      opt-in, documented as such, so that configured root is its own anchor.
+      Notes are still contained *within* it.
     """
     if obsidian_root is None:
-        root = vault / DEFAULT_OBSIDIAN_DIR
-        root.mkdir(parents=True, exist_ok=True)
-        return root
+        try:
+            root = materialize_under_root(
+                vault,
+                DEFAULT_OBSIDIAN_DIR,
+                label="obsidian projection root",
+            )
+        except ValueError as exc:
+            raise CaptureError("PATH_ESCAPES_VAULT", str(exc)) from exc
+        return root, vault
     root = obsidian_root.expanduser().resolve()
     if not root.is_dir():
         raise CaptureError(
             "OBSIDIAN_CONFIGURATION_ERROR",
             f"configured obsidian vault is not a directory: {root}",
         )
-    return root
+    return root, root
 
 
 def _record_path(vault: Path, capture_id: str) -> Path:
@@ -416,11 +435,12 @@ def _render_stage(
     is recorded on the capture so ``atlas capture retry`` can resume it.
     """
     try:
-        root = _resolve_obsidian_root(vault, obsidian_root)
+        root, containment_root = _resolve_obsidian_root(vault, obsidian_root)
         artifact = write_note(
             record,
             content=content,
             obsidian_root=root,
+            containment_root=containment_root,
             include_content=include_content,
         )
     except (CaptureError, ObsidianNoteError, OSError, ValueError) as exc:

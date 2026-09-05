@@ -11192,3 +11192,65 @@ give-up, concurrent-mkdir tolerance, lexical gate before creation, raw-store
 symlink escape, write idempotency) so neither is left to whichever platform
 happens to find it. Local stress: 32 concurrent captures x 12 rounds, each
 producing exactly one record, one blob, one note, zero leftover temp files.
+
+
+## AS-OBSIDIAN-CAPTURE-001-R1 -- default projection root containment (supersedes 729acb65)
+
+Independent verification (Kimi) returned **FAIL** on `729acb65` with one
+material finding: the *default* Obsidian projection root could be redirected
+outside the Atlas vault by a pre-planted symlink.
+
+### Reproduced on 729acb65 before any code change
+
+| case | link | result |
+| --- | --- | --- |
+| R1-A | `<vault>/generated/obsidian/captures -> outside` | `status=ok`, 1 file / 1459 bytes written outside, capture content present |
+| R1-B | `<vault>/generated/obsidian -> outside` | `status=ok`, 1 file / 1459 bytes written outside, capture content present |
+| control | `<vault>/generated -> outside` | already failed closed (raw store anchors on the vault) |
+
+The false `ok` is the worse half: the operator was told the projection
+succeeded while the note landed outside the trust boundary.
+
+### Root cause
+
+`_resolve_obsidian_root(vault, None)` returned the derived default path
+without checking it against the vault, and `write_note` then self-anchored
+(`ensure_under_root(root, root)`) -- trivially true for any root, including a
+symlink target. The symlink therefore *became* the containment root. The raw
+evidence store was never affected because it anchors on the vault.
+
+### Remediation
+
+The projection root and its containment anchor are now separate. For the
+implicit in-vault projection the anchor is the Atlas vault; for the
+documented explicit external opt-in the configured directory remains its own
+anchor, so that contract is preserved.
+
+`capture_io.materialize_under_root` creates the default chain one component
+at a time and rejects at the first symlinked component using `lstat`, never
+`realpath`, so the walk stops before descending through a planted link --
+`mkdir(parents=True)` beyond a symlinked ancestor would itself be a write
+outside the boundary. `lstat` is deterministic for a concurrently-created
+path, so the Windows spurious-containment-failure class is not reintroduced.
+No second containment implementation was added; this lives in the same
+`capture_io` module as the existing primitives.
+
+`SECURITY_ERRORS_RETRIED = NO`. `ARBITRARY_OSERROR_RETRIED = NO`.
+
+### After the fix (all 0 bytes outside, raw preserved, hash stable)
+
+R1-A leaf, R1-B intermediate, `generated -> outside`, relative link target,
+symlink chain, routing-segment symlink (R1-E) and raw-store symlink (R1-F)
+all fail closed with `PATH_ESCAPES_VAULT`. R1-C normal default root writes
+inside the vault; R1-D explicit external root still succeeds. A dedicated
+test also asserts that not even an empty directory is created on the far side
+of a planted link.
+
+Ten regression tests were added and verified **load-bearing**: the five
+escape tests fail against the 729acb65 sources and pass against the fix.
+
+Scope held to the finding: the Atlas-3 governance guard, secret-redaction
+contract, ingestion/D-042 quarantine semantics, local API behaviour and the
+pre-existing relative-path `validate` defect are untouched. Kimi's governance
+obfuscation-class observation and the uncontracted secret shapes are recorded
+as NONBLOCKING and out of scope for this directive.
