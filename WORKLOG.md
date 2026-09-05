@@ -10937,6 +10937,54 @@ independent verification of this dispatch attempt happen at the governor
 layer, outside this runner.
 
 
+## M3 claim-boundary correction (retraction of overclaimed evidence tier)
+
+The "M3 -- first supervised autonomous Atlas run" entry above states this
+run "proves the supervised-autonomous execution path end to end (real
+origination, real lease, real LOCAL_PROCESS dispatch, real isolated
+worktree, real result receipt, ... independently re-checked)". That
+overstates what any artifact in this repository can support, and is
+corrected here rather than edited in place, per this file's own
+append-only convention.
+
+`LEASE-14` and `AS-ORCH-AUTONOMY-001E` appear in exactly two places in the
+entire repository: this WORKLOG entry, and the test module's own docstring
+-- which cites *this WORKLOG entry* as its evidence. That is one claim
+citing itself, not independent corroboration. No committed receipt,
+dispatch record, or lease record exists for this run: `.atlas/orchestration/`
+(where `RECEIPTS_RELATIVE`/`WORKTREES_RELATIVE` write) is gitignored by
+design (`.gitignore:90-91`), so a genuine receipt was never committable in
+the first place -- its absence proves nothing either way, but its absence
+also means this WORKLOG entry cannot be treated as durable, non-circular
+event evidence.
+
+Corrected evidence tiers for this run, stated explicitly rather than
+folded into one blanket "proves ... end to end":
+
+    STRUCTURAL_PIPELINE_PROOF   = YES -- the fixture pipeline (init/
+        discover/ingest/build-indexes/build-portfolio + AS-XPROJ-001/002/003)
+        composes and passes against two real, independent, committed
+        fixture projects (`harbor-api`, `harbor-ops`).
+    AUTHORIZED_SCOPE_PROOF      = YES -- the committed diff (WORKLOG.md +
+        the one test file) is byte-exactly the WorkNode's own
+        `proposed_scope`; independently verifiable from the diff alone.
+    DISPATCH_ID_FORMAT_PROOF    = YES -- `local-process:LEASE-14:0` matches
+        `local_dispatch_port.py`'s actual construction
+        (`f"{_dispatch_id_for(lease.lease_id)}:{attempt}"`, one line, no
+        separator beyond the literal colons) exactly.
+    AUTHENTIC_RUNTIME_EVENT_PROOF = NOT PROVEN -- that lease `LEASE-14` was
+        actually granted, that a real `AS-ORCH-AUTONOMY-001E` dispatch
+        occurred, and that a result receipt was written, is asserted by
+        this WORKLOG entry and nowhere independently corroborated in the
+        repository.
+
+Everything else in the original entry stands: `AUTHENTIC_PILOT = NO`,
+`INT013 = EXTERNAL_BLOCKED` (unchanged), the backlog checkbox stays
+unchecked, and `DEMO_FIXTURE != AUTHENTIC_PILOT` applies exactly as stated.
+Only the "real result receipt ... independently re-checked" language is
+withdrawn.
+
+
 ## AS-OBSIDIAN-CAPTURE-001 -- conversational knowledge capture & Obsidian bridge
 
 Isolated parallel lane. Base `START_BASE_HEAD = 31e7707`
@@ -11254,3 +11302,39 @@ contract, ingestion/D-042 quarantine semantics, local API behaviour and the
 pre-existing relative-path `validate` defect are untouched. Kimi's governance
 obfuscation-class observation and the uncontracted secret shapes are recorded
 as NONBLOCKING and out of scope for this directive.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- final integration with main, and a claim correction
+
+Merged `origin/main` @ `0525e0f7` into the lane. One conflict, `WORKLOG.md`,
+append-vs-append; **zero code conflicts**. Resolved by keeping the merge-base
+verbatim, then main's 2,658-byte addition, then this lane's 16,555-byte
+addition (552,552 + 2,658 + 16,555 = 571,765 bytes). Verified line-by-line
+that every non-blank line from all three sides survives: base 9,230/9,230,
+main 41/41, feature 253/253, zero conflict markers. No product code changed.
+
+### Correction to an earlier claim in this log
+
+The AS-OBSIDIAN-CAPTURE-001-R1 entry above states that a dedicated test
+asserts "not even an empty directory is created on the far side of a planted
+link". That is true only for the **default projection chain** protected by
+`materialize_under_root`, which is what the test actually covers. Independent
+verification correctly falsified the broader reading.
+
+The verified truth, now recorded in
+`docs/AS-OBSIDIAN-CAPTURE-001-conversational-capture.md`:
+
+- default projection chain (`generated/obsidian`, `.../captures`) -- rejected
+  before traversal; zero external directories, files, temp files or bytes;
+- raw-store and routing-segment paths (`generated`, `generated/ops`, a routing
+  segment) reach `write_atomic_under_root` without `materialize_under_root`
+  and create the parent before the authoritative check, so an **empty**
+  external directory can appear before the fail-closed rejection: 2 dirs for
+  `generated -> outside`, 1 for `generated/ops -> outside`, 1 for a routing
+  segment. Zero files, zero temp files, zero content bytes in every case.
+
+This reproduces identically on the pre-remediation head `729acb65`, so it is
+**pre-existing and not introduced by R1** -- R1 strictly improved the default
+chain, which previously leaked real note files. Carried forward as a known
+non-blocking finding, deliberately not remediated under the finalization
+directive's product-code freeze, and not claimed as fixed.
