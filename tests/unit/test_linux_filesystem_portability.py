@@ -15,6 +15,7 @@ excluded evidence -- never silently dropped, never ingested.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import shutil
@@ -620,3 +621,143 @@ def test_in_root_control_character_paths_cannot_forge_log_lines(
     assert collision, "the canonical-collision route must fire"
     assert all("\\x0a" in m for m in undecodable), "escaped in the undecodable route"
     assert all("\\x0a" in m for m in collision), "escaped in the collision route"
+
+
+def _inbox_with(root: Path, *projects: str) -> Path:
+    """An agent-event inbox holding one valid-shaped package per project."""
+    inbox = root / ".atlas-inbox" / "agent-events"
+    inbox.mkdir(parents=True, exist_ok=True)
+    for index, project in enumerate(projects, start=1):
+        _valid_package(inbox, project, f"evt-{index}")
+    return inbox
+
+
+@pytest.mark.skipif(_IS_ROOT, reason="root reads regardless of mode bits")
+def test_unreadable_agent_event_project_dir_does_not_abort(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """R5-A: an unreadable project directory must not kill the run.
+
+    `_discover_agent_events` iterated the inbox with no error handling, so one
+    mode-000 directory aborted the whole of `discover()` with `PermissionError`
+    -- the exact failure class the main walk had already been taught to
+    survive.
+    """
+    source = _write_source(tmp_path / "source")
+    inbox = _inbox_with(source, "proj-a", "proj-ok")
+    locked = inbox / "proj-a"
+    locked.chmod(0o000)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("filesystem does not enforce directory mode bits")
+        with caplog.at_level("WARNING"):
+            manifest = _discover(tmp_path, source)
+    finally:
+        locked.chmod(0o755)
+
+    events = manifest["agent_events"]
+    assert isinstance(events, list)
+    # R5-E: the accessible project is still inventoried, not lost with it.
+    # `_inbox_with` numbers packages across projects, so proj-ok holds evt-2.
+    assert [(e["project_id"], e["event_id"]) for e in events] == [("proj-ok", "evt-2")]
+    assert not any(e["project_id"] == "proj-a" for e in events), "no fabricated package"
+    assert "README.md" in _by_path(manifest), "ordinary sources still inventoried"
+    assert any("inaccessible discovery scope" in m for m in caplog.messages)
+
+
+@pytest.mark.skipif(_IS_ROOT, reason="root reads regardless of mode bits")
+def test_unreadable_agent_event_root_does_not_abort(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """R5-B: an unreadable inbox root degrades to "no events", not a crash."""
+    source = _write_source(tmp_path / "source")
+    inbox = _inbox_with(source, "proj-a")
+    inbox.chmod(0o000)
+    try:
+        if os.access(inbox, os.R_OK):
+            pytest.skip("filesystem does not enforce directory mode bits")
+        with caplog.at_level("WARNING"):
+            manifest = _discover(tmp_path, source)
+    finally:
+        inbox.chmod(0o755)
+
+    assert manifest["agent_events"] == []
+    assert "README.md" in _by_path(manifest)
+    assert any("inaccessible discovery scope" in m for m in caplog.messages)
+
+
+@pytest.mark.skipif(_IS_ROOT, reason="root reads regardless of mode bits")
+def test_unreadable_event_package_dir_does_not_abort(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """R5-C: this one raises inside `atlas_contracts`, so the call is guarded.
+
+    No inventory row is appended for the unreadable package: a partially-read
+    package would be fabricated evidence.
+    """
+    source = _write_source(tmp_path / "source")
+    inbox = _inbox_with(source, "proj-a", "proj-ok")
+    package = inbox / "proj-a" / "evt-1"
+    package.chmod(0o000)
+    try:
+        if os.access(package, os.R_OK):
+            pytest.skip("filesystem does not enforce directory mode bits")
+        with caplog.at_level("WARNING"):
+            manifest = _discover(tmp_path, source)
+    finally:
+        package.chmod(0o755)
+
+    events = manifest["agent_events"]
+    assert isinstance(events, list)
+    assert [(e["project_id"], e["event_id"]) for e in events] == [("proj-ok", "evt-2")]
+    assert any("inaccessible discovery scope" in m for m in caplog.messages)
+
+
+@pytest.mark.skipif(_IS_ROOT, reason="root reads regardless of mode bits")
+def test_inaccessible_agent_event_scope_is_reported_exactly_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """One deterministic diagnostic per inaccessible scope, not two.
+
+    The main walk reaches the same path first and reports it before any
+    exclusion logic runs. The inventory therefore stays quiet rather than
+    restating one fact about one path.
+    """
+    source = _write_source(tmp_path / "source")
+    inbox = _inbox_with(source, "proj-a")
+    locked = inbox / "proj-a"
+    locked.chmod(0o000)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("filesystem does not enforce directory mode bits")
+        with caplog.at_level("WARNING"):
+            _discover(tmp_path, source)
+    finally:
+        locked.chmod(0o755)
+
+    naming = [m for m in caplog.messages if "agent-events/proj-a" in m]
+    assert len(naming) == 1, f"expected exactly one diagnostic, got {naming}"
+
+
+def test_unexpected_oserror_in_event_inventory_still_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R5-F: only unreadable-scope errnos are absorbed; faults stay visible.
+
+    The guard must not become "catch everything and continue" -- an EIO is a
+    genuine failure, not a scope this run may skip.
+    """
+    source = _write_source(tmp_path / "source")
+    _inbox_with(source, "proj-a")
+
+    real_iterdir = Path.iterdir
+
+    def fake_iterdir(self: Path):  # type: ignore[no-untyped-def]
+        if self.name == "agent-events":
+            raise OSError(errno.EIO, "simulated I/O error")
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", fake_iterdir)
+    with pytest.raises(OSError) as excinfo:
+        discover(source)
+    assert excinfo.value.errno == errno.EIO, "an unexpected fault must not be swallowed"

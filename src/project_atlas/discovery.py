@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import fnmatch
 import hashlib
 import json
@@ -202,6 +203,22 @@ def _reportable(relative: str) -> str:
     )
 
 
+#: Errnos the discovery contract already treats as "this scope cannot be read"
+#: rather than as a fault. The first four are exactly what `pathlib` itself
+#: ignores when answering is_file()/is_dir() (see `pathlib._ignore_error`); the
+#: last two mean the scope exists but may not be entered. Anything else --
+#: ENOMEM, EIO, ENFILE -- is a genuine failure and must stay visible rather
+#: than be absorbed into a "keep going" path.
+_INACCESSIBLE_SCOPE_ERRNOS = frozenset(
+    {errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP, errno.EACCES, errno.EPERM}
+)
+
+
+def _is_inaccessible_scope(exc: OSError) -> bool:
+    """True when `exc` means an unreadable scope, not an unexpected fault."""
+    return exc.errno in _INACCESSIBLE_SCOPE_ERRNOS
+
+
 def _is_listable(path: Path) -> bool:
     """True when this directory's entries can actually be enumerated.
 
@@ -267,7 +284,20 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
     if not inbox.is_dir() or inbox.is_symlink():
         return []
     inventories: list[EventPackageInventory] = []
-    for project_dir in sorted(inbox.iterdir(), key=lambda path: path.name.lower()):
+    try:
+        project_dirs = sorted(inbox.iterdir(), key=lambda path: path.name.lower())
+    except OSError as exc:
+        if not _is_inaccessible_scope(exc):
+            raise
+        # Deliberately no diagnostic here. `discover()`'s own walk reaches this
+        # same path first and already emits exactly one
+        # "inaccessible discovery scope" warning naming it -- before any
+        # exclusion logic runs, so the report is emitted even when the subtree
+        # is excluded from `sources`. A second warning would restate one fact
+        # about one path. What must not happen is what used to: the whole run
+        # aborting because one scope could not be read.
+        return []
+    for project_dir in project_dirs:
         if not project_dir.is_dir():
             # AS-INT-001: only `<project-id>/<event-id>/` package directories
             # are valid here, and `discover()` excludes this whole subtree from
@@ -283,7 +313,13 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
                 _reportable(project_dir.relative_to(root).as_posix()),
             )
             continue
-        for event_dir in sorted(project_dir.iterdir(), key=lambda path: path.name.lower()):
+        try:
+            event_dirs = sorted(project_dir.iterdir(), key=lambda path: path.name.lower())
+        except OSError as exc:
+            if not _is_inaccessible_scope(exc):
+                raise
+            continue  # already reported by the main walk; see the note above
+        for event_dir in event_dirs:
             if not event_dir.is_dir():
                 _log.warning(
                     "unexpected non-package entry in reserved agent-event scope: %s "
@@ -292,9 +328,17 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
                 )
                 continue
             relative = event_dir.relative_to(root).as_posix()
-            inventories.append(
-                inspect_event_package(root, project_dir.name, event_dir.name, relative)
-            )
+            try:
+                inventories.append(
+                    inspect_event_package(root, project_dir.name, event_dir.name, relative)
+                )
+            except OSError as exc:
+                if not _is_inaccessible_scope(exc):
+                    raise
+                # The package contents could not be read, so no inventory row
+                # is appended: a partially-read package would be fabricated
+                # evidence. Already reported by the main walk; see above.
+                continue
     by_event_id: dict[str, list[EventPackageInventory]] = {}
     for inventory in inventories:
         by_event_id.setdefault(inventory.event_id, []).append(inventory)

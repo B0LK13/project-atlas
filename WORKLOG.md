@@ -11622,11 +11622,11 @@ table earlier in this file is historical, whatever its heading says.**
 
 | Path | sha256 | Status |
 | --- | --- | --- |
-| `src/project_atlas/discovery.py` | `6433b1d6711c5d66ad68c8b51226fa365f1481ad7312921bce1776542149c273` | **CURRENT** |
+| `src/project_atlas/discovery.py` | `57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c` | **CURRENT** |
 | `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | **CURRENT** (unchanged since the first grant) |
 
 Superseded `discovery.py` pins, newest first:
-`1bfc4d35`, `c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
+`6433b1d6`, `1bfc4d35`, `c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
 `a4c55877` (R_READY, pre-R4), `d8ee84fc` (R_READY, pre-remediation),
 `e43d97b2` (first grant).
 
@@ -11773,3 +11773,85 @@ assertion -- each route is now pinned separately.
 Also corrected: the PR's older results table listed control-plane as 194
 passed; the suite is **242** (242 on `origin/main` too, so stale drift, not a
 regression).
+
+---
+
+## R_READY-5 — R5 agent-event inventory unreadable-scope abort
+
+**Date:** 2026-09-05
+**Directive:** R_READY-5 (narrowly scoped owner authorization)
+**Base head:** `9c146a31` / tree `51006ec4`
+
+### Base reproduction (exact, pre-fix)
+
+| case | pre-fix behaviour | raise site |
+| --- | --- | --- |
+| R5-A unreadable **project dir** (`agent-events/proj-a`, 0000) | main walk warns `inaccessible discovery scope`, then abort `PermissionError [Errno 13]`, exit 1 | `discovery.py:286` -- `project_dir.iterdir()` |
+| R5-B unreadable **inbox root** (`agent-events`, 0000) | same warning, then abort, exit 1 | `discovery.py:270` -- `inbox.iterdir()` |
+| R5-C unreadable **package dir** (`proj-a/evt-1`, 0000) | same warning, then abort, exit 1 | **`atlas_contracts/event_package.py:103`** via `load_event_package` |
+
+R5-C raises *outside* `discovery.py`. This grant authorizes `discovery.py`
+only, so it is closed by guarding the `inspect_event_package(...)` **call
+site**; `atlas_contracts/` is untouched.
+
+### Error classification (not a blanket catch)
+
+Compared against the existing helpers before choosing a set:
+`pathlib` itself ignores exactly `ENOENT`, `ENOTDIR`, `EBADF`, `ELOOP` when
+answering `is_file()`/`is_dir()`. The discovery contract's notion of an
+inaccessible scope adds the two that mean "exists but may not be entered".
+`_INACCESSIBLE_SCOPE_ERRNOS` is therefore
+`{ENOENT, ENOTDIR, EBADF, ELOOP, EACCES, EPERM}`; every other errno --
+`ENOMEM`, `EIO`, `ENFILE` -- re-raises. Proven by R5-F: an injected `EIO`
+propagates out of `discover()` rather than being absorbed.
+
+### One diagnostic per inaccessible scope (no duplicates)
+
+The fix emits **no** new diagnostic. `discover()`'s own walk reaches each of
+these paths first and already emits exactly one
+`inaccessible discovery scope, contents not inventoried: <path>` naming it --
+and does so *before* any exclusion logic runs, so the report survives even
+when the subtree is excluded from `sources`. A second warning would restate
+one fact about one path, which SS5 of the directive rules out. Pinned by
+`test_inaccessible_agent_event_scope_is_reported_exactly_once`, which asserts
+exactly one message names the path.
+
+### Fixed behaviour
+
+| case | fixed |
+| --- | --- |
+| R5-A | exit 0; `proj-a` reported; **`proj-ok/evt-2` still inventoried** |
+| R5-B | exit 0; `agent_events == []`; ordinary sources still inventoried |
+| R5-C | exit 0; no row for the unreadable package (a partially-read package would be fabricated evidence); `proj-ok` still inventoried |
+| R5-D valid package | unchanged routing |
+| R5-E mixed | unreadable reported **and** valid project still processed |
+| R5-F unexpected `EIO` | propagates |
+
+`FABRICATED_EVENT_COUNT = 0`, `FABRICATED_SOURCE_COUNT = 0`. Package identity
+rules, schema and ID inference are untouched.
+
+### Claim boundary
+
+The earlier broad claim is **not** restored. The proven statement is:
+**unreadable scopes handled by the main discovery traversal and by the
+agent-event inventory are observable and non-fatal for the tested
+repository-supported inaccessible-path classes** (`EACCES`/`EPERM` exercised
+directly; `ENOENT`/`ENOTDIR`/`EBADF`/`ELOOP` inherited from the `pathlib`
+contract). It is not a claim that every filesystem error is non-fatal --
+R5-F proves the opposite by construction. `TOCTOU_BRANCH = UNPROVEN` and the
+universal `NO_SILENT_LOSS` both remain withdrawn.
+
+### R4 not regressed
+
+Re-run on one tree: loose document in reserved scope reported; external file
+symlink and external directory symlink both reported and never followed;
+in-root content inventoried under its canonical path; broken symlink, FIFO and
+device link all correctly not sources. Six of six.
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `6433b1d6711c5d66ad68c8b51226fa365f1481ad7312921bce1776542149c273` |
+| `NEW_PIN` | `57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c` |
+| `PIN_ENTRY_COUNT` | **1** for `discovery.py` (replaced in place, asserted programmatically) |
+
+`ingestion.py` byte-identical and its pre-existing two-hash `any()` untouched.
