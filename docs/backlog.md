@@ -807,3 +807,6 @@ Historical roadmaps are classified as inputs and are not erased._
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`
 
+- [x] AS-OBSIDIAN-CAPTURE-001 Conversational knowledge capture + Obsidian bridge (raw evidence preserved verbatim; projection != source; CAPTURE != AUTHORITY; renamed from the incoming `AS-OBS-001` title, which collides with the CLOSED observability health-snapshot package)
+- [ ] AS-OBSIDIAN-CAPTURE-002 Localhost capture API + browser extension (BLOCKED: LIVE_API is contractually read-only; needs its own work package)
+- [ ] AS-OBSIDIAN-CAPTURE-003 Conversation intelligence (summary/decision/action extraction; consumes AS-OBSIDIAN-CAPTURE-001 CaptureRecords; AI enrichment stays opt-in)

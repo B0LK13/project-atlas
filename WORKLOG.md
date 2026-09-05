@@ -10935,3 +10935,97 @@ WorkNode's authorized mutation surface (`proposed_scope`) regardless, and
 substantively not owed a check given the above. Result binding and
 independent verification of this dispatch attempt happen at the governor
 layer, outside this runner.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- conversational knowledge capture & Obsidian bridge
+
+Isolated parallel lane. Base `START_BASE_HEAD = 31e7707`
+(`START_BASE_TREE = b329500`), branch
+`feat/as-obs-001-conversational-knowledge-capture`, dedicated worktree and
+dedicated venv (the repo `.venv` resolves to the sibling lane's source tree,
+so it was never used here).
+
+### Package identity: the incoming architecture's `AS-OBS-001` collides
+
+The delivered architecture document is titled **AS-OBS-001**. That id is
+already owned by the **CLOSED** Operational Health Snapshot package
+(`src/project_atlas/ops_health.py`, `ops-health-snapshot.schema.json`,
+`tests/unit/test_as_obs_001_health_snapshot.py`), consumed by `AS-OBS-002`
+and `AS-OBS-003`; in this repo `OBS` = observability, not Obsidian. Shipped
+as **`AS-OBSIDIAN-CAPTURE-001`**. No existing package semantics were reopened.
+
+### Delivered
+
+`capture_sources.py` (text/stdin/clipboard adapters, `CaptureRequest`),
+`obsidian_capture.py` (capture service, raw evidence repository, dedupe,
+routing, lifecycle, retry, list), `obsidian_capture_note.py` (Obsidian output
+adapter), `schemas/raw-capture.schema.json` (+ `schema.py` registration),
+`config.py` `[tool.atlas.capture]` / `[tool.atlas.obsidian]` sections, and
+CLI `atlas capture text|raw-list|retry|show`. 71 new tests
+(`tests/unit/test_as_obsidian_capture_001.py`,
+`tests/integration/test_as_obsidian_capture_001_journey.py`).
+Docs: `docs/AS-OBSIDIAN-CAPTURE-001-conversational-capture.md`.
+
+Where repository truth overrode the architecture document (it says repo truth
+wins): no generated wall-clock values (NFR-001) so filenames are
+`<slug>-<capture_id>.md` and `captured_at` is operator-supplied or UNKNOWN,
+never "now"; raw evidence lives in its own quarantined plane rather than
+relaxing `conversation_capture.py`'s `RAW_TRANSCRIPT_FORBIDDEN` (D-042 /
+CAPTURE-002, also a demo-isolation DENY path); secrets are preserved verbatim
+in raw evidence but redacted out of every derived artifact including the
+derived title, which becomes the note filename on disk.
+
+### Defects found by the new tests and fixed in this lane
+
+1. `read_raw_content` used `Path.read_text`, whose universal-newline
+   translation silently rewrote CRLF evidence -- breaking INV-001 and the
+   retry content-hash check. Now reads bytes and decodes explicitly.
+2. `RoutingPolicy.validate` split destinations on `/` before validating
+   components, so an absolute value like `/etc` became a relative `etc`
+   instead of being rejected. Now uses `safe_relative_path` on the whole
+   value (both the policy and the note adapter).
+3. The derived title was not redacted, so a secret on the first captured
+   line reached the capture record and the note **filename on disk** even
+   though the note body was redacted.
+4. Atomic writes used a shared `<name>.tmp`, so concurrent identical captures
+   raced and the loser's `os.replace` failed with ENOENT -- exactly the
+   architecture §49 duplicate-race class. Now a per-writer temp name.
+
+### BLOCKER (owner decision required; NOT worked around in this lane)
+
+`tests/unit/test_atlas3_demo_isolation_001.py::test_cli_mutation_is_additive_only`
+fails for this branch. The guard says: if `src/project_atlas/cli.py` is in the
+changed set at all, the diff **must** contain `register_atlas3_parsers` /
+`dispatch_atlas3` and must add a line containing `register_atlas3_parsers`.
+
+- The guard landed 2026-08-31 (`ac5f2689`); the last commit touching `cli.py`
+  is 2026-08-27 (`68b49348`). No branch has touched `cli.py` since, so this
+  lane is the first to hit it.
+- It is unsatisfiable for any non-Atlas-3 CLI addition: the atlas3 seam
+  receives only the top-level `subparsers`, and `atlas capture text` is a
+  *subcommand* of the `capture` parser built in `cli.py`. Making the diff
+  strictly additive does not help -- the `register_atlas3_parsers` assertions
+  fail independently.
+- Its own module docstring scopes it to "Atlas 3 must not rewrite certified
+  demo / 2.x surfaces", and the file explicitly forbids using its exception
+  mechanism "to work around a failing guard on an unreviewed change".
+
+This lane therefore did **not** modify the guard: it is another lane's
+governance artifact and narrowing it needs an owner grant recorded here.
+Nothing on the demo-isolation **DENY** list was touched
+(`conversation_capture.py`, `chatgpt_capture.py`, `api_server.py`,
+`ingestion.py`, ... are all untouched), and the DENY freeze test passes.
+
+Proposed minimal remedy for owner review: gate the atlas3-specific
+assertions on the diff actually touching the atlas3 registration surface,
+leaving `removed == []` and the DENY freeze unchanged. Not applied here.
+
+### Not delivered, deliberately
+
+Localhost capture API (§23) and browser extension (§25): `LIVE_API` is a
+contractually read-only surface and adding a write endpoint needs its own
+work package. The seam is ready -- every entry point converges on
+`obsidian_capture.capture()`, `source_adapter` already accepts `"api"`, and
+`CaptureResult` is the shared machine contract. AI enrichment, message-level
+conversation parsing, and graph relations remain follow-ups; `derived_artifacts[]`
+already allows 1 capture -> N artifacts without a schema migration.

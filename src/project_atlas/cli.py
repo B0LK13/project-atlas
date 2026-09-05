@@ -44,11 +44,18 @@ from project_atlas.backup import (
     verify_bundle,
 )
 from project_atlas.bitemporal_catalog import build_bitemporal_catalogs
+from project_atlas.capture_sources import (
+    SOURCE_TYPES,
+    CaptureSourceError,
+    build_capture_request,
+    read_clipboard_text,
+    read_stdin_text,
+)
 from project_atlas.compat_anchor import (
     CompatAnchorError,
     load_compatibility_anchor,
 )
-from project_atlas.config import load_config
+from project_atlas.config import AtlasConfig, load_config
 from project_atlas.connect import (
     ConnectError,
     connect_project,
@@ -157,6 +164,19 @@ from project_atlas.lifecycle_cert import (
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.mcp_server import McpServerError, invoke_mcp_tool
 from project_atlas.migrations.claim_v2_migration import migrate_v2
+from project_atlas.obsidian_capture import (
+    CLASSIFICATIONS,
+    CaptureError,
+    RoutingPolicy,
+    read_raw_content,
+)
+from project_atlas.obsidian_capture import capture as capture_raw
+from project_atlas.obsidian_capture import (
+    list_captures as list_raw_captures,
+)
+from project_atlas.obsidian_capture import (
+    retry as retry_capture,
+)
 from project_atlas.obsidian_projection import (
     ObsidianProjectionError,
     materialize_obsidian_projection,
@@ -361,6 +381,181 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
                 args.projects = [only]
             elif hasattr(args, "project"):
                 args.project = only
+
+
+def _raw_capture_content(args: argparse.Namespace, config: AtlasConfig) -> str:
+    """Acquire raw content from exactly one source adapter (architecture §6.1)."""
+    sources = [
+        args.text is not None,
+        bool(args.from_stdin),
+        bool(args.from_clipboard),
+    ]
+    if sum(1 for item in sources if item) != 1:
+        raise CaptureSourceError(
+            "MALFORMED_REQUEST",
+            "provide exactly one of --text, --stdin, or --clipboard",
+        )
+    if args.text is not None:
+        return str(args.text)
+    if args.from_stdin:
+        return read_stdin_text()
+    if not config.capture.clipboard.enabled:
+        raise CaptureSourceError(
+            "CLIPBOARD_DISABLED",
+            "clipboard capture is disabled in configuration",
+        )
+    return read_clipboard_text()
+
+
+def _raw_capture_routing(config: AtlasConfig) -> RoutingPolicy:
+    routing = config.obsidian.routing
+    return RoutingPolicy(
+        inbox=routing.inbox,
+        projects=routing.projects,
+        decisions=routing.decisions,
+        research=routing.research,
+        directives=routing.directives,
+    )
+
+
+def _raw_capture_obsidian_root(args: argparse.Namespace, config: AtlasConfig) -> Path | None:
+    """CLI argument wins over configuration (architecture §31)."""
+    explicit = getattr(args, "obsidian_vault", None)
+    if explicit is not None:
+        return Path(explicit)
+    if config.obsidian.vault_path:
+        return Path(config.obsidian.vault_path)
+    return None
+
+
+def _print_raw_capture_report(report: dict[str, Any]) -> None:
+    """Human-readable capture result (architecture §50)."""
+    if report.get("duplicate"):
+        print("Duplicate capture detected.")
+        print(f"  Capture ID : {report.get('capture_id')}")
+        print(f"  Hash       : {report.get('content_hash')}")
+        print("  No duplicate note created.")
+        return
+    outputs = report.get("outputs") or []
+    print(f"atlas capture text [{report.get('status')}]")
+    print(f"  Capture ID : {report.get('capture_id')}")
+    print(f"  Project    : {report.get('project_id') or 'UNKNOWN (inbox fallback)'}")
+    print(f"  Class      : {report.get('classification')}")
+    print(f"  Hash       : {report.get('content_hash')}")
+    print(f"  Raw        : persisted ({report.get('raw_path')})")
+    if outputs:
+        for artifact in outputs:
+            print(f"  Obsidian   : written ({artifact.get('relative_path')})")
+    else:
+        print("  Obsidian   : not written")
+    print("  Atlas      : quarantined evidence (NOT Truth Core; not ingested)")
+    for warning in report.get("warnings") or []:
+        print(f"  warning    : {warning}")
+    for error in report.get("errors") or []:
+        print(f"  error      : [{error.get('code')}] {error.get('message')}")
+        print(f"  retry with : atlas capture retry --capture-id {report.get('capture_id')}")
+
+
+def _run_raw_capture(args: argparse.Namespace, config: AtlasConfig) -> int:
+    """AS-OBSIDIAN-CAPTURE-001 CLI adapter.
+
+    The CLI is an entry adapter only: it acquires content, builds a
+    ``CaptureRequest`` and delegates to the shared capture service. No
+    persistence, identity or routing logic lives here (architecture §21).
+    """
+    as_json = bool(getattr(args, "as_json", False))
+    try:
+        if args.capture_command == "show":
+            # Read-only evidence recovery; content goes to stdout, logs to stderr.
+            sys.stdout.write(read_raw_content(args.vault, args.capture_id))
+            return EXIT_OK
+        if args.capture_command == "raw-list":
+            rows = list_raw_captures(
+                args.vault,
+                project_id=args.project,
+                limit=args.limit,
+            )
+            report: dict[str, Any] = {
+                "schema_version": 1,
+                "package": "AS-OBSIDIAN-CAPTURE-001",
+                "status": "ok",
+                "count": len(rows),
+                "captures": rows,
+                "authority": False,
+                "truth_boundary": (
+                    "CAPTURE != AUTHORITY / PROJECTION != SOURCE / RAW != TRUTH CORE"
+                ),
+            }
+            if as_json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                print(f"atlas capture raw-list [{len(rows)}]")
+                if not rows:
+                    print("  UNKNOWN (no raw captures yet)")
+                for row in rows:
+                    print(
+                        f"  - {row.get('capture_id')} [{row.get('classification')}] "
+                        f"{row.get('title')} ({row.get('lifecycle_state')})"
+                    )
+            return EXIT_OK
+        if args.capture_command == "retry":
+            result = retry_capture(
+                args.vault,
+                args.capture_id,
+                obsidian_root=_raw_capture_obsidian_root(args, config),
+                include_content=config.obsidian.include_content,
+            )
+        else:
+            content = _raw_capture_content(args, config)
+            request = build_capture_request(
+                content=content,
+                source_type=args.source_type,
+                source_application=(
+                    args.source_application or config.capture.default_source_application
+                ),
+                source_adapter=(
+                    "clipboard"
+                    if args.from_clipboard
+                    else ("stdin" if args.from_stdin else "text")
+                ),
+                project_reference=args.project,
+                title_hint=args.title_hint,
+                source_locator=args.source_locator,
+                captured_at=args.captured_at,
+            )
+            result = capture_raw(
+                args.vault,
+                request,
+                classification=args.classification,
+                routing=_raw_capture_routing(config),
+                obsidian_root=_raw_capture_obsidian_root(args, config),
+                render=(not args.no_render) and config.obsidian.enabled,
+                include_content=config.obsidian.include_content,
+            )
+    except (CaptureError, CaptureSourceError) as exc:
+        _log.error("capture failed: %s", exc)
+        body = {
+            "status": "error",
+            "error": exc.code,
+            "message": str(exc),
+            "package": "AS-OBSIDIAN-CAPTURE-001",
+        }
+        if as_json:
+            print(json.dumps(body, indent=2, sort_keys=True))
+        else:
+            print(f"atlas capture {args.capture_command} error [{exc.code}]: {exc}")
+        return EXIT_ERROR
+    except (OSError, ValueError) as exc:
+        _log.error("capture failed: %s", exc)
+        return EXIT_ERROR
+
+    if as_json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        _print_raw_capture_report(result)
+    # Evidence is durable either way; a partial result still fails loud so a
+    # scripted caller notices the projection gap and can retry it.
+    return EXIT_ERROR if result.get("status") == "partial" else EXIT_OK
 
 
 def _load_conversation_envelope(args: argparse.Namespace) -> dict[str, Any]:
@@ -1305,6 +1500,102 @@ def build_parser() -> argparse.ArgumentParser:
         dest="review_state",
     )
     capture_review.add_argument("--json", action="store_true", dest="as_json")
+
+    # AS-OBSIDIAN-CAPTURE-001 — raw capture evidence + Obsidian projection.
+    # PRESERVE FIRST: raw evidence is durable before any projection runs.
+    capture_text = capture_sub.add_parser(
+        "text",
+        help=(
+            "Capture raw text/conversation evidence and project it to Obsidian "
+            "(CAPTURE != AUTHORITY; raw evidence is preserved verbatim)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas capture text --vault <vault> --text 'Important information'\n"
+            "  pbpaste | atlas capture text --vault <vault> --stdin\n"
+            "  atlas capture text --vault <vault> --clipboard "
+            "--source-type conversation --application chatgpt --project harbor-api\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    capture_text.add_argument("--vault", type=Path, default=None)
+    capture_text.add_argument("--project", default=None)
+    capture_text.add_argument("--text", default=None)
+    capture_text.add_argument("--stdin", action="store_true", dest="from_stdin")
+    capture_text.add_argument("--clipboard", action="store_true", dest="from_clipboard")
+    capture_text.add_argument(
+        "--source-type",
+        default="text",
+        choices=sorted(SOURCE_TYPES),
+        dest="source_type",
+    )
+    capture_text.add_argument(
+        "--application",
+        default=None,
+        dest="source_application",
+        help="Originating application token (chatgpt, claude, clipboard, ...).",
+    )
+    capture_text.add_argument(
+        "--classification",
+        default=None,
+        choices=sorted(CLASSIFICATIONS),
+        help="Override the deterministic classification used for routing.",
+    )
+    capture_text.add_argument("--title", default=None, dest="title_hint")
+    capture_text.add_argument("--locator", default="", dest="source_locator")
+    capture_text.add_argument(
+        "--captured-at",
+        default=None,
+        dest="captured_at",
+        help=(
+            "Operator-supplied ISO-8601 capture time. Never generated by Atlas "
+            "(NFR-001 determinism); omitted means UNKNOWN, not 'now'."
+        ),
+    )
+    capture_text.add_argument(
+        "--obsidian-vault",
+        type=Path,
+        default=None,
+        dest="obsidian_vault",
+        help=(
+            "External Obsidian vault root for the projection. Default: inside "
+            "--vault at generated/obsidian/captures/."
+        ),
+    )
+    capture_text.add_argument(
+        "--no-render",
+        action="store_true",
+        dest="no_render",
+        help="Persist raw evidence only; skip the Obsidian projection.",
+    )
+    capture_text.add_argument("--json", action="store_true", dest="as_json")
+
+    capture_raw_list = capture_sub.add_parser(
+        "raw-list",
+        help="List raw captures (deterministic capture_id order; not time-based).",
+    )
+    capture_raw_list.add_argument("--vault", type=Path, default=None)
+    capture_raw_list.add_argument("--project", default=None)
+    capture_raw_list.add_argument("--limit", type=int, default=20)
+    capture_raw_list.add_argument("--json", action="store_true", dest="as_json")
+
+    capture_retry = capture_sub.add_parser(
+        "retry",
+        help="Re-run the Obsidian projection for a persisted raw capture.",
+    )
+    capture_retry.add_argument("--vault", type=Path, default=None)
+    capture_retry.add_argument("--capture-id", required=True, dest="capture_id")
+    capture_retry.add_argument(
+        "--obsidian-vault", type=Path, default=None, dest="obsidian_vault"
+    )
+    capture_retry.add_argument("--json", action="store_true", dest="as_json")
+
+    capture_show = capture_sub.add_parser(
+        "show",
+        help="Print the verbatim preserved evidence for a raw capture (read-only).",
+    )
+    capture_show.add_argument("--vault", type=Path, default=None)
+    capture_show.add_argument("--capture-id", required=True, dest="capture_id")
 
     inbox_parser = subparsers.add_parser(
         "inbox",
@@ -4266,6 +4557,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error("query failed: %s", exc)
             return EXIT_ERROR
 
+
+    if args.command == "capture" and args.capture_command in {
+        "text",
+        "raw-list",
+        "retry",
+        "show",
+    }:
+        return _run_raw_capture(args, config)
 
     if args.command == "capture":
         try:

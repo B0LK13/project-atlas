@@ -178,6 +178,8 @@ SCHEMA_FILES: dict[str, str] = {
     "knowledge-inbox-receipt": "knowledge-inbox-receipt.schema.json",
     # AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001 — quarantined conversation envelope
     "conversation-capture": "conversation-capture.schema.json",
+    # AS-OBSIDIAN-CAPTURE-001 - raw capture evidence (quarantined; never authority)
+    "raw-capture": "raw-capture.schema.json",
     # AS-2.0-SCHED-001 — autonomy scheduler dry-run
     "scheduler-dry-run": "scheduler-dry-run.schema.json",
     # AS-2.0-SEC-001 — continuous security receipt (metadata only)
