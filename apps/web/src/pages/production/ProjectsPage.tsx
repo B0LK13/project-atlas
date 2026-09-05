@@ -10,7 +10,7 @@ export default function ProjectsPage() {
 
   return (
     <ProdShell>
-      <main className="shell">
+      <main id="main" className="shell" tabIndex={-1}>
         <header className="hero">
           <p className="eyebrow">Production · Projects</p>
           <h1>Projects</h1>
