@@ -87,11 +87,13 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "a package while the walk did not, so an aliased scope was "
             "inventoried twice or silently not at all; links are now refused "
             "on physical identity, reported, and a linked event directory is "
-            "recorded as an invalid row)"
+            "recorded as an invalid row), plus the IV remediation (ENAMETOOLONG "
+            "joins the inaccessible-scope set: a tree grown past PATH_MAX is "
+            "one unaddressable path, not a fault)"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "fc9a0b0908c9cc73dab0c44d4d0cd25e27d081762449fd63e97dd251567248f2"
+            "11d5918d8569d915f5851bd001629b532cdda308acb64453170147bd1562ff0a"
         ),
     },
     {

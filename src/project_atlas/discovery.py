@@ -206,15 +206,26 @@ def _reportable(relative: str) -> str:
 #: Errnos the discovery contract already treats as "this scope cannot be read"
 #: rather than as a fault. The first four are exactly what `pathlib` itself
 #: ignores when answering is_file()/is_dir() (see `pathlib._ignore_error`); the
-#: last two mean the scope exists but may not be entered. Anything else --
-#: ENOMEM, EIO, ENFILE -- is a genuine failure and must stay visible rather
-#: than be absorbed into a "keep going" path. Every `except OSError` in this
-#: module filters through `_is_inaccessible_scope`: an unreadable path is
-#: reported (or recorded as excluded evidence) and the run continues; a fault
-#: propagates, because "skipped: Input/output error" with exit 0 would report
-#: a corruption signal as an ordinary permission problem.
+#: next two mean the scope exists but may not be entered; ENAMETOOLONG means
+#: the kernel will not address the entry at all (an absolute path past
+#: PATH_MAX, which Linux happily lets a tree grow into) -- a property of that
+#: one path, not a fault. Anything else -- ENOMEM, EIO, ENFILE -- is a genuine
+#: failure and must stay visible rather than be absorbed into a "keep going"
+#: path. Every `except OSError` in this module filters through
+#: `_is_inaccessible_scope`: an unreadable path is reported (or recorded as
+#: excluded evidence) and the run continues; a fault propagates, because
+#: "skipped: Input/output error" with exit 0 would report a corruption
+#: signal as an ordinary permission problem.
 _INACCESSIBLE_SCOPE_ERRNOS = frozenset(
-    {errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP, errno.EACCES, errno.EPERM}
+    {
+        errno.ENOENT,
+        errno.ENOTDIR,
+        errno.EBADF,
+        errno.ELOOP,
+        errno.EACCES,
+        errno.EPERM,
+        errno.ENAMETOOLONG,
+    }
 )
 
 
@@ -348,7 +359,10 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
     """Inventory Control Plane packages without importing its implementation.
 
     A symbolic link anywhere on the chain from the root to a package directory
-    is never followed (see `_symlinked_scope_target`). The scope or project
+    is never followed (see `_symlinked_scope_target`; the one probe that runs
+    before it, `_reachable_is_dir(inbox)`, only asks whether a scope exists
+    at all, so a dangling link or a link to a file is simply "no scope", as
+    it was before). The scope or project
     behind one is refused with a diagnostic naming the alias and its physical
     target; a linked event directory is recorded as an `invalid` row, so the
     refusal reaches the manifest and ingestion quarantines it without loading.

@@ -149,7 +149,7 @@ def test_fault_errnos_propagate_from_every_guard(
 @pytest.mark.parametrize("inject", list(_points()))
 @pytest.mark.parametrize(
     "inaccessible",
-    [errno.EACCES, errno.EPERM, errno.ENOENT],
+    [errno.EACCES, errno.EPERM, errno.ENOENT, errno.ENAMETOOLONG],
     ids=lambda code: errno.errorcode[code],
 )
 def test_inaccessible_errnos_still_continue_from_every_guard(
@@ -190,6 +190,113 @@ def test_inaccessible_errnos_still_continue_from_every_guard(
             # reported -- `pathlib` answers is_file()/is_dir() False for it.
             # Every other skip is named in a diagnostic.
             assert any("a.md" in m or "docs" in m for m in caplog.messages), caplog.messages
+
+
+def _grow_past_path_max(root: Path, *, levels: int = 30, width: int = 200) -> None:
+    """A real Linux tree whose absolute path exceeds PATH_MAX (4096 bytes).
+
+    Built and torn down through directory descriptors: once past the limit
+    no absolute path can name the entries, so neither `Path.mkdir` nor
+    pytest's own `tmp_path` cleanup (`shutil.rmtree`) can reach them.
+    """
+    name = "d" * width
+    fd = os.open(root, os.O_RDONLY)
+    try:
+        for _ in range(levels):
+            os.mkdir(name, dir_fd=fd)
+            child = os.open(name, os.O_RDONLY, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        leaf = os.open("deep.md", os.O_WRONLY | os.O_CREAT, 0o644, dir_fd=fd)
+        with os.fdopen(leaf, "w", encoding="utf-8") as handle:
+            handle.write("# deep\n")
+    finally:
+        os.close(fd)
+
+
+def _remove_past_path_max(root: Path, *, width: int = 200) -> None:
+    def remove(parent_fd: int, entry: str) -> None:
+        try:
+            child = os.open(entry, os.O_RDONLY | os.O_DIRECTORY, dir_fd=parent_fd)
+        except NotADirectoryError:
+            os.unlink(entry, dir_fd=parent_fd)
+            return
+        try:
+            for grandchild in os.listdir(child):
+                remove(child, grandchild)
+        finally:
+            os.close(child)
+        os.rmdir(entry, dir_fd=parent_fd)
+
+    fd = os.open(root, os.O_RDONLY)
+    try:
+        remove(fd, "d" * width)
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="PATH_MAX and dir_fd are POSIX semantics")
+def test_path_past_path_max_is_skipped_not_fatal(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """ENAMETOOLONG is a property of one path, not a fault (IV finding on M1).
+
+    Linux lets a tree grow past PATH_MAX; every metadata call on such an
+    entry fails with ENAMETOOLONG. The base skipped it with a diagnostic; the
+    first M1 head aborted the run on it because the errno was outside the
+    stated set. It belongs inside: the kernel will not address the entry, and
+    nothing about the rest of the tree is in doubt.
+    """
+    root = _source(tmp_path)
+    _grow_past_path_max(root)
+    try:
+        with caplog.at_level("WARNING"):
+            manifest = discover(root)
+    finally:
+        _remove_past_path_max(root)
+
+    by_path = {record["path"]: record for record in manifest["sources"]}
+    assert {"README.md", "docs/a.md"} <= set(by_path), "the rest of the tree is inventoried"
+    assert not any("deep.md" in path for path in by_path), "the unaddressable entry is not a record"
+    skipped = [m for m in caplog.messages if "skipped unreadable path" in m]
+    assert skipped, "the skip is observable"
+    assert all("\n" not in m for m in skipped)
+
+
+def test_fault_errnos_propagate_from_agent_event_guards(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The four agent-event guards: behavioural coverage, not only structural.
+
+    R5-F already pins `iterdir()`; this pins the `is_dir()` reachability probe
+    and the `inspect_event_package` call site.
+    """
+    root = _source(tmp_path)
+    package = root / ".atlas-inbox" / "agent-events" / "proj-a" / "evt-1"
+    package.mkdir(parents=True)
+    for name in ("event.md", "event.json", "provenance.json", "receipt.yaml"):
+        (package / name).write_text("{}\n", encoding="utf-8")
+
+    real_is_dir = Path.is_dir
+
+    def fake_is_dir(self: Path, *args: Any, **kwargs: Any) -> bool:
+        if self.name == "proj-a":
+            raise OSError(errno.EIO, "simulated fault")
+        return real_is_dir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "is_dir", fake_is_dir)
+    with pytest.raises(OSError) as excinfo:
+        discover(root)
+    assert excinfo.value.errno == errno.EIO
+    monkeypatch.undo()
+
+    def fake_inspect(*args: Any, **kwargs: Any) -> Any:
+        raise OSError(errno.EIO, "simulated fault")
+
+    monkeypatch.setattr("project_atlas.discovery.inspect_event_package", fake_inspect)
+    with pytest.raises(OSError) as excinfo:
+        discover(root)
+    assert excinfo.value.errno == errno.EIO
 
 
 def test_digest_fault_is_not_recorded_as_unreadable_evidence(
