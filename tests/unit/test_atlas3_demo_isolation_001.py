@@ -695,10 +695,11 @@ def _parser_factory(tree: ast.Module) -> ast.AST | None:
     is then true by construction rather than by naming convention.
 
     Returns None (the caller fails closed) whenever that chain cannot be
-    followed: no `main`, no parser call, a call through something other than a
-    plain name, more than one definition of the target, or a module-level
-    rebinding of the factory name after its `def` -- the last being an alias
-    that would silently swap the executed function for another.
+    followed: no `main`; `parser` bound more than once inside it, by any form;
+    that binding not being a plain call of a plain name; more than one
+    definition of the target; a decorated target, since a decorator replaces
+    what the name resolves to; or a module-level rebinding of the factory name
+    after its `def`, which would silently swap the executed function.
     """
     entry_points = [
         node
@@ -708,6 +709,15 @@ def _parser_factory(tree: ast.Module) -> ast.AST | None:
     ]
     if len(entry_points) != 1:
         return None
+    # `parser`'s binding is resolved with the total primitive, not by
+    # enumerating node types. Enumerating is precisely how this module's
+    # binding analysis failed once already: collecting only `ast.Assign` here
+    # meant a walrus, tuple unpack, `for` target or `with ... as` rebinding
+    # `parser` was invisible, so the genuine assignment could stay in place to
+    # satisfy resolution while a decoy supplied the parser that actually ran.
+    parser_bindings = _scoped_bound_names(entry_points[0], "parser")
+    if len(parser_bindings) != 1:
+        return None
     factory_names = {
         node.value.func.id
         for node in ast.walk(entry_points[0])
@@ -715,6 +725,7 @@ def _parser_factory(tree: ast.Module) -> ast.AST | None:
         and len(node.targets) == 1
         and isinstance(node.targets[0], ast.Name)
         and node.targets[0].id == "parser"
+        and node.lineno == parser_bindings[0]
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Name)
     }
@@ -731,6 +742,8 @@ def _parser_factory(tree: ast.Module) -> ast.AST | None:
     ]
     if len(factories) != 1:
         return None
+    if factories[0].decorator_list:
+        return None  # a decorator replaces what the name resolves to at runtime
     return factories[0]
 
 
@@ -2813,5 +2826,55 @@ def test_s03_renaming_the_factory_honestly_still_passes() -> None:
 def test_s04_an_unfollowable_entry_point_fails_closed() -> None:
     """When the chain cannot be followed, refuse rather than audit nothing."""
     source = _mutate("    parser = build_parser()", "    parser = _factories[0]()")
+    with pytest.raises(AssertionError, match="parser factory unresolvable"):
+        _semantic(source)
+
+
+# ---------------------------------------------------------------------------
+# T-matrix -- fourth round. The call-following resolution was right, but one
+# step of it enumerated node types (`ast.Assign` only) to find where `main`
+# binds `parser`. That is the same enumeration bug `_bound_names` was written
+# to retire, reintroduced a few hundred lines below the primitive that solves
+# it: the genuine assignment could stay in place to satisfy the resolver while
+# a walrus, tuple unpack, `for` target or `with ... as` supplied the parser
+# that actually ran. Measured through `main()`: 98 commands to 1.
+# ---------------------------------------------------------------------------
+
+_DECOY_FACTORY_DEF = (
+    "def _decoy_factory():\n"
+    "    p = argparse.ArgumentParser()\n"
+    '    p.add_subparsers(dest="command").add_parser("version")\n'
+    "    return p\n\n\n"
+)
+_MAIN_DEF = "def main(argv: Sequence[str] | None = None) -> int:"
+_PARSER_CALL = "    parser = build_parser()"
+
+
+@pytest.mark.parametrize(
+    "rebinding",
+    [
+        "    if (parser := _decoy_factory()):\n        pass",
+        "    parser, _unused = _decoy_factory(), 1",
+        "    for parser in (_decoy_factory(),):\n        pass",
+        "    import contextlib\n"
+        "    with contextlib.nullcontext(_decoy_factory()) as parser:\n        pass",
+    ],
+    ids=["walrus", "tuple-unpack", "for-target", "with-as"],
+)
+def test_t01_rebinding_parser_in_main_by_any_form_is_blocked(rebinding: str) -> None:
+    """The genuine call may not be left in place as a decoy for the resolver."""
+    source = _mutate(_PARSER_CALL, _PARSER_CALL + "\n" + rebinding)
+    source = source.replace(_MAIN_DEF, _DECOY_FACTORY_DEF + _MAIN_DEF, 1)
+    with pytest.raises(AssertionError, match="parser factory unresolvable"):
+        _semantic(source)
+
+
+def test_t02_a_decorated_factory_is_not_audited_blindly() -> None:
+    """A decorator replaces what the name resolves to at runtime."""
+    source = _mutate(
+        "def build_parser(",
+        "def _swap(fn):\n    return _decoy_factory\n\n\n@_swap\ndef build_parser(",
+    )
+    source = source.replace("def _swap(fn):", _DECOY_FACTORY_DEF + "def _swap(fn):", 1)
     with pytest.raises(AssertionError, match="parser factory unresolvable"):
         _semantic(source)
