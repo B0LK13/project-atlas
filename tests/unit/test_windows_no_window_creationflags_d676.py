@@ -31,6 +31,16 @@ import pytest
 
 from project_atlas.orchestration.sdk import ci_observer, host, resident_driver
 
+# ``subprocess.CREATE_NO_WINDOW`` is a Windows-only attribute of the stdlib
+# ``subprocess`` module -- it does not exist at all on Linux/macOS, even
+# with ``os.name`` patched to "nt" (CPython only defines it when the module
+# itself is built/imported on real Windows). ``host.no_window_creationflags()``
+# already accounts for this via ``getattr(subprocess, "CREATE_NO_WINDOW", 0)``;
+# this test file must compute its expectation the exact same way, or a bare
+# ``subprocess.CREATE_NO_WINDOW`` reference raises AttributeError on every
+# non-Windows CI runner.
+_EXPECTED_NO_WINDOW_FLAG = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 
 def _fake_completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
@@ -41,7 +51,7 @@ class TestNoWindowCreationflagsHelper:
 
     def test_windows_returns_create_no_window(self) -> None:
         with patch.object(os, "name", "nt"):
-            assert host.no_window_creationflags() == subprocess.CREATE_NO_WINDOW
+            assert host.no_window_creationflags() == _EXPECTED_NO_WINDOW_FLAG
 
     def test_non_windows_returns_zero_noop(self) -> None:
         with patch.object(os, "name", "posix"):
@@ -61,7 +71,7 @@ class TestHostCallSitesWireTheFlag:
         ):
             assert host.pid_is_alive(123) is True
         _args, kwargs = mock_run.call_args
-        assert kwargs["creationflags"] == subprocess.CREATE_NO_WINDOW
+        assert kwargs["creationflags"] == _EXPECTED_NO_WINDOW_FLAG
         # Command behavior untouched.
         assert kwargs["capture_output"] is True
         assert kwargs["text"] is True
@@ -74,7 +84,7 @@ class TestHostCallSitesWireTheFlag:
         ):
             identity = host.process_start_identity(123)
         _args, kwargs = mock_run.call_args
-        assert kwargs["creationflags"] == subprocess.CREATE_NO_WINDOW
+        assert kwargs["creationflags"] == _EXPECTED_NO_WINDOW_FLAG
         assert kwargs["capture_output"] is True
         assert kwargs["text"] is True
         assert identity == "win:42"
@@ -96,7 +106,7 @@ class TestCiObserverCallSitesWireTheFlag:
         ):
             ci_observer._fetch_jobs(run_id="1", repo="o/r", gh_bin="gh")
         _args, kwargs = mock_run.call_args
-        assert kwargs["creationflags"] == subprocess.CREATE_NO_WINDOW
+        assert kwargs["creationflags"] == _EXPECTED_NO_WINDOW_FLAG
         assert kwargs["timeout"] == 45
         assert kwargs["capture_output"] is True
 
@@ -108,7 +118,7 @@ class TestCiObserverCallSitesWireTheFlag:
         ):
             ci_observer.observe_exact_head_ci(head_sha=sha, repo="o/r")
         _args, kwargs = mock_run.call_args
-        assert kwargs["creationflags"] == subprocess.CREATE_NO_WINDOW
+        assert kwargs["creationflags"] == _EXPECTED_NO_WINDOW_FLAG
         assert kwargs["timeout"] == 30
 
     def test_refresh_pr_head_passes_creationflags_on_both_calls(self) -> None:
@@ -122,7 +132,7 @@ class TestCiObserverCallSitesWireTheFlag:
         assert mock_run.call_count == 2
         for call in mock_run.call_args_list:
             _args, kwargs = call
-            assert kwargs["creationflags"] == subprocess.CREATE_NO_WINDOW
+            assert kwargs["creationflags"] == _EXPECTED_NO_WINDOW_FLAG
 
 
 class TestResidentDriverCallSiteWiresTheFlag:
@@ -139,7 +149,7 @@ class TestResidentDriverCallSiteWiresTheFlag:
         ):
             status, conclusion, _head = resident_driver.poll_github_ci("123")
         _args, kwargs = mock_run.call_args
-        assert kwargs["creationflags"] == subprocess.CREATE_NO_WINDOW
+        assert kwargs["creationflags"] == _EXPECTED_NO_WINDOW_FLAG
         assert kwargs["timeout"] == 60
         assert status == "completed"
         assert conclusion == "success"
