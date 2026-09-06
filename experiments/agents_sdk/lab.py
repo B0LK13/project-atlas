@@ -155,7 +155,9 @@ def evaluate_gate(inputs: DecisionInput) -> GateResult:
         reasons.append("owner_gate_unresolved")
     if inputs.head_moved_after_decision:
         reasons.append("head_moved_after_decision")
+    if runnable and not reasons:
+        reasons.append("runnable_lanes_nonempty")
 
-    verdict = "APPROVE" if not reasons else "BLOCK"
+    blockers = [reason for reason in reasons if reason != "runnable_lanes_nonempty"]
+    verdict = "APPROVE" if not blockers else "BLOCK"
     return GateResult(verdict=verdict, reasons=reasons, runnable_lanes=runnable)
-

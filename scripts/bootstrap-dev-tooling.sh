@@ -8,6 +8,7 @@ BIN_DIR="${HOME}/.local/bin"
 PLAYWRIGHT_MCP_VERSION="0.0.80"
 CONTEXT7_MCP_VERSION="4.0.5"
 MARKDOWNLINT_CLI2_VERSION="0.23.2"
+CODEBASE_MEMORY_MCP_VERSION="0.10.8"
 GITLEAKS_VERSION="v8.30.1"
 TRIVY_VERSION="v0.74.0"
 SYFT_VERSION="v1.51.1"
@@ -20,14 +21,16 @@ log() { printf '%s\n' "$*"; }
 has() { command -v "$1" >/dev/null 2>&1; }
 
 install_npm() {
-	local pkg="$1"
-	if npm list -g --depth=0 "${pkg}" >/dev/null 2>&1; then
-		log "present npm: ${pkg}"
+	local pkg_name="$1" pkg_version="$2"
+	local pkg_spec="${pkg_name}@${pkg_version}"
+	if npm list -g --depth=0 "${pkg_name}" >/dev/null 2>&1 &&
+		npm list -g --depth=0 "${pkg_name}@${pkg_version}" >/dev/null 2>&1; then
+		log "present npm: ${pkg_spec}"
 	else
 		if [ "${MODE}" = "--install" ]; then
-			npm install -g "${pkg}" --no-fund --no-audit
+			npm install -g "${pkg_spec}" --no-fund --no-audit
 		else
-			log "would install npm: ${pkg}"
+			log "would install npm: ${pkg_spec}"
 		fi
 	fi
 }
@@ -119,9 +122,10 @@ esac
 
 log "mode=${MODE}"
 
-install_npm "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}"
-install_npm "@upstash/context7-mcp@${CONTEXT7_MCP_VERSION}"
-install_npm "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
+install_npm "codebase-memory-mcp" "${CODEBASE_MEMORY_MCP_VERSION}"
+install_npm "@playwright/mcp" "${PLAYWRIGHT_MCP_VERSION}"
+install_npm "@upstash/context7-mcp" "${CONTEXT7_MCP_VERSION}"
+install_npm "markdownlint-cli2" "${MARKDOWNLINT_CLI2_VERSION}"
 install_pipx "semgrep" "semgrep"
 
 install_release_binary "zricethezav/gitleaks" "${GITLEAKS_VERSION}" "linux_x64\\.tar\\.gz$" "gitleaks" "_checksums\\.txt$"

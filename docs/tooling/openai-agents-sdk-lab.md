@@ -16,11 +16,11 @@ This file defines a safe experimental lane for future agent-orchestration work.
 ## Suggested setup
 
 1. Create a dedicated experimental branch/worktree.
-2. Create `experiments/agents-sdk/` for prototype code.
+2. Create `experiments/agents_sdk/` for prototype code.
 3. Install SDK only inside a local venv for that experiment.
 4. Require explicit handoff receipts between prototype roles.
 
 ## Status
 
-- `AGENTS_SDK_ENVIRONMENT = NOT_CONFIGURED`
-- Owner authorization required before implementation.
+- `AGENTS_SDK_ENVIRONMENT = READY` (isolated lab path: `experiments/agents_sdk/`)
+- Production integration remains owner-gated.

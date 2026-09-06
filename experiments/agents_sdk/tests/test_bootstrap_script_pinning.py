@@ -27,3 +27,17 @@ def test_bootstrap_script_pins_versions_for_all_install_targets() -> None:
 def test_bootstrap_script_verifies_taplo_download_checksum() -> None:
     script = Path("scripts/bootstrap-dev-tooling.sh").read_text()
     assert "taplo_SHA256" in script
+
+
+def test_bootstrap_script_separates_npm_identity_from_version() -> None:
+    script = Path("scripts/bootstrap-dev-tooling.sh").read_text()
+    assert 'install_npm "@playwright/mcp" "${PLAYWRIGHT_MCP_VERSION}"' in script
+    assert 'install_npm "@upstash/context7-mcp" "${CONTEXT7_MCP_VERSION}"' in script
+    assert 'install_npm "markdownlint-cli2" "${MARKDOWNLINT_CLI2_VERSION}"' in script
+    assert 'npm list -g --depth=0 "${pkg_name}"' in script
+    assert 'npm list -g --depth=0 "${pkg_name}@${pkg_version}"' in script
+
+
+def test_bootstrap_script_attempts_codebase_memory_install() -> None:
+    script = Path("scripts/bootstrap-dev-tooling.sh").read_text()
+    assert 'install_npm "codebase-memory-mcp"' in script
