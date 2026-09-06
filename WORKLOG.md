@@ -12930,3 +12930,42 @@ because those divergences are undecided.
 
 This entry is implementation evidence, not certification: exact-head CI and
 independent verification are required before merge.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F1 follow-up -- sibling ambiguity at every depth
+
+PR #689 merged at `89e0ac38` while independent verification of that head was
+still running. The verification returned **FAIL_MATERIAL**, so the defect it
+found is live on main (`157276e2`). This is the fix.
+
+The containment walk compared sibling names only at the top level: it tracked a
+single `top_level_seen` set and consulted it under `elif not open_spans`. Two
+same-name blocks sitting inside a differently-named container were therefore
+accepted. `extract_human_regions` keys by name, so one of them was then silently
+dropped -- exactly the human-content loss F1 exists to prevent, one level down
+from where the check was looking.
+
+Reproduced on main before changing anything:
+`outer{ notes(FIRST), notes(SECOND) }` is accepted, and `extract_human_regions`
+resolves `notes` to SECOND, discarding FIRST. The same holds two levels down.
+
+Sibling names are now compared within their own scope at every depth: each open
+span carries the set of names directly inside it, and the root keeps its own.
+Still one push and one pop per span, so the walk stays linear.
+
+The scoping must not overshoot in the other direction, and does not. The same
+name in two *different* scopes stays accepted, because after one merge a nested
+`outer{inner}` document carries `inner` both at the top level and inside
+`outer`; refusing that shape is what made an earlier revision fail on the second
+render of a document the merge itself produced. Verified across six successive
+generations against the pre-F1 implementation, byte-identical at every step,
+plus 4,000 randomized nested/sibling trials with zero refusals lacking a genuine
+same-scope duplicate.
+
+Recorded rather than quietly claimed fixed: `a{x}` beside `b{x}` still loses the
+first `x` on merge. The pre-F1 implementation loses it identically, and a test
+now pins that equivalence. That is nesting behaviour, not duplicate identity,
+and belongs to the separately-tracked nesting question.
+
+Three regression cases cover the fail-open and were each confirmed to fail
+against `89e0ac38` and pass here.
