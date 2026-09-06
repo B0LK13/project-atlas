@@ -23,6 +23,7 @@ establish what the CLI exposes.
 from __future__ import annotations
 
 import argparse
+import copy
 from collections.abc import Callable
 from pathlib import Path
 
@@ -58,8 +59,11 @@ CERTIFIED_OPTIONS: dict[str, tuple[tuple[str, str], ...]] = {
 #: positionals rather than by name -- a renamed `dest` is exactly what this
 #: pins, so it cannot also be the thing used to find the argument.
 #: `atlas connect [source]` is CLAUDE.md's spelling.
-CERTIFIED_POSITIONALS: dict[str, tuple[tuple[int, str], ...]] = {
-    "connect": ((0, "source"),),
+#: `nargs` is pinned beside `dest`, because `_carries` recurses into lists:
+#: `nargs="*"` turns a single value into a one-element list and satisfies a
+#: `dest`-only pin while the handler receives a `list` where it expects a path.
+CERTIFIED_POSITIONALS: dict[str, tuple[tuple[int, str, object], ...]] = {
+    "connect": ((0, "source", "?"),),
 }
 
 #: Certified subcommands, whose whole operator interface lives one level down.
@@ -73,10 +77,10 @@ CERTIFIED_SUBCOMMAND_OPTIONS: dict[tuple[str, str], tuple[tuple[str, str], ...]]
 }
 
 
-def _positional_dests(parser: argparse.ArgumentParser) -> list[str]:
+def _positional_actions(parser: argparse.ArgumentParser) -> list[argparse.Action]:
     """The command's positionals, in the order argparse consumes them."""
     return [
-        action.dest
+        action
         for action in parser._actions
         if not action.option_strings
         and not isinstance(action, argparse._SubParsersAction)
@@ -337,6 +341,22 @@ def _sentinel(name: str) -> str:
     return "Oracle/" + name.lstrip("-").replace("-", "_") + "-7x"
 
 
+def _sentinel_alt(name: str) -> str:
+    """A second marker of a deliberately different shape.
+
+    One marker can only ever catch the transforms it is not a fixed point of.
+    Verification found three that the first marker survives unchanged:
+    `lstrip("/")`, truncation to its own length, and stripping spaces. This one
+    is absolute, contains a space, and is long, so each of those changes it.
+    Two markers of different shape is not a proof of completeness -- it is a
+    much smaller target than one.
+    """
+    return "/Oracle " + name.lstrip("-").replace("-", "_") + "/deep/nested-7x"
+
+
+MARKERS = (_sentinel, _sentinel_alt)
+
+
 def _carries(value: object, sentinel: str) -> bool:
     """Did `sentinel` land here, unmodified?
 
@@ -413,13 +433,14 @@ def _descend(
 def _argv_for(
     path: tuple[str, ...],
     options: tuple[tuple[str, str], ...],
-    positionals: tuple[tuple[int, str], ...] = (),
+    positionals: tuple[tuple[int, str, object], ...] = (),
+    marker: Callable[[str], str] = _sentinel,
 ) -> list[str]:
     """A documented invocation carrying a distinct marker on every certified slot."""
     argv = list(path)
     for flag, _dest in options:
-        argv += [flag, _sentinel(flag)]
-    argv += [_sentinel(name) for _index, name in positionals]
+        argv += [flag, marker(flag)]
+    argv += [marker(name) for _index, name, _nargs in positionals]
     return argv
 
 
@@ -427,23 +448,29 @@ def _assert_positionals(
     parser: argparse.ArgumentParser,
     namespace: argparse.Namespace,
     path: tuple[str, ...],
-    positionals: tuple[tuple[int, str], ...],
+    positionals: tuple[tuple[int, str, object], ...],
+    marker: Callable[[str], str] = _sentinel,
 ) -> None:
     """Positionals carry no option strings, so an `option -> dest` map is blind
     to them. They are pinned by index instead."""
     label = "atlas " + " ".join(path)
-    found = _positional_dests(_descend(parser, path))
-    for index, dest in positionals:
+    found = _positional_actions(_descend(parser, path))
+    for index, dest, nargs in positionals:
         assert len(found) > index, (
             f"`{label}` no longer takes a positional at index {index}; "
             f"documented as {dest!r}"
         )
-        assert found[index] == dest, (
-            f"`{label}` positional {index} lands on {found[index]!r}, not "
+        action = found[index]
+        assert action.dest == dest, (
+            f"`{label}` positional {index} lands on {action.dest!r}, not "
             f"{dest!r}; the argument is accepted and silently ignored"
         )
+        assert action.nargs == nargs, (
+            f"`{label}` positional {dest!r} now takes nargs={action.nargs!r}, "
+            f"not {nargs!r}; the handler receives a different shape"
+        )
         assert hasattr(namespace, dest), f"`{label}` parsed without producing {dest!r}"
-        assert _carries(getattr(namespace, dest), _sentinel(dest)), (
+        assert _carries(getattr(namespace, dest), marker(dest)), (
             f"`{label}` positional {dest!r} did not receive its value "
             f"(found {getattr(namespace, dest)!r})"
         )
@@ -453,7 +480,8 @@ def _assert_certified_dests(
     entry: Callable[[list[str]], object],
     path: tuple[str, ...],
     options: tuple[tuple[str, str], ...],
-    positionals: tuple[tuple[int, str], ...] = (),
+    positionals: tuple[tuple[int, str, object], ...] = (),
+    marker: Callable[[str], str] = _sentinel,
 ) -> None:
     """The certified surface, checked on the parser argparse was handed.
 
@@ -463,7 +491,7 @@ def _assert_certified_dests(
     edits the action object is caught by both; one that intercepts binding
     without touching the action is caught by the second.
     """
-    argv = _argv_for(path, options, positionals)
+    argv = _argv_for(path, options, positionals, marker)
     parser, namespace = _parse_boundary(argv, entry=entry)
 
     assert getattr(namespace, "command", None) == path[0], (
@@ -488,15 +516,18 @@ def _assert_certified_dests(
             f"`{label}` parsed without producing {dest!r}; {flag} was accepted "
             "and its value is not reachable by the command function"
         )
-        assert _carries(getattr(namespace, dest), _sentinel(flag)), (
-            f"`{label}` {flag}={_sentinel(flag)!r} did not land on {dest!r} "
+        assert _carries(getattr(namespace, dest), marker(flag)), (
+            f"`{label}` {flag}={marker(flag)!r} did not land on {dest!r} "
             f"(found {getattr(namespace, dest)!r})"
         )
-    _assert_positionals(parser, namespace, path, positionals)
+    _assert_positionals(parser, namespace, path, positionals, marker)
 
 
+@pytest.mark.parametrize("marker", MARKERS, ids=["marker", "marker-alt"])
 @pytest.mark.parametrize("command", sorted(CERTIFIED_OPTIONS))
-def test_certified_dests_hold_at_the_parse_boundary(command: str) -> None:
+def test_certified_dests_hold_at_the_parse_boundary(
+    command: str, marker: Callable[[str], str]
+) -> None:
     """P04: the certified `dest`s, observed after `main` has finished with the
     parser rather than before it starts."""
     _assert_certified_dests(
@@ -504,6 +535,7 @@ def test_certified_dests_hold_at_the_parse_boundary(command: str) -> None:
         (command,),
         CERTIFIED_OPTIONS[command],
         CERTIFIED_POSITIONALS.get(command, ()),
+        marker,
     )
 
 
@@ -681,8 +713,19 @@ def _dispatch_boundary(
     from project_atlas import cli as cli_module
 
     captured: list[argparse.Namespace] = []
+    parsed: list[argparse.Namespace] = []
     real_apply = cli_module._apply_stranger_defaults
     real_load = cli_module.load_config
+    real_parse_args = argparse.ArgumentParser.parse_args
+
+    def _parse_recorder(
+        self: argparse.ArgumentParser,
+        args: object = None,
+        namespace: object = None,
+    ) -> argparse.Namespace:
+        result = real_parse_args(self, args, namespace)  # type: ignore[arg-type]
+        parsed.append(result)
+        return result
 
     def _apply_spy(args: argparse.Namespace) -> None:
         real_apply(args)
@@ -693,6 +736,7 @@ def _dispatch_boundary(
 
     cli_module._apply_stranger_defaults = _apply_spy  # type: ignore[assignment]
     cli_module.load_config = _load_spy  # type: ignore[assignment]
+    argparse.ArgumentParser.parse_args = _parse_recorder  # type: ignore[method-assign]
     try:
         entry(argv)
     except _DispatchBoundary:
@@ -721,10 +765,24 @@ def _dispatch_boundary(
     finally:
         cli_module._apply_stranger_defaults = real_apply  # type: ignore[assignment]
         cli_module.load_config = real_load  # type: ignore[assignment]
+        argparse.ArgumentParser.parse_args = real_parse_args  # type: ignore[method-assign]
 
     assert len(captured) == 1, (
-        f"expected exactly one namespace at the dispatch boundary, "
-        f"captured {len(captured)}"
+        f"expected exactly one namespace at the dispatch boundary, captured "
+        f"{len(captured)}. The CLI's post-parse processing is not the shape "
+        "this oracle observes: `_apply_stranger_defaults` was called "
+        f"{len(captured)} times before `load_config` rather than once. If that "
+        "is a deliberate refactor, this helper needs updating with it."
+    )
+    # Cardinality is not identity, and identity is the property that matters.
+    # Handing `_apply_stranger_defaults` a `copy.copy(args)` and dispatching on
+    # the original satisfies every value assertion below while the operator's
+    # namespace is untouched by any of them. Verification demonstrated exactly
+    # that, with full operator damage and the suite green.
+    assert any(captured[0] is candidate for candidate in parsed), (
+        "the namespace processed before dispatch is not one argparse produced. "
+        "The entry point processed a copy, so what this oracle observed is not "
+        "what the command will receive"
     )
     return captured[0]
 
@@ -733,10 +791,11 @@ def _assert_dispatch_dests(
     entry: Callable[[list[str]], object],
     path: tuple[str, ...],
     options: tuple[tuple[str, str], ...],
-    positionals: tuple[tuple[int, str], ...] = (),
+    positionals: tuple[tuple[int, str, object], ...] = (),
+    marker: Callable[[str], str] = _sentinel,
 ) -> None:
     """Every certified value still reachable where the command would read it."""
-    argv = _argv_for(path, options, positionals)
+    argv = _argv_for(path, options, positionals, marker)
     namespace = _dispatch_boundary(argv, entry=entry)
     label = "atlas " + " ".join(path)
 
@@ -748,36 +807,59 @@ def _assert_dispatch_dests(
             f"`{label}` reaches dispatch without {dest!r}; {flag} was accepted "
             "and its value is gone by the time the command runs"
         )
-        assert _carries(getattr(namespace, dest), _sentinel(flag)), (
-            f"`{label}` {flag}={_sentinel(flag)!r} is not on {dest!r} at "
+        assert _carries(getattr(namespace, dest), marker(flag)), (
+            f"`{label}` {flag}={marker(flag)!r} is not on {dest!r} at "
             f"dispatch (found {getattr(namespace, dest)!r}); it was altered "
             "after parsing"
         )
-    for _index, dest in positionals:
+    for _index, dest, _nargs in positionals:
         assert hasattr(namespace, dest), f"`{label}` reaches dispatch without {dest!r}"
-        assert _carries(getattr(namespace, dest), _sentinel(dest)), (
+        assert _carries(getattr(namespace, dest), marker(dest)), (
             f"`{label}` positional {dest!r} is not intact at dispatch "
             f"(found {getattr(namespace, dest)!r})"
         )
 
 
+@pytest.mark.parametrize("marker", MARKERS, ids=["marker", "marker-alt"])
 @pytest.mark.parametrize("command", sorted(CERTIFIED_OPTIONS))
-def test_certified_values_survive_to_the_dispatch_boundary(command: str) -> None:
-    """Not merely parsed correctly -- still intact where the command reads them."""
+def test_certified_values_survive_to_the_dispatch_boundary(
+    command: str, marker: Callable[[str], str]
+) -> None:
+    """Not merely parsed correctly -- still intact where the command reads them.
+
+    Run with two markers of different shape: a transform the CLI applies is
+    only visible in a marker it is not a fixed point of.
+    """
     _assert_dispatch_dests(
         main,
         (command,),
         CERTIFIED_OPTIONS[command],
         CERTIFIED_POSITIONALS.get(command, ()),
+        marker,
     )
 
 
+@pytest.mark.parametrize("marker", MARKERS, ids=["marker", "marker-alt"])
 @pytest.mark.parametrize("pair", sorted(CERTIFIED_SUBCOMMAND_OPTIONS))
-def test_certified_subcommand_values_survive_to_dispatch(pair: tuple[str, str]) -> None:
-    _assert_dispatch_dests(main, pair, CERTIFIED_SUBCOMMAND_OPTIONS[pair])
+def test_certified_subcommand_values_survive_to_dispatch(
+    pair: tuple[str, str], marker: Callable[[str], str]
+) -> None:
+    _assert_dispatch_dests(
+        main, pair, CERTIFIED_SUBCOMMAND_OPTIONS[pair], (), marker
+    )
 
 
 # --- Negative controls for the attacks the parse boundary cannot see --------
+
+
+# These damage `ask2`, not `brief`, on purpose. `brief` is in
+# `_apply_stranger_defaults`' resolution set, so emptying its `vault` sends the
+# real function looking for a connect bind and it raises `ConnectError` before
+# `load_config` is reached. That still blocks, but it blocks for the wrong
+# reason -- verification showed these controls passing with the entire value
+# assertion deleted, which makes them worthless as controls in CI where no bind
+# exists. `ask2` is in none of those sets, so post-parse processing is a no-op
+# and the controls reach the assertion they exist to exercise.
 
 
 def _r_double_parse(argv: list[str]) -> object:
@@ -789,7 +871,7 @@ def _r_double_parse(argv: list[str]) -> object:
 
     parser = build_parser()
     build_parser().parse_args(argv)
-    _action_for(parser, ("brief",), "--vault").dest = "vault_renamed"
+    _action_for(parser, ("ask2",), "--question").dest = "question_renamed"
     args = parser.parse_args(argv)
     cli_module._apply_stranger_defaults(args)
     cli_module.load_config(getattr(args, "config", None))
@@ -802,9 +884,24 @@ def _r_post_parse_edit(argv: list[str]) -> object:
 
     parser = build_parser()
     args = parser.parse_args(argv)
-    args.vault = None
-    args.projects = None
+    args.question = "replaced-after-parsing"
     cli_module._apply_stranger_defaults(args)
+    cli_module.load_config(getattr(args, "config", None))
+    return 0
+
+
+def _r_shadow_namespace(argv: list[str]) -> object:
+    """Process a copy, dispatch on the original.
+
+    Every value assertion would pass on the copy. The operator's namespace is
+    a different object and carries the damage.
+    """
+    from project_atlas import cli as cli_module
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    cli_module._apply_stranger_defaults(copy.copy(args))
+    args.question = "replaced-after-parsing"
     cli_module.load_config(getattr(args, "config", None))
     return 0
 
@@ -823,6 +920,7 @@ def _r_healthy(argv: list[str]) -> object:
 DISPATCH_MATRIX: tuple[tuple[str, Callable[[list[str]], object]], ...] = (
     ("P04F-second-parse-wins", _r_double_parse),
     ("P04G-post-parse-namespace-edit", _r_post_parse_edit),
+    ("P04H-shadow-namespace", _r_shadow_namespace),
 )
 
 
@@ -835,12 +933,12 @@ def test_dispatch_matrix_is_blocked(
     """Damage that is invisible at the parse boundary must block at dispatch."""
     _label, entry = case
     with pytest.raises(AssertionError):
-        _assert_dispatch_dests(entry, ("brief",), CERTIFIED_OPTIONS["brief"])
+        _assert_dispatch_dests(entry, ("ask2",), CERTIFIED_OPTIONS["ask2"])
 
 
 def test_dispatch_matrix_control_passes_undamaged() -> None:
     """An undamaged entry point of the same shape passes the same assertions."""
-    _assert_dispatch_dests(_r_healthy, ("brief",), CERTIFIED_OPTIONS["brief"])
+    _assert_dispatch_dests(_r_healthy, ("ask2",), CERTIFIED_OPTIONS["ask2"])
 
 
 def test_omitted_certified_flags_keep_their_documented_default() -> None:
