@@ -10,12 +10,15 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import ensure_under_root, safe_relative_component
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
+from project_atlas.protected_regions import GENERATED_END as _GENERATED_END
+from project_atlas.protected_regions import GENERATED_START as _GENERATED_START
+from project_atlas.protected_regions import ProtectedRegionError
+from project_atlas.protected_regions import merge_protected_regions as _merge_protected_regions
 
 PACKAGE_ID = "AS-CODER-ALPHA-OBSIDIAN-001"
 PACKAGE_ID_R1 = "AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001"
@@ -25,10 +28,6 @@ PACKAGE_ID_R1 = "AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001"
 # across the R1 gap-fill (finding 4, PR #412 remediation).
 GENERATOR_ID = "atlas-coder-alpha-obsidian-001"
 OBS_ROOT = Path("generated") / "obsidian" / "projects"
-_GENERATED_START = "<!-- atlas:generated:start -->"
-_GENERATED_END = "<!-- atlas:generated:end -->"
-_HUMAN_BEGIN = re.compile(r"<!--\s*BEGIN HUMAN:\s*([^\s>]+)\s*-->")
-_HUMAN_END = re.compile(r"<!--\s*END HUMAN:\s*([^\s>]+)\s*-->")
 
 
 class ObsidianProjectionError(ValueError):
@@ -74,61 +73,6 @@ def _list_projects(vault: Path) -> list[str]:
     )
 
 
-def _validate_protected_markers(text: str, *, path: str) -> None:
-    begins = _HUMAN_BEGIN.findall(text)
-    ends = _HUMAN_END.findall(text)
-    if len(begins) != len(ends) or sorted(begins) != sorted(ends):
-        raise ObsidianProjectionError(f"malformed-protected-markers:{path}")
-    start_count = text.count(_GENERATED_START)
-    end_count = text.count(_GENERATED_END)
-    if start_count != end_count or start_count > 1:
-        raise ObsidianProjectionError(f"malformed-generated-markers:{path}")
-    if start_count == 1 and text.index(_GENERATED_END) < text.index(_GENERATED_START):
-        raise ObsidianProjectionError(f"malformed-generated-markers:{path}")
-
-
-def _extract_human_regions(text: str) -> dict[str, str]:
-    regions: dict[str, str] = {}
-    for match in _HUMAN_BEGIN.finditer(text):
-        name = match.group(1)
-        end_match = re.search(
-            rf"<!--\s*END HUMAN:\s*{re.escape(name)}\s*-->",
-            text[match.end() :],
-        )
-        if end_match is None:
-            raise ObsidianProjectionError(f"malformed-protected-markers:missing-end:{name}")
-        regions[name] = text[match.start() : match.end() + end_match.end()]
-    return regions
-
-
-def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:
-    if existing is None:
-        _validate_protected_markers(rendered, path=path)
-        return rendered
-    _validate_protected_markers(existing, path=path)
-    _validate_protected_markers(rendered, path=path)
-    prior_humans = _extract_human_regions(existing)
-    if not prior_humans:
-        return rendered
-    merged = rendered
-    for name, block in sorted(prior_humans.items()):
-        pattern = re.compile(
-            rf"<!--\s*BEGIN HUMAN:\s*{re.escape(name)}\s*-->.*?<!--\s*END HUMAN:\s*"
-            rf"{re.escape(name)}\s*-->",
-            re.DOTALL,
-        )
-        if not pattern.search(merged):
-            merged = merged.rstrip() + "\n\n" + block + "\n"
-        else:
-
-            def _replacer(_match: re.Match[str], *, _block: str = block) -> str:
-                return _block
-
-            merged = pattern.sub(_replacer, merged, count=1)
-    _validate_protected_markers(merged, path=path)
-    return merged
-
-
 def _escape_marker_tokens(text: str) -> str:
     """Neutralize HTML-comment marker syntax in source-derived text.
 
@@ -137,8 +81,8 @@ def _escape_marker_tokens(text: str) -> str:
     itself. If such a value happened to contain a literal Atlas
     generated-marker token (``<!-- atlas:generated:... -->``) or a balanced
     ``BEGIN HUMAN``/``END HUMAN`` comment pair, interpolating it raw would
-    let ``_validate_protected_markers``/``_extract_human_regions`` treat it
-    as real projection structure on the next read — aborting projection
+    let ``protected_regions.validate_protected_markers``/``extract_human_regions``
+    treat it as real projection structure on the next read — aborting projection
     (extra generated-marker token) or preserving a fake human-edit block
     after its source disappears (balanced HUMAN pair). Escaping the comment
     delimiters renders the text as inert Markdown instead.
@@ -414,11 +358,14 @@ def materialize_obsidian_projection(
         except ValueError as exc:
             raise ObsidianProjectionError(str(exc)) from exc
         existing = path.read_text(encoding="utf-8") if path.is_file() else None
-        merged = _merge_protected_regions(
-            existing=existing,
-            rendered=rendered,
-            path=path.relative_to(vault).as_posix(),
-        )
+        try:
+            merged = _merge_protected_regions(
+                existing=existing,
+                rendered=rendered,
+                path=path.relative_to(vault).as_posix(),
+            )
+        except ProtectedRegionError as exc:
+            raise ObsidianProjectionError(str(exc)) from exc
         _write_atomic(path, merged.encode("utf-8"), vault=vault)
         written.append(path.relative_to(vault).as_posix())
 

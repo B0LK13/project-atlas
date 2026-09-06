@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/raw-capture.schema.json",
+  "title": "RawCaptureRecord",
+  "description": "AS-OBSIDIAN-CAPTURE-001 raw capture evidence record. truth_plane=evidence; authority_plane=none. Raw capture is preserved verbatim and is never Truth Core authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "package",
+    "capture_id",
+    "project_id",
+    "source_type",
+    "source_application",
+    "source_adapter",
+    "content_hash",
+    "identity_hash",
+    "canonicalization",
+    "content_bytes",
+    "content_path",
+    "title",
+    "classification",
+    "routing",
+    "secret_scan",
+    "lifecycle_state",
+    "stage_failures",
+    "derived_artifacts",
+    "provenance",
+    "authority",
+    "honesty",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.raw-capture.v1" },
+    "package": { "const": "AS-OBSIDIAN-CAPTURE-001" },
+    "capture_id": { "type": "string", "pattern": "^rcap-[0-9a-f]{16}$" },
+    "project_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "text",
+        "conversation",
+        "terminal",
+        "web",
+        "email",
+        "document",
+        "agent_output"
+      ]
+    },
+    "source_application": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,31}$"
+    },
+    "source_adapter": {
+      "type": "string",
+      "enum": ["text", "stdin", "clipboard", "api"]
+    },
+    "source_locator": { "type": "string", "maxLength": 2048 },
+    "source_metadata": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "maxLength": 2048 }
+    },
+    "captured_at": { "type": ["string", "null"], "maxLength": 64 },
+    "captured_at_source": {
+      "type": "string",
+      "enum": ["operator-supplied", "not-provided"]
+    },
+    "content_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "identity_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "canonicalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unicode", "line_endings", "whitespace_stripped"],
+      "properties": {
+        "unicode": { "const": "NFC" },
+        "line_endings": { "const": "lf" },
+        "whitespace_stripped": { "const": false }
+      }
+    },
+    "content_bytes": { "type": "integer", "minimum": 0 },
+    "content_path": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "classification": {
+      "type": "string",
+      "enum": ["conversation", "decision", "research", "directive", "note"]
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["destination", "reason", "fallback"],
+      "properties": {
+        "destination": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "explicit-project",
+            "deterministic-classification",
+            "inbox-fallback"
+          ]
+        },
+        "fallback": { "type": "boolean" }
+      }
+    },
+    "secret_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings", "projection_redacted"],
+      "properties": {
+        "findings": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string", "maxLength": 64 }
+        },
+        "projection_redacted": { "type": "boolean" }
+      }
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": ["persisted", "rendered"]
+    },
+    "stage_failures": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage", "code", "message"],
+        "properties": {
+          "stage": { "type": "string", "enum": ["render", "ingest"] },
+          "code": { "type": "string", "maxLength": 64 },
+          "message": { "type": "string", "maxLength": 512 }
+        }
+      }
+    },
+    "derived_artifacts": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifact_id",
+          "artifact_type",
+          "capture_id",
+          "content_hash",
+          "processor",
+          "canonical"
+        ],
+        "properties": {
+          "artifact_id": { "type": "string", "pattern": "^art-[0-9a-f]{16}$" },
+          "artifact_type": { "type": "string", "enum": ["obsidian_note"] },
+          "capture_id": { "type": "string", "pattern": "^rcap-[0-9a-f]{16}$" },
+          "vault_root": { "type": "string", "maxLength": 512 },
+          "relative_path": { "type": "string", "maxLength": 512 },
+          "content_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "processor": { "type": "string", "maxLength": 128 },
+          "canonical": { "const": false }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capture_id",
+        "content_hash",
+        "raw_content_persisted",
+        "extraction_method",
+        "derived_from"
+      ],
+      "properties": {
+        "capture_id": { "type": "string", "pattern": "^rcap-[0-9a-f]{16}$" },
+        "content_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "raw_content_persisted": { "const": true },
+        "extraction_method": { "const": "verbatim_raw_capture" },
+        "derived_from": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "classification", "note"],
+      "properties": {
+        "level": { "const": "quarantined-evidence" },
+        "classification": { "const": "NON_CANONICAL" },
+        "note": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authentic_pilot",
+        "lens_is_authority",
+        "invented_facts",
+        "capture_is_authority",
+        "projection_is_canonical",
+        "external_transmission"
+      ],
+      "properties": {
+        "authentic_pilot": { "const": false },
+        "lens_is_authority": { "const": false },
+        "invented_facts": { "const": false },
+        "capture_is_authority": { "const": false },
+        "projection_is_canonical": { "const": false },
+        "external_transmission": { "const": false }
+      }
+    },
+    "truth_boundary": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "type": "string", "minLength": 1 } }
+    }
+  }
+}

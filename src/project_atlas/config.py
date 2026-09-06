@@ -17,7 +17,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from project_atlas.logging import get_logger
 
@@ -63,6 +63,88 @@ class GraphifyConfig(BaseModel):
     semantic_ingestion: bool = False
 
 
+class ObsidianRoutingConfig(BaseModel):
+    """Logical Obsidian destinations (AS-OBSIDIAN-CAPTURE-001, architecture §14).
+
+    Values are vault-relative paths. Each segment is validated with the
+    canonical containment primitives before any write, so a traversal-shaped
+    value fails closed rather than escaping the configured root.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    inbox: str = "00 Inbox/Atlas Captures"
+    projects: str = "10 Projects"
+    decisions: str = "20 Decisions"
+    research: str = "30 Research"
+    directives: str = "40 Directives"
+
+
+class ObsidianConfig(BaseModel):
+    """Obsidian projection settings for captures (AS-OBSIDIAN-CAPTURE-001).
+
+    ``vault_path`` is an opt-in external Obsidian vault root. When unset the
+    projection stays inside the Atlas vault under
+    ``generated/obsidian/captures/`` — Atlas never writes outside ``--vault``
+    unless an operator explicitly configures it to.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    vault_path: str | None = None
+    include_content: bool = True
+    routing: ObsidianRoutingConfig = Field(default_factory=ObsidianRoutingConfig)
+
+
+class CaptureProcessingConfig(BaseModel):
+    """Capture processing switches (architecture §30, §37).
+
+    ``ai_enrichment`` stays False: AS-OBSIDIAN-CAPTURE-001 is
+    deterministic-only and no enrichment processor exists yet. Enabling it
+    fails closed rather than silently doing nothing.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ai_enrichment: bool = False
+
+    @field_validator("ai_enrichment")
+    @classmethod
+    def _reject_unsupported_enrichment(cls, value: bool) -> bool:
+        """Fail closed instead of silently ignoring an enabled feature.
+
+        No capture path reads this flag and no enrichment processor exists, so
+        accepting ``true`` would let a config claim a capability the build does
+        not have. Rejecting keeps the documented fail-closed behaviour honest.
+        """
+        if value:
+            raise ValueError(
+                "capture.processing.ai_enrichment is not implemented in this "
+                "build; remove it or set it to false"
+            )
+        return value
+
+
+class CaptureClipboardConfig(BaseModel):
+    """Clipboard acquisition settings (architecture §22)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+
+
+class CaptureConfig(BaseModel):
+    """Capture subsystem settings (AS-OBSIDIAN-CAPTURE-001)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    deduplication: bool = True
+    default_source_application: str = "unknown"
+    clipboard: CaptureClipboardConfig = Field(default_factory=CaptureClipboardConfig)
+    processing: CaptureProcessingConfig = Field(default_factory=CaptureProcessingConfig)
+
+
 class AtlasConfig(BaseModel):
     """Top-level Project Atlas configuration."""
 
@@ -71,6 +153,8 @@ class AtlasConfig(BaseModel):
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     graphify: GraphifyConfig = Field(default_factory=GraphifyConfig)
+    capture: CaptureConfig = Field(default_factory=CaptureConfig)
+    obsidian: ObsidianConfig = Field(default_factory=ObsidianConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

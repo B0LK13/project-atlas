@@ -10983,6 +10983,505 @@ Everything else in the original entry stands: `AUTHENTIC_PILOT = NO`,
 unchecked, and `DEMO_FIXTURE != AUTHENTIC_PILOT` applies exactly as stated.
 Only the "real result receipt ... independently re-checked" language is
 withdrawn.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- conversational knowledge capture & Obsidian bridge
+
+Isolated parallel lane. Base `START_BASE_HEAD = 31e7707`
+(`START_BASE_TREE = b329500`), branch
+`feat/as-obs-001-conversational-knowledge-capture`, dedicated worktree and
+dedicated venv (the repo `.venv` resolves to the sibling lane's source tree,
+so it was never used here).
+
+### Package identity: the incoming architecture's `AS-OBS-001` collides
+
+The delivered architecture document is titled **AS-OBS-001**. That id is
+already owned by the **CLOSED** Operational Health Snapshot package
+(`src/project_atlas/ops_health.py`, `ops-health-snapshot.schema.json`,
+`tests/unit/test_as_obs_001_health_snapshot.py`), consumed by `AS-OBS-002`
+and `AS-OBS-003`; in this repo `OBS` = observability, not Obsidian. Shipped
+as **`AS-OBSIDIAN-CAPTURE-001`**. No existing package semantics were reopened.
+
+### Delivered
+
+`capture_sources.py` (text/stdin/clipboard adapters, `CaptureRequest`),
+`obsidian_capture.py` (capture service, raw evidence repository, dedupe,
+routing, lifecycle, retry, list), `obsidian_capture_note.py` (Obsidian output
+adapter), `schemas/raw-capture.schema.json` (+ `schema.py` registration),
+`config.py` `[tool.atlas.capture]` / `[tool.atlas.obsidian]` sections, and
+CLI `atlas capture text|raw-list|retry|show`. 71 new tests
+(`tests/unit/test_as_obsidian_capture_001.py`,
+`tests/integration/test_as_obsidian_capture_001_journey.py`).
+Docs: `docs/AS-OBSIDIAN-CAPTURE-001-conversational-capture.md`.
+
+Where repository truth overrode the architecture document (it says repo truth
+wins): no generated wall-clock values (NFR-001) so filenames are
+`<slug>-<capture_id>.md` and `captured_at` is operator-supplied or UNKNOWN,
+never "now"; raw evidence lives in its own quarantined plane rather than
+relaxing `conversation_capture.py`'s `RAW_TRANSCRIPT_FORBIDDEN` (D-042 /
+CAPTURE-002, also a demo-isolation DENY path); secrets are preserved verbatim
+in raw evidence but redacted out of every derived artifact including the
+derived title, which becomes the note filename on disk.
+
+### Defects found by the new tests and fixed in this lane
+
+1. `read_raw_content` used `Path.read_text`, whose universal-newline
+   translation silently rewrote CRLF evidence -- breaking INV-001 and the
+   retry content-hash check. Now reads bytes and decodes explicitly.
+2. `RoutingPolicy.validate` split destinations on `/` before validating
+   components, so an absolute value like `/etc` became a relative `etc`
+   instead of being rejected. Now uses `safe_relative_path` on the whole
+   value (both the policy and the note adapter).
+3. The derived title was not redacted, so a secret on the first captured
+   line reached the capture record and the note **filename on disk** even
+   though the note body was redacted.
+4. Atomic writes used a shared `<name>.tmp`, so concurrent identical captures
+   raced and the loser's `os.replace` failed with ENOENT -- exactly the
+   architecture §49 duplicate-race class. Now a per-writer temp name.
+
+### BLOCKER (owner decision required; NOT worked around in this lane)
+
+`tests/unit/test_atlas3_demo_isolation_001.py::test_cli_mutation_is_additive_only`
+fails for this branch. The guard says: if `src/project_atlas/cli.py` is in the
+changed set at all, the diff **must** contain `register_atlas3_parsers` /
+`dispatch_atlas3` and must add a line containing `register_atlas3_parsers`.
+
+- The guard landed 2026-08-31 (`ac5f2689`); the last commit touching `cli.py`
+  is 2026-08-27 (`68b49348`). No branch has touched `cli.py` since, so this
+  lane is the first to hit it.
+- It is unsatisfiable for any non-Atlas-3 CLI addition: the atlas3 seam
+  receives only the top-level `subparsers`, and `atlas capture text` is a
+  *subcommand* of the `capture` parser built in `cli.py`. Making the diff
+  strictly additive does not help -- the `register_atlas3_parsers` assertions
+  fail independently.
+- Its own module docstring scopes it to "Atlas 3 must not rewrite certified
+  demo / 2.x surfaces", and the file explicitly forbids using its exception
+  mechanism "to work around a failing guard on an unreviewed change".
+
+This lane therefore did **not** modify the guard: it is another lane's
+governance artifact and narrowing it needs an owner grant recorded here.
+Nothing on the demo-isolation **DENY** list was touched
+(`conversation_capture.py`, `chatgpt_capture.py`, `api_server.py`,
+`ingestion.py`, ... are all untouched), and the DENY freeze test passes.
+
+Proposed minimal remedy for owner review: gate the atlas3-specific
+assertions on the diff actually touching the atlas3 registration surface,
+leaving `removed == []` and the DENY freeze unchanged. Not applied here.
+
+### Not delivered, deliberately
+
+Localhost capture API (§23) and browser extension (§25): `LIVE_API` is a
+contractually read-only surface and adding a write endpoint needs its own
+work package. The seam is ready -- every entry point converges on
+`obsidian_capture.capture()`, `source_adapter` already accepts `"api"`, and
+`CaptureResult` is the shared machine contract. AI enrichment, message-level
+conversation parsing, and graph relations remain follow-ups; `derived_artifacts[]`
+already allows 1 capture -> N artifacts without a schema migration.
+
+
+## OWNER GRANT -- Atlas-3 CLI additive-only guard remediation
+
+Supersedes the "BLOCKER (owner decision required)" note in the
+AS-OBSIDIAN-CAPTURE-001 entry above. The owner authorized remediation of the
+Atlas-3 CLI additive-only governance guard because the contract as written
+blocks unrelated nested CLI additions while providing no valid registration
+path for them.
+
+Scope is limited to correcting the guard so it enforces Atlas-3
+ownership/isolation semantics without requiring unrelated CLI additions to
+fabricate Atlas-3 registration. No blanket bypass, package-specific exception,
+xfail, skip, freeze override, or weakening of Atlas-3 isolation is authorized,
+and none was taken. The `DENY` freeze list and
+`_OWNER_APPROVED_EXCEPTIONS` are untouched; this grant does not extend to them.
+
+### Root cause
+
+`test_cli_mutation_is_additive_only` (introduced in `cefc234e`, the Atlas-3
+first-vertical commit, alongside the two `cli.py` hook call sites it pinned)
+asserted properties of the **diff text**:
+
+```
+assert "register_atlas3_parsers" in text
+assert "dispatch_atlas3" in text
+assert removed == []
+assert any("register_atlas3_parsers" in line for line in added)
+```
+
+That pins one commit's diff shape rather than the invariant it stands for, and
+the repository has already paid for it twice:
+
+- **Unsatisfiable for unrelated work.** Atlas-3's seam receives only the
+  top-level `subparsers`, so a *nested* subcommand (`atlas capture text`) has
+  no honest way to add the required hook line. PR #656 (DOGFOOD-001) resolved
+  this by abandoning its `cli.py` change outright -- `91b24ab4`: "cli.py:
+  reverted to base entirely ... the guard never fires for this PR at all".
+  Legitimate disclosure work was dropped to satisfy a text match.
+- **Under-protective.** A diff merely *mentioning* both symbols, plus one
+  added line naming the registration hook, satisfied every assertion while
+  registering an Atlas-3 owned command directly in `cli.py` and bypassing the
+  seam. `test_g6b_seam_bypass_the_old_text_match_would_have_accepted` now
+  executes the superseded assertions against exactly such a diff to prove the
+  old form accepted it and the corrected form rejects it.
+
+### True invariant
+
+```text
+ATLAS3_GUARD_TRUE_INVARIANT =
+Atlas 3 owns project_atlas/atlas3/cli.py. The shared cli.py reaches it through
+exactly one register_atlas3_parsers(subparsers) call and exactly one
+dispatch_atlas3(args) call, both imported from project_atlas.atlas3.cli.
+That seam may not be removed, duplicated, rewired, or bypassed, and no cli.py
+change may delete an existing command registration. CLI work Atlas 3 does not
+own is out of scope and must not be required to impersonate an Atlas-3 change.
+```
+
+### Remediation
+
+`assert_cli_atlas3_contract(source, diff_text, atlas3_commands)` -- a pure,
+directly testable function -- now enforces that invariant structurally against
+the resulting file plus the removed lines, keyed off `ATLAS3_COMMANDS` (the
+real ownership registry) rather than filename or diff-text heuristics:
+
+1. both seam symbols imported from `project_atlas.atlas3.cli`, each called
+   exactly once, with the correct argument;
+2. no removed line may delete or rewrite the seam;
+3. `cli.py` may not register any `ATLAS3_COMMANDS` name on the top-level
+   `subparsers` (the bypass the old form could not see);
+4. no `cli.py` change may drop an existing command registration;
+5. the named certified commands stay reachable.
+
+Structural-analysis soundness was checked against the real `cli.py`: the
+top-level subparsers object is uniquely named `subparsers`, `cli.py` registers
+67 top-level commands, and neither its top-level nor its nested command names
+intersect `ATLAS3_COMMANDS` -- so check 3 cannot mistake a nested subcommand
+for a seam bypass.
+
+### Evidence
+
+Regression matrix `test_g0..test_g8` (13 cases) plus a live mutation test
+against the **real** `src/project_atlas/cli.py`:
+
+| case | mutation | result |
+| --- | --- | --- |
+| baseline | this lane's feature diff | PASS |
+| G1 | delete `register_atlas3_parsers(subparsers)` | FAIL (seam broken) |
+| G1b | delete `dispatch_atlas3(args)` | FAIL (seam broken) |
+| G2 | rewire hook to a nested parser | FAIL (seam broken) |
+| G6 | `subparsers.add_parser("pulse")` in cli.py | FAIL (seam bypassed) |
+| restore | revert mutation | PASS |
+
+G3 (valid additive Atlas-3 registration), G4 (unrelated nested command -- the
+`atlas capture text` shape), G4b (ruff-forced import merge), G5 (unrelated
+top-level command), G7/G7b (deleting or renaming a certified registration)
+are covered synthetically. G5's expected result is repository-backed: only a
+collision with an `ATLAS3_COMMANDS` name is a violation.
+
+Also fixed in this pass: `tests/unit/test_schema.py::test_all_expected_schemas_available`
+enumerates every registered schema kind and needed the new `raw-capture` entry.
+That failure was this lane's, not pre-existing.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- Windows concurrency remediation (supersedes 816d937e)
+
+Exact-head CI on `816d937e` (run `33956242995`/`33956239428`): control-plane
+**success**, ubuntu-latest 3.12 **success**, ubuntu-latest 3.13 **success**,
+windows-latest 3.12 **failure** -- `1 failed, 5281 passed, 4 skipped,
+3 deselected in 1211.67s`. The single failure was this lane's own
+`test_concurrent_identical_captures_produce_one_capture`, with two distinct
+candidate-caused error classes from eight concurrent captures:
+
+```text
+CaptureError('unsafe capture store escapes root: ...\generated\ops\raw-captures')  x4
+PermissionError(13, 'Access is denied')                                            x2
+```
+
+### Class A -- spurious containment failure (ordering defect, not tolerance)
+
+`_write_atomic` ran `ensure_under_root` on `path.parent` **before** `mkdir`,
+i.e. against a directory that may not exist yet. `ensure_under_root` uses
+`os.path.realpath`, which on Windows is not stable for a non-existent path
+whose ancestors are being created concurrently: it falls back to non-strict
+resolution, can leave the tail unresolved, and the result then fails
+containment against an otherwise-identical root. The post-`mkdir` check never
+flaked, which is what isolated the pre-check as the culprit.
+
+Fixed by ordering, not by retrying: a purely lexical gate runs first (so a
+constructed-path bug can never create directories outside the root), the
+directory is materialized, and the authoritative resolved check then runs
+against a stable existing path -- still before any content is written. A
+retry here would have masked an unreliable security check rather than fixing
+it, so none was added.
+
+Verified not weakened: all 12 hostile routing shapes still rejected with
+nothing written; the pre-planted symlinked note directory still fails closed
+with zero files outside and evidence preserved; and a **new** case now
+covered -- the raw store's own parent symlinked out of the vault fails closed
+with zero bytes leaked.
+
+### Class B -- benign Windows replace/mkdir race (bounded retry, authorized)
+
+`os.replace` and `mkdir` can transiently raise `PermissionError` (WinError 5)
+when another thread momentarily holds the destination. Retried with a small
+bound (5 attempts, <=150ms). This preserves atomicity -- each `os.replace`
+attempt either replaces the destination wholly or leaves it untouched, so a
+retry can never publish a partial file -- and preserves idempotency, since
+every writer of a content-addressed path writes identical bytes.
+
+### Structure
+
+Both writers now share `project_atlas/capture_io.py`
+(`write_atomic_under_root`), so the containment ordering and platform
+handling cannot drift between the raw store and the note adapter. The scope
+stays local to this package's atomic-write implementation; no shared Atlas
+path primitive was changed and `atlas_contracts.paths` is untouched.
+
+Six regression tests pin both classes (transient-then-success retry, bounded
+give-up, concurrent-mkdir tolerance, lexical gate before creation, raw-store
+symlink escape, write idempotency) so neither is left to whichever platform
+happens to find it. Local stress: 32 concurrent captures x 12 rounds, each
+producing exactly one record, one blob, one note, zero leftover temp files.
+
+
+## AS-OBSIDIAN-CAPTURE-001-R1 -- default projection root containment (supersedes 729acb65)
+
+Independent verification (Kimi) returned **FAIL** on `729acb65` with one
+material finding: the *default* Obsidian projection root could be redirected
+outside the Atlas vault by a pre-planted symlink.
+
+### Reproduced on 729acb65 before any code change
+
+| case | link | result |
+| --- | --- | --- |
+| R1-A | `<vault>/generated/obsidian/captures -> outside` | `status=ok`, 1 file / 1459 bytes written outside, capture content present |
+| R1-B | `<vault>/generated/obsidian -> outside` | `status=ok`, 1 file / 1459 bytes written outside, capture content present |
+| control | `<vault>/generated -> outside` | already failed closed (raw store anchors on the vault) |
+
+The false `ok` is the worse half: the operator was told the projection
+succeeded while the note landed outside the trust boundary.
+
+### Root cause
+
+`_resolve_obsidian_root(vault, None)` returned the derived default path
+without checking it against the vault, and `write_note` then self-anchored
+(`ensure_under_root(root, root)`) -- trivially true for any root, including a
+symlink target. The symlink therefore *became* the containment root. The raw
+evidence store was never affected because it anchors on the vault.
+
+### Remediation
+
+The projection root and its containment anchor are now separate. For the
+implicit in-vault projection the anchor is the Atlas vault; for the
+documented explicit external opt-in the configured directory remains its own
+anchor, so that contract is preserved.
+
+`capture_io.materialize_under_root` creates the default chain one component
+at a time and rejects at the first symlinked component using `lstat`, never
+`realpath`, so the walk stops before descending through a planted link --
+`mkdir(parents=True)` beyond a symlinked ancestor would itself be a write
+outside the boundary. `lstat` is deterministic for a concurrently-created
+path, so the Windows spurious-containment-failure class is not reintroduced.
+No second containment implementation was added; this lives in the same
+`capture_io` module as the existing primitives.
+
+`SECURITY_ERRORS_RETRIED = NO`. `ARBITRARY_OSERROR_RETRIED = NO`.
+
+### After the fix (all 0 bytes outside, raw preserved, hash stable)
+
+R1-A leaf, R1-B intermediate, `generated -> outside`, relative link target,
+symlink chain, routing-segment symlink (R1-E) and raw-store symlink (R1-F)
+all fail closed with `PATH_ESCAPES_VAULT`. R1-C normal default root writes
+inside the vault; R1-D explicit external root still succeeds. A dedicated
+test also asserts that not even an empty directory is created on the far side
+of a planted link.
+
+Ten regression tests were added and verified **load-bearing**: the five
+escape tests fail against the 729acb65 sources and pass against the fix.
+
+Scope held to the finding: the Atlas-3 governance guard, secret-redaction
+contract, ingestion/D-042 quarantine semantics, local API behaviour and the
+pre-existing relative-path `validate` defect are untouched. Kimi's governance
+obfuscation-class observation and the uncontracted secret shapes are recorded
+as NONBLOCKING and out of scope for this directive.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- final integration with main, and a claim correction
+
+Merged `origin/main` @ `0525e0f7` into the lane. One conflict, `WORKLOG.md`,
+append-vs-append; **zero code conflicts**. Resolved by keeping the merge-base
+verbatim, then main's 2,658-byte addition, then this lane's 16,555-byte
+addition (552,552 + 2,658 + 16,555 = 571,765 bytes). Verified line-by-line
+that every non-blank line from all three sides survives: base 9,230/9,230,
+main 41/41, feature 253/253, zero conflict markers. No product code changed.
+
+### Correction to an earlier claim in this log
+
+The AS-OBSIDIAN-CAPTURE-001-R1 entry above states that a dedicated test
+asserts "not even an empty directory is created on the far side of a planted
+link". That is true only for the **default projection chain** protected by
+`materialize_under_root`, which is what the test actually covers. Independent
+verification correctly falsified the broader reading.
+
+The verified truth, now recorded in
+`docs/AS-OBSIDIAN-CAPTURE-001-conversational-capture.md`:
+
+- default projection chain (`generated/obsidian`, `.../captures`) -- rejected
+  before traversal; zero external directories, files, temp files or bytes;
+- raw-store and routing-segment paths (`generated`, `generated/ops`, a routing
+  segment) reach `write_atomic_under_root` without `materialize_under_root`
+  and create the parent before the authoritative check, so an **empty**
+  external directory can appear before the fail-closed rejection: 2 dirs for
+  `generated -> outside`, 1 for `generated/ops -> outside`, 1 for a routing
+  segment. Zero files, zero temp files, zero content bytes in every case.
+
+This reproduces identically on the pre-remediation head `729acb65`, so it is
+**pre-existing and not introduced by R1** -- R1 strictly improved the default
+chain, which previously leaked real note files. Carried forward as a known
+non-blocking finding, deliberately not remediated under the finalization
+directive's product-code freeze, and not claimed as fixed.
+
+
+## AS-OBSIDIAN-CAPTURE-001 -- credential-persistence P1 remediation (supersedes e796ea83)
+
+Automated review found, and I confirmed, that secret-bearing capture input was
+persisted **verbatim into `generated/ops/raw-captures/*.txt`**. Reproduced
+pre-fix across all five detector classes: the finding was detected, the
+capture still returned `status=ok`, and the live credential sat in plaintext
+under `generated/` -- and so in every vault backup and sync.
+
+Root cause: I resolved the INV-001 (verbatim raw evidence) vs NFR-004 (no
+secrets in output) tension in favour of the architecture document. That was
+wrong. `AGENTS.md:180` requires credentials "excluded or redacted before any
+generated output or log is written"; `AGENTS.md:194` lists "0 secrets in
+output". Repository truth outranks the proposal, which is the rule I applied
+everywhere else in this lane and failed to apply here. Both prior independent
+verifications tested secret handling against the contract I had defined, so
+they confirmed my design rather than checking it against AGENTS.md.
+
+Owner decision: security invariant wins. INV-001 is scoped to content that
+clears the gate. Fix follows the repository's own precedent -- `ingestion`
+refuses secret-bearing marker fields, `conversation_capture` rejects with
+`SECRET_CONTENT` -- so capture now fails closed with that same code before any
+resolution, hashing or write. Content, title hint, locator and metadata values
+are all scanned, because a title becomes the note filename and a locator and
+metadata reach the record and frontmatter. `retry` re-scans stored evidence so
+a pre-gate artifact cannot be re-rendered, and the note writer refuses to carry
+a credential typed into a `BEGIN HUMAN` region into a regenerated note.
+
+Verified on filesystem bytes, not status codes: 10-case matrix (normal,
+per-class secrets, multi-secret, title/locator/metadata, human region,
+failed write, 16-way concurrent, legacy retry, false-positive boundary) ->
+0 plaintext in generated output, 0 in logs, 0 in temp files. Both prior P1s
+re-verified unregressed: 8 containment shapes at 0 outside bytes, and
+human-edit retry preserved across sequential and 16-way concurrent retries.
+
+### Review threads triaged in the same cycle (all six confirmed, all fixed)
+
+- dedupe followed a symlinked record path -> now rejected, aligning with
+  `retry`/`list_captures`;
+- unpaired surrogates raised a raw `UnicodeEncodeError` -> stable
+  `CONTENT_NOT_ENCODABLE` / `MALFORMED_REQUEST` codes;
+- `ai_enrichment = true` was silently accepted while nothing reads it, and my
+  own docstring claimed fail-closed -> now rejected in validation;
+- the Atlas-3 seam guard fired on removal of a *comment* mentioning a seam
+  symbol -> comments stripped before the code check;
+- **the corrected seam guard permitted deleting a certified command** when the
+  registration spanned multiple lines and its name appeared elsewhere in
+  dispatch. Confirmed against the real `cli.py`: deleting the 8-line `capture`
+  registration passed. Removed lines are now joined before matching, and the
+  certified-surface check requires an actual `add_parser` registration rather
+  than any occurrence of the string. This was a real weakening I introduced
+  versus the original `removed == []`, caught by review, not by me.
+
+F1-F4 remain separate and unaddressed here; `graph_projections.py` was not
+touched.
+
+
+## AS-OBSIDIAN-CAPTURE-001 — R3 service encoding follow-through
+
+Morning reconciliation under D-OBSIDIAN-AUTONOMOUS-684-CLOSURE-AND-SUCCESSOR-DAG
+confirmed unchanged PR head `43114628` / tree
+`723730df187142fa1e73f6eb7ec362bb5e6d6c0d` and exact-head CI run `33989190053`
+passing all four jobs. Prior local full-suite evidence was reused.
+
+The direct service path still raised a raw `UnicodeEncodeError`: identity
+hashing encoded content before `_encoded_length` could translate the error.
+Three high/low-surrogate regression cases failed on that baseline. The service
+now validates UTF-8 after secret rejection and before hashing, retaining those
+verbatim bytes for the byte count and atomic raw write. Invalid direct requests
+return `MALFORMED_REQUEST`; adapter validation retains `CONTENT_NOT_ENCODABLE`.
+
+The affected capture, journey, Obsidian projection, and Atlas-3 guard tests
+passed (160 cases, exit 0), including secret rejection, symlink containment and
+human-edit retry regressions. Changed-file ruff and capture-module mypy passed;
+`git diff --check` passed. No local full-suite rerun was used for this bounded
+change. Independent exact-head Kimi verification and successor CI remain
+required before merge. This entry is implementation evidence, not certification.
+
+The verifier packet's obsolete raw-store secret exception was removed; its
+candidate identity is now explicitly supplied by the exact-head dispatch.
+F1–F4 remain separate successor work. No discovery.py changes were made.
+
+
+## AS-OBSIDIAN-CAPTURE-001 — AT-014 scan-coverage completion (E2/E1)
+
+Continuation of the Obsidian lane after the predecessor implementation agent
+stopped on a product rate limit. Took over at PR #684 head
+`cd4a921004d863b0407f6feceadc5ed1d53da941` / tree
+`52103ca28cdc10875ad41b7456dcd24ccd97087b`, base `0525e0f7` — remote head
+matched the handoff exactly, so completed local certification was reused rather
+than rerun. Work continued in a clean detached worktree with zero tracked
+mutations at start.
+
+Independent verification returned `FAIL_MATERIAL` on that exact head for one
+narrow AT-014 coverage gap, reproduced here before any change:
+
+- **E2 (material, CLI-reachable).** `_reject_secret_bearing_request` scanned
+  content, title hint, locator and metadata *values*, but not `captured_at`.
+  `atlas capture text --captured-at "Bearer <token>"` exited 0 and persisted
+  the plaintext credential into `generated/ops/raw-captures/<id>.json` **and**
+  the note frontmatter — two files under `generated/` — while the record still
+  wrote `secret_scan: {"findings": []}` about it. The gate's own docstring
+  claimed "every field that could reach disk is scanned", so the contract was
+  false, not merely incomplete.
+- **E1 (same class).** Secret-bearing `source_metadata` **keys** persisted
+  plaintext; values were scanned, keys were not. Not reachable from today's CLI
+  (no `--metadata` flag), reachable programmatically.
+
+Both are fixed by scanning `captured_at` and metadata keys. `source_application`
+was added too: it is CLI-reachable via `--application` and only incidentally
+safe today, rejected at persist time by raw-capture schema validation rather
+than by the secret gate — detection now runs ahead of the write instead of
+relying on a downstream validator. `source_type` and `source_adapter` are closed
+vocabularies and `project_reference` must match an existing governed project id,
+so none of the three can carry an attacker-chosen credential to disk; the
+docstring now enumerates this rather than asserting universal coverage.
+
+Post-fix, all six secret-bearing field surfaces fail closed with
+`SECRET_CONTENT` and byte inspection shows 0 plaintext occurrences in
+`generated/`, the vault, or temp residue; a clean `captured_at` is still
+accepted verbatim. The five new regression cases were confirmed to fail against
+the pre-fix runtime and pass after.
+
+Reconciling review thread "Detect multiline command deletions in the CLI guard"
+by replaying the deletion attack against the real `cli.py` — not the fixture —
+surfaced a further residual in the same guard: `connect` is registered twice
+there, as `atlas connect` and as the nested `atlas discover connect`, so the
+any-depth presence check let the certified top-level registration be deleted
+while the unrelated nested one kept the name alive. Certified reachability is
+now checked against top-level registrations only. Deleting any of the five
+certified top-level registrations is detected, seam removal and atlas3-command
+bypass are detected, and the controls (no-op, unrelated new command, comment
+naming a seam symbol, deleting only the nested `discover connect`) stay quiet.
+
+Both prior P1s were re-verified on this tree and still hold: symlinked
+projection and raw-store paths fail closed with `PATH_ESCAPES_VAULT`, 0 bytes
+written outside the vault and the outside canary unchanged; human-edited region
+content survives 3 sequential and 8 concurrent retries with 0 exceptions.
+
+F1–F4 remain separate successor work and `graph_projections.py` was not
+touched. This entry is implementation evidence, not certification: a fresh
+exact-head independent verification and CI run are required before merge.
+
 ---
 
 ## OG-ATLAS-LINUX-FILESYSTEM-20260905 — Linux filesystem defects in discover/ingest
