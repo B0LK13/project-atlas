@@ -12969,3 +12969,64 @@ and belongs to the separately-tracked nesting question.
 
 Three regression cases cover the fail-open and were each confirmed to fail
 against `89e0ac38` and pass here.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F2 -- structural-scope-qualified region identity
+
+Owner decision: a HUMAN protected region is identified by its **ancestry scope
+path plus its name**, so `a/x` and `b/x` are two independent regions whose
+contents must be preserved independently. Name-keyed last-wins resolution is
+not acceptable.
+
+Reproduced on main before changing anything. `extract_human_regions` keyed
+blocks by bare name, so `a/x` and `b/x` collapsed into one dictionary slot; the
+last block parsed won, and the merge then spliced that survivor into the
+*earlier* container by regex. One human's note was silently replaced by
+another's. A 4,000-trial randomized harness over nested/sibling documents put
+the rate at **111 lost payloads in 1,241 successful merges** on main; the same
+harness on this tree loses none.
+
+Identity is now a `RegionPath` -- the names of a region's open ancestors,
+outermost first, plus its own name. Markers are paired structurally with a
+stack rather than by searching for the next `END` of the same name, so a
+region's identity is its position in the nesting tree rather than a string.
+Anything that cannot be paired unambiguously fails closed: an `END` that does
+not close the innermost open region (crossed markers such as
+`BEGIN a, BEGIN b, END a, END b` have no single valid reading), a `BEGIN` left
+open at end of document, and a region whose name equals one of its own open
+ancestors -- its path would be unique, but nothing in the marker text says
+which `END` closes which `BEGIN`.
+
+The merge resolves and validates the complete plan before writing a single
+byte. Prior regions are matched to rendered spans by path; the outermost match
+wins, because a block's bytes already contain everything nested inside it and
+descending further would splice the same content twice. A prior region the
+fresh render no longer offers is appended rather than dropped, and only the
+outermost such region, for the same reason. If any identity is ambiguous the
+caller gets an exception and the note it passed in is untouched -- there is no
+partially rewritten result.
+
+Two consequences worth stating plainly rather than burying:
+
+- **Nested distinct-name documents no longer duplicate the inner block.**
+  Pre-F2 the merge appended `inner` alongside the `outer` block that already
+  contained it, so the payload appeared twice; under path identity the parent
+  carries its children and it appears once. Duplication was not loss, but it
+  was spurious content the human never wrote. The repeated-render test that
+  pinned the old shape now pins the new one.
+- **`extract_human_regions` is keyed by `RegionPath`, not by name.** The only
+  caller reads `.values()` (secret scanning), which is unaffected -- and
+  strictly better off, because a block that used to be collapsed away escaped
+  that scan entirely.
+
+Acceptance matrix F2-01 through F2-10 is covered by tests, and seven of them
+were confirmed to fail against main's implementation and pass here. Randomized
+evidence at this tree: 4,000 trials, `HUMAN_CONTENT_LOSS_COUNT = 0`,
+`CROSS_SCOPE_SUBSTITUTION_COUNT = 0`.
+
+F3 (literal generated markers inside HUMAN content) and F4 (the independent
+implementation in `graph_projections.py`, which this change does not reach)
+remain owner-gated and untouched.
+
+This entry is implementation evidence, not certification: exact-head CI and
+fresh independent verification are required before merge.

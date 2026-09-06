@@ -50,88 +50,72 @@ def validate_protected_markers(text: str, *, path: str) -> None:
         raise ProtectedRegionError(f"malformed-generated-markers:{path}")
 
 
-def _human_region_spans(text: str) -> list[tuple[str, int, int]]:
-    """``(name, start, end)`` for every HUMAN block, in document order.
+#: A region's identity: the names of its open ancestors, outermost first,
+#: followed by its own name. ``a/x`` and ``b/x`` are therefore two different
+#: regions rather than one name used twice.
+RegionPath = tuple[str, ...]
 
-    Span end is the first ``END HUMAN: <name>`` after the begin, which is the
-    same rule :func:`extract_human_regions` uses -- the two must agree or the
-    ambiguity verdict would be about a different document than the merge.
+
+def _human_region_spans(text: str) -> list[tuple[RegionPath, int, int]]:
+    """``(path, start, end)`` for every HUMAN block, in document order.
+
+    Markers are paired structurally with a stack rather than by searching for
+    the next ``END`` of the same name, so a region's identity is its position
+    in the nesting tree. Anything that cannot be paired unambiguously fails
+    closed here, which is the only way a caller can be handed a document it is
+    safe to rewrite:
+
+    * an ``END`` with no open region, or one that does not close the innermost
+      open region -- crossed markers such as ``BEGIN a, BEGIN b, END a, END b``
+      have no single valid reading;
+    * a ``BEGIN`` left open at end of document;
+    * a region whose name equals one of its own open ancestors. Its path would
+      be unique, but the marker text is not: nothing in the document says which
+      ``END`` closes which ``BEGIN``, so the structure is ambiguous to any
+      reader, human or otherwise.
     """
-    spans: list[tuple[str, int, int]] = []
+    events: list[tuple[int, int, str, int]] = []
     for match in _HUMAN_BEGIN.finditer(text):
-        name = match.group(1)
-        end_match = re.search(
-            rf"<!--\s*END HUMAN:\s*{re.escape(name)}\s*-->",
-            text[match.end() :],
+        events.append((match.start(), 0, match.group(1), match.end()))
+    for match in _HUMAN_END.finditer(text):
+        events.append((match.start(), 1, match.group(1), match.end()))
+    events.sort(key=lambda event: event[0])
+
+    spans: list[tuple[RegionPath, int, int]] = []
+    open_stack: list[tuple[str, int]] = []
+    open_names: Counter[str] = Counter()
+    for position, kind, name, marker_end in events:
+        if kind == 0:
+            if name in open_names:
+                raise ProtectedRegionError(
+                    f"ambiguous-protected-region-nesting:{name}"
+                )
+            open_stack.append((name, position))
+            open_names[name] += 1
+            continue
+        if not open_stack or open_stack[-1][0] != name:
+            raise ProtectedRegionError(f"malformed-protected-markers:unpaired:{name}")
+        open_name, open_position = open_stack.pop()
+        del open_names[open_name]
+        region = (*(ancestor for ancestor, _ in open_stack), name)
+        spans.append((region, open_position, marker_end))
+    if open_stack:
+        raise ProtectedRegionError(
+            f"malformed-protected-markers:missing-end:{open_stack[-1][0]}"
         )
-        if end_match is None:
-            raise ProtectedRegionError(f"malformed-protected-markers:missing-end:{name}")
-        spans.append((name, match.start(), match.end() + end_match.end()))
+    spans.sort(key=lambda span: span[1])
     return spans
 
 
-def _ambiguous_region_names(text: str) -> list[str]:
-    """Names whose identity is genuinely ambiguous in ``text``.
+def _ambiguous_region_paths(spans: list[tuple[RegionPath, int, int]]) -> list[str]:
+    """Paths used by more than one region in ``spans``.
 
-    Two situations, and only these two:
-
-    * **the same name appears twice at the same level** -- siblings, however
-      far apart, empty or not, identical content or not. The fresh render has
-      one slot per name and there is no way to say which block owns it.
-    * **a region contains another region of its own name.** The inner block's
-      identity is indistinguishable from its container's.
-
-    Deliberately *not* ambiguous: a name that appears once at the top level
-    and once inside a region with a **different** name. That is the shape a
-    nested distinct-name document takes after one merge -- the merge appends
-    the inner block alongside the outer block that already contains it -- and
-    it is an artifact of the existing nesting behaviour, not an F1 identity
-    conflict. Counting raw name occurrences cannot tell the two apart, so it
-    refused a document the merge itself had just produced: the first render
-    succeeded and the second failed. Whether that nesting behaviour is right
-    is the open F2 question, and refusing it here would answer it by
-    side effect.
-
-    Containment is resolved with a stack over spans already in document
-    order. Each span is pushed and popped once, and both questions asked of it
-    -- "is an ancestor of mine already open under this name?" and "has a
-    sibling in my scope already used it?" -- are dict lookups against sets
-    maintained as the stack moves. So the walk is linear in the number of
-    regions rather than O(n x depth), and depth is unbounded for the nested
-    distinct-name documents this deliberately allows. Comparing every span
-    against every other would be quadratic, and this runs on every merge.
+    Scope is part of identity, so this is the only remaining ambiguity once
+    :func:`_human_region_spans` has accepted the structure: two regions that
+    genuinely occupy the same slot. ``a/x`` beside ``b/x`` is not one of them.
     """
-    ambiguous: set[str] = set()
-    root_siblings: set[str] = set()
-    # (name, span end, names of the regions directly inside this one)
-    open_spans: list[tuple[str, int, set[str]]] = []
-    # Names of the currently open ancestors, maintained alongside the stack so
-    # the self-nesting test is a dict lookup rather than a walk up the stack.
-    # Scanning the ancestors instead would be O(depth) per span, and depth is
-    # unbounded for the nested distinct-name documents this deliberately
-    # allows -- quadratic on exactly the input it must not punish.
-    open_names: Counter[str] = Counter()
-    for name, start, end in _human_region_spans(text):
-        while open_spans and open_spans[-1][1] <= start:
-            closed, _, _ = open_spans.pop()
-            open_names[closed] -= 1
-            if not open_names[closed]:
-                del open_names[closed]
-        if name in open_names:
-            ambiguous.add(name)  # a region nested inside one of its own name
-        else:
-            # Siblings are compared within their own scope, at every depth --
-            # not only at the top level. Two same-name blocks inside a
-            # differently-named container are as ambiguous as two at the root:
-            # extract_human_regions keys by name, so one of them is silently
-            # dropped either way. Checking only the root left that fail-open.
-            siblings = open_spans[-1][2] if open_spans else root_siblings
-            if name in siblings:
-                ambiguous.add(name)  # two blocks of this name in one scope
-            siblings.add(name)
-        open_spans.append((name, end, set()))
-        open_names[name] += 1
-    return sorted(ambiguous)
+    counts = Counter(path for path, _, _ in spans)
+    return sorted("/".join(path) for path, seen in counts.items() if seen > 1)
 
 
 def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
@@ -155,51 +139,54 @@ def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
     refused, nested *distinct-name* documents keep the behaviour they had
     before F1 existed, at every generation rather than only the first.
     """
-    duplicates = _ambiguous_region_names(text)
+    duplicates = _ambiguous_region_paths(_human_region_spans(text))
     if duplicates:
         raise ProtectedRegionError(
             f"duplicate-protected-region-names:{','.join(duplicates)}:{path}"
         )
 
 
-def extract_human_regions(text: str) -> dict[str, str]:
-    """Named HUMAN blocks, keyed by name.
+def extract_human_regions(text: str) -> dict[RegionPath, str]:
+    """HUMAN blocks keyed by structural path, outermost ancestor first.
 
-    Refuses ambiguous identity for the same reason the merge does: this
-    function is exported and callable on its own, and silently dropping a
-    block is exactly the human-data loss this module exists to prevent.
+    Keyed by :data:`RegionPath` rather than by bare name: ``a/x`` and ``b/x``
+    are independent regions, and collapsing them into one dictionary slot is
+    what silently discarded one of them. A block's bytes include everything
+    nested inside it, so a parent's entry already carries its children.
 
-    A name that also appears nested inside a differently-named region is not
-    ambiguous, and the later occurrence wins, which is the behaviour that
-    predates F1. Changing it would alter what a nested distinct-name document
-    renders to, which is an F2 decision this must not make.
+    Fails closed on ambiguous identity for the same reason the merge does:
+    this function is exported and callable on its own, and quietly returning
+    one of two regions that claim the same slot is exactly the human-data loss
+    this module exists to prevent.
     """
-    duplicates = _ambiguous_region_names(text)
+    spans = _human_region_spans(text)
+    duplicates = _ambiguous_region_paths(spans)
     if duplicates:
         raise ProtectedRegionError(
             f"duplicate-protected-region-names:{','.join(duplicates)}:extract"
         )
-    regions: dict[str, str] = {}
-    for match in _HUMAN_BEGIN.finditer(text):
-        name = match.group(1)
-        end_match = re.search(
-            rf"<!--\s*END HUMAN:\s*{re.escape(name)}\s*-->",
-            text[match.end() :],
-        )
-        if end_match is None:
-            raise ProtectedRegionError(f"malformed-protected-markers:missing-end:{name}")
-        regions[name] = text[match.start() : match.end() + end_match.end()]
-    return regions
+    return {path: text[start:end] for path, start, end in spans}
 
 
 def merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:
-    """Splice named HUMAN blocks from ``existing`` into a fresh ``rendered``.
+    """Splice HUMAN blocks from ``existing`` into a fresh ``rendered``.
 
     ``existing is None`` (first write, no prior file) returns ``rendered``
-    unchanged. Otherwise every ``BEGIN HUMAN: name`` block found in
-    ``existing`` is re-inserted at the same named position in ``rendered``
-    (or appended, if the fresh render dropped that section) -- byte-for-byte,
-    never re-derived from the new render.
+    unchanged. Otherwise every HUMAN block in ``existing`` is re-inserted at
+    the position in ``rendered`` holding the **same structural path** --
+    byte-for-byte, never re-derived from the new render, and never moved into
+    a different scope. A block whose path the fresh render no longer offers is
+    appended rather than dropped.
+
+    Resolution is by path, not by name. Keying on the bare name collapsed
+    ``a/x`` and ``b/x`` into one slot, so the last one parsed won and its bytes
+    were then spliced into the *other* container -- one human's note silently
+    replaced by another's. Position is used only to locate spans; it is never
+    identity, so reordering two sibling containers moves nothing between them.
+
+    The whole plan is resolved and validated before a single byte is written.
+    If any identity is ambiguous the caller gets an exception and the note it
+    passed in is untouched -- there is no partially rewritten result.
     """
     if existing is None:
         validate_protected_markers(rendered, path=path)
@@ -207,27 +194,56 @@ def merge_protected_regions(*, existing: str | None, rendered: str, path: str) -
         return rendered
     validate_protected_markers(existing, path=path)
     validate_protected_markers(rendered, path=path)
-    # Inputs only -- see reject_ambiguous_region_identity on why the merged
-    # result is deliberately not checked for duplicate names.
-    reject_ambiguous_region_identity(existing, path=path)
-    reject_ambiguous_region_identity(rendered, path=path)
-    prior_humans = extract_human_regions(existing)
-    if not prior_humans:
+
+    existing_spans = _human_region_spans(existing)
+    rendered_spans = _human_region_spans(rendered)
+    for spans in (existing_spans, rendered_spans):
+        duplicates = _ambiguous_region_paths(spans)
+        if duplicates:
+            raise ProtectedRegionError(
+                f"duplicate-protected-region-names:{','.join(duplicates)}:{path}"
+            )
+
+    prior = {region: existing[start:end] for region, start, end in existing_spans}
+    if not prior:
         return rendered
+
+    # Plan. Outermost match wins: a block's bytes already contain everything
+    # nested inside it, so replacing a parent also restores its children, and
+    # descending into it afterwards would splice the same content twice.
+    replacements: list[tuple[int, int, str]] = []
+    replaced: list[RegionPath] = []
+    covered_until = -1
+    for region, start, end in rendered_spans:
+        if start < covered_until or region not in prior:
+            continue
+        replacements.append((start, end, prior[region]))
+        replaced.append(region)
+        covered_until = end
+
+    def _is_under(candidate: RegionPath, ancestor: RegionPath) -> bool:
+        return candidate[: len(ancestor)] == ancestor
+
+    # A prior region the fresh render has no slot for is appended, so human
+    # bytes survive a template that dropped its section. Only the outermost
+    # such region is appended: its block already carries its descendants.
+    orphans = [
+        region
+        for region in sorted(prior)
+        if not any(_is_under(region, done) for done in replaced)
+    ]
+    minimal_orphans = [
+        region
+        for region in orphans
+        if not any(other != region and _is_under(region, other) for other in orphans)
+    ]
+
     merged = rendered
-    for name, block in sorted(prior_humans.items()):
-        pattern = re.compile(
-            rf"<!--\s*BEGIN HUMAN:\s*{re.escape(name)}\s*-->.*?<!--\s*END HUMAN:\s*"
-            rf"{re.escape(name)}\s*-->",
-            re.DOTALL,
-        )
-        if not pattern.search(merged):
-            merged = merged.rstrip() + "\n\n" + block + "\n"
-        else:
+    for start, end, block in sorted(replacements, reverse=True):
+        merged = merged[:start] + block + merged[end:]
+    for region in minimal_orphans:
+        merged = merged.rstrip() + "\n\n" + prior[region] + "\n"
 
-            def _replacer(_match: re.Match[str], *, _block: str = block) -> str:
-                return _block
-
-            merged = pattern.sub(_replacer, merged, count=1)
     validate_protected_markers(merged, path=path)
+    reject_ambiguous_region_identity(merged, path=path)
     return merged
