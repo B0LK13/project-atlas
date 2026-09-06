@@ -4,6 +4,18 @@ set -euo pipefail
 MODE="${1:---check}"
 BIN_DIR="${HOME}/.local/bin"
 
+# Pinned versions for reproducible installs.
+PLAYWRIGHT_MCP_VERSION="0.0.80"
+CONTEXT7_MCP_VERSION="4.0.5"
+MARKDOWNLINT_CLI2_VERSION="0.23.2"
+GITLEAKS_VERSION="v8.30.1"
+TRIVY_VERSION="v0.74.0"
+SYFT_VERSION="v1.51.1"
+GRYPE_VERSION="v0.118.0"
+TAPLO_VERSION="0.10.0"
+ACTIONLINT_VERSION="v1.7.12"
+taplo_SHA256="8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
+
 log() { printf '%s\n' "$*"; }
 has() { command -v "$1" >/dev/null 2>&1; }
 
@@ -34,7 +46,7 @@ install_pipx() {
 }
 
 install_release_binary() {
-	local repo="$1" asset_regex="$2" bin="$3" checksum_regex="${4:-}"
+	local repo="$1" tag="$2" asset_regex="$3" bin="$4" checksum_regex="${5:-}"
 	if has "${bin}"; then
 		log "present release binary: ${bin}"
 		return 0
@@ -47,7 +59,7 @@ install_release_binary() {
 	local tmp
 	tmp="$(mktemp -d)"
 	trap 'rm -rf "${tmp}"' RETURN
-	gh api "repos/${repo}/releases/latest" >"${tmp}/release.json"
+	gh api "repos/${repo}/releases/tags/${tag}" >"${tmp}/release.json"
 	local asset_url asset_name
 	asset_url="$(jq -r --arg re "${asset_regex}" '.assets[] | select(.name|test($re)) | .browser_download_url' "${tmp}/release.json" | head -n 1)"
 	asset_name="$(basename "${asset_url}")"
@@ -71,6 +83,32 @@ install_release_binary() {
 	fi
 }
 
+install_taplo() {
+	if has taplo; then
+		log "present release binary: taplo"
+		return 0
+	fi
+	if [ "${MODE}" != "--install" ]; then
+		log "would install release binary: taplo (tamasfe/taplo ${TAPLO_VERSION})"
+		return 0
+	fi
+	mkdir -p "${BIN_DIR}"
+	local tmp
+	tmp="$(mktemp -d)"
+	trap 'rm -rf "${tmp}"' RETURN
+	local url="https://github.com/tamasfe/taplo/releases/download/${TAPLO_VERSION}/taplo-linux-x86_64.gz"
+	local gz="${tmp}/taplo-linux-x86_64.gz"
+	curl -fsSL "${url}" -o "${gz}"
+	local actual
+	actual="$(sha256sum "${gz}" | awk '{print $1}')"
+	if [ "${actual}" != "${taplo_SHA256}" ]; then
+		log "taplo checksum mismatch: expected ${taplo_SHA256}, got ${actual}"
+		return 1
+	fi
+	gzip -dc "${gz}" >"${BIN_DIR}/taplo"
+	chmod 0755 "${BIN_DIR}/taplo"
+}
+
 case "${MODE}" in
 --dry-run | --check | --install) ;;
 *)
@@ -81,21 +119,21 @@ esac
 
 log "mode=${MODE}"
 
-install_npm "@playwright/mcp@0.0.80"
-install_npm "@upstash/context7-mcp@4.0.5"
-install_npm "markdownlint-cli2@0.23.2"
+install_npm "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}"
+install_npm "@upstash/context7-mcp@${CONTEXT7_MCP_VERSION}"
+install_npm "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
 install_pipx "semgrep" "semgrep"
 
-install_release_binary "zricethezav/gitleaks" "linux_x64\\.tar\\.gz$" "gitleaks" "_checksums\\.txt$"
-install_release_binary "aquasecurity/trivy" "Linux-64bit\\.tar\\.gz$" "trivy" "_checksums\\.txt$"
-install_release_binary "anchore/syft" "linux_amd64\\.tar\\.gz$" "syft" "_checksums\\.txt$"
-install_release_binary "anchore/grype" "linux_amd64\\.tar\\.gz$" "grype" "_checksums\\.txt$"
-install_release_binary "tamasfe/taplo" "taplo-linux-x86_64\\.gz$" "taplo"
+install_release_binary "zricethezav/gitleaks" "${GITLEAKS_VERSION}" "linux_x64\\.tar\\.gz$" "gitleaks" "_checksums\\.txt$"
+install_release_binary "aquasecurity/trivy" "${TRIVY_VERSION}" "Linux-64bit\\.tar\\.gz$" "trivy" "_checksums\\.txt$"
+install_release_binary "anchore/syft" "${SYFT_VERSION}" "linux_amd64\\.tar\\.gz$" "syft" "_checksums\\.txt$"
+install_release_binary "anchore/grype" "${GRYPE_VERSION}" "linux_amd64\\.tar\\.gz$" "grype" "_checksums\\.txt$"
+install_taplo
 
 if has actionlint; then
 	log "present go install: actionlint"
 elif [ "${MODE}" = "--install" ] && has go; then
-	GOBIN="${BIN_DIR}" go install github.com/rhysd/actionlint/cmd/actionlint@latest
+	GOBIN="${BIN_DIR}" go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
 else
 	log "would install go tool: actionlint"
 fi
