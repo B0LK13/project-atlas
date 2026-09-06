@@ -23,6 +23,7 @@ establish what the CLI exposes.
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 import pytest
 
@@ -147,8 +148,14 @@ def test_certified_subcommand_keeps_its_documented_options(
 def test_certified_commands_parse_a_documented_invocation(
     built: argparse.ArgumentParser,
 ) -> None:
-    """End to end through argparse: the documented invocation still parses."""
+    """End to end through argparse: the documented invocation still parses.
+
+    Compared as a `Path`, not as a string: `--vault` is `type=Path`, so the
+    parsed value is a `WindowsPath` on Windows and its string form uses
+    backslashes. Asserting the POSIX spelling passed on Linux and failed the
+    Windows CI job.
+    """
     parsed = built.parse_args(["brief", "--vault", "/tmp/v", "--project", "p"])
     assert parsed.command == "brief"
-    assert str(parsed.vault) == "/tmp/v"
+    assert parsed.vault == Path("/tmp/v")
     assert parsed.projects == ["p"]
