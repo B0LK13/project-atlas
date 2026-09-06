@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -524,6 +525,204 @@ def _seam_call_count(source: str, symbol: str, argument: str) -> int:
     )
 
 
+
+#: Arguments that are part of a certified command's published interface, as
+#: documented in CLAUDE.md's command list. Deliberately conservative: only
+#: flags the repository documents as the way to drive that command. Removing
+#: or renaming one silently breaks a documented invocation, which no amount of
+#: "the command is still registered" catches.
+_CERTIFIED_COMMAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
+    "brief": ("--vault", "--project"),
+    "ask2": ("--vault", "--project", "--question"),
+    "kdiff": ("--vault", "--project"),
+    "connect": ("--vault",),
+}
+
+#: The one call that creates the shared CLI's top-level subparser group.
+_TOP_LEVEL_SUBPARSERS_NAME = "subparsers"
+
+
+def _cli_module_ast(source: str) -> ast.Module:
+    try:
+        return ast.parse(source)
+    except SyntaxError as exc:  # pragma: no cover - a broken cli.py fails louder elsewhere
+        raise AssertionError(f"cli.py does not parse: {exc}") from exc
+
+
+def _assigned_names(tree: ast.Module) -> list[tuple[str, int]]:
+    """Every name bound by assignment, `:=`, `def`, `class`, or `import as`."""
+    bound: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.NamedExpr)):
+            targets = [node.target]
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound.append((node.name, node.lineno))
+            continue
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                if alias.asname:
+                    bound.append((alias.asname, node.lineno))
+            continue
+        for target in targets:
+            for sub in ast.walk(target):
+                if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Store):
+                    bound.append((sub.id, sub.lineno))
+    return bound
+
+
+def _add_parser_calls(tree: ast.Module) -> list[tuple[str, str, int]]:
+    """(receiver_name, command_name, lineno) for every `X.add_parser("cmd")`."""
+    found: list[tuple[str, str, int]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "add_parser" or not isinstance(node.func.value, ast.Name):
+            continue
+        name: str | None = None
+        if node.args and isinstance(node.args[0], ast.Constant) and isinstance(
+            node.args[0].value, str
+        ):
+            name = node.args[0].value
+        for keyword in node.keywords:
+            if (
+                keyword.arg == "name"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                name = keyword.value.value
+        if name is not None:
+            found.append((node.func.value.id, name, node.lineno))
+    return found
+
+
+def _added_arguments(tree: ast.Module, parser_variable: str) -> set[str]:
+    """Option strings registered on `<parser_variable>.add_argument(...)`."""
+    options: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "add_argument" or not isinstance(node.func.value, ast.Name):
+            continue
+        if node.func.value.id != parser_variable:
+            continue
+        for argument in node.args:
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                options.add(argument.value)
+    return options
+
+
+def _parser_variable_for(tree: ast.Module, command: str) -> str | None:
+    """The variable a top-level `add_parser("command")` result is bound to."""
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        call = node.value
+        if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Attribute):
+            continue
+        if call.func.attr != "add_parser" or not isinstance(call.func.value, ast.Name):
+            continue
+        if call.func.value.id != _TOP_LEVEL_SUBPARSERS_NAME:
+            continue
+        if call.args and isinstance(call.args[0], ast.Constant) and call.args[0].value == command:
+            return target.id
+    return None
+
+
+def _dispatched_commands(tree: ast.Module) -> set[str]:
+    """Commands compared against `args.command` anywhere in the module."""
+    dispatched: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare) or not isinstance(node.left, ast.Attribute):
+            continue
+        if node.left.attr != "command":
+            continue
+        for comparator in node.comparators:
+            if isinstance(comparator, ast.Constant) and isinstance(comparator.value, str):
+                dispatched.add(comparator.value)
+            elif isinstance(comparator, (ast.Tuple, ast.List, ast.Set)):
+                for element in comparator.elts:
+                    if isinstance(element, ast.Constant) and isinstance(element.value, str):
+                        dispatched.add(element.value)
+    return dispatched
+
+
+def assert_cli_semantic_invariants(*, source: str, atlas3_commands: frozenset[str]) -> None:
+    """Invariants that survive rebinding, shadowing and reformatting.
+
+    Every check here is about what the parser *does*, recovered from the AST,
+    not about how the file is written. Text-level checks cannot see any of it:
+    a shadowing assignment adds a line and removes none.
+    """
+    tree = _cli_module_ast(source)
+    bound = _assigned_names(tree)
+
+    # (C) The seam symbols must never be rebound. Importing them is the only
+    #     legitimate binding; anything else can neutralise the call while
+    #     leaving it textually intact.
+    for symbol in sorted(_ATLAS3_SEAM_CALLS):
+        rebindings = [line for name, line in bound if name == symbol]
+        assert rebindings == [], (
+            f"Atlas 3 seam neutralised: cli.py rebinds {symbol!r} at line(s) "
+            f"{rebindings}; the seam call would still be present but inert"
+        )
+
+    # (D) The top-level subparser group is created once and never rebound.
+    #     Rebinding it re-routes every later registration under another parser.
+    subparser_bindings = [line for name, line in bound if name == _TOP_LEVEL_SUBPARSERS_NAME]
+    assert len(subparser_bindings) == 1, (
+        f"top-level parser identity unstable: {_TOP_LEVEL_SUBPARSERS_NAME!r} is bound "
+        f"{len(subparser_bindings)} times (lines {subparser_bindings}); later "
+        "registrations would attach to a different parser than the guard checks"
+    )
+
+    registrations = _add_parser_calls(tree)
+    top_level = {
+        name
+        for receiver, name, _ in registrations
+        if receiver == _TOP_LEVEL_SUBPARSERS_NAME
+    }
+
+    # (E) Certified commands are top-level, established by parsing rather than
+    #     by a substring that a nested registration also satisfies.
+    for command in _CERTIFIED_CLI_COMMANDS:
+        assert command in top_level, (
+            f"certified CLI surface removed: {command!r} is not registered on "
+            f"{_TOP_LEVEL_SUBPARSERS_NAME} (AST)"
+        )
+
+    # (F) A registered command that nothing dispatches is dead surface.
+    dispatched = _dispatched_commands(tree)
+    for command in _CERTIFIED_CLI_COMMANDS:
+        assert command in dispatched, (
+            f"certified command unreachable: nothing dispatches args.command == {command!r}"
+        )
+
+    # (G) The documented interface of a certified command may not be dropped.
+    for command, required in sorted(_CERTIFIED_COMMAND_ARGUMENTS.items()):
+        variable = _parser_variable_for(tree, command)
+        assert variable is not None, (
+            f"certified CLI surface removed: no top-level parser variable for {command!r}"
+        )
+        registered = _added_arguments(tree, variable)
+        missing = sorted(set(required) - registered)
+        assert missing == [], (
+            f"certified command contract eroded: {command!r} no longer accepts {missing}"
+        )
+
+    # (H) Atlas 3 owned names must not be registered here at any depth. The
+    #     text check covers the top level; this covers nested parsers too.
+    bypassed = sorted({name for _, name, _ in registrations} & set(atlas3_commands))
+    assert bypassed == [], (
+        f"Atlas 3 seam bypassed: cli.py registers Atlas 3 owned command(s) {bypassed}"
+    )
+
+
 def assert_cli_atlas3_contract(
     *,
     source: str,
@@ -721,10 +920,18 @@ def test_cli_mutation_is_additive_only() -> None:
     )
     from project_atlas.atlas3.cli import ATLAS3_COMMANDS
 
+    cli_source = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
     assert_cli_atlas3_contract(
-        source=(ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8"),
+        source=cli_source,
         diff_text=diff.stdout,
         atlas3_commands=frozenset(ATLAS3_COMMANDS),
+    )
+    # Semantic layers, parsed rather than pattern-matched. Separate because
+    # they need a real module: the text-layer matrix below exercises tiny
+    # synthetic sources, which have no dispatch table and no argument
+    # registrations to reason about.
+    assert_cli_semantic_invariants(
+        source=cli_source, atlas3_commands=frozenset(ATLAS3_COMMANDS)
     )
 
 
@@ -1898,3 +2105,217 @@ def test_real_cli_exception_is_live_or_inert_honestly() -> None:
         assert exc["path"] == "src/project_atlas/cli.py"
         assert len(exc["allowed_sha256"]) == 64
         int(exc["allowed_sha256"], 16)
+
+
+# ---------------------------------------------------------------------------
+# Semantic invariants -- H01..H18, mutated against the REAL `cli.py`.
+#
+# The text-layer matrix above uses small synthetic sources, which is right for
+# checks that read the source as text. These checks parse it, so a synthetic
+# stub proves nothing: the defects they exist to catch were all found by
+# mutating the real 6,000-line module and watching the runtime change while
+# every text check stayed green (OG-ATLAS-CLI-STRUCTURAL-HARDENING-20260906).
+#
+# Reproduced on merged main before this guard existed:
+#   G1  binding `register_atlas3_parsers` to a no-op  -> all 30 Atlas 3
+#       commands gone, top level 98 -> 67, contract PASSED
+#   G2  `subparsers = ops_sub` after creation         -> 98 -> 42, certified
+#       `ask2`/`kdiff` demoted, contract PASSED
+#   G3  deleting `brief_parser.add_argument("--vault")` -> a documented
+#       invocation went exit 1 -> exit 2 `unrecognized arguments`, PASSED
+# ---------------------------------------------------------------------------
+
+REAL_CLI_SOURCE = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
+
+
+def _real_atlas3_commands() -> frozenset[str]:
+    from project_atlas.atlas3.cli import ATLAS3_COMMANDS
+
+    return frozenset(ATLAS3_COMMANDS)
+
+
+def _semantic(source: str) -> None:
+    assert_cli_semantic_invariants(source=source, atlas3_commands=_real_atlas3_commands())
+
+
+def _mutate(old: str, new: str, *, count: int = 1) -> str:
+    assert old in REAL_CLI_SOURCE, f"anchor no longer present in cli.py: {old[:60]!r}"
+    return REAL_CLI_SOURCE.replace(old, new, count)
+
+
+def test_h01_unchanged_cli_passes_semantic_invariants() -> None:
+    """H01 -- the real module satisfies every semantic layer as shipped."""
+    _semantic(REAL_CLI_SOURCE)
+
+
+def test_h02_comment_removal_passes() -> None:
+    """H02 -- prose is not semantics."""
+    _semantic(REAL_CLI_SOURCE.replace("# OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906:", "#", 1))
+
+
+def test_h03_unrelated_implementation_removal_passes() -> None:
+    """H03 -- removals that preserve certified semantics stay legal.
+
+    The blanket no-removals rule this replaced was proven unsatisfiable: PR
+    #684 could not merge under it even waived, because widening an import
+    reads as a removal.
+    """
+    source = _mutate(
+        "from project_atlas.config import AtlasConfig, load_config",
+        "from project_atlas.config import load_config",
+    )
+    # keep the module parseable: AtlasConfig is only a type reference here
+    _semantic(source.replace("AtlasConfig", '"AtlasConfig"'))
+
+
+@pytest.mark.parametrize("command", ["capture", "ask2", "kdiff", "brief", "connect"])
+def test_h04_deleting_a_certified_top_level_command_fails(command: str) -> None:
+    """H04 -- deleting any certified top-level registration is caught."""
+    variable = f"{command}_parser"
+    anchor = f'{variable} = subparsers.add_parser(\n        "{command}"'
+    if anchor not in REAL_CLI_SOURCE:
+        anchor = f'{variable} = subparsers.add_parser("{command}"'
+    assert anchor in REAL_CLI_SOURCE, f"no top-level registration anchor for {command}"
+    source = REAL_CLI_SOURCE.replace(anchor, anchor.replace("subparsers.", "capture_sub."), 1)
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _semantic(source)
+
+
+def test_h05_deleting_certified_dispatch_fails() -> None:
+    """H05 -- a registered command nothing dispatches is dead surface."""
+    source = _mutate('if args.command == "brief":', 'if args.command == "brief-disabled":')
+    with pytest.raises(AssertionError, match="certified command unreachable"):
+        _semantic(source)
+
+
+def test_h06_removing_a_certified_contract_argument_fails() -> None:
+    """H06 -- the documented interface of a certified command is pinned.
+
+    Runtime-proven on merged main: without this, deleting `--vault` from
+    `brief` turned a documented invocation into `unrecognized arguments`.
+    """
+    source = _mutate('brief_parser.add_argument("--vault", type=Path, default=None)', "")
+    with pytest.raises(AssertionError, match="certified command contract eroded"):
+        _semantic(source)
+
+
+def test_h07_nested_same_name_does_not_satisfy_top_level_certification() -> None:
+    """H07 -- `discover connect` must not stand in for top-level `connect`."""
+    anchor = 'connect_parser = subparsers.add_parser(\n        "connect"'
+    if anchor not in REAL_CLI_SOURCE:
+        anchor = 'connect_parser = subparsers.add_parser("connect"'
+    source = REAL_CLI_SOURCE.replace(anchor, anchor.replace("subparsers.", "discover_sub."), 1)
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _semantic(source)
+
+
+def test_h08_deleting_register_hook_fails() -> None:
+    """H08 -- covered by the text layer; asserted here against the real file."""
+    source = _mutate("    register_atlas3_parsers(subparsers)\n", "")
+    with pytest.raises(AssertionError, match="Atlas 3 seam broken"):
+        assert_cli_atlas3_contract(
+            source=source,
+            diff_text=_diff(removed=("    register_atlas3_parsers(subparsers)",)),
+            atlas3_commands=_real_atlas3_commands(),
+        )
+
+
+def test_h09_deleting_dispatch_hook_fails() -> None:
+    source = _mutate("    atlas3_exit = dispatch_atlas3(args)\n", "")
+    with pytest.raises(AssertionError, match="Atlas 3 seam broken"):
+        assert_cli_atlas3_contract(
+            source=source,
+            diff_text=_diff(removed=("    atlas3_exit = dispatch_atlas3(args)",)),
+            atlas3_commands=_real_atlas3_commands(),
+        )
+
+
+def test_h10_shadowing_the_register_hook_fails() -> None:
+    """H10 -- G1. Runtime-proven to remove all 30 Atlas 3 commands."""
+    source = _mutate(
+        "    register_atlas3_parsers(subparsers)",
+        "    register_atlas3_parsers = lambda sp: None\n    register_atlas3_parsers(subparsers)",
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(source)
+
+
+def test_h11_shadowing_the_dispatch_hook_fails() -> None:
+    source = _mutate(
+        "    atlas3_exit = dispatch_atlas3(args)",
+        "    dispatch_atlas3 = lambda a: None\n    atlas3_exit = dispatch_atlas3(args)",
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(source)
+
+
+def test_h12_rebinding_the_top_level_subparsers_fails() -> None:
+    """H12 -- G2. Runtime-proven to demote certified `ask2` and `kdiff`."""
+    source = _mutate(
+        '    ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)',
+        '    ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)\n'
+        "    subparsers = ops_sub",
+    )
+    with pytest.raises(AssertionError, match="top-level parser identity unstable"):
+        _semantic(source)
+
+
+def test_h13_rewiring_the_register_hook_to_a_nested_parser_fails() -> None:
+    source = _mutate(
+        "    register_atlas3_parsers(subparsers)",
+        "    register_atlas3_parsers(capture_sub)",
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam broken"):
+        assert_cli_atlas3_contract(
+            source=source, diff_text=_diff(), atlas3_commands=_real_atlas3_commands()
+        )
+
+
+@pytest.mark.parametrize("depth", ["top-level", "nested"])
+def test_h14_direct_atlas3_registration_fails(depth: str) -> None:
+    """H14 -- at any depth, not just the top level."""
+    owned = sorted(_real_atlas3_commands())[0]
+    receiver = "subparsers" if depth == "top-level" else "capture_sub"
+    source = _mutate(
+        "    register_atlas3_parsers(subparsers)",
+        f'    {receiver}.add_parser("{owned}")\n    register_atlas3_parsers(subparsers)',
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam bypassed"):
+        _semantic(source)
+
+
+def test_h15_multiline_certified_registration_deletion_fails() -> None:
+    """H15 -- registrations are routinely formatted across several lines."""
+    anchor = 'ask2_parser = subparsers.add_parser(\n        "ask2"'
+    if anchor not in REAL_CLI_SOURCE:
+        anchor = 'ask2_parser = subparsers.add_parser("ask2"'
+    source = REAL_CLI_SOURCE.replace(anchor, anchor.replace("subparsers.", "ops_sub."), 1)
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _semantic(source)
+
+
+def test_h16_logformat_bootstrap_delta_passes() -> None:
+    """H16 -- #687's change must remain legal, unwaived."""
+    _semantic(REAL_CLI_SOURCE)
+    assert "OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906" in REAL_CLI_SOURCE
+    assert "configure_logging(log_format=args.log_format)" in REAL_CLI_SOURCE
+
+
+def test_h17_capture_surface_passes() -> None:
+    """H17 -- #684's certified surface is intact and top-level."""
+    tree = _cli_module_ast(REAL_CLI_SOURCE)
+    top_level = {
+        name for receiver, name, _ in _add_parser_calls(tree) if receiver == "subparsers"
+    }
+    assert "capture" in top_level
+    assert "capture" in _dispatched_commands(tree)
+
+
+def test_h18_future_nested_command_addition_passes() -> None:
+    """H18 -- unrelated CLI growth must not need an owner grant."""
+    source = _mutate(
+        "    capture_record = capture_sub.add_parser(",
+        '    capture_sub.add_parser("brand-new-subcommand")\n'
+        "    capture_record = capture_sub.add_parser(",
+    )
+    _semantic(source)
