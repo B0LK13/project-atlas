@@ -3123,6 +3123,17 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906: an explicitly requested
+    # --log-format must govern every record this process emits, including the
+    # ones produced while loading configuration below. Every module runs
+    # `_log = get_logger(...)` at import, which configures logging with the
+    # console default long before this point, so applying the flag only after
+    # `load_config` left that first record in console format and a
+    # JSON-consuming deployment received a stream it could not parse.
+    # A config-file-selected format still applies at the call below; it cannot
+    # govern the record emitted while reading the very file that selects it.
+    if args.log_format is not None:
+        configure_logging(log_format=args.log_format)
     try:
         _apply_stranger_defaults(args)
     except ConnectError as exc:

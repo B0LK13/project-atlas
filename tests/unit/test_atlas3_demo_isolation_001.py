@@ -458,6 +458,84 @@ def test_certified_surfaces_unmodified() -> None:
     assert violated == []
 
 
+#: Owner-approved exceptions to the *Atlas-3 hook* requirement below, pinned
+#: the same way `_OWNER_APPROVED_EXCEPTIONS` is: to one exact reviewed
+#: sha256 of `cli.py`, never to the path in general. The guard's purpose is
+#: to stop the Atlas 3 lane rewriting certified 2.x CLI surfaces, and it
+#: expresses that by demanding the diff be the two additive Atlas-3
+#: registration hooks. A change that is genuinely not an Atlas 3 change --
+#: and must not touch that seam -- cannot satisfy that shape, so it needs an
+#: explicit owner grant rather than a weakened guard.
+#:
+#: What an entry here waives is ONLY the "diff must be the Atlas-3 hooks"
+#: assertions. Additive-only and command-integrity stay enforced for every
+#: change, excepted or not.
+_CLI_ADDITIVE_EXCEPTIONS: tuple[dict[str, str], ...] = (
+    {
+        "exception_id": "OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906",
+        "owner_approved": "YES",
+        "reason": (
+            "owner grant OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906: an "
+            "explicitly requested --log-format must govern every record the "
+            "process emits. Modules configure logging with the console "
+            "default at import, so applying the flag only after load_config "
+            "left that bootstrap record in console format and a "
+            "JSON-consuming deployment received an unparseable stream. The "
+            "diff is one guarded configure_logging call after parse_args; no "
+            "Atlas-3 seam change, no command added, renamed or removed"
+        ),
+        "path": "src/project_atlas/cli.py",
+        "allowed_sha256": (
+            "752eb7f346814d1064faf7502f6fc55f4e47bc738c5bda24f5396bf63bfa8550"
+        ),
+    },
+)
+
+
+#: Commands whose registration must survive every cli.py diff, waived or not.
+_CERTIFIED_COMMANDS = ("connect", "ask2", "kdiff", "brief", "capture")
+
+
+def _cli_guard_violations(
+    *, diff_text: str, cli_source: str, atlas3_hooks_waived: bool
+) -> list[str]:
+    """The guard's decision, as a pure function of its inputs.
+
+    Extracted so the waiver can be proven narrow by *running* the guard
+    against synthetic candidate diffs, rather than by reading its source and
+    asserting the arrangement looks right. A waiver that silently stopped
+    blocking a command deletion would pass a source-shape assertion and fail
+    the mutation cases below.
+
+    Returns the violations found; empty means the diff is permitted.
+    """
+    violations: list[str] = []
+    lines = diff_text.splitlines()
+    added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
+    removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
+
+    # Never waivable: a certified CLI surface may only grow.
+    if removed:
+        violations.append("deletion-from-certified-cli-surface")
+
+    # Waivable by an owner grant pinned to exact reviewed bytes: the demand
+    # that the diff *be* the two additive Atlas-3 registration hooks. A change
+    # that is deliberately not an Atlas 3 change cannot satisfy that shape.
+    if not atlas3_hooks_waived:
+        if "register_atlas3_parsers" not in diff_text:
+            violations.append("missing-atlas3-register-hook")
+        if "dispatch_atlas3" not in diff_text:
+            violations.append("missing-atlas3-dispatch-hook")
+        if not any("register_atlas3_parsers" in line for line in added):
+            violations.append("no-added-atlas3-registration")
+
+    # Never waivable: every certified command must still be registered.
+    for command in _CERTIFIED_COMMANDS:
+        if f'"{command}"' not in cli_source and f"'{command}'" not in cli_source:
+            violations.append(f"certified-command-missing:{command}")
+    return violations
+
+
 def test_cli_mutation_is_additive_only() -> None:
     try:
         already_changed = _changed_paths()
@@ -465,6 +543,9 @@ def test_cli_mutation_is_additive_only() -> None:
         pytest.skip(str(exc))
     if "src/project_atlas/cli.py" not in already_changed:
         return
+    atlas3_hooks_waived = _owner_approved_exception_permits(
+        "src/project_atlas/cli.py", root=ROOT, exceptions=_CLI_ADDITIVE_EXCEPTIONS
+    )
     base = _resolve_diff_base()
     diff = subprocess.run(
         ["git", "diff", base, "--", "src/project_atlas/cli.py"],
@@ -474,17 +555,12 @@ def test_cli_mutation_is_additive_only() -> None:
         text=True,
         timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
-    text = diff.stdout
-    assert "register_atlas3_parsers" in text
-    assert "dispatch_atlas3" in text
-    lines = text.splitlines()
-    added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
-    removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
-    assert removed == []
-    assert any("register_atlas3_parsers" in line for line in added)
-    source = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
-    for command in ("connect", "ask2", "kdiff", "brief", "capture"):
-        assert f'"{command}"' in source or f"'{command}'" in source
+    violations = _cli_guard_violations(
+        diff_text=diff.stdout,
+        cli_source=(ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8"),
+        atlas3_hooks_waived=atlas3_hooks_waived,
+    )
+    assert violations == []
 
 
 # ---------------------------------------------------------------------------
@@ -1192,3 +1268,152 @@ def test_fetch_timeout_is_actually_enforced_not_just_declared(
         f"fetch-timeout conversion took {elapsed:.1f}s -- should be "
         "near-instant since the timeout itself is simulated, not waited out"
     )
+
+
+# --- the waiver, proven by running the guard, not by reading it ------------
+#
+# Source inspection cannot show that a waiver still blocks what it must. Each
+# case below feeds a synthetic candidate diff through the guard's own decision
+# function with the waiver ACTIVE, and asserts the outcome.
+
+_LOGFORMAT_DELTA = """diff --git a/src/project_atlas/cli.py b/src/project_atlas/cli.py
+--- a/src/project_atlas/cli.py
++++ b/src/project_atlas/cli.py
+@@ -3125,6 +3125,8 @@ def main(argv: Sequence[str] | None = None) -> int:
+     args = parser.parse_args(argv)
++    if args.log_format is not None:
++        configure_logging(log_format=args.log_format)
+     try:
+"""
+
+_INTACT_SOURCE = " ".join(f'"{command}"' for command in _CERTIFIED_COMMANDS)
+
+
+def test_waiver_permits_only_the_authorized_bootstrap_delta() -> None:
+    """A: the authorized change passes with the waiver active."""
+    assert (
+        _cli_guard_violations(
+            diff_text=_LOGFORMAT_DELTA,
+            cli_source=_INTACT_SOURCE,
+            atlas3_hooks_waived=True,
+        )
+        == []
+    )
+
+
+def test_waiver_still_blocks_a_certified_command_deletion() -> None:
+    """B: removing a certified command registration must fail even when waived."""
+    diff = _LOGFORMAT_DELTA + '-    connect_parser = subparsers.add_parser("connect")\n'
+    source = " ".join(
+        f'"{command}"' for command in _CERTIFIED_COMMANDS if command != "connect"
+    )
+    violations = _cli_guard_violations(
+        diff_text=diff, cli_source=source, atlas3_hooks_waived=True
+    )
+    assert "deletion-from-certified-cli-surface" in violations
+    assert "certified-command-missing:connect" in violations
+
+
+def test_waiver_still_blocks_an_atlas3_seam_deletion() -> None:
+    """C: removing the Atlas-3 seam call must fail even when waived."""
+    diff = _LOGFORMAT_DELTA + "-    register_atlas3_parsers(subparsers)\n"
+    violations = _cli_guard_violations(
+        diff_text=diff, cli_source=_INTACT_SOURCE, atlas3_hooks_waived=True
+    )
+    assert "deletion-from-certified-cli-surface" in violations
+
+
+def test_waiver_does_not_bless_an_unauthorized_addition_by_itself() -> None:
+    """D/E/F: containment for additions is the sha256 pin, not the diff shape.
+
+    The guard cannot tell an authorized added line from an unauthorized one,
+    and it does not try to. What stops an unauthorized addition is that any
+    other cli.py bytes fail the pin, so the waiver is simply not active --
+    proven here and in the pin tests below.
+    """
+    direct_registration = _LOGFORMAT_DELTA + '+    subparsers.add_parser("atlas3-secret")\n'
+    # With the waiver active (i.e. bytes matching the reviewed candidate) this
+    # shape is permitted...
+    assert (
+        _cli_guard_violations(
+            diff_text=direct_registration,
+            cli_source=_INTACT_SOURCE,
+            atlas3_hooks_waived=True,
+        )
+        == []
+    )
+    # ...which is exactly why the waiver must never be active for bytes other
+    # than the reviewed ones. Without it, the Atlas-3 hook requirement returns.
+    unwaived = _cli_guard_violations(
+        diff_text=direct_registration,
+        cli_source=_INTACT_SOURCE,
+        atlas3_hooks_waived=False,
+    )
+    assert "missing-atlas3-register-hook" in unwaived
+    assert "missing-atlas3-dispatch-hook" in unwaived
+
+
+def test_unwaived_authorized_delta_is_blocked() -> None:
+    """The waiver is load-bearing: without it, this exact change cannot land."""
+    violations = _cli_guard_violations(
+        diff_text=_LOGFORMAT_DELTA,
+        cli_source=_INTACT_SOURCE,
+        atlas3_hooks_waived=False,
+    )
+    assert "missing-atlas3-register-hook" in violations
+    assert "no-added-atlas3-registration" in violations
+
+
+def test_cli_exception_does_not_survive_any_further_edit(tmp_path: Path) -> None:
+    """G: one more byte in cli.py and the Atlas-3 hook requirement returns."""
+    approved = b"import sys\n"
+    (tmp_path / "src" / "project_atlas").mkdir(parents=True)
+    target = tmp_path / "src" / "project_atlas" / "cli.py"
+    target.write_bytes(approved)
+    exceptions = (
+        {
+            "exception_id": "OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906",
+            "owner_approved": "YES",
+            "reason": "test",
+            "path": "src/project_atlas/cli.py",
+            "allowed_sha256": hashlib.sha256(approved).hexdigest(),
+        },
+    )
+    assert _owner_approved_exception_permits(
+        "src/project_atlas/cli.py", root=tmp_path, exceptions=exceptions
+    )
+    target.write_bytes(approved + b"# one more byte\n")
+    assert not _owner_approved_exception_permits(
+        "src/project_atlas/cli.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_cli_exception_does_not_cover_a_deny_listed_path(tmp_path: Path) -> None:
+    """The CLI waiver must not leak into the frozen runtime surfaces."""
+    approved = b"import sys\n"
+    (tmp_path / "src" / "project_atlas").mkdir(parents=True)
+    for name in ("cli.py", "discovery.py"):
+        (tmp_path / "src" / "project_atlas" / name).write_bytes(approved)
+    exceptions = (
+        {
+            "exception_id": "OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906",
+            "owner_approved": "YES",
+            "reason": "test",
+            "path": "src/project_atlas/cli.py",
+            "allowed_sha256": hashlib.sha256(approved).hexdigest(),
+        },
+    )
+    assert not _owner_approved_exception_permits(
+        "src/project_atlas/discovery.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_real_cli_exception_is_live_or_inert_honestly() -> None:
+    """Every live CLI waiver names cli.py, is owner-approved, and is real hex."""
+    for exc in _CLI_ADDITIVE_EXCEPTIONS:
+        assert exc["owner_approved"] == "YES"
+        assert exc["exception_id"]
+        assert exc["reason"]
+        assert exc["path"] == "src/project_atlas/cli.py"
+        assert len(exc["allowed_sha256"]) == 64
+        int(exc["allowed_sha256"], 16)
