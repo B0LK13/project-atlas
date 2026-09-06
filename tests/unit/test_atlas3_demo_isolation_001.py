@@ -526,27 +526,6 @@ def _seam_call_count(source: str, symbol: str, argument: str) -> int:
 
 
 
-#: Arguments that are part of a certified command's published interface, as
-#: documented in CLAUDE.md's command list. Deliberately conservative: only
-#: flags the repository documents as the way to drive that command. Removing
-#: or renaming one silently breaks a documented invocation, which no amount of
-#: "the command is still registered" catches.
-_CERTIFIED_COMMAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "brief": ("--vault", "--project"),
-    "ask2": ("--vault", "--project", "--question"),
-    "kdiff": ("--vault", "--project"),
-    "connect": ("--vault",),
-}
-
-#: Certified *sub*commands and the arguments CLAUDE.md documents for them.
-#: `capture` is a certified command whose whole interface lives one level
-#: down, so pinning only the top-level parser would protect its name and
-#: nothing an operator actually types.
-_CERTIFIED_SUBCOMMAND_ARGUMENTS: dict[tuple[str, str], tuple[str, ...]] = {
-    ("capture", "record"): ("--vault", "--project", "--summary"),
-    ("capture", "list"): ("--vault",),
-}
-
 #: The one call that creates the shared CLI's top-level subparser group.
 _TOP_LEVEL_SUBPARSERS_NAME = "subparsers"
 
@@ -602,31 +581,6 @@ def _bound_names(scope: ast.AST, *, descend_into_functions: bool = True) -> list
                 if alias.asname:
                     bound.append((alias.asname, node.lineno))
     return bound
-
-
-def _scoped_bound_names(scope: ast.AST, name: str) -> list[int]:
-    """Lines where `name` is bound anywhere inside `scope`, nested defs included.
-
-    Nested functions are deliberately included: a `nonlocal subparsers` rebind
-    from an inner function damages the outer parser just as an assignment
-    does. The cost is that an inner helper with its own local of that name is
-    refused; that is a narrow, honest trade rather than a hole.
-
-    Scope still matters in the other direction. Checking module-wide made an
-    unrelated helper fail a check about a seam it never touched, and a guard
-    that fires on ordinary work is a guard that gets switched off.
-    """
-    lines: list[int] = []
-    for node in ast.walk(scope):
-        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
-            if node.id == name:
-                lines.append(node.lineno)
-        elif (
-            isinstance(node, (ast.ExceptHandler, ast.MatchAs))
-            and node.name == name
-        ):
-            lines.append(node.lineno)
-    return sorted(lines)
 
 
 def _seam_attribute_writes(tree: ast.Module) -> list[tuple[str, int]]:
