@@ -1436,16 +1436,34 @@ def test_concurrent_retries_never_silently_drop_a_duplicate_block(
 
     sha_before = hashlib.sha256(note_path.read_bytes()).hexdigest()
     barrier = threading.Barrier(workers)
+    # A thread that raises does not fail its parent, so collect outcomes and
+    # assert on them. Without this the test passes even if every retry blew up,
+    # which would make the byte-stability assertion below vacuous. The barrier
+    # and joins are bounded so a deadlock fails the test instead of hanging the
+    # suite.
+    outcomes: list[dict[str, object]] = []
+    failures: list[BaseException] = []
 
     def _retry() -> None:
-        barrier.wait()
-        retry(vault, result["capture_id"])
+        try:
+            barrier.wait(timeout=30)
+            outcomes.append(retry(vault, result["capture_id"]))
+        except BaseException as exc:  # re-asserted on the main thread below
+            failures.append(exc)
 
     threads = [threading.Thread(target=_retry) for _ in range(workers)]
     for thread in threads:
         thread.start()
     for thread in threads:
-        thread.join()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "concurrent retry deadlocked"
+
+    assert failures == [], f"retry raised in a worker thread: {failures!r}"
+    assert len(outcomes) == workers
+    # Every racing retry must refuse the ambiguity -- none may "win".
+    for outcome in outcomes:
+        assert outcome["status"] == "partial"
+        assert outcome["errors"][0]["code"] == "OBSIDIAN_NOTE_CONFLICT"  # type: ignore[index]
 
     assert hashlib.sha256(note_path.read_bytes()).hexdigest() == sha_before
     assert note_path.read_text(encoding="utf-8") == duplicated

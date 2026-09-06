@@ -25,6 +25,7 @@ module carries no dependency on either caller's error vocabulary.
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 GENERATED_START = "<!-- atlas:generated:start -->"
 GENERATED_END = "<!-- atlas:generated:end -->"
@@ -74,8 +75,8 @@ def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
     is ambiguous for exactly the reason above -- that is an F1 ambiguity
     verdict, not a general ruling on nesting.
     """
-    begins = _HUMAN_BEGIN.findall(text)
-    duplicates = sorted({name for name in begins if begins.count(name) > 1})
+    counts = Counter(_HUMAN_BEGIN.findall(text))
+    duplicates = sorted(name for name, seen in counts.items() if seen > 1)
     if duplicates:
         raise ProtectedRegionError(
             f"duplicate-protected-region-names:{','.join(duplicates)}:{path}"
