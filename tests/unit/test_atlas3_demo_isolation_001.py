@@ -492,6 +492,50 @@ _CLI_ADDITIVE_EXCEPTIONS: tuple[dict[str, str], ...] = (
 )
 
 
+#: Commands whose registration must survive every cli.py diff, waived or not.
+_CERTIFIED_COMMANDS = ("connect", "ask2", "kdiff", "brief", "capture")
+
+
+def _cli_guard_violations(
+    *, diff_text: str, cli_source: str, atlas3_hooks_waived: bool
+) -> list[str]:
+    """The guard's decision, as a pure function of its inputs.
+
+    Extracted so the waiver can be proven narrow by *running* the guard
+    against synthetic candidate diffs, rather than by reading its source and
+    asserting the arrangement looks right. A waiver that silently stopped
+    blocking a command deletion would pass a source-shape assertion and fail
+    the mutation cases below.
+
+    Returns the violations found; empty means the diff is permitted.
+    """
+    violations: list[str] = []
+    lines = diff_text.splitlines()
+    added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
+    removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
+
+    # Never waivable: a certified CLI surface may only grow.
+    if removed:
+        violations.append("deletion-from-certified-cli-surface")
+
+    # Waivable by an owner grant pinned to exact reviewed bytes: the demand
+    # that the diff *be* the two additive Atlas-3 registration hooks. A change
+    # that is deliberately not an Atlas 3 change cannot satisfy that shape.
+    if not atlas3_hooks_waived:
+        if "register_atlas3_parsers" not in diff_text:
+            violations.append("missing-atlas3-register-hook")
+        if "dispatch_atlas3" not in diff_text:
+            violations.append("missing-atlas3-dispatch-hook")
+        if not any("register_atlas3_parsers" in line for line in added):
+            violations.append("no-added-atlas3-registration")
+
+    # Never waivable: every certified command must still be registered.
+    for command in _CERTIFIED_COMMANDS:
+        if f'"{command}"' not in cli_source and f"'{command}'" not in cli_source:
+            violations.append(f"certified-command-missing:{command}")
+    return violations
+
+
 def test_cli_mutation_is_additive_only() -> None:
     try:
         already_changed = _changed_paths()
@@ -511,20 +555,12 @@ def test_cli_mutation_is_additive_only() -> None:
         text=True,
         timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
-    text = diff.stdout
-    lines = text.splitlines()
-    added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
-    removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
-    # Enforced for every change, excepted or not: nothing may be deleted from
-    # a certified CLI surface, and every certified command must still exist.
-    assert removed == []
-    if not atlas3_hooks_waived:
-        assert "register_atlas3_parsers" in text
-        assert "dispatch_atlas3" in text
-        assert any("register_atlas3_parsers" in line for line in added)
-    source = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
-    for command in ("connect", "ask2", "kdiff", "brief", "capture"):
-        assert f'"{command}"' in source or f"'{command}'" in source
+    violations = _cli_guard_violations(
+        diff_text=diff.stdout,
+        cli_source=(ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8"),
+        atlas3_hooks_waived=atlas3_hooks_waived,
+    )
+    assert violations == []
 
 
 # ---------------------------------------------------------------------------
@@ -1234,15 +1270,102 @@ def test_fetch_timeout_is_actually_enforced_not_just_declared(
     )
 
 
-# ---------------------------------------------------------------------------
-# The CLI Atlas-3-hook waiver is held to the same narrowness as every other
-# owner-approved exception: one exact reviewed byte sequence, one path, and
-# it never waives the additive-only or command-integrity rules.
-# ---------------------------------------------------------------------------
+# --- the waiver, proven by running the guard, not by reading it ------------
+#
+# Source inspection cannot show that a waiver still blocks what it must. Each
+# case below feeds a synthetic candidate diff through the guard's own decision
+# function with the waiver ACTIVE, and asserts the outcome.
+
+_LOGFORMAT_DELTA = """diff --git a/src/project_atlas/cli.py b/src/project_atlas/cli.py
+--- a/src/project_atlas/cli.py
++++ b/src/project_atlas/cli.py
+@@ -3125,6 +3125,8 @@ def main(argv: Sequence[str] | None = None) -> int:
+     args = parser.parse_args(argv)
++    if args.log_format is not None:
++        configure_logging(log_format=args.log_format)
+     try:
+"""
+
+_INTACT_SOURCE = " ".join(f'"{command}"' for command in _CERTIFIED_COMMANDS)
+
+
+def test_waiver_permits_only_the_authorized_bootstrap_delta() -> None:
+    """A: the authorized change passes with the waiver active."""
+    assert (
+        _cli_guard_violations(
+            diff_text=_LOGFORMAT_DELTA,
+            cli_source=_INTACT_SOURCE,
+            atlas3_hooks_waived=True,
+        )
+        == []
+    )
+
+
+def test_waiver_still_blocks_a_certified_command_deletion() -> None:
+    """B: removing a certified command registration must fail even when waived."""
+    diff = _LOGFORMAT_DELTA + '-    connect_parser = subparsers.add_parser("connect")\n'
+    source = " ".join(
+        f'"{command}"' for command in _CERTIFIED_COMMANDS if command != "connect"
+    )
+    violations = _cli_guard_violations(
+        diff_text=diff, cli_source=source, atlas3_hooks_waived=True
+    )
+    assert "deletion-from-certified-cli-surface" in violations
+    assert "certified-command-missing:connect" in violations
+
+
+def test_waiver_still_blocks_an_atlas3_seam_deletion() -> None:
+    """C: removing the Atlas-3 seam call must fail even when waived."""
+    diff = _LOGFORMAT_DELTA + "-    register_atlas3_parsers(subparsers)\n"
+    violations = _cli_guard_violations(
+        diff_text=diff, cli_source=_INTACT_SOURCE, atlas3_hooks_waived=True
+    )
+    assert "deletion-from-certified-cli-surface" in violations
+
+
+def test_waiver_does_not_bless_an_unauthorized_addition_by_itself() -> None:
+    """D/E/F: containment for additions is the sha256 pin, not the diff shape.
+
+    The guard cannot tell an authorized added line from an unauthorized one,
+    and it does not try to. What stops an unauthorized addition is that any
+    other cli.py bytes fail the pin, so the waiver is simply not active --
+    proven here and in the pin tests below.
+    """
+    direct_registration = _LOGFORMAT_DELTA + '+    subparsers.add_parser("atlas3-secret")\n'
+    # With the waiver active (i.e. bytes matching the reviewed candidate) this
+    # shape is permitted...
+    assert (
+        _cli_guard_violations(
+            diff_text=direct_registration,
+            cli_source=_INTACT_SOURCE,
+            atlas3_hooks_waived=True,
+        )
+        == []
+    )
+    # ...which is exactly why the waiver must never be active for bytes other
+    # than the reviewed ones. Without it, the Atlas-3 hook requirement returns.
+    unwaived = _cli_guard_violations(
+        diff_text=direct_registration,
+        cli_source=_INTACT_SOURCE,
+        atlas3_hooks_waived=False,
+    )
+    assert "missing-atlas3-register-hook" in unwaived
+    assert "missing-atlas3-dispatch-hook" in unwaived
+
+
+def test_unwaived_authorized_delta_is_blocked() -> None:
+    """The waiver is load-bearing: without it, this exact change cannot land."""
+    violations = _cli_guard_violations(
+        diff_text=_LOGFORMAT_DELTA,
+        cli_source=_INTACT_SOURCE,
+        atlas3_hooks_waived=False,
+    )
+    assert "missing-atlas3-register-hook" in violations
+    assert "no-added-atlas3-registration" in violations
 
 
 def test_cli_exception_does_not_survive_any_further_edit(tmp_path: Path) -> None:
-    """One more byte in cli.py and the Atlas-3 hook requirement returns."""
+    """G: one more byte in cli.py and the Atlas-3 hook requirement returns."""
     approved = b"import sys\n"
     (tmp_path / "src" / "project_atlas").mkdir(parents=True)
     target = tmp_path / "src" / "project_atlas" / "cli.py"
@@ -1294,20 +1417,3 @@ def test_real_cli_exception_is_live_or_inert_honestly() -> None:
         assert exc["path"] == "src/project_atlas/cli.py"
         assert len(exc["allowed_sha256"]) == 64
         int(exc["allowed_sha256"], 16)
-
-
-def test_cli_waiver_never_permits_deletions() -> None:
-    """Additive-only is enforced outside the waiver branch, by construction.
-
-    Read from the guard's own source rather than asserted in prose: the
-    `removed == []` check must not sit inside the `if not
-    atlas3_hooks_waived:` block, or an excepted change could delete a
-    certified command.
-    """
-    source = Path(__file__).read_text(encoding="utf-8")
-    body = source[source.index("def test_cli_mutation_is_additive_only"):]
-    body = body[: body.index("\ndef ", 1)]
-    removed_at = body.index("assert removed == []")
-    waiver_at = body.index("if not atlas3_hooks_waived:")
-    assert removed_at < waiver_at, "additive-only must be enforced before the waiver branch"
-    assert "for command in" in body, "command-integrity must remain in this test"
