@@ -98,6 +98,24 @@ def test_a_component_symlinked_inside_the_root_is_also_refused(
         _raw_inventory(root, PACKAGE_PATH)
 
 
+def test_an_intra_root_aliased_package_directory_is_refused(tmp_path: Path) -> None:
+    """The module's own symlinked-package refusal, made to fire.
+
+    It inspects a path `_confined` has already resolved, so it never fired and
+    its error string was unreachable. This is repair rather than policy: the
+    verdict is the one the module already declares, and `discovery.py`
+    enforces the same shape at its call site.
+    """
+    root = tmp_path / "source"
+    real = _package(root)
+    _fill(real)
+    alias = real.parent / "evt-alias"
+    alias.symlink_to(real)
+
+    with pytest.raises(PackageValidationError, match="missing or symlinked"):
+        _raw_inventory(root, ".atlas-inbox/agent-events/proj/evt-alias")
+
+
 def test_an_ordinary_package_still_loads(tmp_path: Path) -> None:
     """The refusal must not cost a legitimate package."""
     root = tmp_path / "source"
