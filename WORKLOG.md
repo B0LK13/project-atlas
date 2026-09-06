@@ -12059,3 +12059,314 @@ Two more findings from the `6dcb8bbd` verification, both confirmed
 
 Neither is a regression and neither blocks #683. Both are stated here rather
 than left for a future reader to rediscover.
+
+
+---
+
+## OG-ATLAS-DISCOVERY-M1M2-20260906 — M1 OSError policy consistency + M2 symlinked event-scope resolution
+
+**Date:** 2026-09-06
+**Directive:** D-UBUNTU-AUTONOMOUS-PR683-INTEGRATE-AND-SUCCESSOR-EXECUTION
+(owner grant, narrowly extending `discovery.py` authority to M1 and M2 only;
+M3 ingestion multi-pin governance and M4 WORKLOG NUL tooling remain frozen)
+**PR:** #685 `fix/discovery-oserror-policy-and-symlinked-event-scope`
+**Stacked base:** `8bf7d4de` / tree `af028138` (the exact certified head of
+PR #683; this branch is **not** based on `main` until #683 lands)
+
+### Morning bootstrap (repository truth, 2026-09-06)
+
+```text
+LIVE_MAIN_HEAD      = 0525e0f7  tree a374a164   (unchanged overnight)
+LIVE_PR683_HEAD     = 8bf7d4de  tree af028138   (== certified head/tree)
+CERTIFICATION_REUSE = VALID (exact head and tree; no new material evidence)
+PR683 gates         = CI 33986843989 4/4 SUCCESS; 0 required approvals;
+                      1 unresolved Codex P2 thread (outdated) -> verified
+                      fixed at head (`_reportable` ASCII-encodes the whole
+                      value; `café-\udcff.md` renders without raising),
+                      replied and resolved -> mergeStateStatus CLEAN
+PR683 merge         = `gh pr merge 683 --merge --match-head-commit 8bf7d4de`
+                      DENIED twice by the Claude Code auto-mode permission
+                      classifier -- a harness gate, not a repository gate.
+                      No bypass attempted. PR683 = OWNER/EXTERNAL ACTION
+                      WAITING (one command, runnable by the owner as-is).
+```
+
+### M1 — every `except OSError` in `discovery.py` now honours the stated errno contract
+
+**Defect (pre-existing; recorded in the `6dcb8bbd` IV as "enforced at 4 of 9
+sites").** `_INACCESSIBLE_SCOPE_ERRNOS` documents that only
+`ENOENT/ENOTDIR/EBADF/ELOOP/EACCES/EPERM` mean "unreadable scope" and anything
+else must stay visible. The four agent-event guards enforced it; the five
+main-walk guards caught every `OSError`.
+
+**Base reproduction** (`8bf7d4de`, injected `EIO` per guard, exact output):
+
+| guard | base | head |
+| --- | --- | --- |
+| metadata probe (`is_symlink/is_file/is_dir`) | `skipped unreadable path: docs/a.md (Input/output error)`, exit 0 | propagates `EIO` |
+| `_is_listable` (`os.scandir`) | `inaccessible discovery scope, contents not inventoried: docs`, exit 0 | propagates |
+| symlink-target probe (`exists()` on the resolved target) | **absorbed, no diagnostic at all**, exit 0 | propagates |
+| `stat()` | `skipped unreadable path` / `skipped unmeasurable path`, exit 0 | propagates |
+| digest (`_sha256`) | **recorded** as a source, `exclusion_reason="unreadable"`, `sha256=null`, exit 0 | propagates |
+
+The digest row is the material one: a read failing mid-stream was filed under
+the same reason as a mode-000 file. `FAILURE != SUCCESS`.
+
+**Fix.** Each guard filters through `_is_inaccessible_scope`; nothing else
+changed at those sites. `_project_context`'s `except (OSError, ...)` is left
+alone: it converts every read failure into a fail-closed
+`INVALID_PROJECT_MARKER`, the opposite of absorbing.
+
+**Tests** — `tests/unit/test_discovery_error_policy.py`, 39 cases at the
+final head, every platform, no mode bits, root-safe (the `PATH_MAX` shape is
+POSIX-gated): 5 injection points × `EIO/ENOMEM/ENFILE` must propagate
+unchanged (**15/15 fail on base, pass at head**); 5 ×
+`EACCES/EPERM/ENOENT/ENAMETOOLONG` must keep today's observable continue-behaviour
+(record without digest at the digest guard; a named diagnostic elsewhere; a
+vanished `ENOENT` entry is not a document and is not reported — `pathlib`
+answers `is_file()` False for it); a named regression for the digest
+misclassification; behavioural `EIO` cases for the agent-event guards; the
+verifier's real `PATH_MAX` tree; a structural pin counting the module's
+`except OSError` sites. Which guard catches first is a `pathlib` detail (3.12 routes
+`is_file()` through `Path.stat`, 3.13 through `os.path`); the assertions pin
+the contract, not the catching line.
+
+### M2 — symbolic links on the event-scope chain are refused on physical identity
+
+**Defect (pre-existing; recorded in the same IV as "inventoried
+inconsistently").** `discover()` excludes the reserved scope from `sources`
+by comparing nominal paths and never follows a link; `_discover_agent_events`
+refused only `agent-events` itself and followed every other link. The loader's
+own refusal (`event_package.py:101`, `package.is_symlink()`) inspects an
+already-resolved path and never fires.
+
+**Base reproduction** (all in-root unless stated):
+
+| shape | base | head |
+| --- | --- | --- |
+| `.atlas-inbox -> real` (direct, multi-hop) | package **twice** (`agent_events` row + `sources` rows under the real path) | `agent_events=[]`; `agent-event scope is a symbolic link, packages not inventoried: .atlas-inbox -> <physical>`; content once as sources |
+| `agent-events -> real` (absolute, relative `../`) | `[]` **silently**; content as sources | same, with the diagnostic |
+| project dir a link | package **twice** | `symbolic link in reserved agent-event scope, packages beneath it not inventoried: ...`; content once as sources |
+| event dir -> in-root target | loaded as a `pending` package **and** sources rows | `invalid` row, `errors=["event package directory is missing or symlinked"]`, `component_sha256={}`; content once as sources |
+| event dir -> outside | `invalid` row | `invalid` row (unchanged; `test_symlinked_event_package_isolated_during_discovery` green) |
+| `.atlas-inbox -> outside` | `invalid` row carrying a fabricated in-inbox `package_path` | `[]`; inventory diagnostic + R4-D escape diagnostic; nothing inventoried |
+| `agent-events -> outside` | `[]` silently (R4-D fired) | `[]` with both diagnostics |
+| real scope + `mirror -> .atlas-inbox` beside it | routes once, alias quiet | unchanged |
+
+**Fix.** `_symlinked_scope_target` decides by `lstat`; the inventory never
+follows a link at any level. The walk is unchanged, so once the inventory
+stops following links the two sides agree by construction. An `invalid` row
+for a linked event directory is durable evidence: `ingestion.py` quarantines
+every non-`valid` row before `load_event_package`, so nothing behind the link
+is ever read or copied. **No containment rule is weakened** — the existing
+`agent-events` refusal is extended to the whole chain and made observable.
+
+**Tests** — `tests/unit/test_discovery_symlinked_event_scope.py`, 11 cases,
+POSIX-gated like the rest of the symlink suite: **9 fail on base, pass at
+head**; the real-scope-beside-alias and determinism cases pass on both.
+
+### Candidate identity
+
+| | |
+| --- | --- |
+| `BASE_HEAD` / `BASE_TREE` | `8bf7d4de` / `af028138` |
+| `M1_HEAD` / `M1_TREE` | `b0a3a45c` / `873473d5` |
+| `M2_HEAD` / `M2_TREE` | `fa4b6ee9` / `c4fb59a9` |
+| IV-remediation head / tree | `54643e3c` / `48f9550d` |
+| 3.13 test-fix head / tree | `4a6bedc7` / `a0fd0698` |
+| review-remediation head / tree (**final candidate**) | `7db557ca` / `b985ed17` |
+| `CHANGED_FILES` | `discovery.py`; pin entry in `test_atlas3_demo_isolation_001.py`; two new test modules |
+| `UNRELATED_CHANGE_COUNT` | **0** (verified independently at `fa4b6ee9`, `4a6bedc7` and `7db557ca`) |
+| `discovery.py` pin | `f924391f` -> `d0b6a8cf` (M1) -> `fc9a0b09` (M2) -> `11d5918d` (IV remediation) -> `471a56af` (review remediation); `PIN_ENTRY_COUNT` 1, replaced in place at every step |
+| `ingestion.py` | byte-identical (`6911a99d`) |
+
+### Independent verification (no self-certification)
+
+**Round 1 at `fa4b6ee9` / `c4fb59a9`: `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`**, in isolated worktrees with their own venvs
+(import isolation confirmed), base `8bf7d4de` compared side by side. It
+reproduced every claimed pre-fix behaviour on base, confirmed all 10
+`except OSError` sites filter through the contract, ran a 26-case
+real-mode-bit matrix (identical base vs head except the intended M2 rows),
+walked a linked event package through `discover -> ingest` (quarantined, no
+content behind the link copied, exit 0), and confirmed the loader's
+`is_symlink()` at `event_package.py:101` is dead code on a resolved path.
+
+**It found one regression I introduced (P2).** `ENAMETOOLONG` (errno 36) is
+a real Linux condition -- a tree grown past `PATH_MAX` -- that the base
+skipped with `skipped unreadable path: ... (File name too long)` and the
+first M1 head **aborted** on. Consistent with the literal six-errno set, but
+it contradicts the walk's own rule that one unreachable entry must never
+abort the run. **Remediated at `54643e3c`:** `ENAMETOOLONG` joins the set
+(the kernel will not address that one entry; nothing about the rest of the
+tree is in doubt), pinned with the verifier's real-filesystem shape, torn
+down through `dir_fd` because nothing past `PATH_MAX` can be named by an
+absolute path (pytest's `tmp_path` cleanup included). Also from that round:
+behavioural `EIO` coverage for the two agent-event guards R5-F did not
+exercise, and the inventory docstring no longer overstates `lstat`.
+
+**Exact-head CI at `fa4b6ee9` then failed the 3.13 compat job** on three
+parametrizations (`EACCES/EPERM/ENOENT x listability-probe`). Not a guard
+defect: 3.12's `rglob` shares the monkeypatched `os.scandir`, 3.13's glob
+binds its own reference at import and still yields the unlistable scope's
+children. The guard behaved identically (scope reported, run continues);
+only a "no record for the child" assertion encoded a 3.12-specific artifact
+of the injection. Fixed at `4a6bedc7` (test-only); verified on a local
+3.13.15 venv (discovery suites 111 passed) and on 3.12.
+
+**Round 2 (delta) at `4a6bedc7` / `a0fd0698`: `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`, `MERGE_ELIGIBLE = YES`.** Deep-path repro
+now skips with a diagnostic; 26-case matrix changed in exactly that one row;
+focused 237 passed (187 base-unchanged + 50 new); 3.13 reproduction of the
+CI failure on the old module and 50/50 on the new; `ENAMETOOLONG` assessed
+not over-broad (a path property, cannot mask `EIO/ENOMEM/ENFILE`; the only
+alternative to "skip with diagnostic" is aborting, which yields strictly less
+evidence); `dir_fd` teardown leaves nothing behind (`-W error` clean).
+
+Nonblocking, all pre-existing and identical on base: "skipped unreadable
+path" understates an `ENAMETOOLONG` directory whose whole subtree is
+unreachable; a linked event directory whose `event_id` collides with a real
+package makes both rows `conflicting` (ingestion loads neither); a dangling
+or file-targeted `.atlas-inbox`/`agent-events` link is silently "no scope";
+the structural pin cannot see a filter that exists but never raises
+(behavioural coverage now spans all guards but the project-level `iterdir`,
+same code path as the pinned one).
+
+### Review remediation (`7db557ca`) — two findings, both real
+
+Copilot raised two findings on #685. Both were reproduced and fixed rather
+than argued away.
+
+1. **The inventory probed before it refused.** `_discover_agent_events` called
+   `_reachable_is_dir(inbox)` first, and that resolves -- so an escaping scope
+   link was stat'ed *through* before the refusal path ran, and a dangling or
+   file-targeted scope link answered False and was dropped as "no scope at
+   all" with **no diagnostic naming the alias**. That silence is exactly the
+   verifier's own Finding 3, reached from the other direction. The
+   symlink-chain loop now runs before any probe that would follow it. Five new
+   cases, all failing at `4a6bedc7` and passing here: the escaping link is
+   refused with the inventory probing nothing through it (instrumented: one
+   `_reachable_is_dir` call on head, and it comes from the *walk*; three on
+   base), and dangling / file-target links at both `.atlas-inbox` and
+   `agent-events` are named.
+
+2. **A docstring claimed more than the code did.** `_symlinked_scope_target`
+   said "never by resolving" while returning `realpath`. Detection is by
+   `lstat`; `realpath` only names the target in the diagnostic. Corrected.
+
+**Boundary kept explicit rather than papered over:** `discover()`'s own walk
+still asks `_reachable_is_dir(event_root)` for the reserved-subtree
+exclusion, and that probe does resolve through an alias, exactly as on base.
+Pre-existing, unchanged here, and asserted as such in the test docstring
+rather than hidden behind a broader "never followed" claim.
+
+Unreadable scopes are unaffected -- `_symlinked_scope_target` returns None on
+an inaccessible-scope errno, so 0444 and 0111 scopes still fall through to the
+reachability probe and its diagnostic. Independently confirmed on the real
+filesystem across nine mode-bit cases, byte-identical to base.
+
+### Independent verification, round 3 (`7db557ca` / `b985ed17`)
+
+**`PASS_WITH_NONBLOCKING_FINDINGS`, `INTRODUCED_FAILURE_COUNT = 0`,
+`MERGE_ELIGIBLE = YES`.** The verifier confirmed the reorder moved the
+`_reachable_is_dir` block verbatim with no other logic change; reproduced the
+nine mode-bit cases identical to base; confirmed the new diagnostics fire
+**only** where a real symlink exists (no `.atlas-inbox`, a real directory, an
+empty scope, and a plain *file* at either level are all still silent, exactly
+as on base); re-ran the full shape matrix with every `events`/`sources`/
+`duplicates` row unchanged and only the four intended diagnostics added; and
+mutation-checked both new tests against the previous head's module to confirm
+they genuinely detect the regression they pin.
+
+It also caught a **stale claim in the PR description** -- the residual list
+still called the dangling-link silence open after the code had fixed it. The
+PR body was corrected before merge. That is the failure mode this repository
+cares about most: the code was right and the prose was not.
+
+### Gates at the final candidate `7db557ca`
+
+| gate | result |
+| --- | --- |
+| focused (freeze guard, portability, agent-event integration, manifest, security, M1 39, M2 16) | 149 passed, 0 failed (3.12); discovery suites green on 3.13.15 |
+| ruff (whole tree) / mypy (400 source files) | 0 / 0 |
+| full suite (`--no-cov`, worktree cwd, 3.12) | `fa4b6ee9`: 5274 / 5268 passed / 6 skipped / 0 failed; `54643e3c`: 5281 / 5275 / 6 / 0; `4a6bedc7`: 5281 / 5275 / 6 / 0; **`7db557ca`: 5286 collected / 5280 passed / 6 skipped / 0 failed, exit 0** (worktree clean at that exact commit; `discovery.py` sha256 equal to the ledger pin at run time) |
+| independent verification | three rounds (above); `MERGE_ELIGIBLE = YES` at `7db557ca` |
+| exact-head CI | **`7db557ca`: run `34023651076`, all four required jobs SUCCESS** (ubuntu 3.12 full, ubuntu 3.13 compat, windows 3.12, control-plane) |
+
+**No carry-forward across heads.** Each head was certified on its own
+evidence. `4a6bedc7`'s CI run was **cancelled** when `7db557ca` superseded it
+(3 of 4 jobs green at the time, Windows unfinished), so that head never
+completed a CI pass and is **not** claimed as certified. `fa4b6ee9`'s CI
+failed the 3.13 compat job. The certification below binds to `7db557ca` and
+to nothing else.
+
+### Residuals observed, NOT remediated (outside this grant)
+
+- `atlas_contracts/event_package.py:101` symlink check is dead code on a
+  resolved path; enforced at the discovery call site instead.
+- Package **component** symlinks are followed by the loader's `read_text`.
+- The symlink-target probe still returns `None` quietly on `EACCES/EPERM`.
+- `--log-format json` inoperative (carried from #683).
+- M3 (read-only check): `ingestion.py` carries two pin entries, DOGFOOD-001
+  (`e8d779a8`, no longer matches any bytes, inert) beside the live
+  `6911a99d`; the guard tolerates an inert entry. Owner decision needed on
+  removing stale entries. FROZEN.
+- M4 (read-only check): `WORKLOG.md` NUL byte count is 1 at `origin/main`
+  and at this head; the one-byte fix (`\x00` -> `0`) is fully specified in
+  the R5 entry above. FROZEN.
+
+### Integration receipt (observed, not predicted)
+
+Sequenced deliberately: #683 first, then main reconciliation, then #685. #685
+was never allowed to become the mechanism by which #683's certified head
+reached `main` -- each PR carries its own integration receipt below.
+
+```text
+PR #683  certified head   8bf7d4defe5aba4314bf594df79b3c3fa6df042b
+         merge commit     1f48af389bee230d327e44308af8336acb241502
+         parents          0525e0f7 (main) + 8bf7d4de (certified head)
+         main tree after  af02813865e599be899385b6daf463c631c046a3
+                          == tree(8bf7d4de), byte-identical
+         post-merge CI    run 34024295351 @ 1f48af38 -- 4/4 SUCCESS
+         state            INTEGRATED_AND_SEALED
+
+PR #685  certified head   7db557ca4e87f652de34a57e66b136b81fa383ed
+         merge commit     6af7d07bb6df11bf4bc51a07881245d1eacb39ef
+         parents          1f48af38 (main) + 7db557ca (certified head)
+         main tree after  b985ed17479b17555b20b6971e5fca52344cb5de
+                          == tree(7db557ca), byte-identical
+         post-merge CI    run 34025384972 @ 6af7d07b -- 4/4 SUCCESS
+         state            INTEGRATED_AND_SEALED
+```
+
+`HEAD_SUBSTITUTION = NO` for both: each merge commit's second parent is the
+exact certified head, and each resulting `main` tree equals that head's tree.
+On `main`, `src/project_atlas/discovery.py` hashes to
+`471a56af7fcb45220f7c18b5b96efeb32acf7460489c2e9e7525eeec0a429f35` -- the
+ledger pin -- and `src/project_atlas/ingestion.py` remains `6911a99d`,
+untouched by this work package.
+
+**Certification was reused, not rebuilt.** After #683 landed, the merge base
+of `main` and `7db557ca` was still exactly `8bf7d4de`, and `main`'s tree
+equalled that merge base's tree -- so the new `main` contributed no content
+beyond what the candidate was already built on, and touched zero lines of the
+M1/M2 surface. No rebase, no successor commit manufactured to look current,
+and no re-run of the full suite or independent verification.
+
+| final state | |
+| --- | --- |
+| `M1_OSERROR_POLICY` | **INTEGRATED_AND_SEALED** |
+| `M2_SYMLINK_EVENT_SCOPE` | **INTEGRATED_AND_SEALED** |
+| `FINAL_MAIN_HEAD` | `6af7d07bb6df11bf4bc51a07881245d1eacb39ef` |
+| `FINAL_MAIN_TREE` | `b985ed17479b17555b20b6971e5fca52344cb5de` |
+
+### Claim boundary
+
+What is proven is exactly this: the nine `except OSError` guards in
+`discovery.py` now enforce the module's own stated errno contract, and the
+agent-event inventory no longer follows a symbolic link on the chain to a
+package. Nothing broader. No claim is made about `DEMO`, `AUTHENTIC_PILOT`,
+or `COMMERCIAL_GA`; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES` and
+`CODEX_VALIDATED = NO` are unchanged. The freeze guard turning green
+certifies only that the owner grant was recorded correctly, not that the
+change is correct. M3 and M4 were inspected read-only and remain frozen.
