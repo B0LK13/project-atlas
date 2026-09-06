@@ -7,9 +7,12 @@ path safety, and clipboard provider selection.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import subprocess
+import threading
 from dataclasses import replace
 from pathlib import Path
 
@@ -47,6 +50,13 @@ from project_atlas.obsidian_capture_note import (
     render_note,
     slugify,
     write_note,
+)
+from project_atlas.protected_regions import (
+    GENERATED_END,
+    GENERATED_START,
+    ProtectedRegionError,
+    extract_human_regions,
+    merge_protected_regions,
 )
 from project_atlas.schema import validate_record
 
@@ -1190,6 +1200,258 @@ def test_retry_with_malformed_human_markers_fails_closed(vault: Path) -> None:
         "a rejected merge must not silently rewrite or drop the existing note"
     )
     assert list(note_path.parent.glob("*.tmp")) == []
+
+
+@pytest.mark.parametrize(
+    ("case", "blocks"),
+    [
+        ("two", "{a}{b}"),
+        ("three", "{a}{b}{c}"),
+        ("separated-by-unique", "{a}{u}{b}"),
+        ("empty", "{e}{e}"),
+        ("identical-content", "{a}{a}"),
+        ("unicode-name", "{ua}{ub}"),
+        ("marker-whitespace", "{ws}{b}"),
+        ("nested-same-name", "{ns}"),
+    ],
+)
+def test_duplicate_human_region_names_fail_closed(case: str, blocks: str) -> None:
+    """Duplicate region names are ambiguous identity, so the merge refuses.
+
+    A region's *name* is its identity: the fresh render has one named slot, so
+    two blocks with the same name give no way to say which one it refers to.
+    Extraction keys blocks by name, so before this check the later block
+    silently overwrote the earlier one and a re-render dropped human-authored
+    content with no error and no diagnostic -- the exact class of silent human
+    data loss this module exists to prevent. Rejecting is the safe reading:
+    Atlas cannot guess, so a human resolves the duplicate names.
+
+    Content equality does not make it unambiguous -- the ambiguity is in the
+    identity, not the payload -- so the identical-content and empty cases are
+    rejected too.
+    """
+    human = (
+        "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
+    ).format
+    existing = GENERATED_START + GENERATED_END + blocks.format(
+        a=human(name="notes", body="FIRST"),
+        b=human(name="notes", body="SECOND"),
+        c=human(name="notes", body="THIRD"),
+        e=human(name="notes", body=""),
+        u=human(name="unique", body="KEEP"),
+        ua=human(name="\u5099\u8003", body="FIRST"),
+        ub=human(name="\u5099\u8003", body="SECOND"),
+        ws="<!--  BEGIN HUMAN: notes  -->\nFIRST\n<!-- END HUMAN: notes -->",
+        ns=human(name="notes", body=human(name="notes", body="INNER")),
+    )
+    rendered = (
+        f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+    )
+
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        merge_protected_regions(existing=existing, rendered=rendered, path=f"{case}.md")
+
+
+def test_duplicate_names_in_the_rendered_template_are_rejected() -> None:
+    """The template is not trusted either -- including on a first write."""
+    rendered = (
+        f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+    )
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        merge_protected_regions(existing=None, rendered=rendered, path="first.md")
+
+    existing = (
+        GENERATED_START + GENERATED_END
+        + "<!-- BEGIN HUMAN: notes -->\nOLD\n<!-- END HUMAN: notes -->"
+    )
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        merge_protected_regions(existing=existing, rendered=rendered, path="second.md")
+
+
+def test_extract_human_regions_refuses_duplicates_on_its_own() -> None:
+    """The extractor is exported, so it must not drop a block when called alone.
+
+    ``validate_protected_markers`` rejects duplicates first, so this guard is
+    unreachable through ``merge_protected_regions``. It exists because silently
+    returning one of two same-named blocks is precisely the data loss this
+    module prevents, and a future caller may reach the extractor directly.
+    """
+    text = (
+        "<!-- BEGIN HUMAN: notes -->\nFIRST\n<!-- END HUMAN: notes -->"
+        "<!-- BEGIN HUMAN: notes -->\nSECOND\n<!-- END HUMAN: notes -->"
+    )
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        extract_human_regions(text)
+
+
+def test_distinct_region_names_are_unaffected() -> None:
+    """The valid path must not become stricter: distinct names still merge."""
+    existing = (
+        GENERATED_START + GENERATED_END
+        + "<!-- BEGIN HUMAN: notes -->\nKEEP A\n<!-- END HUMAN: notes -->"
+        + "<!-- BEGIN HUMAN: todo -->\nKEEP B\n<!-- END HUMAN: todo -->"
+    )
+    rendered = (
+        f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+        "<!-- BEGIN HUMAN: todo -->\n<!-- END HUMAN: todo -->"
+    )
+    merged = merge_protected_regions(existing=existing, rendered=rendered, path="ok.md")
+    assert "KEEP A" in merged
+    assert "KEEP B" in merged
+    assert "fresh" in merged
+
+
+def _HUMAN_BEGIN_NAMES(text: str) -> list[str]:
+    """Region names in a fixture, for boundary assertions."""
+    return re.findall(r"<!--\s*BEGIN HUMAN:\s*([^\s>]+)\s*-->", text)
+
+
+@pytest.mark.parametrize(
+    ("case", "existing_blocks"),
+    [
+        ("nested-distinct", "{outer}"),
+        ("nested-distinct-deep", "{deep}"),
+        ("case-differs-is-distinct", "{cap}{low}"),
+        ("siblings-distinct", "{a}{b}"),
+    ],
+)
+def test_duplicate_check_does_not_decide_nesting_policy(
+    case: str, existing_blocks: str
+) -> None:
+    """F1 refuses ambiguous *identity*; it does not rule on nesting.
+
+    Nested regions with distinct names legitimately produce a merged document
+    that carries the inner block twice. Whether that is the right behaviour is
+    a separate open question, and running the duplicate-name check over the
+    *merged* text would answer it by refusing every nested document. So the
+    check is applied to the merge's inputs only, and this test pins the
+    boundary: these documents must merge exactly as they did before F1.
+
+    Names are compared exactly, matching the identity contract the merge
+    itself uses, so ``Notes`` and ``notes`` are two regions, not a duplicate.
+    """
+    human = (
+        "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
+    ).format
+    inner = human(name="inner", body="INNER CONTENT")
+    existing = GENERATED_START + GENERATED_END + existing_blocks.format(
+        outer=human(name="outer", body=inner),
+        deep=human(name="a", body=human(name="b", body=human(name="c", body="X"))),
+        cap=human(name="Notes", body="CAPITALISED"),
+        low=human(name="notes", body="lowercase"),
+        a=human(name="alpha", body="A"),
+        b=human(name="beta", body="B"),
+    )
+    rendered = (
+        f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+    )
+
+    merged = merge_protected_regions(
+        existing=existing, rendered=rendered, path=f"{case}.md"
+    )
+
+    # Every distinct name survives; nothing is refused.
+    for name in _HUMAN_BEGIN_NAMES(existing):
+        assert f"BEGIN HUMAN: {name}" in merged
+
+
+def test_nested_same_name_is_an_identity_failure_not_a_nesting_ruling() -> None:
+    """The one nesting shape F1 does refuse, and why it is still about identity."""
+    human = (
+        "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
+    ).format
+    rendered = (
+        f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+    )
+    nested_same = GENERATED_START + GENERATED_END + human(
+        name="notes", body=human(name="notes", body="INNER")
+    )
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        merge_protected_regions(
+            existing=nested_same, rendered=rendered, path="nested-same.md"
+        )
+
+    # ...while the same shape with distinct names is accepted, so the refusal
+    # is keyed on the repeated name and not on the nesting itself.
+    nested_distinct = GENERATED_START + GENERATED_END + human(
+        name="outer", body=human(name="inner", body="INNER")
+    )
+    merge_protected_regions(
+        existing=nested_distinct, rendered=rendered, path="nested-distinct.md"
+    )
+
+
+def test_retry_leaves_a_duplicate_region_note_byte_identical(vault: Path) -> None:
+    """End-to-end: ambiguity must cost the human nothing.
+
+    Before the fix this retry rewrote the note and the first block's content
+    was gone. The contract now matches the malformed-marker case above: a
+    rejected merge never reaches ``_write_atomic``, so the note stays exactly
+    as the human left it and the raw evidence is untouched.
+    """
+    result = capture(vault, build_capture_request(content="body under duplicates"))
+    note_path = _note_path_for(vault, result)
+    raw_before = read_raw_content(vault, result["capture_id"])
+    duplicated = note_path.read_text(encoding="utf-8").replace(
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->",
+        "<!-- BEGIN HUMAN: notes -->\nFIRST BLOCK\n<!-- END HUMAN: notes -->\n"
+        "<!-- BEGIN HUMAN: notes -->\nSECOND BLOCK\n<!-- END HUMAN: notes -->",
+    )
+    note_path.write_text(duplicated, encoding="utf-8")
+
+    retried = retry(vault, result["capture_id"])
+
+    assert retried["status"] == "partial"
+    assert retried["errors"][0]["code"] == "OBSIDIAN_NOTE_CONFLICT"
+    assert note_path.read_text(encoding="utf-8") == duplicated
+    assert "FIRST BLOCK" in duplicated and "SECOND BLOCK" in duplicated
+    assert read_raw_content(vault, result["capture_id"]) == raw_before
+    assert list(note_path.parent.glob("*.tmp")) == []
+
+
+@pytest.mark.parametrize("workers", [8, 16])
+def test_concurrent_retries_never_silently_drop_a_duplicate_block(
+    vault: Path, workers: int
+) -> None:
+    """Racing retries must not resolve the ambiguity by accident.
+
+    Run at both widths: the ambiguity is decided per-merge, so a wider race is
+    not merely more of the same -- it is more chances for two retries to
+    interleave between the read and the (refused) write.
+    """
+    result = capture(vault, build_capture_request(content="body under a race"))
+    note_path = _note_path_for(vault, result)
+    duplicated = note_path.read_text(encoding="utf-8").replace(
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->",
+        "<!-- BEGIN HUMAN: notes -->\nFIRST BLOCK\n<!-- END HUMAN: notes -->\n"
+        "<!-- BEGIN HUMAN: notes -->\nSECOND BLOCK\n<!-- END HUMAN: notes -->",
+    )
+    note_path.write_text(duplicated, encoding="utf-8")
+
+    sha_before = hashlib.sha256(note_path.read_bytes()).hexdigest()
+    barrier = threading.Barrier(workers)
+
+    def _retry() -> None:
+        barrier.wait()
+        retry(vault, result["capture_id"])
+
+    threads = [threading.Thread(target=_retry) for _ in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert hashlib.sha256(note_path.read_bytes()).hexdigest() == sha_before
+    assert note_path.read_text(encoding="utf-8") == duplicated
+    assert "FIRST BLOCK" in duplicated and "SECOND BLOCK" in duplicated
+    assert list(note_path.parent.glob("*.tmp")) == []
+    assert list(note_path.parent.glob("*.partial")) == []
 
 
 def test_retry_after_source_disappears_still_preserves_human_edit(vault: Path) -> None:

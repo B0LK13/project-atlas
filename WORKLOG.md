@@ -12872,3 +12872,61 @@ or `COMMERCIAL_GA`; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES` and
 `CODEX_VALIDATED = NO` are unchanged. The freeze guard turning green
 certifies only that the owner grant was recorded correctly, not that the
 change is correct. M3 and M4 were inspected read-only and remain frozen.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F1 -- duplicate HUMAN region identity fails closed
+
+Successor to the sealed AS-OBSIDIAN-CAPTURE-001 integration, based on main at
+`7793e2bd`. Owner decision: **fail closed on duplicate/ambiguous HUMAN region
+identity.** That decision deliberately does *not* settle general nesting
+semantics, and this change is scoped so it does not settle them by accident.
+
+Reproduced first, on the sealed base. A note carrying two
+`<!-- BEGIN HUMAN: notes -->` blocks kept only the **second** after
+`atlas capture retry`; the first block's human-authored content was gone from
+disk, with no error and no diagnostic. Cause: `validate_protected_markers`
+compared `sorted(begins) != sorted(ends)`, which duplicate names satisfy, and
+`extract_human_regions` keys blocks by name so the later block overwrote the
+earlier one.
+
+`reject_ambiguous_region_identity` now refuses a document whose HUMAN region
+names repeat: no first-wins, no last-wins, no concatenation, no reordering.
+Identity, not payload, is what is ambiguous, so identical-content and empty
+duplicates are refused too. Names are compared exactly, matching the identity
+contract the merge already uses, so `Notes` and `notes` remain two distinct
+regions. `extract_human_regions` carries its own guard because it is exported
+and reachable directly.
+
+**F1/F2 boundary.** The check runs over the merge's *inputs* only, never its
+output. Nested regions with distinct names legitimately merge to a document
+carrying the inner block twice; running the check over the merged text would
+refuse every nested document and thereby decide the open nesting question.
+Nested *same-name* regions are still refused -- their identity is ambiguous for
+exactly the same reason as sibling duplicates, which is an F1 verdict rather
+than a ruling on nesting. Nested distinct-name documents merge byte-for-byte as
+they did before this change, verified by hashing merged output against the
+pre-F1 implementation. Tests pin the boundary in both directions: the
+nested-distinct cases fail against an over-broad version of this fix, and the
+duplicate cases fail against the pre-F1 code.
+
+Regression matrix: two and three same-name siblings, duplicates separated by a
+unique region, empty duplicates, identical-content duplicates, Unicode
+duplicate names, accepted marker-whitespace variants, nested same-name,
+duplicates in the rendered template, duplicates on first write, plus
+unique-name, nested-distinct, deep-nested-distinct and case-differs controls
+and the existing malformed-marker controls. End to end, a duplicate-region note
+left `retry` with `status: partial` / `OBSIDIAN_NOTE_CONFLICT`, the note
+byte-identical by sha256, both blocks intact, raw evidence unchanged and no
+`.tmp` or `.partial` residue -- under sequential, 8-way and 16-way concurrent
+retry. SILENT_LOSS_COUNT = 0, PARTIAL_WRITE_COUNT = 0, TEMP_LEAK_COUNT = 0,
+RAW_EVIDENCE_MUTATION_COUNT = 0.
+
+The module docstring claimed to be "the one implementation of that contract".
+That is false while `graph_projections._merge_protected_regions` exists, and
+the two genuinely diverge (graph preserves text outside the generated span when
+a note has no HUMAN regions). A 12-case differential put them at 9 equivalent /
+3 divergent. The docstring now says so; no runtime consolidation is attempted,
+because those divergences are undecided.
+
+This entry is implementation evidence, not certification: exact-head CI and
+independent verification are required before merge.
