@@ -96,10 +96,36 @@ def _canonical_hash(value: object) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def _reject_symlinked_components(package: Path) -> None:
+    """Refuse a package whose component files are symbolic links.
+
+    ``_confined`` guarantees the package *directory* is inside the source
+    root, and the check above intends to refuse a symlinked package -- but it
+    inspects an already-resolved path, so it never fires, and confinement of
+    the directory says nothing about where its contents point. A component
+    symlink therefore made an arbitrary file outside the root readable as
+    event evidence: the recorded component hash was the outside file's hash,
+    and the bytes copied into the Vault were the outside file's bytes.
+
+    Detected with ``lstat`` on the unresolved component path, which is what
+    makes the answer about the entry rather than about its target. Refusing is
+    the same verdict this module already states for a symlinked package; a
+    component is simply the case the original check could not see.
+    """
+    symlinked = sorted(
+        name for name in EVENT_PACKAGE_FILES if (package / name).is_symlink()
+    )
+    if symlinked:
+        raise PackageValidationError(
+            f"event package component is symlinked: {','.join(symlinked)}"
+        )
+
+
 def _raw_inventory(root: Path, package_path: str) -> tuple[Path, dict[str, str]]:
     package = _confined(root, package_path)
     if not package.is_dir() or package.is_symlink():
         raise PackageValidationError("event package directory is missing or symlinked")
+    _reject_symlinked_components(package)
     names = {path.name for path in package.iterdir()}
     if names != EVENT_PACKAGE_FILES:
         missing = sorted(EVENT_PACKAGE_FILES - names)
