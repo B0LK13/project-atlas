@@ -183,6 +183,13 @@ def test_inaccessible_errnos_still_continue_from_every_guard(
         # Only the alias probe was unreadable; the real document is untouched.
         assert by_path["docs/a.md"]["sha256"]
         assert "alias.md" not in by_path
+    elif inject is _inject_listability_probe:
+        # The scope is reported as inaccessible. Whether its children were
+        # still yielded is an artifact of the injection, not of the guard:
+        # 3.12's `rglob` shares the patched `os.scandir`, 3.13's binds its
+        # own reference at import. A really unlistable directory has no
+        # children to yield either way (see the portability suite).
+        assert any("inaccessible discovery scope" in m and "docs" in m for m in caplog.messages)
     else:
         assert "docs/a.md" not in by_path, "no record without metadata"
         if inaccessible != errno.ENOENT:
