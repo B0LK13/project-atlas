@@ -185,7 +185,12 @@ class TestReturnCodeAndErrorPropagationUnchanged:
             resident_driver.poll_github_ci("123")
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="authentic Windows process-path smoke")
+@pytest.mark.skip(
+    reason="DIAGNOSTIC BISECTION ONLY (D-ATLAS-PR688): temporarily disabled to isolate "
+    "whether this class's real tasklist/powershell subprocess calls against the pytest "
+    "runner's own PID are the cause of the hosted Windows CI KeyboardInterrupt seen 2/2 "
+    "on PR #688's exact candidate 90d4e6fe. Never merge this skip -- diagnostic-only branch."
+)
 class TestAuthenticWindowsSmoke:
     """AUTHENTIC WINDOWS SMOKE (T10): a real, unmocked child-process call.
 
