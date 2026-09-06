@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -474,18 +473,23 @@ def test_symlinked_event_package_isolated_during_discovery(tmp_path: Path) -> No
     assert symlink_record["status"] == "invalid"
 
 
-@pytest.mark.skipif(
-    os.name == "nt", reason="symlink creation needs a privilege on Windows"
-)
 def test_component_symlinked_outside_the_root_never_reaches_the_vault(
     tmp_path: Path,
 ) -> None:
     """End to end: an escaping component's bytes must not land in the Vault.
 
     Asserted on **bytes**, never on an error string or a manifest wording, so
-    the test is independent of the outstanding evidence-policy choice: all
-    three options refuse a component whose target escapes the source root, and
-    they differ only on the intra-root case, which this does not touch.
+    the test is independent of the outstanding evidence-policy choice --
+    between the two options that actually close the defect. Refusing any
+    symlinked component and resolve-and-confine both refuse a component whose
+    target escapes the root, and differ only on the intra-root case, which
+    this does not touch. Verified by implementing resolve-and-confine as a
+    mutation: this test passes unchanged under it.
+
+    Repair-only is the exception, and an earlier version of this docstring
+    wrongly swept it in by saying "all three". Under repair-only the package
+    is still inventoried as valid and this test fails -- which is the option
+    table's own verdict that the defect stays open, so the failure is correct.
 
     The declared `content_sha256` is set to the *outside* file's digest, so
     hash verification cannot be what refuses the package. Containment is the
@@ -494,8 +498,12 @@ def test_component_symlinked_outside_the_root_never_reaches_the_vault(
     source, vault = _run_fixture(tmp_path)
     outside = tmp_path / "outside" / "secret.md"
     outside.parent.mkdir(parents=True, exist_ok=True)
-    secret = b"private key material outside the source root\n"
-    outside.write_bytes(secret)
+    body = b"private key material outside the source root"
+    outside.write_bytes(body + b"\n")
+    # The needle deliberately excludes the trailing newline: with it, the
+    # assertion would pin only byte-identical copies, and a path that
+    # re-encoded or re-wrapped the content would slip through.
+    secret = body
 
     package = (
         source
@@ -508,7 +516,7 @@ def test_component_symlinked_outside_the_root_never_reaches_the_vault(
     component.unlink()
     component.symlink_to(outside)
 
-    digest = _hash(secret)
+    digest = _hash(outside.read_bytes())
     provenance = json.loads((package / "provenance.json").read_text(encoding="utf-8"))
     provenance["content_sha256"] = digest
     (package / "provenance.json").write_text(
@@ -528,6 +536,14 @@ def test_component_symlinked_outside_the_root_never_reaches_the_vault(
         "the escaping package is still inventoried as valid evidence: "
         f"{[row.get('event_id') for row in valid]}"
     )
+    # The count alone would also pass if the row *vanished*, which is the
+    # silent-disappearance mode this package's own history includes. The row
+    # must be present and say so.
+    escaping = [
+        row for row in payload["agent_events"] if row.get("event_id") == "AE-implementation"
+    ]
+    assert len(escaping) == 1, "the escaping package left no row at all"
+    assert escaping[0]["status"] == "invalid", escaping[0]
 
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
