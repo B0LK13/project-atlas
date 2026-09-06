@@ -809,4 +809,5 @@ Historical roadmaps are classified as inputs and are not erased._
 
 - [x] AS-OBSIDIAN-CAPTURE-001 Conversational knowledge capture + Obsidian bridge (raw evidence preserved verbatim; projection != source; CAPTURE != AUTHORITY; renamed from the incoming `AS-OBS-001` title, which collides with the CLOSED observability health-snapshot package)
 - [ ] AS-OBSIDIAN-CAPTURE-002 Localhost capture API + browser extension (BLOCKED: LIVE_API is contractually read-only; needs its own work package)
+- [x] AS-OBSIDIAN-CAPTURE-001-F1 Duplicate HUMAN region names fail closed (a repeated region name is ambiguous identity; extraction keyed blocks by name so a re-render silently dropped the earlier block's human content -- now refused, note left byte-identical; `graph_projections.py` still carries an independent copy of the defect, tracked as F4)
 - [ ] AS-OBSIDIAN-CAPTURE-003 Conversation intelligence (summary/decision/action extraction; consumes AS-OBSIDIAN-CAPTURE-001 CaptureRecords; AI enrichment stays opt-in)
