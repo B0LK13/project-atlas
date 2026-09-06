@@ -13015,9 +13015,13 @@ Two consequences worth stating plainly rather than burying:
   was spurious content the human never wrote. The repeated-render test that
   pinned the old shape now pins the new one.
 - **`extract_human_regions` is keyed by `RegionPath`, not by name.** The only
-  caller reads `.values()` (secret scanning), which is unaffected -- and
-  strictly better off, because a block that used to be collapsed away escaped
-  that scan entirely.
+  caller reads `.values()` (secret scanning) and is unaffected. An earlier
+  draft of this entry claimed the change also widened secret-scan coverage,
+  because a collapsed block "escaped the scan". Independent verification
+  showed that is false and it is withdrawn: on the old code a collapsed
+  block's bytes still sat inside its distinct-named parent's value, so the
+  scanner always saw them. The improvement here is loss and cross-scope
+  substitution prevention, not scan coverage.
 
 Acceptance matrix F2-01 through F2-10 is covered by tests, and seven of them
 were confirmed to fail against main's implementation and pass here. Randomized

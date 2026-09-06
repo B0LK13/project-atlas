@@ -2,7 +2,9 @@
 
 Atlas owns the generated region of a projected Markdown note; anything a
 human wraps in a named ``<!-- BEGIN HUMAN: name --> ... <!-- END HUMAN: name
--->`` block survives a re-render byte-for-byte. Both the living Obsidian
+-->`` block survives a re-render byte-for-byte. A region is identified by its
+:data:`RegionPath` -- the scope it sits in plus its name -- so ``a/x`` and
+``b/x`` are two independent regions rather than one name used twice. Both the living Obsidian
 project projection (:mod:`project_atlas.obsidian_projection`) and the
 Obsidian capture-note projection (:mod:`project_atlas.obsidian_capture_note`)
 call into it, so the merge algorithm cannot drift between those two surfaces
@@ -121,10 +123,10 @@ def _ambiguous_region_paths(spans: list[tuple[RegionPath, int, int]]) -> list[st
 def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
     """Fail closed when HUMAN region identity is ambiguous.
 
-    A region's name is its identity. :func:`extract_human_regions` keys blocks
-    by name, so before this check a second block of the same name silently
-    overwrote the first and a re-render dropped human-authored content with no
-    error and no diagnostic.
+    A region's identity is its :data:`RegionPath` -- ancestry scope plus name.
+    Two regions occupying the same path have no way to say which of them the
+    fresh render's single slot refers to, so :func:`extract_human_regions`
+    would have to pick one, and picking silently discards the other.
 
     Owner policy is to refuse rather than choose: no first-wins, no last-wins,
     no concatenation, no reordering. Content equality does not disambiguate --
@@ -133,11 +135,12 @@ def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
     identity contract the merge itself uses, so ``Notes`` and ``notes`` are two
     different regions rather than a duplicate.
 
-    What counts as ambiguous is decided structurally by
-    :func:`_ambiguous_region_names`, which is what keeps this an F1 identity
-    verdict rather than a ruling on nesting: nested *same-name* regions are
-    refused, nested *distinct-name* documents keep the behaviour they had
-    before F1 existed, at every generation rather than only the first.
+    Scope is part of that identity, so ``a/x`` beside ``b/x`` is **not**
+    ambiguous: those are two regions that happen to share a leaf name, and
+    both are preserved. Structural impossibilities -- crossed markers, an
+    unclosed region, a region nested inside one of its own name -- are refused
+    earlier, by :func:`_human_region_spans`, because a document that cannot be
+    parsed into one tree cannot be safely rewritten at all.
     """
     duplicates = _ambiguous_region_paths(_human_region_spans(text))
     if duplicates:
