@@ -660,30 +660,74 @@ def _seam_attribute_writes(tree: ast.Module) -> list[tuple[str, int]]:
     return writes
 
 
-#: The shared CLI's parser factory. Resolved by name rather than by "the first
-#: function that happens to call add_subparsers": walk order is attacker-
-#: controlled, and a stub defined above the real factory would otherwise
-#: capture every scoped check while the real one was left unguarded.
-_PARSER_FACTORY_NAME = "build_parser"
+#: The entry point whose parser is the one operators actually get.
+_CLI_ENTRY_POINT_NAME = "main"
+
+
+def _module_level_rebindings(tree: ast.Module, name: str) -> list[int]:
+    """Lines where `name` is rebound at module level, outside its `def`."""
+    lines: list[int] = []
+    for node in tree.body:
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            targets = [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id == name:
+                lines.append(node.lineno)
+    return lines
 
 
 def _parser_factory(tree: ast.Module) -> ast.AST | None:
-    """The `build_parser` function, and only it.
+    """The function whose parser `main` actually builds.
 
-    An earlier version took the first function in `ast.walk` order assigning
-    `subparsers` from `add_subparsers()`. Independent verification showed that
-    a twenty-line compatibility-shim stub placed above the real factory
-    captured that role, so every scoped check was evaluated against the stub
-    while `build_parser` itself was rebound freely -- the same 98 -> 42
-    demotion this guard exists to prevent, re-opened by the scoping that was
-    meant to make it precise. Resolution is by identity now, so a decoy is
-    simply not the function under test.
+    Three rounds of independent verification defeated three different ways of
+    *naming* the function to audit -- first the one that happened to call
+    `add_subparsers` (walk order), then the one called `build_parser` (name
+    ownership). Each fix pinned the reported decoy and left the class intact:
+    a decoy captures the audited role while the real factory runs unguarded.
+
+    So this does not select by name at all. It reads `main`, takes the call
+    whose result `main` uses as its parser, and audits *that* function. The
+    invariant every scoped check has been assuming for three rounds --
+    **the parser object `main` builds is the one these checks describe** --
+    is then true by construction rather than by naming convention.
+
+    Returns None (the caller fails closed) whenever that chain cannot be
+    followed: no `main`, no parser call, a call through something other than a
+    plain name, more than one definition of the target, or a module-level
+    rebinding of the factory name after its `def` -- the last being an alias
+    that would silently swap the executed function for another.
     """
+    entry_points = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == _CLI_ENTRY_POINT_NAME
+    ]
+    if len(entry_points) != 1:
+        return None
+    factory_names = {
+        node.value.func.id
+        for node in ast.walk(entry_points[0])
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "parser"
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+    }
+    if len(factory_names) != 1:
+        return None
+    factory_name = factory_names.pop()
+    if _module_level_rebindings(tree, factory_name):
+        return None  # the name main calls has been aliased to something else
     factories = [
         node
         for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == _PARSER_FACTORY_NAME
+        and node.name == factory_name
     ]
     if len(factories) != 1:
         return None
@@ -850,8 +894,8 @@ def assert_cli_semantic_invariants(*, source: str, atlas3_commands: frozenset[st
     #     code, and failing it would teach contributors to disable the guard.
     creator = _parser_factory(tree)
     assert creator is not None, (
-        f"parser factory missing: cli.py must define exactly one "
-        f"{_PARSER_FACTORY_NAME}() function"
+        f"parser factory unresolvable: {_CLI_ENTRY_POINT_NAME}() must build its parser "
+        "from exactly one uniquely-defined, never-rebound module-level function"
     )
     subparser_bindings = _scoped_bound_names(creator, _TOP_LEVEL_SUBPARSERS_NAME)
     assert len(subparser_bindings) == 1, (
@@ -2698,3 +2742,76 @@ def test_r04_helper_with_a_local_named_subparsers_passes_either_side(position: s
     else:
         source = REAL_CLI_SOURCE + "\n\n" + helper
     _semantic(source)
+
+
+# ---------------------------------------------------------------------------
+# S-matrix -- third round of independent verification.
+#
+# Two earlier resolutions picked the function to audit by *name*: first the
+# one that happened to call `add_subparsers`, then the one called
+# `build_parser`. Each fix pinned the decoy shape that had been reported and
+# left the class intact -- a decoy captures the audited role while the real
+# factory runs unguarded. The verifier's own conclusion, which these tests
+# encode: state the invariant and derive from it, rather than extending a
+# pattern list. The invariant is that the parser `main` builds is the one
+# these checks describe, so resolution follows the call.
+# ---------------------------------------------------------------------------
+
+_NAMED_DECOY_FACTORY = '''def build_parser() -> argparse.ArgumentParser:
+    """Legacy factory retained for compatibility."""
+    parser = argparse.ArgumentParser(prog="atlas")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    brief_parser = subparsers.add_parser("brief")
+    brief_parser.add_argument("--vault")
+    brief_parser.add_argument("--project")
+    return parser
+
+
+def _build_parser_impl('''
+
+
+def test_s01_a_decoy_owning_the_factory_name_is_not_audited() -> None:
+    """Renaming the real factory and repointing `main` must not blind the guard.
+
+    Measured by the verifier on the real CLI: 93 of 98 top-level commands
+    lost, `ask2` demoted, and the guard passed -- because it audited the
+    decoy that had taken the name.
+    """
+    source = _mutate(_OPS_SUB, _OPS_SUB + "\n    for subparsers in (ops_sub,):\n        pass")
+    source = source.replace("def build_parser(", _NAMED_DECOY_FACTORY, 1)
+    source = source.replace("    parser = build_parser()", "    parser = _build_parser_impl()", 1)
+    with pytest.raises(AssertionError, match="top-level parser identity unstable"):
+        _semantic(source)
+
+
+def test_s02_aliasing_the_factory_name_after_its_def_is_blocked() -> None:
+    """One line after the `def` swapped the executed factory. 98 -> 1 command."""
+    decoy = (
+        "def _decoy_factory():\n"
+        "    p = argparse.ArgumentParser()\n"
+        '    p.add_subparsers(dest="command").add_parser("version")\n'
+        "    return p\n\n\n"
+        "build_parser = _decoy_factory\n\n\n"
+        "def main(argv: Sequence[str] | None = None) -> int:"
+    )
+    source = _mutate("def main(argv: Sequence[str] | None = None) -> int:", decoy)
+    with pytest.raises(AssertionError, match="parser factory unresolvable"):
+        _semantic(source)
+
+
+def test_s03_renaming_the_factory_honestly_still_passes() -> None:
+    """Following the call must not forbid ordinary refactoring.
+
+    A rename that also repoints `main` is legitimate work; the guard follows
+    it rather than insisting on a blessed name.
+    """
+    source = REAL_CLI_SOURCE.replace("def build_parser(", "def _build_parser_impl(", 1)
+    source = source.replace("    parser = build_parser()", "    parser = _build_parser_impl()", 1)
+    _semantic(source)
+
+
+def test_s04_an_unfollowable_entry_point_fails_closed() -> None:
+    """When the chain cannot be followed, refuse rather than audit nothing."""
+    source = _mutate("    parser = build_parser()", "    parser = _factories[0]()")
+    with pytest.raises(AssertionError, match="parser factory unresolvable"):
+        _semantic(source)
