@@ -458,6 +458,40 @@ def test_certified_surfaces_unmodified() -> None:
     assert violated == []
 
 
+#: Owner-approved exceptions to the *Atlas-3 hook* requirement below, pinned
+#: the same way `_OWNER_APPROVED_EXCEPTIONS` is: to one exact reviewed
+#: sha256 of `cli.py`, never to the path in general. The guard's purpose is
+#: to stop the Atlas 3 lane rewriting certified 2.x CLI surfaces, and it
+#: expresses that by demanding the diff be the two additive Atlas-3
+#: registration hooks. A change that is genuinely not an Atlas 3 change --
+#: and must not touch that seam -- cannot satisfy that shape, so it needs an
+#: explicit owner grant rather than a weakened guard.
+#:
+#: What an entry here waives is ONLY the "diff must be the Atlas-3 hooks"
+#: assertions. Additive-only and command-integrity stay enforced for every
+#: change, excepted or not.
+_CLI_ADDITIVE_EXCEPTIONS: tuple[dict[str, str], ...] = (
+    {
+        "exception_id": "OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906",
+        "owner_approved": "YES",
+        "reason": (
+            "owner grant OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906: an "
+            "explicitly requested --log-format must govern every record the "
+            "process emits. Modules configure logging with the console "
+            "default at import, so applying the flag only after load_config "
+            "left that bootstrap record in console format and a "
+            "JSON-consuming deployment received an unparseable stream. The "
+            "diff is one guarded configure_logging call after parse_args; no "
+            "Atlas-3 seam change, no command added, renamed or removed"
+        ),
+        "path": "src/project_atlas/cli.py",
+        "allowed_sha256": (
+            "752eb7f346814d1064faf7502f6fc55f4e47bc738c5bda24f5396bf63bfa8550"
+        ),
+    },
+)
+
+
 def test_cli_mutation_is_additive_only() -> None:
     try:
         already_changed = _changed_paths()
@@ -465,6 +499,9 @@ def test_cli_mutation_is_additive_only() -> None:
         pytest.skip(str(exc))
     if "src/project_atlas/cli.py" not in already_changed:
         return
+    atlas3_hooks_waived = _owner_approved_exception_permits(
+        "src/project_atlas/cli.py", root=ROOT, exceptions=_CLI_ADDITIVE_EXCEPTIONS
+    )
     base = _resolve_diff_base()
     diff = subprocess.run(
         ["git", "diff", base, "--", "src/project_atlas/cli.py"],
@@ -475,13 +512,16 @@ def test_cli_mutation_is_additive_only() -> None:
         timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     text = diff.stdout
-    assert "register_atlas3_parsers" in text
-    assert "dispatch_atlas3" in text
     lines = text.splitlines()
     added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
     removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
+    # Enforced for every change, excepted or not: nothing may be deleted from
+    # a certified CLI surface, and every certified command must still exist.
     assert removed == []
-    assert any("register_atlas3_parsers" in line for line in added)
+    if not atlas3_hooks_waived:
+        assert "register_atlas3_parsers" in text
+        assert "dispatch_atlas3" in text
+        assert any("register_atlas3_parsers" in line for line in added)
     source = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
     for command in ("connect", "ask2", "kdiff", "brief", "capture"):
         assert f'"{command}"' in source or f"'{command}'" in source
@@ -1192,3 +1232,82 @@ def test_fetch_timeout_is_actually_enforced_not_just_declared(
         f"fetch-timeout conversion took {elapsed:.1f}s -- should be "
         "near-instant since the timeout itself is simulated, not waited out"
     )
+
+
+# ---------------------------------------------------------------------------
+# The CLI Atlas-3-hook waiver is held to the same narrowness as every other
+# owner-approved exception: one exact reviewed byte sequence, one path, and
+# it never waives the additive-only or command-integrity rules.
+# ---------------------------------------------------------------------------
+
+
+def test_cli_exception_does_not_survive_any_further_edit(tmp_path: Path) -> None:
+    """One more byte in cli.py and the Atlas-3 hook requirement returns."""
+    approved = b"import sys\n"
+    (tmp_path / "src" / "project_atlas").mkdir(parents=True)
+    target = tmp_path / "src" / "project_atlas" / "cli.py"
+    target.write_bytes(approved)
+    exceptions = (
+        {
+            "exception_id": "OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906",
+            "owner_approved": "YES",
+            "reason": "test",
+            "path": "src/project_atlas/cli.py",
+            "allowed_sha256": hashlib.sha256(approved).hexdigest(),
+        },
+    )
+    assert _owner_approved_exception_permits(
+        "src/project_atlas/cli.py", root=tmp_path, exceptions=exceptions
+    )
+    target.write_bytes(approved + b"# one more byte\n")
+    assert not _owner_approved_exception_permits(
+        "src/project_atlas/cli.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_cli_exception_does_not_cover_a_deny_listed_path(tmp_path: Path) -> None:
+    """The CLI waiver must not leak into the frozen runtime surfaces."""
+    approved = b"import sys\n"
+    (tmp_path / "src" / "project_atlas").mkdir(parents=True)
+    for name in ("cli.py", "discovery.py"):
+        (tmp_path / "src" / "project_atlas" / name).write_bytes(approved)
+    exceptions = (
+        {
+            "exception_id": "OG-ATLAS-CLI-LOGFORMAT-BOOTSTRAP-20260906",
+            "owner_approved": "YES",
+            "reason": "test",
+            "path": "src/project_atlas/cli.py",
+            "allowed_sha256": hashlib.sha256(approved).hexdigest(),
+        },
+    )
+    assert not _owner_approved_exception_permits(
+        "src/project_atlas/discovery.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_real_cli_exception_is_live_or_inert_honestly() -> None:
+    """Every live CLI waiver names cli.py, is owner-approved, and is real hex."""
+    for exc in _CLI_ADDITIVE_EXCEPTIONS:
+        assert exc["owner_approved"] == "YES"
+        assert exc["exception_id"]
+        assert exc["reason"]
+        assert exc["path"] == "src/project_atlas/cli.py"
+        assert len(exc["allowed_sha256"]) == 64
+        int(exc["allowed_sha256"], 16)
+
+
+def test_cli_waiver_never_permits_deletions() -> None:
+    """Additive-only is enforced outside the waiver branch, by construction.
+
+    Read from the guard's own source rather than asserted in prose: the
+    `removed == []` check must not sit inside the `if not
+    atlas3_hooks_waived:` block, or an excepted change could delete a
+    certified command.
+    """
+    source = Path(__file__).read_text(encoding="utf-8")
+    body = source[source.index("def test_cli_mutation_is_additive_only"):]
+    body = body[: body.index("\ndef ", 1)]
+    removed_at = body.index("assert removed == []")
+    waiver_at = body.index("if not atlas3_hooks_waived:")
+    assert removed_at < waiver_at, "additive-only must be enforced before the waiver branch"
+    assert "for command in" in body, "command-integrity must remain in this test"
