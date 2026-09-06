@@ -144,6 +144,39 @@ def test_omitted_format_keeps_the_explicitly_requested_one(
     json.loads(_emitted(logger))  # still parseable
 
 
+def test_handler_is_never_attached_without_a_formatter(
+    fresh_logging: tuple[logging.Logger, list[logging.Handler]],
+) -> None:
+    """A record emitted mid-configuration must not bypass this module's formatters.
+
+    Attaching the handler before setting its formatter leaves a window in
+    which `logging`'s default formatter renders the record: bare
+    `%(message)s`, no level, no logger name, and none of the redaction the
+    formatters here apply. Observed by capturing the logger's handler list at
+    the moment `addHandler` runs.
+    """
+    _logger, _ = fresh_logging
+    seen: list[logging.Formatter | None] = []
+    real_add = logging.Logger.addHandler
+
+    def recording_add(self: logging.Logger, handler: logging.Handler) -> None:
+        if self.name == "project_atlas":
+            seen.append(handler.formatter)
+        real_add(self, handler)
+
+    logging.Logger.addHandler = recording_add  # type: ignore[method-assign]
+    try:
+        configure_logging(level="INFO", log_format="json")
+    finally:
+        logging.Logger.addHandler = real_add  # type: ignore[method-assign]
+
+    assert seen, "the handler must have been attached"
+    assert all(
+        isinstance(formatter, (JsonFormatter, ConsoleFormatter)) for formatter in seen
+    ), f"handler attached without one of this module's formatters: {seen}"
+    assert isinstance(seen[0], JsonFormatter), "the requested format must be the one attached"
+
+
 def test_first_configuration_without_a_format_is_console(
     fresh_logging: tuple[logging.Logger, list[logging.Handler]],
 ) -> None:

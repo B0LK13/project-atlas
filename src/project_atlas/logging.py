@@ -84,18 +84,26 @@ def configure_logging(level: str = "INFO", log_format: str | None = None) -> Non
     ``log_format=None`` means "keep whatever format is installed", defaulting
     to ``console`` on the first call. An implicit configuration can then
     never downgrade a format the caller explicitly asked for.
+
+    The handler is never attached before it has a formatter. Attaching first
+    would leave a window in which a record emitted from another thread is
+    rendered by `logging`'s default formatter -- bare `%(message)s`, with no
+    level, no logger name and, worse, none of this module's redaction.
     """
     global _CONFIGURED, _HANDLER
     logger = logging.getLogger(_LOGGER_NAME)
+    formatter: logging.Formatter = (
+        JsonFormatter() if log_format == "json" else ConsoleFormatter()
+    )
     if not _CONFIGURED:
-        _HANDLER = logging.StreamHandler()
-        logger.addHandler(_HANDLER)
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        _HANDLER = handler
+        logger.addHandler(handler)
         logger.propagate = False
         _CONFIGURED = True
-        if log_format is None:
-            log_format = "console"
-    if log_format is not None and _HANDLER is not None:
-        _HANDLER.setFormatter(JsonFormatter() if log_format == "json" else ConsoleFormatter())
+    elif log_format is not None and _HANDLER is not None:
+        _HANDLER.setFormatter(formatter)
     logger.setLevel(level.upper())
 
 
