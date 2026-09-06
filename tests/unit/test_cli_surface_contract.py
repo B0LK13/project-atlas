@@ -159,3 +159,94 @@ def test_certified_commands_parse_a_documented_invocation(
     assert parsed.command == "brief"
     assert parsed.vault == Path("/tmp/v")
     assert parsed.projects == ["p"]
+
+
+# ---------------------------------------------------------------------------
+# Through `main`, not through `build_parser()`.
+#
+# Asserting on `build_parser()`'s return establishes what that function
+# exposes -- which is one layer short of what the operator gets. Verification
+# demonstrated three ways to break the CLI while leaving it green: `main`
+# building from a different factory, `main` mutating the parser after it is
+# returned, and registrations gated on the test process being detectable.
+#
+# These drive the real entry point instead. `--help` is used deliberately: it
+# goes through the parser the operator's invocation goes through, and exits
+# before any command does work, so the surface can be asserted without a vault
+# or any side effect.
+# ---------------------------------------------------------------------------
+
+
+def _main_help(argv: list[str]) -> tuple[int, str]:
+    """Run `main(argv)` expecting argparse's help exit; return (code, stdout)."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+
+    from project_atlas.cli import main
+
+    captured = StringIO()
+    with redirect_stdout(captured), pytest.raises(SystemExit) as raised:
+        main(argv)
+    code = raised.value.code
+    return (0 if code is None else int(code)), captured.getvalue()
+
+
+@pytest.mark.parametrize("command", CERTIFIED_COMMANDS)
+def test_main_exposes_each_certified_command(command: str) -> None:
+    """The operator's entry point answers to it, not merely `build_parser()`.
+
+    The exit code alone is not enough: with the subparser group removed,
+    `atlas brief --help` still exits 0, because the top-level parser consumes
+    `--help` and prints its own usage. The usage line must name the
+    subcommand, which is what distinguishes "this command exists" from
+    "something answered".
+    """
+    code, help_text = _main_help([command, "--help"])
+    assert code == 0, f"`atlas {command} --help` exited {code}; the command is unreachable"
+    assert f"atlas {command}" in help_text, (
+        f"`atlas {command} --help` printed top-level usage, not {command}'s; "
+        "the subcommand is not reachable through main"
+    )
+
+
+@pytest.mark.parametrize("command", sorted(CERTIFIED_OPTIONS))
+def test_main_offers_each_documented_option(command: str) -> None:
+    """The documented flags reach the operator, via `main`'s own parser."""
+    code, help_text = _main_help([command, "--help"])
+    assert code == 0
+    for flag, _dest in CERTIFIED_OPTIONS[command]:
+        assert flag in help_text, f"`atlas {command} --help` does not offer {flag}"
+
+
+def test_main_exposes_the_atlas3_seam() -> None:
+    """The seam's commands are reachable through the entry point.
+
+    Neutralising the seam by any means -- shadowing, a module-object write in
+    any spelling, an early return -- leaves this asking for a command the
+    parser does not have.
+    """
+    sample = sorted(ATLAS3_COMMANDS)[:3]
+    for command in sample:
+        code, _ = _main_help([command, "--help"])
+        assert code == 0, f"Atlas 3 command {command!r} is unreachable through main"
+
+
+def test_certified_optional_flags_are_not_silently_required(
+    built: argparse.ArgumentParser,
+) -> None:
+    """`brief --project p` must parse without `--vault`.
+
+    Making a documented-optional flag `required=True` breaks an invocation the
+    docs promise, while every "the option exists" check still passes.
+    """
+    parsed = built.parse_args(["brief", "--project", "p"])
+    assert parsed.command == "brief"
+    assert parsed.projects == ["p"]
+
+
+def test_connect_keeps_its_documented_positional(built: argparse.ArgumentParser) -> None:
+    """`atlas connect [source]` -- positionals carry no option strings, so a
+    check that reads only `option_strings` cannot see one disappear."""
+    parsed = built.parse_args(["connect", "/tmp/src"])
+    assert parsed.command == "connect"
+    assert Path(parsed.source) == Path("/tmp/src")

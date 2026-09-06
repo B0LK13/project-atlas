@@ -694,11 +694,16 @@ def assert_cli_semantic_invariants(*, source: str, atlas3_commands: frozenset[st
     """
     tree = _cli_module_ast(source)
 
-    # (C) The seam symbols are never rebound. Module-wide, across every binding
-    #     form -- assignment, walrus, `for`/`with`/`except`/`match` targets,
-    #     comprehensions, `def`, `class`, `import as`, parameters, `del` -- and
-    #     including writes through the imported module object, by assignment or
-    #     `setattr`. This is the check no round managed to defeat.
+    # (C) The seam symbols are not rebound by any *local* binding form --
+    #     assignment, walrus, `for`/`with`/`except`/`match` targets,
+    #     comprehensions, `def`, `class`, `import as`, parameters, `del` -- nor
+    #     by a direct attribute assignment or `setattr` on the imported module.
+    #
+    #     Not exhaustive, and the difference matters: a write through
+    #     `__dict__`, `vars()`, a tuple target, `object.__setattr__`,
+    #     `obj.__setattr__`, or a computed `setattr` name passes this and
+    #     removes every Atlas 3 command. `test_cli_surface_contract.py` catches
+    #     those by observing the built parser instead of the source.
     bound = _bound_names(tree)
     attribute_writes = _seam_attribute_writes(tree)
     for symbol in sorted(_ATLAS3_SEAM_CALLS):
