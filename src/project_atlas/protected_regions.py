@@ -25,6 +25,7 @@ module carries no dependency on either caller's error vocabulary.
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 GENERATED_START = "<!-- atlas:generated:start -->"
 GENERATED_END = "<!-- atlas:generated:end -->"
@@ -92,18 +93,31 @@ def _ambiguous_region_names(text: str) -> list[str]:
     side effect.
 
     Containment is resolved with a stack over spans already in document
-    order, so each span is pushed and popped once: linear in the number of
-    regions, like the plain count it replaces. Comparing every span against
-    every other would be quadratic, and this runs on every merge.
+    order. Each span is pushed and popped once, and both questions asked of it
+    -- "is an ancestor of mine already open under this name?" and "has a
+    sibling in my scope already used it?" -- are dict lookups against sets
+    maintained as the stack moves. So the walk is linear in the number of
+    regions rather than O(n x depth), and depth is unbounded for the nested
+    distinct-name documents this deliberately allows. Comparing every span
+    against every other would be quadratic, and this runs on every merge.
     """
     ambiguous: set[str] = set()
     root_siblings: set[str] = set()
     # (name, span end, names of the regions directly inside this one)
     open_spans: list[tuple[str, int, set[str]]] = []
+    # Names of the currently open ancestors, maintained alongside the stack so
+    # the self-nesting test is a dict lookup rather than a walk up the stack.
+    # Scanning the ancestors instead would be O(depth) per span, and depth is
+    # unbounded for the nested distinct-name documents this deliberately
+    # allows -- quadratic on exactly the input it must not punish.
+    open_names: Counter[str] = Counter()
     for name, start, end in _human_region_spans(text):
         while open_spans and open_spans[-1][1] <= start:
-            open_spans.pop()
-        if any(ancestor == name for ancestor, _, _ in open_spans):
+            closed, _, _ = open_spans.pop()
+            open_names[closed] -= 1
+            if not open_names[closed]:
+                del open_names[closed]
+        if name in open_names:
             ambiguous.add(name)  # a region nested inside one of its own name
         else:
             # Siblings are compared within their own scope, at every depth --
@@ -116,6 +130,7 @@ def _ambiguous_region_names(text: str) -> list[str]:
                 ambiguous.add(name)  # two blocks of this name in one scope
             siblings.add(name)
         open_spans.append((name, end, set()))
+        open_names[name] += 1
     return sorted(ambiguous)
 
 
