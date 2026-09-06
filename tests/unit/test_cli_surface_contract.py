@@ -380,7 +380,15 @@ MARKERS = (_sentinel, _sentinel_alt)
 
 
 def _leaves(value: object) -> list[object]:
-    """Flatten one level of list/tuple, which is all argparse ever produces."""
+    """Flatten a value to its leaves, at any depth.
+
+    An earlier docstring claimed this flattened one level, "which is all
+    argparse ever produces". Both halves were wrong. It recurses to arbitrary
+    depth, and argparse produces nested lists routinely -- `action="append"`
+    with `nargs="+"` yields `[["a", "b"], ["c"]]`. That inaccuracy was the
+    stated justification for not pinning container depth, which
+    `_assert_value_shape` now pins separately.
+    """
     if isinstance(value, (list, tuple)):
         return [leaf for item in value for leaf in _leaves(item)]
     return [value]
@@ -395,6 +403,19 @@ def _assert_value_shape(
         f"`{label}` {name} is {'no longer' if repeatable else 'now'} "
         f"repeatable; the handler receives {type(value).__name__}"
     )
+    # Depth, not just the outer container. `_leaves` flattens all the way
+    # down, so a custom action appending `[values]` rather than `values`
+    # satisfies every other element of this contract while the handler
+    # receives a list where it expects a string. Until now that shape blocked
+    # only because one legacy test hard-codes its expected value, which is a
+    # backstop rather than a pin -- the same insufficiency this file already
+    # rejects elsewhere. The next repeatable flag certified would inherit no
+    # such luck.
+    for item in value if repeatable else [value]:
+        assert not isinstance(item, (list, tuple)), (
+            f"`{label}` {name} delivered a nested {type(item).__name__} where "
+            "a leaf is documented; the handler receives a container it cannot use"
+        )
     for leaf in _leaves(value):
         assert isinstance(leaf, leaf_type), (
             f"`{label}` {name} delivered {type(leaf).__name__} where "
@@ -416,9 +437,15 @@ def _assert_shape(
 
     Three shape mutations each leave `dest` correct and the flag accepted:
     `nargs` turning one value into a list, `type=` removed so a `Path` slot
-    receives a `str`, and a repeatable flag becoming single-valued. All three
-    reach the handler as an unhandled `AttributeError` on a documented
-    invocation.
+    receives a `str`, and a repeatable flag becoming single-valued.
+
+    Two of the three reach the handler as an unhandled `AttributeError` on a
+    documented invocation -- `'list' object has no attribute 'strip'` and
+    `'str' object has no attribute 'expanduser'`. The third does not crash at
+    all: with `--project` no longer repeatable the handler iterates the string
+    character by character and exits 0 with a silently wrong answer. That is
+    the worse outcome of the three, and the reason this is pinned rather than
+    left to a crash to reveal.
     """
     assert action.nargs == nargs, (
         f"`{label}` {name} now takes nargs={action.nargs!r}, not {nargs!r}; "
