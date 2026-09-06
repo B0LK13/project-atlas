@@ -569,7 +569,10 @@ def _bound_names(scope: ast.AST, *, descend_into_functions: bool = True) -> list
     damage the assignment form was added to prevent.
 
     Also covers the binding forms that do not produce a `Name` node at all:
-    `except ... as`, `def`, `class`, `import ... as`, and parameters.
+    `except ... as`, `match` capture patterns, `def`, `class`, `import ... as`,
+    and parameters. `case name:` is the easiest of these to overlook -- its
+    name is a plain string on `MatchAs`, so a walker looking for `Name` nodes
+    in `Store` context sees nothing at all.
     """
     bound: list[tuple[str, int]] = []
     for node in ast.walk(scope):
@@ -581,8 +584,13 @@ def _bound_names(scope: ast.AST, *, descend_into_functions: bool = True) -> list
             continue
         if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
             bound.append((node.id, node.lineno))
-        elif isinstance(node, ast.ExceptHandler) and node.name:
+        elif (
+            isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar))
+            and node.name
+        ):
             bound.append((node.name, node.lineno))
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            bound.append((node.rest, node.lineno))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             bound.append((node.name, node.lineno))
             for argument in [
@@ -597,19 +605,26 @@ def _bound_names(scope: ast.AST, *, descend_into_functions: bool = True) -> list
 
 
 def _scoped_bound_names(scope: ast.AST, name: str) -> list[int]:
-    """Lines where `name` is bound in `scope`, not descending into nested defs.
+    """Lines where `name` is bound anywhere inside `scope`, nested defs included.
 
-    Scope matters in both directions. Without it, an unrelated helper that
-    happens to use a local called `subparsers` fails a check about a seam it
-    never touches -- and a guard that fires on ordinary work is a guard that
-    gets switched off.
+    Nested functions are deliberately included: a `nonlocal subparsers` rebind
+    from an inner function damages the outer parser just as an assignment
+    does. The cost is that an inner helper with its own local of that name is
+    refused; that is a narrow, honest trade rather than a hole.
+
+    Scope still matters in the other direction. Checking module-wide made an
+    unrelated helper fail a check about a seam it never touched, and a guard
+    that fires on ordinary work is a guard that gets switched off.
     """
     lines: list[int] = []
     for node in ast.walk(scope):
         if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
             if node.id == name:
                 lines.append(node.lineno)
-        elif isinstance(node, ast.ExceptHandler) and node.name == name:
+        elif (
+            isinstance(node, (ast.ExceptHandler, ast.MatchAs))
+            and node.name == name
+        ):
             lines.append(node.lineno)
     return sorted(lines)
 
@@ -618,9 +633,21 @@ def _seam_attribute_writes(tree: ast.Module) -> list[tuple[str, int]]:
     """`<module>.register_atlas3_parsers = ...` -- rebinding via the module object.
 
     Binds no local name, so no `Name` in `Store` context exists to find, yet it
-    replaces what the seam call resolves to at runtime.
+    replaces what the seam call resolves to at runtime. Covers the `setattr`
+    spelling too: catching only the assignment form would be catching the
+    spelling rather than the mechanism.
     """
     writes: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "setattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value in _ATLAS3_SEAM_CALLS
+        ):
+            writes.append((str(node.args[1].value), node.lineno))
     for node in ast.walk(tree):
         targets: list[ast.expr] = []
         if isinstance(node, ast.Assign):
@@ -633,25 +660,34 @@ def _seam_attribute_writes(tree: ast.Module) -> list[tuple[str, int]]:
     return writes
 
 
-def _function_containing_top_level_subparsers(tree: ast.Module) -> ast.AST | None:
-    """The function whose body creates the shared top-level subparser group."""
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        for inner in ast.walk(node):
-            if not isinstance(inner, ast.Assign) or len(inner.targets) != 1:
-                continue
-            target = inner.targets[0]
-            call = inner.value
-            if (
-                isinstance(target, ast.Name)
-                and target.id == _TOP_LEVEL_SUBPARSERS_NAME
-                and isinstance(call, ast.Call)
-                and isinstance(call.func, ast.Attribute)
-                and call.func.attr == "add_subparsers"
-            ):
-                return node
-    return None
+#: The shared CLI's parser factory. Resolved by name rather than by "the first
+#: function that happens to call add_subparsers": walk order is attacker-
+#: controlled, and a stub defined above the real factory would otherwise
+#: capture every scoped check while the real one was left unguarded.
+_PARSER_FACTORY_NAME = "build_parser"
+
+
+def _parser_factory(tree: ast.Module) -> ast.AST | None:
+    """The `build_parser` function, and only it.
+
+    An earlier version took the first function in `ast.walk` order assigning
+    `subparsers` from `add_subparsers()`. Independent verification showed that
+    a twenty-line compatibility-shim stub placed above the real factory
+    captured that role, so every scoped check was evaluated against the stub
+    while `build_parser` itself was rebound freely -- the same 98 -> 42
+    demotion this guard exists to prevent, re-opened by the scoping that was
+    meant to make it precise. Resolution is by identity now, so a decoy is
+    simply not the function under test.
+    """
+    factories = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == _PARSER_FACTORY_NAME
+    ]
+    if len(factories) != 1:
+        return None
+    return factories[0]
 
 
 def _add_parser_calls(tree: ast.Module) -> list[tuple[str, str, int]]:
@@ -812,10 +848,10 @@ def assert_cli_semantic_invariants(*, source: str, atlas3_commands: frozenset[st
     #     later registration under another parser. Scoped deliberately: an
     #     unrelated helper with its own local named `subparsers` is ordinary
     #     code, and failing it would teach contributors to disable the guard.
-    creator = _function_containing_top_level_subparsers(tree)
+    creator = _parser_factory(tree)
     assert creator is not None, (
-        f"top-level parser missing: no function assigns {_TOP_LEVEL_SUBPARSERS_NAME!r} "
-        "from add_subparsers()"
+        f"parser factory missing: cli.py must define exactly one "
+        f"{_PARSER_FACTORY_NAME}() function"
     )
     subparser_bindings = _scoped_bound_names(creator, _TOP_LEVEL_SUBPARSERS_NAME)
     assert len(subparser_bindings) == 1, (
@@ -2593,3 +2629,72 @@ def test_v07_unrelated_helper_using_a_local_named_subparsers_passes() -> None:
         + "    subparsers = parser.add_subparsers()\n"
         + "    return subparsers\n"
     )
+
+
+# ---------------------------------------------------------------------------
+# R-matrix -- the second round of independent verification. Scoping the
+# top-level parser check to "the first function that calls add_subparsers"
+# was itself exploitable: a stub placed above the real factory captured the
+# role, and the guard then checked the stub while `build_parser` was rebound
+# freely. Resolution is by identity now.
+# ---------------------------------------------------------------------------
+
+_DECOY_FACTORY = '''def _atlas_compat_shim(parser):
+    subparsers = parser.add_subparsers(dest="command")
+    brief_parser = subparsers.add_parser("brief")
+    brief_parser.add_argument("--vault")
+    brief_parser.add_argument("--project")
+    return subparsers
+
+
+def build_parser('''
+
+
+def test_r01_a_decoy_parser_factory_cannot_capture_the_scoped_checks() -> None:
+    """The blocking finding: a stub factory restored the full 98 -> 42 damage.
+
+    Placed above the real one it won `ast.walk` order, so every scoped check
+    was evaluated against the stub. Resolving `build_parser` by name means a
+    decoy is simply not the function under test.
+    """
+    source = _mutate(_OPS_SUB, _OPS_SUB + "\n    for subparsers in (ops_sub,):\n        pass")
+    source = source.replace("def build_parser(", _DECOY_FACTORY, 1)
+    with pytest.raises(AssertionError, match="top-level parser identity unstable"):
+        _semantic(source)
+
+
+def test_r02_match_capture_pattern_rebinding_the_seam_is_blocked() -> None:
+    """`case name:` binds through a plain string on MatchAs, not a Name node."""
+    prelude = "    match 1:\n        case register_atlas3_parsers:\n            pass\n"
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(_mutate(_SEAM_CALL, prelude + _SEAM_CALL))
+
+
+def test_r03_setattr_on_the_seam_module_is_blocked() -> None:
+    """The same mechanism as the attribute write, spelled as a call."""
+    prelude = (
+        "    import project_atlas.atlas3.cli as _a3\n"
+        "    setattr(_a3, 'register_atlas3_parsers', lambda sp: None)\n"
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(_mutate(_SEAM_CALL, prelude + _SEAM_CALL))
+
+
+@pytest.mark.parametrize("position", ["before", "after"])
+def test_r04_helper_with_a_local_named_subparsers_passes_either_side(position: str) -> None:
+    """The false positive, fixed on both sides of the factory.
+
+    Scoping by walk order fixed it only for helpers defined *after*
+    `build_parser`; one defined before it still failed, with a message about a
+    certified command it never touched.
+    """
+    helper = (
+        "def _unrelated_helper(parser):\n"
+        "    subparsers = parser.add_subparsers()\n"
+        "    return subparsers\n"
+    )
+    if position == "before":
+        source = REAL_CLI_SOURCE.replace("def build_parser(", helper + "\n\ndef build_parser(", 1)
+    else:
+        source = REAL_CLI_SOURCE + "\n\n" + helper
+    _semantic(source)
