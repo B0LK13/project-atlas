@@ -544,16 +544,40 @@ def test_no_secret_class_reaches_generated_output(
 
 @pytest.mark.parametrize(
     "field",
-    ["title_hint", "source_locator", "metadata"],
+    [
+        "title_hint",
+        "source_locator",
+        "metadata",
+        "metadata_key",
+        "captured_at",
+        "source_application",
+    ],
 )
 def test_secret_in_secondary_fields_is_rejected(vault: Path, field: str) -> None:
-    """A title becomes the filename; a locator and metadata reach the record."""
+    """A title becomes the filename; a locator and metadata reach the record.
+
+    ``metadata_key``, ``captured_at`` and ``source_application`` were added
+    after independent verification found the gate scanned metadata *values*
+    but not their keys, and did not scan ``captured_at`` at all — so a
+    credential passed to ``--captured-at`` was persisted verbatim into the
+    record JSON and the note frontmatter while ``secret_scan.findings``
+    still reported an empty list (AT-014 coverage gap).
+    """
     secret = "AKIAIOSFODNN7EXAMPLE"
     kwargs: dict[str, object] = {"content": "entirely clean body"}
     if field == "title_hint":
         kwargs["title_hint"] = secret
     elif field == "source_locator":
         kwargs["source_locator"] = f"https://example.test/{secret}"
+    elif field == "metadata_key":
+        kwargs["source_metadata"] = {secret: "an ordinary value"}
+    elif field == "captured_at":
+        kwargs["captured_at"] = secret
+    elif field == "source_application":
+        # Short enough to survive the 32-character token clamp, and lower-case
+        # so it is not incidentally rejected by the record schema instead.
+        kwargs["source_application"] = "password=hunter2secret"
+        secret = "password=hunter2secret"
     else:
         kwargs["source_metadata"] = {"page_title": secret}
 
@@ -561,6 +585,43 @@ def test_secret_in_secondary_fields_is_rejected(vault: Path, field: str) -> None
         capture(vault, build_capture_request(**kwargs))  # type: ignore[arg-type]
     assert excinfo.value.code == "SECRET_CONTENT"
     assert not (vault / CAPTURE_DIR).exists()
+    # Byte evidence, not a status string: nothing under generated/ holds it.
+    generated = vault / "generated"
+    leaked = [
+        path
+        for path in generated.rglob("*")
+        if path.is_file() and secret in path.read_bytes().decode("utf-8", "replace")
+    ]
+    assert leaked == [], f"{field} leaked a credential into generated output"
+
+
+def test_operator_supplied_captured_at_is_scanned_before_persistence(
+    vault: Path,
+) -> None:
+    """AT-014: the gate must not certify a scan it never performed.
+
+    Regression for the exact defect: ``captured_at`` reached both the record
+    JSON and the note frontmatter unscanned, so the persisted record asserted
+    ``secret_scan: {"findings": []}`` about a payload that carried a live
+    bearer token. A clean ``captured_at`` must still be accepted verbatim.
+    """
+    token = "Bearer FAKEfakeFAKEfakeFAKEfake0123456789"
+
+    with pytest.raises(CaptureError) as excinfo:
+        capture(vault, _request("routine note", captured_at=token))
+    assert excinfo.value.code == "SECRET_CONTENT"
+    assert "bearer-token" in str(excinfo.value)
+    # The matched value is never echoed back (CODEX-SEC-006).
+    assert "FAKEfakeFAKE" not in str(excinfo.value)
+    assert not (vault / "generated" / "obsidian").exists()
+
+    # The field itself is not banned — only credential-shaped content is.
+    ok = capture(vault, _request("routine note", captured_at="2026-09-06T10:00:00Z"))
+    record = json.loads(
+        (vault / CAPTURE_DIR / f"{ok['capture_id']}.json").read_text(encoding="utf-8")
+    )
+    assert record["captured_at"] == "2026-09-06T10:00:00Z"
+    assert record["secret_scan"]["findings"] == []
 
 
 def test_retry_refuses_a_legacy_unsafe_raw_artifact(vault: Path) -> None:

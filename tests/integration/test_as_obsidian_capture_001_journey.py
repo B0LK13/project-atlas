@@ -293,6 +293,49 @@ def test_raw_captures_are_not_promoted_into_the_knowledge_inbox(vault: Path) -> 
     assert record["honesty"]["capture_is_authority"] is False
 
 
+def test_cli_captured_at_credential_is_rejected_before_any_write(
+    vault: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AT-014 end-to-end through the shipped CLI flag that reached disk.
+
+    Independent verification reproduced this with the real command line:
+    ``atlas capture text --captured-at "<bearer token>"`` exited 0 and wrote
+    the plaintext credential into ``generated/ops/raw-captures/<id>.json`` and
+    into the note frontmatter. The unit gate test covers the field; this test
+    holds the CLI path that made it operator-reachable.
+    """
+    token = "Bearer FAKEfakeFAKEfakeFAKEfake0123456789"
+
+    exit_code = main(
+        [
+            "capture",
+            "text",
+            "--vault",
+            str(vault),
+            "--text",
+            "an entirely routine note",
+            "--captured-at",
+            token,
+            "--json",
+        ]
+    )
+
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    assert payload["error"] == "SECRET_CONTENT"
+
+    # Byte evidence across the whole vault, including any temp residue.
+    leaked = [
+        path
+        for path in vault.rglob("*")
+        if path.is_file() and token in path.read_bytes().decode("utf-8", "replace")
+    ]
+    assert leaked == []
+    assert not (vault / CAPTURE_DIR).exists()
+    assert not (vault / "generated" / "obsidian").exists()
+
+
 def test_capture_writes_nothing_outside_the_vault_by_default(
     vault: Path, tmp_path: Path
 ) -> None:

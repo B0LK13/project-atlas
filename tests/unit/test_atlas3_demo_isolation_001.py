@@ -545,12 +545,16 @@ def assert_cli_atlas3_contract(
         f"certified CLI surface removed: cli.py no longer registers {lost}"
     )
 
-    # (5) The named certified commands remain reachable.
-    registered = set(_ANY_ADD_PARSER.findall(source))
+    # (5) The named certified commands remain reachable *as top-level
+    #     commands*. Depth matters here: `connect` is registered both as
+    #     `atlas connect` and as the nested `atlas discover connect`, so an
+    #     any-depth presence check let the certified top-level registration be
+    #     deleted while the unrelated nested subcommand kept the name alive.
+    top_level = set(_TOP_LEVEL_ADD_PARSER.findall(source))
     for command in _CERTIFIED_CLI_COMMANDS:
-        assert command in registered, (
+        assert command in top_level, (
             f"certified CLI surface removed: {command!r} is no longer registered "
-            "via add_parser"
+            "as a top-level command via subparsers.add_parser"
         )
 
 
@@ -1586,3 +1590,25 @@ def test_g11_certified_command_must_be_registered_not_merely_mentioned() -> None
     )
     with pytest.raises(AssertionError, match="certified CLI surface removed"):
         _check(source, _diff(removed=('    subparsers.add_parser("kdiff")',)))
+
+
+def test_g12_nested_subcommand_does_not_keep_a_deleted_top_level_alive() -> None:
+    """A same-named nested subcommand is not the certified top-level surface.
+
+    Found by replaying the deletion attack against the real ``cli.py`` rather
+    than the fixture: ``connect`` is registered twice there -- once as
+    ``atlas connect`` and once as the nested ``atlas discover connect``.
+    Because the presence check matched ``.add_parser`` at any depth, deleting
+    the certified top-level registration left the name alive via the unrelated
+    nested one and the guard stayed green. Certified reachability is now
+    checked against top-level registrations only.
+    """
+    source = _SEAM_SOURCE.replace(
+        '    subparsers.add_parser("connect")',
+        '    discover_sub = discover_parser.add_subparsers(dest="discover_command")\n'
+        '    discover_sub.add_parser("connect")',
+    )
+    # The nested registration survives, so an any-depth check sees the name.
+    assert '.add_parser("connect")' in source
+    with pytest.raises(AssertionError, match="certified CLI surface removed"):
+        _check(source, _diff(removed=('    subparsers.add_parser("connect")',)))

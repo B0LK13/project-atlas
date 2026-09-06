@@ -11420,3 +11420,64 @@ required before merge. This entry is implementation evidence, not certification.
 The verifier packet's obsolete raw-store secret exception was removed; its
 candidate identity is now explicitly supplied by the exact-head dispatch.
 F1–F4 remain separate successor work. No discovery.py changes were made.
+
+
+## AS-OBSIDIAN-CAPTURE-001 — AT-014 scan-coverage completion (E2/E1)
+
+Continuation of the Obsidian lane after the predecessor implementation agent
+stopped on a product rate limit. Took over at PR #684 head
+`cd4a921004d863b0407f6feceadc5ed1d53da941` / tree
+`52103ca28cdc10875ad41b7456dcd24ccd97087b`, base `0525e0f7` — remote head
+matched the handoff exactly, so completed local certification was reused rather
+than rerun. Work continued in a clean detached worktree with zero tracked
+mutations at start.
+
+Independent verification returned `FAIL_MATERIAL` on that exact head for one
+narrow AT-014 coverage gap, reproduced here before any change:
+
+- **E2 (material, CLI-reachable).** `_reject_secret_bearing_request` scanned
+  content, title hint, locator and metadata *values*, but not `captured_at`.
+  `atlas capture text --captured-at "Bearer <token>"` exited 0 and persisted
+  the plaintext credential into `generated/ops/raw-captures/<id>.json` **and**
+  the note frontmatter — two files under `generated/` — while the record still
+  wrote `secret_scan: {"findings": []}` about it. The gate's own docstring
+  claimed "every field that could reach disk is scanned", so the contract was
+  false, not merely incomplete.
+- **E1 (same class).** Secret-bearing `source_metadata` **keys** persisted
+  plaintext; values were scanned, keys were not. Not reachable from today's CLI
+  (no `--metadata` flag), reachable programmatically.
+
+Both are fixed by scanning `captured_at` and metadata keys. `source_application`
+was added too: it is CLI-reachable via `--application` and only incidentally
+safe today, rejected at persist time by raw-capture schema validation rather
+than by the secret gate — detection now runs ahead of the write instead of
+relying on a downstream validator. `source_type` and `source_adapter` are closed
+vocabularies and `project_reference` must match an existing governed project id,
+so none of the three can carry an attacker-chosen credential to disk; the
+docstring now enumerates this rather than asserting universal coverage.
+
+Post-fix, all six secret-bearing field surfaces fail closed with
+`SECRET_CONTENT` and byte inspection shows 0 plaintext occurrences in
+`generated/`, the vault, or temp residue; a clean `captured_at` is still
+accepted verbatim. The five new regression cases were confirmed to fail against
+the pre-fix runtime and pass after.
+
+Reconciling review thread "Detect multiline command deletions in the CLI guard"
+by replaying the deletion attack against the real `cli.py` — not the fixture —
+surfaced a further residual in the same guard: `connect` is registered twice
+there, as `atlas connect` and as the nested `atlas discover connect`, so the
+any-depth presence check let the certified top-level registration be deleted
+while the unrelated nested one kept the name alive. Certified reachability is
+now checked against top-level registrations only. Deleting any of the five
+certified top-level registrations is detected, seam removal and atlas3-command
+bypass are detected, and the controls (no-op, unrelated new command, comment
+naming a seam symbol, deleting only the nested `discover connect`) stay quiet.
+
+Both prior P1s were re-verified on this tree and still hold: symlinked
+projection and raw-store paths fail closed with `PATH_ESCAPES_VAULT`, 0 bytes
+written outside the vault and the outside canary unchanged; human-edited region
+content survives 3 sequential and 8 concurrent retries with 0 exceptions.
+
+F1–F4 remain separate successor work and `graph_projections.py` was not
+touched. This entry is implementation evidence, not certification: a fresh
+exact-head independent verification and CI run are required before merge.

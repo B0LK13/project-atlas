@@ -163,9 +163,23 @@ def _reject_secret_bearing_request(request: CaptureRequest) -> None:
     a parallel one, and rejects rather than half-persisting, so there is no
     window in which a plaintext credential exists under ``generated/``.
 
-    Every field that could reach disk is scanned, not just the body: a title
-    hint becomes the note filename, and a locator or metadata value is written
-    into the record and the frontmatter.
+    Every free-form field that can reach disk is scanned, not just the body:
+    a title hint becomes the note filename; a locator, an operator-supplied
+    ``captured_at``, and metadata *keys as well as values* are written into
+    the record JSON and the note frontmatter. Metadata keys were previously
+    unscanned while their values were, and ``captured_at`` was unscanned
+    entirely, so ``atlas capture text --captured-at "<credential>"`` persisted
+    plaintext under ``generated/`` while the record still recorded
+    ``secret_scan.findings: []`` (AT-014 coverage gap).
+
+    ``source_application`` is scanned too. It is today additionally constrained
+    by raw-capture schema validation, but that check runs at persist time and
+    is not a secret gate; scanning here keeps detection ahead of the write
+    rather than relying on a downstream validator.
+
+    ``source_type`` and ``source_adapter`` are closed vocabularies and
+    ``project_reference`` must match an existing governed project id, so none
+    of the three can carry an attacker-chosen credential to disk.
 
     The error names only the matched *patterns*, never the matched value
     (CODEX-SEC-006).
@@ -175,6 +189,11 @@ def _reject_secret_bearing_request(request: CaptureRequest) -> None:
         fields.append(request.title_hint)
     if request.source_locator:
         fields.append(request.source_locator)
+    if request.captured_at:
+        fields.append(request.captured_at)
+    if request.source_application:
+        fields.append(request.source_application)
+    fields.extend(request.source_metadata.keys())
     fields.extend(request.source_metadata.values())
 
     patterns: set[str] = set()
