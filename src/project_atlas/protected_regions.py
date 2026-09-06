@@ -97,18 +97,25 @@ def _ambiguous_region_names(text: str) -> list[str]:
     every other would be quadratic, and this runs on every merge.
     """
     ambiguous: set[str] = set()
-    top_level_seen: set[str] = set()
-    open_spans: list[tuple[str, int, int]] = []
+    root_siblings: set[str] = set()
+    # (name, span end, names of the regions directly inside this one)
+    open_spans: list[tuple[str, int, set[str]]] = []
     for name, start, end in _human_region_spans(text):
-        while open_spans and open_spans[-1][2] <= start:
+        while open_spans and open_spans[-1][1] <= start:
             open_spans.pop()
         if any(ancestor == name for ancestor, _, _ in open_spans):
             ambiguous.add(name)  # a region nested inside one of its own name
-        elif not open_spans:
-            if name in top_level_seen:
-                ambiguous.add(name)  # two blocks of this name at the top level
-            top_level_seen.add(name)
-        open_spans.append((name, start, end))
+        else:
+            # Siblings are compared within their own scope, at every depth --
+            # not only at the top level. Two same-name blocks inside a
+            # differently-named container are as ambiguous as two at the root:
+            # extract_human_regions keys by name, so one of them is silently
+            # dropped either way. Checking only the root left that fail-open.
+            siblings = open_spans[-1][2] if open_spans else root_siblings
+            if name in siblings:
+                ambiguous.add(name)  # two blocks of this name in one scope
+            siblings.add(name)
+        open_spans.append((name, end, set()))
     return sorted(ambiguous)
 
 
