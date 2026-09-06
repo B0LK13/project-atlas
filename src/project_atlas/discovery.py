@@ -208,7 +208,11 @@ def _reportable(relative: str) -> str:
 #: ignores when answering is_file()/is_dir() (see `pathlib._ignore_error`); the
 #: last two mean the scope exists but may not be entered. Anything else --
 #: ENOMEM, EIO, ENFILE -- is a genuine failure and must stay visible rather
-#: than be absorbed into a "keep going" path.
+#: than be absorbed into a "keep going" path. Every `except OSError` in this
+#: module filters through `_is_inaccessible_scope`: an unreadable path is
+#: reported (or recorded as excluded evidence) and the run continues; a fault
+#: propagates, because "skipped: Input/output error" with exit 0 would report
+#: a corruption signal as an ordinary permission problem.
 _INACCESSIBLE_SCOPE_ERRNOS = frozenset(
     {errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP, errno.EACCES, errno.EPERM}
 )
@@ -267,7 +271,9 @@ def _is_listable(path: Path) -> bool:
     try:
         with os.scandir(path) as entries:
             next(iter(entries), None)
-    except OSError:
+    except OSError as exc:
+        if not _is_inaccessible_scope(exc):
+            raise
         return False
     return True
 
@@ -295,7 +301,9 @@ def _uninventoried_symlink_target(path: Path, root: Path) -> str | None:
             return None  # inventoried under its own real path
         if not (resolved.is_file() or resolved.is_dir()):
             return None  # FIFO, device, socket: not a document
-    except OSError:
+    except OSError as exc:
+        if not _is_inaccessible_scope(exc):
+            raise
         return None
     return resolved.as_posix()
 
@@ -438,6 +446,8 @@ def discover(
             regular_file = path.is_file() and not is_link
             directory = path.is_dir() and not is_link
         except OSError as exc:
+            if not _is_inaccessible_scope(exc):
+                raise
             _log.warning(
                 "skipped unreadable path: %s (%s)", _reportable(relative), exc.strerror
             )
@@ -477,6 +487,8 @@ def discover(
         try:
             stat = path.stat()
         except OSError as exc:
+            if not _is_inaccessible_scope(exc):
+                raise
             # No metadata at all, so no evidence-backed record can be made --
             # but the skip must still be observable, or this is exactly the
             # silent loss the scope probe above exists to prevent.
@@ -511,7 +523,12 @@ def discover(
         else:
             try:
                 digest = _sha256(path)
-            except OSError:
+            except OSError as exc:
+                if not _is_inaccessible_scope(exc):
+                    # A read that fails mid-stream with EIO is not an
+                    # "unreadable" file: recording it as one would classify
+                    # a corruption signal as a permission problem.
+                    raise
                 # Linux routinely exposes files whose content the caller
                 # cannot read (mode 000, foreign ownership under a readable
                 # directory). Record the real stat metadata without a digest

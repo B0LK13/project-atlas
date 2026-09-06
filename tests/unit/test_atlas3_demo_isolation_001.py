@@ -76,11 +76,17 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "whole subtree behind a directory symlink, escaping the source "
             "root was excluded without any diagnostic), and owner grant "
             "R_READY-5 residual R5 (an unreadable scope under the agent-event "
-            "inbox aborted the entire discovery run)"
+            "inbox aborted the entire discovery run), and owner grant "
+            "OG-ATLAS-DISCOVERY-M1M2-20260906 (directive "
+            "D-UBUNTU-AUTONOMOUS-PR683-INTEGRATE-AND-SUCCESSOR-EXECUTION) "
+            "residual M1 (five main-walk OSError guards caught every errno, "
+            "so an injected EIO was skipped with exit 0 or recorded as an "
+            "'unreadable' source; every guard now filters through the "
+            "module's stated inaccessible-scope errno contract)"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847"
+            "d0b6a8cfe58fa8b874f96f0b06c201086b8f4b7207b746d3598c43b344304f95"
         ),
     },
     {
