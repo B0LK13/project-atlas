@@ -37,26 +37,80 @@ LINK = re.compile(r"\]\(([^)]+)\)")
 # Content inside either renders as inert literal text, never a live link,
 # even when it contains a `](...)`-shaped substring.
 #
+# Fence indentation is capped at 0-3 spaces (CommonMark: a fence indented
+# 4+ spaces is not a fence at all -- it is an indented code block, a
+# separate construct this helper does not attempt to recognize). Tabs in
+# the leading whitespace are deliberately excluded rather than expanded to
+# CommonMark's tab-stop columns: Atlas's own generated content never emits
+# tab-indented fences, and getting tab-stop math wrong risks the opposite,
+# more dangerous failure mode (masking real links) more than it risks
+# missing a hypothetical hand-authored tab-indented fence.
+#
 # The closing fence must be *at least* as long as the opening one (``\1``
 # followed by zero or more further fence characters), not merely "any run
 # of 3+": ``_quote_source_text`` widens the fence beyond the longest
 # backtick run already present in the quoted content specifically so a
 # shorter accidental run inside that content (e.g. someone's excerpt
 # quoting another 3-backtick fence) can never be mistaken for the real
-# close.
+# close. This "at least as long" rule is fenced blocks' own CommonMark
+# semantics, distinct from inline code spans below.
 #
 # CommonMark permits two independent fence characters, backtick and tilde,
 # and a fence of one character is never closed by the other -- so this is
 # two homogeneous patterns, not one class matching either character (which
 # would wrongly accept a mixed-character run like "`~`" as a fence, and
 # would let a backtick fence be closed by tildes or vice versa).
+#
+# The closing-fence alternative's trailing ``\r?`` tolerates CRLF line
+# endings: Python's ``re.M`` ``$`` anchors immediately before a bare
+# ``\n``, not before a ``\r`` that precedes it, so on CRLF text the
+# un-consumed ``\r`` made the closing line fail to match at all, falling
+# through to the ``\Z`` alternative and masking (over-masking) the rest of
+# the document -- including any real links after the fence. Independently
+# found via an adversarial CRLF regression test, not part of the verifier's
+# three reported findings.
 _FENCED_CODE_BLOCK = re.compile(
-    r"^[ \t]*(`{3,})[^\n]*\n.*?(?:^[ \t]*\1`*[ \t]*$|\Z)", re.M | re.S
+    r"^ {0,3}(`{3,})[^\n]*\n.*?(?:^ {0,3}\1`*[ \t]*\r?$|\Z)", re.M | re.S
 )
 _FENCED_CODE_BLOCK_TILDE = re.compile(
-    r"^[ \t]*(~{3,})[^\n]*\n.*?(?:^[ \t]*\1~*[ \t]*$|\Z)", re.M | re.S
+    r"^ {0,3}(~{3,})[^\n]*\n.*?(?:^ {0,3}\1~*[ \t]*\r?$|\Z)", re.M | re.S
 )
-_INLINE_CODE_SPAN = re.compile(r"(`+)(?:(?!\1)[\s\S])*?\1")
+# Inline code spans require the closing backtick run to be *exactly* as
+# long as the opening one (CommonMark: "a code span begins with a backtick
+# string and ends with a backtick string of equal length" -- unlike fenced
+# blocks' "at least as long"). Two structural requirements this single
+# backreference alone does not give:
+#
+# 1. ``(?!`)`` immediately after ``\1``: without it, ``\1`` is satisfied by
+#    matching a *prefix* of a longer closing run (e.g. two open backticks
+#    are "closed" by the first two of three), silently absorbing the
+#    extra backtick into the span and suppressing a real link that follows
+#    it. Independently reproduced: ``` ``[live](missing.md)``` ``` (2
+#    open, 3 close) wrongly masked the link before this fix.
+# 2. ``(?>(`+))`` atomic grouping around the opening capture: a plain
+#    greedy ``(`+)`` backtracks to a *shorter* opening run when the
+#    maximal one has no valid same-length close later in the text (e.g.
+#    3 open, only 2 close anywhere) -- re-trying with 2 backticks
+#    captured and 1 left over as ordinary content, which can then find a
+#    same-length close that should never have counted, since the actual
+#    3-backtick run opened no valid span at all. Atomic grouping commits
+#    to the maximal run once found, matching CommonMark's actual
+#    algorithm (try the longest backtick string once; no match anywhere
+#    means no code span, full stop -- never retry shorter).
+# 3. ``(?<!`)`` before the opening group: atomicity alone only stops
+#    backtracking *within one match attempt at a fixed start position*.
+#    ``re.sub`` still retries at the *next* character position when a
+#    match fails there -- which, for "```[live](missing.md)``" (3 open,
+#    only 2 close anywhere), let a retry starting one character in treat
+#    the last two of those three opening backticks as a fresh 2-backtick
+#    opener, closed by the real 2-backtick run at the end -- a match
+#    CommonMark's own algorithm never considers, because "```" is one
+#    indivisible backtick-string token, not "1 stray backtick + a
+#    2-backtick string". The lookbehind refuses to *start* a match
+#    immediately after another backtick, so a match can only ever begin
+#    at the first character of a maximal run; independently confirmed
+#    this closes that case without the atomic group above.
+_INLINE_CODE_SPAN = re.compile(r"(?<!`)(?>(`+))(?:(?!\1)[\s\S])*?\1(?!`)")
 
 # AS-H-010 process exit codes for ``atlas validate`` (argparse usage remains 2).
 VALIDATION_EXIT_OK = 0
@@ -1079,7 +1133,7 @@ def _collect_reachable_notes(vault: Path) -> set[str]:
             text = current.read_text(encoding="utf-8")
         except (OSError, UnicodeError):
             continue
-        for target in LINK.findall(text):
+        for target in LINK.findall(_mask_inert_markdown_regions(text)):
             resolved = _resolve_md_link(current, target, vault)
             if resolved is None:
                 # Escaping targets are already reported by the link validator.
