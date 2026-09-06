@@ -12362,8 +12362,11 @@ and no re-run of the full suite or independent verification.
 
 ### Claim boundary
 
-What is proven is exactly this: the nine `except OSError` guards in
-`discovery.py` now enforce the module's own stated errno contract, and the
+What is proven is exactly this: the ten errno-filtered `except OSError`
+guards in `discovery.py` now enforce the module's own stated errno
+contract (the eleventh handler, `_project_context`'s tuple catch, is
+deliberately untouched: it converts every read failure into a fail-closed
+`INVALID_PROJECT_MARKER` rather than continuing), and the
 agent-event inventory no longer follows a symbolic link on the chain to a
 package. Nothing broader. No claim is made about `DEMO`, `AUTHENTIC_PILOT`,
 or `COMMERCIAL_GA`; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES` and
