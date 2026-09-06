@@ -82,11 +82,16 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "residual M1 (five main-walk OSError guards caught every errno, "
             "so an injected EIO was skipped with exit 0 or recorded as an "
             "'unreadable' source; every guard now filters through the "
-            "module's stated inaccessible-scope errno contract)"
+            "module's stated inaccessible-scope errno contract) and residual "
+            "M2 (the event inventory followed symbolic links on the chain to "
+            "a package while the walk did not, so an aliased scope was "
+            "inventoried twice or silently not at all; links are now refused "
+            "on physical identity, reported, and a linked event directory is "
+            "recorded as an invalid row)"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "d0b6a8cfe58fa8b874f96f0b06c201086b8f4b7207b746d3598c43b344304f95"
+            "fc9a0b0908c9cc73dab0c44d4d0cd25e27d081762449fd63e97dd251567248f2"
         ),
     },
     {
