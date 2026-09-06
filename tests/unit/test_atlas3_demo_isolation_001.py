@@ -76,11 +76,28 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "whole subtree behind a directory symlink, escaping the source "
             "root was excluded without any diagnostic), and owner grant "
             "R_READY-5 residual R5 (an unreadable scope under the agent-event "
-            "inbox aborted the entire discovery run)"
+            "inbox aborted the entire discovery run), and owner grant "
+            "OG-ATLAS-DISCOVERY-M1M2-20260906 (directive "
+            "D-UBUNTU-AUTONOMOUS-PR683-INTEGRATE-AND-SUCCESSOR-EXECUTION) "
+            "residual M1 (five main-walk OSError guards caught every errno, "
+            "so an injected EIO was skipped with exit 0 or recorded as an "
+            "'unreadable' source; every guard now filters through the "
+            "module's stated inaccessible-scope errno contract) and residual "
+            "M2 (the event inventory followed symbolic links on the chain to "
+            "a package while the walk did not, so an aliased scope was "
+            "inventoried twice or silently not at all; links are now refused "
+            "on physical identity, reported, and a linked event directory is "
+            "recorded as an invalid row), plus the IV remediation (ENAMETOOLONG "
+            "joins the inaccessible-scope set: a tree grown past PATH_MAX is "
+            "one unaddressable path, not a fault) and the review remediation "
+            "(the event-scope chain is tested before any probe that would "
+            "follow it, so an escaping link is refused without a metadata "
+            "probe through it and a dangling or file-targeted scope link is "
+            "named rather than dropped as 'no scope')"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847"
+            "471a56af7fcb45220f7c18b5b96efeb32acf7460489c2e9e7525eeec0a429f35"
         ),
     },
     {

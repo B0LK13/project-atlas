@@ -206,11 +206,26 @@ def _reportable(relative: str) -> str:
 #: Errnos the discovery contract already treats as "this scope cannot be read"
 #: rather than as a fault. The first four are exactly what `pathlib` itself
 #: ignores when answering is_file()/is_dir() (see `pathlib._ignore_error`); the
-#: last two mean the scope exists but may not be entered. Anything else --
-#: ENOMEM, EIO, ENFILE -- is a genuine failure and must stay visible rather
-#: than be absorbed into a "keep going" path.
+#: next two mean the scope exists but may not be entered; ENAMETOOLONG means
+#: the kernel will not address the entry at all (an absolute path past
+#: PATH_MAX, which Linux happily lets a tree grow into) -- a property of that
+#: one path, not a fault. Anything else -- ENOMEM, EIO, ENFILE -- is a genuine
+#: failure and must stay visible rather than be absorbed into a "keep going"
+#: path. Every `except OSError` in this module filters through
+#: `_is_inaccessible_scope`: an unreadable path is reported (or recorded as
+#: excluded evidence) and the run continues; a fault propagates, because
+#: "skipped: Input/output error" with exit 0 would report a corruption
+#: signal as an ordinary permission problem.
 _INACCESSIBLE_SCOPE_ERRNOS = frozenset(
-    {errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP, errno.EACCES, errno.EPERM}
+    {
+        errno.ENOENT,
+        errno.ENOTDIR,
+        errno.EBADF,
+        errno.ELOOP,
+        errno.EACCES,
+        errno.EPERM,
+        errno.ENAMETOOLONG,
+    }
 )
 
 
@@ -256,6 +271,31 @@ def _report_unreadable_event_scope(path: Path, root: Path) -> None:
     )
 
 
+def _symlinked_scope_target(path: Path) -> str | None:
+    """Physical target when `path` is itself a symbolic link, else None.
+
+    The reserved agent-event scope is identified by where it physically sits.
+    `discover()`'s walk never follows a link, so a package reached through
+    one is inventoried under its real path as ordinary sources -- and if the
+    inventory followed the same link it would count the package a second
+    time, or (a link to outside the root) inventory content the walk refused.
+
+    Detection is by `lstat` (`is_symlink`), which is what makes the answer
+    about the entry itself rather than about whatever it points at -- the
+    loader's own refusal of a symlinked package inspects an already-resolved
+    path and so never fires. `realpath` is used only afterwards, to name the
+    physical target in the diagnostic; the decision never depends on it.
+    """
+    try:
+        if not path.is_symlink():
+            return None
+    except OSError as exc:
+        if not _is_inaccessible_scope(exc):
+            raise
+        return None  # unreadable: the caller's reachability probe reports it
+    return os.path.realpath(path)
+
+
 def _is_listable(path: Path) -> bool:
     """True when this directory's entries can actually be enumerated.
 
@@ -267,7 +307,9 @@ def _is_listable(path: Path) -> bool:
     try:
         with os.scandir(path) as entries:
             next(iter(entries), None)
-    except OSError:
+    except OSError as exc:
+        if not _is_inaccessible_scope(exc):
+            raise
         return False
     return True
 
@@ -295,7 +337,9 @@ def _uninventoried_symlink_target(path: Path, root: Path) -> str | None:
             return None  # inventoried under its own real path
         if not (resolved.is_file() or resolved.is_dir()):
             return None  # FIFO, device, socket: not a document
-    except OSError:
+    except OSError as exc:
+        if not _is_inaccessible_scope(exc):
+            raise
         return None
     return resolved.as_posix()
 
@@ -316,13 +360,34 @@ def _is_recordable(relative: str) -> bool:
 
 
 def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
-    """Inventory Control Plane packages without importing its implementation."""
+    """Inventory Control Plane packages without importing its implementation.
+
+    A symbolic link anywhere on the chain from the root to a package directory
+    is never followed (see `_symlinked_scope_target`). The scope or project
+    behind one is refused with a diagnostic naming the alias and its physical
+    target; a linked event directory is recorded as an `invalid` row, so the
+    refusal reaches the manifest and ingestion quarantines it without loading.
+
+    The chain is tested before any probe that would follow it. Asking
+    `is_dir()` first would stat *through* an escaping link before the refusal
+    ran, and would answer False for a dangling or file-targeted scope link --
+    dropping it as "no scope at all", with no diagnostic naming the alias.
+    """
     inbox = root / ".atlas-inbox" / "agent-events"
+    for scope in (inbox.parent, inbox):
+        target = _symlinked_scope_target(scope)
+        if target is not None:
+            _log.warning(
+                "agent-event scope is a symbolic link, packages not inventoried: %s -> %s",
+                _reportable(scope.relative_to(root).as_posix()),
+                _reportable(target),
+            )
+            return []
     inbox_is_dir = _reachable_is_dir(inbox)
     if inbox_is_dir is None:
         _report_unreadable_event_scope(inbox, root)
         return []
-    if not inbox_is_dir or inbox.is_symlink():
+    if not inbox_is_dir:
         return []
     inventories: list[EventPackageInventory] = []
     try:
@@ -333,6 +398,15 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
         _report_unreadable_event_scope(inbox, root)
         return []
     for project_dir in project_dirs:
+        target = _symlinked_scope_target(project_dir)
+        if target is not None:
+            _log.warning(
+                "symbolic link in reserved agent-event scope, packages beneath it "
+                "not inventoried: %s -> %s",
+                _reportable(project_dir.relative_to(root).as_posix()),
+                _reportable(target),
+            )
+            continue
         project_is_dir = _reachable_is_dir(project_dir)
         if project_is_dir is None:
             _report_unreadable_event_scope(project_dir, root)
@@ -360,6 +434,27 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
             _report_unreadable_event_scope(project_dir, root)
             continue
         for event_dir in event_dirs:
+            target = _symlinked_scope_target(event_dir)
+            if target is not None:
+                # The loader's contract, enforced where it can actually see
+                # the link. Identity is taken from the path exactly as it is
+                # for any other invalid package; no content is read.
+                _log.warning(
+                    "symlinked event package recorded as invalid: %s -> %s",
+                    _reportable(event_dir.relative_to(root).as_posix()),
+                    _reportable(target),
+                )
+                inventories.append(
+                    EventPackageInventory(
+                        project_id=project_dir.name,
+                        event_id=event_dir.name,
+                        package_path=event_dir.relative_to(root).as_posix(),
+                        classification="agent-event",
+                        status="invalid",
+                        errors=["event package directory is missing or symlinked"],
+                    )
+                )
+                continue
             event_is_dir = _reachable_is_dir(event_dir)
             if event_is_dir is None:
                 _report_unreadable_event_scope(event_dir, root)
@@ -438,6 +533,8 @@ def discover(
             regular_file = path.is_file() and not is_link
             directory = path.is_dir() and not is_link
         except OSError as exc:
+            if not _is_inaccessible_scope(exc):
+                raise
             _log.warning(
                 "skipped unreadable path: %s (%s)", _reportable(relative), exc.strerror
             )
@@ -477,6 +574,8 @@ def discover(
         try:
             stat = path.stat()
         except OSError as exc:
+            if not _is_inaccessible_scope(exc):
+                raise
             # No metadata at all, so no evidence-backed record can be made --
             # but the skip must still be observable, or this is exactly the
             # silent loss the scope probe above exists to prevent.
@@ -511,7 +610,12 @@ def discover(
         else:
             try:
                 digest = _sha256(path)
-            except OSError:
+            except OSError as exc:
+                if not _is_inaccessible_scope(exc):
+                    # A read that fails mid-stream with EIO is not an
+                    # "unreadable" file: recording it as one would classify
+                    # a corruption signal as a permission problem.
+                    raise
                 # Linux routinely exposes files whose content the caller
                 # cannot read (mode 000, foreign ownership under a readable
                 # directory). Record the real stat metadata without a digest
