@@ -1388,6 +1388,85 @@ def test_nested_same_name_is_an_identity_failure_not_a_nesting_ruling() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("case", "blocks"),
+    [
+        ("siblings-inside-a-container", "{outer_dup}"),
+        ("siblings-two-levels-down", "{deep_dup}"),
+        ("container-dup-beside-a-unique-top-level", "{unique}{outer_dup}"),
+    ],
+)
+def test_same_name_siblings_are_ambiguous_at_every_depth(
+    case: str, blocks: str
+) -> None:
+    """Sibling ambiguity is scoped, not top-level-only.
+
+    Regression for a fail-open: the containment walk compared sibling names
+    only at the root, so two same-name blocks sitting inside a
+    differently-named container were accepted. `extract_human_regions` keys by
+    name, so one of them was then silently dropped -- the exact human-content
+    loss this module exists to prevent, just one level down from where it was
+    being looked for.
+    """
+    human = (
+        "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
+    ).format
+    dup_pair = human(name="notes", body="FIRST") + human(name="notes", body="SECOND")
+    existing = GENERATED_START + GENERATED_END + blocks.format(
+        outer_dup=human(name="outer", body=dup_pair),
+        deep_dup=human(name="a", body=human(name="b", body=dup_pair)),
+        unique=human(name="solo", body="KEEP"),
+    )
+    rendered = (
+        f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+    )
+
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        merge_protected_regions(existing=existing, rendered=rendered, path=f"{case}.md")
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        extract_human_regions(existing)
+
+
+def test_the_same_name_in_two_different_scopes_is_not_an_f1_refusal() -> None:
+    """Scoping must not overshoot: distinct containers may reuse a name.
+
+    `a{x}` beside `b{x}` is two regions that share a name in *different*
+    scopes, and a merged nested document routinely takes that shape -- after
+    one merge a nested `outer{inner}` document carries `inner` both at the top
+    level and inside `outer`. Refusing it would break re-rendering a document
+    the merge itself produced, which is how an earlier revision of this check
+    decided the open nesting question by side effect.
+
+    Recorded honestly: this shape *does* lose content today. `x` resolves to
+    the last block, and the merge then substitutes it into the earlier
+    container, so `ONE` does not survive. That is pre-existing nesting
+    behaviour -- the pre-F1 implementation does exactly the same thing, as this
+    test pins -- and belongs to the separately-tracked nesting question, not to
+    duplicate-identity. F1's obligation here is to change nothing.
+    """
+    human = (
+        "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
+    ).format
+    existing = (
+        GENERATED_START + GENERATED_END
+        + human(name="a", body=human(name="x", body="ONE"))
+        + human(name="b", body=human(name="x", body="TWO"))
+    )
+    rendered = (
+        f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+    )
+
+    # Accepted, not refused -- the F1 boundary.
+    merged = merge_protected_regions(existing=existing, rendered=rendered, path="ok.md")
+    assert "<!-- BEGIN HUMAN: a -->" in merged
+    assert "<!-- BEGIN HUMAN: b -->" in merged
+    # And the pre-existing loss is pinned rather than quietly claimed fixed.
+    assert "ONE" not in merged, "F1 must not change nested-name resolution"
+    assert "TWO" in merged
+
+
 def test_retry_leaves_a_duplicate_region_note_byte_identical(vault: Path) -> None:
     """End-to-end: ambiguity must cost the human nothing.
 
