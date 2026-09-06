@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -1231,6 +1232,19 @@ def test_unencodable_content_fails_with_a_stable_code() -> None:
     with pytest.raises(CaptureSourceError) as excinfo:
         build_capture_request(content="lead \ud800 surrogate")
     assert excinfo.value.code == "CONTENT_NOT_ENCODABLE"
+
+
+@pytest.mark.parametrize("content", ["lead \ud800 surrogate", "trail \udfff", "\ud800\udfff"])
+def test_service_rejects_unencodable_content_before_hashing(vault: Path, content: str) -> None:
+    """AS-OBSIDIAN-CAPTURE-001 R3: direct requests use stable errors too."""
+    request = replace(_request("valid construction"), content=content)
+    before = {p.relative_to(vault): p.read_bytes() for p in vault.rglob("*") if p.is_file()}
+
+    with pytest.raises(CaptureError) as excinfo:
+        capture(vault, request)
+
+    assert excinfo.value.code == "MALFORMED_REQUEST"
+    assert {p.relative_to(vault): p.read_bytes() for p in vault.rglob("*") if p.is_file()} == before
 
 
 def test_ai_enrichment_true_is_rejected_rather_than_silently_ignored() -> None:

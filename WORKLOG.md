@@ -11394,3 +11394,29 @@ human-edit retry preserved across sequential and 16-way concurrent retries.
 
 F1-F4 remain separate and unaddressed here; `graph_projections.py` was not
 touched.
+
+
+## AS-OBSIDIAN-CAPTURE-001 — R3 service encoding follow-through
+
+Morning reconciliation under D-OBSIDIAN-AUTONOMOUS-684-CLOSURE-AND-SUCCESSOR-DAG
+confirmed unchanged PR head `43114628` / tree
+`723730df187142fa1e73f6eb7ec362bb5e6d6c0d` and exact-head CI run `33989190053`
+passing all four jobs. Prior local full-suite evidence was reused.
+
+The direct service path still raised a raw `UnicodeEncodeError`: identity
+hashing encoded content before `_encoded_length` could translate the error.
+Three high/low-surrogate regression cases failed on that baseline. The service
+now validates UTF-8 after secret rejection and before hashing, retaining those
+verbatim bytes for the byte count and atomic raw write. Invalid direct requests
+return `MALFORMED_REQUEST`; adapter validation retains `CONTENT_NOT_ENCODABLE`.
+
+The affected capture, journey, Obsidian projection, and Atlas-3 guard tests
+passed (160 cases, exit 0), including secret rejection, symlink containment and
+human-edit retry regressions. Changed-file ruff and capture-module mypy passed;
+`git diff --check` passed. No local full-suite rerun was used for this bounded
+change. Independent exact-head Kimi verification and successor CI remain
+required before merge. This entry is implementation evidence, not certification.
+
+The verifier packet's obsolete raw-store secret exception was removed; its
+candidate identity is now explicitly supplied by the exact-head dispatch.
+F1–F4 remain separate successor work. No discovery.py changes were made.

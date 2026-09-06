@@ -127,15 +127,15 @@ def _write_atomic(path: Path, content: bytes, *, root: Path) -> None:
         raise CaptureError("PATH_ESCAPES_VAULT", str(exc)) from exc
 
 
-def _encoded_length(content: str) -> int:
-    """UTF-8 byte length, surfaced as a stable code rather than a raw error.
+def _encode_content(content: str) -> bytes:
+    """Validate UTF-8 before hashing and retain the verbatim persistence bytes.
 
     ``build_capture_request`` already rejects unencodable input, so this only
     fires for a hand-built ``CaptureRequest``; it keeps the failure inside the
     documented ``CaptureError`` vocabulary either way.
     """
     try:
-        return len(content.encode("utf-8"))
+        return content.encode("utf-8")
     except UnicodeEncodeError as exc:
         raise CaptureError(
             "MALFORMED_REQUEST",
@@ -568,6 +568,9 @@ def capture(
     # Before anything is resolved, hashed, or written: no plaintext credential
     # may reach generated output (NFR-004 / AT-014).
     _reject_secret_bearing_request(request)
+    # AS-OBSIDIAN-CAPTURE-001 R3: hashing also encodes content, so validate
+    # direct service requests before that path can raise a raw UnicodeError.
+    encoded_content = _encode_content(request.content)
 
     project_id = resolve_project(resolved_vault, request.project_reference)
     kind = classify(request, explicit=classification)
@@ -631,7 +634,7 @@ def capture(
             "line_endings": "lf",
             "whitespace_stripped": False,
         },
-        "content_bytes": _encoded_length(request.content),
+        "content_bytes": len(encoded_content),
         "content_path": content_rel,
         "title": title,
         "classification": kind,
@@ -668,7 +671,7 @@ def capture(
     # schema-valid record are durable before any projection is attempted.
     _write_atomic(
         _content_path(resolved_vault, capture_id),
-        request.content.encode("utf-8"),
+        encoded_content,
         root=resolved_vault,
     )
     _persist_record(resolved_vault, record)

@@ -3,19 +3,23 @@
 For a fresh agent in a fresh worktree. Nothing below is self-certified: each
 target is an attack to attempt, not a result to confirm.
 
-## Candidate
+## Candidate identity and evidence boundary
 
-| Field | Value |
-| --- | --- |
-| Branch | `feat/as-obs-001-conversational-knowledge-capture` |
-| Base | `origin/main` @ `31e07770992723e340f82e7e79c8483da17fa32e` (tree `b32950090463e7186896c0791bf3a840a673cf4b`) |
-| Head | `bac590cf` (tree `c4f6ebe2`) |
-| Commits | `1e41a97c` feature · `610821f8` schema · `aec7d6e8` Atlas-3 guard · `715b5f2f` docs · `816d937e` IV packet · `8c39e0d8` Windows atomic-write · `729acb65` IV rebase · `d4bd4a8b` **R1 projection anchor** · `bac590cf` **canonical path validation** |
-| Superseded | `816d937e` (Windows), `729acb65` (**IV FAIL** — default projection root escape) |
+Use the exact `TARGET_HEAD`, `TARGET_TREE`, and `BASE_HEAD` in the verification
+request accompanying this packet. Resolve them with Git before running any
+probe; this document does not pin a moving branch name as certified evidence.
 
-`git log --oneline 31e07770..HEAD` should show exactly those ten. **Do not reuse
-evidence from `729acb65` or earlier**: those heads are historical only, and
-`729acb65` failed independent verification on the finding re-attacked in V7.
+Historical targets `729acb65`, `bac590cf`, and `e796ea83` predate the
+secret-persistence rejection in `43114628`. Earlier raw-store secret exceptions
+are superseded by NFR-004 / AT-014 and the owner's
+D-OBSIDIAN-AUTONOMOUS-684-CLOSURE-AND-SUCCESSOR-DAG directive. Historical results
+remain evidence only for the exact behavior and commit actually tested.
+
+The service-encoding remediation after `43114628` moves UTF-8 validation before
+identity hashing. Reproduce direct hand-built requests containing high/low
+surrogates: require `CaptureError` with `MALFORMED_REQUEST` and no file changes.
+Adapter-built requests retain `CONTENT_NOT_ENCODABLE`. Verify ordinary raw
+bytes independently, including CRLF, BOM, Unicode and trailing whitespace.
 
 ## Environment (do not skip)
 
@@ -104,7 +108,13 @@ Put each secret pattern from `project_atlas.secrets` on the **first line** of a
 capture — that is what feeds the title heuristic, which feeds the note filename
 on disk. Then grep for the literal secret in: the note body, the note
 frontmatter, the note *filename*, the capture record JSON, `latest.json`, and
-stderr logs. It must appear in exactly one place: `rcap-*.txt`.
+stderr logs and temp files. It must appear in **zero generated files, paths,
+logs, or temp files**, including `rcap-*.txt`. Require `SECRET_CONTENT` before
+any generated persistence. There is no secret-bearing raw-store exception.
+Test content, title, locator and metadata, then confirm non-secret raw evidence
+still retains byte-exact semantics. Use filesystem-byte inspection, not only
+status strings. Existing human edits rejected on retry must remain untouched;
+Atlas must not copy a credential into a replacement note.
 
 ### V4 — Concurrent dedupe and the atomic-write layer (§49)
 
@@ -181,7 +191,7 @@ is retried.
 
 Attack the *input* validation too, on both platform families. `materialize_under_root` originally used a hand-rolled `is_absolute()`, which is False on Windows for `Path("/etc")` (root, no drive); it now uses `atlas_contracts.paths.safe_relative_path`. Push `/etc`, `C:evil`, `../outside`, `a/../../b`, `con`, `trailing.` and `trailing ` through it and confirm each is rejected *and* that nothing is created for a rejected path.
 
-In every blocked case the raw evidence must still be readable via
+In every path-blocked case with **non-secret input**, raw evidence must still be readable via
 `atlas capture show` and its hash must still verify.
 
 ### V5 — Atlas-3 CLI guard
