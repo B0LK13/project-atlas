@@ -90,10 +90,29 @@ class TestHostCallSitesWireTheFlag:
         assert identity == "win:42"
 
     def test_pid_is_alive_non_windows_path_never_calls_subprocess(self) -> None:
-        """Non-Windows uses os.kill(); no creationflags kwarg exists to check."""
-        with patch.object(os, "name", "posix"), patch.object(subprocess, "run") as mock_run:
-            host.pid_is_alive(os.getpid())
+        """Non-Windows uses os.kill(); no creationflags kwarg exists to check.
+
+        `os.kill` is patched, and the pid is a literal rather than this
+        process's own. Both matter on the Windows runner, where this test
+        forces the POSIX branch on a real Windows host: `signal.CTRL_C_EVENT`
+        is `0`, so the liveness idiom `os.kill(pid, 0)` does not probe there --
+        it delivers Ctrl+C to the console process group. Aimed at
+        `os.getpid()`, that is pytest's own group, which took the interrupt at
+        the very end of the run and turned a fully green Windows suite into
+        `KeyboardInterrupt` and exit 1.
+
+        Patching `os.kill` also makes the test say more than it did: that the
+        POSIX branch probes with `os.kill(pid, 0)`, not merely that it avoids
+        `subprocess.run`.
+        """
+        with (
+            patch.object(os, "name", "posix"),
+            patch.object(os, "kill") as mock_kill,
+            patch.object(subprocess, "run") as mock_run,
+        ):
+            assert host.pid_is_alive(4321) is True
         mock_run.assert_not_called()
+        mock_kill.assert_called_once_with(4321, 0)
 
 
 class TestCiObserverCallSitesWireTheFlag:
