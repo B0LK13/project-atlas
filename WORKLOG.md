@@ -12988,23 +12988,25 @@ The verdict sat on the pull request for thirteen minutes and thirty-nine
 seconds before the merge, and the merge followed CI turning green by
 forty-nine seconds. Both facts point at the same cause.
 
-**Root cause class: missing pre-merge evidence refresh.** The merge decision
-consumed an evidence set assembled *before* the last verifier verdict was
-published, and nothing re-read the pull request's published verdicts at the
+**Root cause class: missing pre-merge evidence refresh.** The incident author
+reports that the merge decision consumed an evidence set assembled *before*
+the last verifier verdict was published, and nothing re-read the pull request's published verdicts at the
 moment of merge. The gate that was actually applied was "exact-head CI green
 plus the commissioned verifier's PASS". Waiting on CI is precisely the window
 in which new evidence arrives, so a gate that samples evidence before the wait
 and merges immediately after it will miss anything published during it.
 
 **Contributing cause: unreconciled parallel verification lanes.** Three
-independent lanes were publishing to the same pull request asynchronously. Two
-verdicts existed for the exact merged head `07266af5` and they disagreed --
-the commissioned lane returned PASS, the Cursor lane returned FAIL_MATERIAL.
+independent lanes were publishing to the same pull request asynchronously. The
+incident author reports a commissioned PASS for the exact merged head
+`07266af5`; the Cursor lane published FAIL_MATERIAL for that head. The
+commissioned receipt is not linked here.
 No rule required all published exact-head verdicts to be reconciled before
 merge, so a PASS from a commissioned lane outweighed a published FAIL from an
 independent one that had not been read. Earlier lane comments (13:12, 13:36,
 14:42) bound to superseded heads and were predecessor evidence only; the
-FAIL_MATERIAL was the *only* verdict bound to the head that was merged.
+FAIL_MATERIAL was the *only published PR-comment* verdict bound to the head
+that was merged.
 
 The disagreement has since been resolved against the commissioned lane. The
 finding it missed, P04, reproduces: renaming `brief --vault`'s `dest`
@@ -13030,7 +13032,8 @@ published.
 lands on `vault`, and a real `main(["brief", "--vault", <path>, "--project",
 "p"])` produces a namespace carrying both. P04 is a governance-coverage gap,
 not a live outage, so reverting would remove working protections to address a
-missing one. The forward fix is PR #696, which asserts the certified surface
+missing one. At the time this entry was authored (2026-09-06T16:12:38Z),
+the proposed forward fix was PR #696, which asserted the certified surface
 at argparse's parse boundary instead of on `build_parser()`'s return value.
-It is not self-certified: independent verification at its exact head is
-required before merge, for the same reason this entry exists.
+Its exact-head independent verification was required before merge. This
+historical entry does not certify #696 or describe the current successor state.
