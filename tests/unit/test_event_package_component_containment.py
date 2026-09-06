@@ -14,7 +14,6 @@ the Vault for a package it accepts.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -78,8 +77,6 @@ def test_the_refusal_happens_before_any_outside_bytes_are_hashed(
     outside = tmp_path / "outside.md"
     outside.write_bytes(b"OUTSIDE\n")
     (package / "event.md").symlink_to(outside)
-    outside_digest = hashlib.sha256(outside.read_bytes()).hexdigest()
-
     hashed: list[Path] = []
     real_sha256 = event_package._sha256
 
@@ -92,12 +89,21 @@ def test_the_refusal_happens_before_any_outside_bytes_are_hashed(
     with pytest.raises(PackageValidationError):
         _raw_inventory(root, PACKAGE_PATH)
 
-    assert package / "event.md" not in hashed, (
-        "the symlinked component was hashed before the refusal; the outside "
-        "file's bytes were read to produce evidence identity"
-    )
-    assert outside_digest not in [real_sha256(path) for path in hashed], (
-        "a recorded hash equals the outside file's digest"
+    # One assertion, and it can always fail. An earlier revision had two: the
+    # first named the symlinked component, the second checked no recorded hash
+    # equalled the outside digest. Independent verification showed the second
+    # could never fail once the first passed -- it iterates an empty list -- and
+    # that the first shadowed any stronger claim. The contract is that the
+    # refusal precedes the entire hashing pass, so nothing is read at all.
+    assert hashed == [], (
+        "the refusal did not precede reading: "
+        + (
+            "the symlinked component itself was hashed, so the outside file's "
+            "bytes were read to produce evidence identity"
+            if package / "event.md" in hashed
+            else f"{[str(path) for path in hashed]} were hashed"
+        )
+        + "; no component should be read once a symlinked one has been found"
     )
 
 
