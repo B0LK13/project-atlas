@@ -335,7 +335,7 @@ The project is MVP-complete when a clean environment can run:
 python -m pytest
 atlas init --output .tmp/vault
 atlas discover --source tests/fixtures --output .tmp/manifest.json
-atlas ingest --manifest .tmp/manifest.json --vault .tmp/vault
+atlas ingest --manifest .tmp/manifest.json --vault .tmp/vault --source tests/fixtures
 atlas build-indexes --vault .tmp/vault
 atlas validate --vault .tmp/vault
 

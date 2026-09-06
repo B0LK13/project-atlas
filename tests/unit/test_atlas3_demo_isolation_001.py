@@ -61,6 +61,42 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "e8d779a8ab2fe0b4327ae9cf8cae115f2a793eb96eb35e8b0024b6ee085168ef"
         ),
     },
+    {
+        "exception_id": "R-READY-LINUX-RESIDUALS-20260905-DISCOVERY",
+        "owner_approved": "YES",
+        "reason": (
+            "owner grant R_READY (supersedes the discovery.py pin of "
+            "OG-ATLAS-LINUX-FILESYSTEM-20260905): verified residuals R1 "
+            "canonical-equivalence collision, R2 unreadable metadata "
+            "boundary, R3 silent loss of inaccessible discovery scope, plus "
+            "the post-verification remediation (unmeasurable-path skip now "
+            "observable; ordering key made total for NFR-001 determinism), and "
+            "owner grant R_READY-2 residual R4 (a real document in the "
+            "reserved agent-event routing scope reached neither inventory "
+            "and produced no diagnostic), including R4-D (a real document, or a "
+            "whole subtree behind a directory symlink, escaping the source "
+            "root was excluded without any diagnostic), and owner grant "
+            "R_READY-5 residual R5 (an unreadable scope under the agent-event "
+            "inbox aborted the entire discovery run)"
+        ),
+        "path": "src/project_atlas/discovery.py",
+        "allowed_sha256": (
+            "f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847"
+        ),
+    },
+    {
+        "exception_id": "OG-ATLAS-LINUX-FILESYSTEM-20260905-INGESTION",
+        "owner_approved": "YES",
+        "reason": (
+            "owner grant OG-ATLAS-LINUX-FILESYSTEM-20260905: excluded records "
+            "are no longer pre-resolved at the manifest boundary, and a "
+            "symlinked authorized root now names its physical path"
+        ),
+        "path": "src/project_atlas/ingestion.py",
+        "allowed_sha256": (
+            "6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159"
+        ),
+    },
 )
 
 

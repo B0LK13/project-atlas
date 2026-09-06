@@ -63,7 +63,7 @@ atlas --help
 atlas version
 atlas init --output <dir> [--dry-run]                       # create a vault scaffold
 atlas discover --source <project-root> --output <manifest.json>
-atlas ingest --manifest <manifest.json> --vault <vault-dir>
+atlas ingest --manifest <manifest.json> --vault <vault-dir> --source <project-root>
 atlas build-indexes --vault <vault-dir>
 atlas build-portfolio --vault <vault-dir>                   # derived portfolio + bitemporal catalog
 atlas validate --vault <vault-dir>

@@ -58,3 +58,4 @@ origination_sources:
 # execution_ready stays exactly what it already is (see
 # src/project_atlas/orchestration/origination/acceptance_contracts.py).
 origination_acceptance_contracts: docs/origination-acceptance-contracts.yaml
+project_uuid: 57d0f9db-c037-47ef-a1f5-02f148a207a8
