@@ -304,9 +304,9 @@ def test_connect_keeps_its_documented_positional(built: argparse.ArgumentParser)
 # attacks live in that gap and are caught at the dispatch boundary further
 # down, not here.
 #
-# This subsumes the build-time checks rather than replacing them: a mutation
-# anywhere between `build_parser`'s first line and argparse's last is visible
-# here, because the observation happens after all of it.
+# This supplements the build-time checks: certified action mappings and marker
+# values are observed at the first intercepted parse. Mutations that preserve
+# those observations, or occur after that parse, need other checks.
 # ---------------------------------------------------------------------------
 
 
@@ -694,11 +694,11 @@ def test_p04_matrix_control_passes_undamaged() -> None:
 #     never observes the second.
 #   * `main` edits `args` after parsing. Nothing about either parser is wrong.
 #
-# Both are observed here instead, at the last point before any command does
-# work: `_apply_stranger_defaults` receives the very namespace `main` will
-# dispatch on, and `load_config` is the next call on every path. Recording the
-# namespace at the first and stopping at the second yields its state after
-# every parse and every post-parse edit, with no side effect performed.
+# These controls are checked by recording the namespace processed by
+# `_apply_stranger_defaults` and stopping at `load_config`. This observes its
+# certified marker values at that seam, not arbitrary later edits or namespace
+# substitutions. The identity assertion below binds it to a parsed namespace;
+# it does not prove which object a later handler will receive.
 # ---------------------------------------------------------------------------
 
 
@@ -709,7 +709,7 @@ class _DispatchBoundary(BaseException):
 def _dispatch_boundary(
     argv: list[str], entry: Callable[[list[str]], object]
 ) -> argparse.Namespace:
-    """The namespace `main` would dispatch on, captured without dispatching."""
+    """Capture the processed namespace at the pre-load_config observation seam."""
     from project_atlas import cli as cli_module
 
     captured: list[argparse.Namespace] = []
@@ -794,7 +794,7 @@ def _assert_dispatch_dests(
     positionals: tuple[tuple[int, str, object], ...] = (),
     marker: Callable[[str], str] = _sentinel,
 ) -> None:
-    """Every certified value still reachable where the command would read it."""
+    """Check certified marker values on the captured, processed namespace."""
     argv = _argv_for(path, options, positionals, marker)
     namespace = _dispatch_boundary(argv, entry=entry)
     label = "atlas " + " ".join(path)
@@ -825,7 +825,7 @@ def _assert_dispatch_dests(
 def test_certified_values_survive_to_the_dispatch_boundary(
     command: str, marker: Callable[[str], str]
 ) -> None:
-    """Not merely parsed correctly -- still intact where the command reads them.
+    """Certified marker values remain intact at the pre-load_config seam.
 
     Run with two markers of different shape: a transform the CLI applies is
     only visible in a marker it is not a fixed point of.
