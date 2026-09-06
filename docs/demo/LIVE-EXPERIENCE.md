@@ -25,7 +25,7 @@ claimed. `DEMO_FIXTURE != AUTHENTIC_PILOT`.
 ```bash
 atlas init          --output .tmp/live-vault
 atlas discover      --source tests/fixtures/demo/estate --output .tmp/live-manifest.json
-atlas ingest        --manifest .tmp/live-manifest.json  --vault .tmp/live-vault
+atlas ingest        --manifest .tmp/live-manifest.json  --vault .tmp/live-vault --source tests/fixtures/demo/estate
 atlas build-indexes --vault .tmp/live-vault
 atlas validate      --vault .tmp/live-vault
 atlas build-portfolio --vault .tmp/live-vault

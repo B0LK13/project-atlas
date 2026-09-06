@@ -519,9 +519,20 @@ def _resolve_authorized_source_root(
     # and makes a subsequent is_symlink() check always false on the target.
     expanded = authorized_source_root.expanduser()
     if expanded.is_symlink() or not expanded.is_dir():
+        # Symlinked project roots are ordinary on Linux (relocated home,
+        # /home -> /var/home, a checkout reached through a convenience link).
+        # The guard above must not soften, so name the physical path instead:
+        # an operator refused an existing directory otherwise has nothing to
+        # act on.
+        hint = ""
+        if expanded.is_symlink():
+            hint = (
+                f" (symlink to {os.path.realpath(expanded)}; "
+                "authorize that physical path instead)"
+            )
         raise ValueError(
             "authorized source root must be an existing non-symlink directory: "
-            f"{authorized_source_root}"
+            f"{authorized_source_root}{hint}"
         )
     authorized = expanded.resolve()
     if not authorized.is_dir() or authorized.is_symlink():
@@ -593,7 +604,14 @@ def _manifest_records(manifest: object) -> list[SourceRecord]:
             record = SourceRecord.model_validate(raw)
         except ValidationError as exc:
             raise ValueError(f"invalid manifest source record: {exc}") from exc
-        _source_path(Path(str(manifest["source_root"])).resolve(), record.path)
+        # Mirror the ingest loop's guard exactly (see `prepared` below):
+        # excluded or digest-less records are never opened, so their paths are
+        # recorded evidence only. Pre-validating them would fail the whole run
+        # closed over a Linux-legal name the portable path contract cannot
+        # represent; every record that is actually read is still resolved
+        # through `_source_path` before the open.
+        if not (record.exclusion_reason or not record.sha256):
+            _source_path(Path(str(manifest["source_root"])).resolve(), record.path)
         records.append(record)
     return records
 

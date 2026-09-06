@@ -121,7 +121,7 @@ atlas init --output .tmp/atlas-vault
 Core CLI workflow
 - atlas init --output <dir> [--dry-run]  # create deterministic vault scaffold
 - atlas discover --source <project-root> --output <manifest.json>
-- atlas ingest --manifest <manifest.json> --vault <vault-dir>
+- atlas ingest --manifest <manifest.json> --vault <vault-dir> --source <project-root>
 - atlas build-indexes --vault <vault-dir>
 - atlas build-portfolio --vault <vault-dir>  # derived portfolio + bitemporal validity catalog
 - atlas validate --vault <vault-dir>

@@ -10983,3 +10983,1079 @@ Everything else in the original entry stands: `AUTHENTIC_PILOT = NO`,
 unchecked, and `DEMO_FIXTURE != AUTHENTIC_PILOT` applies exactly as stated.
 Only the "real result receipt ... independently re-checked" language is
 withdrawn.
+---
+
+## OG-ATLAS-LINUX-FILESYSTEM-20260905 — Linux filesystem defects in discover/ingest
+
+**Date:** 2026-09-05
+**Directive:** D-OWNER-LINUX-CERTIFIED-SURFACE-EXCEPTION
+**Owner grant:** `OG-ATLAS-LINUX-FILESYSTEM-20260905`
+**Branch:** `feat/linux-filesystem-portability`
+
+### Owner grant record (certified-surface freeze exception)
+
+The Project Owner explicitly authorized two exact-content exceptions to the
+Atlas 3 certified-surface freeze (`tests/unit/test_atlas3_demo_isolation_001.py`,
+SS9.1 of `docs/atlas-3/ARCHITECTURE.md`):
+
+| Path | Authorized sha256 |
+| --- | --- |
+| `src/project_atlas/discovery.py` | `e43d97b2035aaeaa2a6f320170839e10e58a4f27b62321351e9e8368ae48e5a0` |
+| `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` |
+
+Bytes were verified to match both authorized hashes *before* the exception
+entries were added (`AUTHORIZED_HASH_MATCH = YES`). Purpose, in the owner's
+words: "Permit review and certification of the minimal Linux filesystem
+discovery and ingestion fixes at the implementation boundaries where the
+defects actually reside."
+
+**This grant is not a blanket unfreeze.** It applies only to these two paths
+at these exact hashes. It does not authorize additional protected files, does
+not authorize recomputing and silently accepting different hashes, does not
+waive tests / review / independent verification / CI / claim boundaries, does
+not certify the changes merely because the freeze guard turns green, and does
+not authorize merging or releasing the candidate. Any further edit to either
+file changes its hash, re-fires the guard, and requires a renewed owner
+decision.
+
+### Defects (all Linux-legal inputs; each aborted an entire run)
+
+Found by running the real CLI against a constructed hostile-but-legal source
+tree, not by inspection:
+
+1. **Unreadable file aborts `discover`.** One mode-000 file (or any file whose
+   content the caller cannot read -- foreign ownership under a readable
+   directory is routine on Linux) raised `PermissionError` out of the hashing
+   step and killed the whole inventory.
+2. **Non-portable names dead-end the pipeline.** `discover` happily emitted
+   paths containing `:` or control characters; `ingest` then refused the same
+   manifest with `unsafe manifest source path`. A Linux user could produce a
+   manifest that could never be ingested, with no route forward.
+3. **Backslash silently re-segmented.** `safe_relative_path` normalizes `\` to
+   `/`, so a Linux file literally named `back\slash.md` became
+   `docs/back/slash.md` -- a different file -- and ingest aborted with
+   `manifest source is missing`. Had that path existed, it would have been a
+   silent evidence mis-binding rather than an abort.
+4. **Non-UTF-8 filename crashes `discover`.** Linux filenames are byte strings;
+   an invalid-UTF-8 name decodes to lone surrogates and broke both the
+   inventory hash and the manifest write with
+   `'utf-8' codec can't encode character '\udcff'`.
+
+### Fix boundary (why these two files)
+
+`atlas_contracts.paths` was deliberately **not** weakened. Its module docstring
+states the intent plainly -- Windows semantics enforced on all platforms so
+Linux CI cannot accept identifiers that escape on Windows hosts -- and that
+portability guarantee is correct. The defect is not the contract; it is that
+`discover` emitted paths the contract could never accept and only `ingest`
+found out. The decision therefore moved to the earliest boundary, which is
+where the walk (`discovery.py`) and the manifest contract (`ingestion.py`)
+live. Both are certified surfaces; there is no non-frozen location for either
+change. Similarly, the symlinked-authorized-root refusal (CODEX-SEC-001 /
+SEC-SCAN-A-014) was **kept**; only its message now names the physical path,
+because symlinked project roots are ordinary on Linux and an operator refused
+an existing directory otherwise has nothing to act on.
+
+Non-portable and unreadable sources are now recorded as `EXCLUDED` evidence
+with reasons (`non-portable-path`, `unreadable`) through the manifest's
+existing exclusion mechanism -- never silently dropped, never ingested.
+Undecodable names are the one case that cannot be recorded at all (they cannot
+appear in a UTF-8 JSON manifest), so they are reported via a WARNING naming
+the backslash-escaped path rather than recorded under a sanitized name that
+would be a claim about a file that does not exist.
+
+`_manifest_records` no longer pre-resolves records the ingest loop already
+skips. Every record that is actually opened is still resolved through
+`_source_path` immediately before the read; the security boundary is unchanged.
+
+### Results
+
+- `tests/unit/test_linux_filesystem_portability.py` added (7 tests, POSIX-gated
+  so the Windows CI job skips them). Verified to **fail on the base and pass on
+  the candidate** for defects 1-4; the case-sensitivity and
+  symlink/FIFO/device tests pass on both and lock in already-correct behaviour.
+- Freeze guard suite: 23 passed.
+- Real-data no-op: a full `atlas discover` over this repository classified
+  **0 of 12,263** sources as `non-portable-path` or `unreadable`. The guard
+  changes nothing for legitimate content.
+- Full hostile tree (`:`; newline; backslash; `aux.md`; non-UTF-8 byte;
+  mode-000 file; symlink loop; FIFO; `/dev/zero` link; hardlink; three
+  case variants; NFC/NFD pair; 250-char name) runs
+  `discover -> ingest -> build-indexes -> build-portfolio -> validate`
+  green end to end.
+
+### Claim boundaries
+
+This entry claims that four reproducible Linux abort defects were fixed at the
+authorized boundary, with regression tests that fail on the base, and that the
+change is a no-op on this repository's own real content. It does **not** claim
+external security revalidation, `CODEX_VALIDATED`, `AUTHENTIC_PILOT`, or any
+release/GA status; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES` is
+unchanged. The freeze guard turning green certifies nothing beyond the owner
+grant being correctly recorded. Case-sensitivity is still decided by platform
+(`_casefold_paths()`), so a Linux host with a case-insensitive mount (ext4
+`casefold`, NTFS/exFAT/CIFS) is still treated as case-sensitive -- assessed and
+deliberately left alone, because probing per path would trade determinism
+(NFR-001) for a narrow edge. `MERGE_ELIGIBLE = NO` pending CI and independent
+verification; merge authority was explicitly withheld by the grant.
+
+### Pre-existing flake encountered during verification (NOT introduced)
+
+A full-suite run failed once on
+`tests/integration/test_core_semantic_lifecycle.py::test_concurrent_project_initializers_have_one_uuid_receipt`
+with `RuntimeError: promote orphan recovery incomplete (AS-CORE2-009
+fail-closed)`. Two threads ingest the same vault; the loser calls
+`recover_promote_orphans`, sees the winner's *in-flight* `.atlas-stage` files,
+cannot distinguish them from crash orphans, and fails closed. The test's
+`try_ingest` catches `(ValueError, PermissionError, FileNotFoundError)` but not
+`RuntimeError`, so that legitimate loser outcome escapes and fails the test.
+
+Established as pre-existing, not introduced, by direct A/B stress of the same
+two-thread scenario under identical 8x CPU load (`/tmp/race_repro.py`, 300
+races each):
+
+| Tree | Uncaught `RuntimeError` |
+| --- | --- |
+| base (this change stashed) | 1 / 300 |
+| candidate | 2 / 300 |
+
+Supporting evidence: the diff to `ingestion.py` is confined to
+`_resolve_authorized_source_root` (message text) and `_manifest_records`
+(a guard); it contains no promote / orphan / stage / lock lines at all, and
+the same test passed in an earlier full run against identical logic. Isolated
+reruns pass (20/20 under load).
+
+**Deliberately not fixed here.** Making the test catch `RuntimeError` would be
+a judgement about whether fail-closed orphan recovery *should* fire against a
+concurrent in-flight promote; fixing the underlying race would mean editing
+`ingestion.py`, whose bytes are pinned by this grant. Both are outside
+`OG-ATLAS-LINUX-FILESYSTEM-20260905`. Raised as an unresolved material finding
+for a separate owner decision. `INTRODUCED_FAILURE_COUNT = 0`.
+
+### Correction after independent verification (2026-09-05)
+
+An independent verifier (isolated worktree, its own venv, verified to import
+from that worktree) returned `PASS_WITH_NONBLOCKING_FINDINGS` against
+`c9bdc307`. It confirmed C1-C5 and C7, including the decisive
+revert-and-reconfirm: reverting **only** the two authorized source files makes
+**5 of 7** new tests fail for the claimed reasons, and restoring them makes all
+7 pass. It found no security bypass. Several claims in the entry above were
+nevertheless wrong or broader than the evidence, and are corrected here rather
+than edited in place.
+
+1. **False claim, now withdrawn.** "Full hostile tree (... NFC/NFD pair ...)
+   runs `discover -> ... -> validate` green end to end" is **wrong for the
+   NFC/NFD case**. The tree used `café-nfc.md` / `café-nfd.md` -- different
+   base names, which never collide. A *true* normalization pair
+   (`café.md` written NFC and NFD: `caf\xc3\xa9.md` and `cafe\xcc\x81.md`,
+   two distinct, ordinary files on Linux) collapses to one `source_id` and
+   aborts: `duplicate source identity in manifest: source-91e69e39399496d2`.
+   Reproduced directly. **Pre-existing** (identical on base), not a
+   regression, but it was never tested green and the claim should not have
+   been made.
+2. **Defect (a) is only partially fixed.** The new `except OSError` wraps
+   `path.stat()`, but the loop's *first* stat is `path.is_file()`, which is
+   unguarded and propagates `EACCES`. A directory with mode `0444`
+   (listable, not traversable) therefore still aborts `discover` with the
+   identical `[Errno 13] Permission denied`. Reproduced directly. The comment
+   on that guard names "raced deletion, unreadable parent directory" -- cases
+   which do not reach that branch, since `is_file()` swallows `ENOENT` -- so
+   the comment overstates its coverage.
+3. **"Never silently dropped" is violated for directories.** A mode-`000`
+   directory's contents vanish with no manifest record *and* no warning
+   (`rglob` swallows the error). Reproduced: `dark/b.md` absent from
+   `sources`, no WARNING emitted. Pre-existing, but it contradicts the
+   central thesis of this change.
+4. **The backslash rationale was wrong.** The claim that a coexisting real
+   `docs/back/slash.md` "would have been a silent evidence mis-binding" is
+   incorrect: both names canonicalize to one `source_id` and ingest aborts
+   with `duplicate source identity`. Still failing at this head; pre-existing.
+5. **Population figure corrected.** "0 of 12,263" was measured on this
+   working tree (which carries untracked and build artifacts). A clean
+   checkout yields **0 of 5,798**. The *conclusion* -- zero sources newly
+   classified `non-portable-path` or `unreadable` -- reproduces exactly; only
+   the denominator was environment-specific.
+6. **Security wording tightened.** "Security posture unchanged" is precise for
+   anything **opened**: every record that is read is still resolved through
+   `_source_path`, and a hand-crafted traversal manifest with a valid digest
+   is still refused. It is *not* precise for what may be **recorded**: an
+   excluded record's path is now persisted verbatim into
+   `sources/manifests/source-manifest.json` without pre-resolution. No file
+   access, no leak, and downstream stages are unaffected (verified), but the
+   honest phrasing is "unchanged for anything opened; mildly relaxed for what
+   may be recorded".
+7. **Flake evidence re-ranked.** The dispositive argument is mechanistic:
+   `recover_promote_orphans(vault)` is called *outside and before* the ingest
+   lock, in code this diff does not touch (zero promote/orphan/stage/lock
+   lines). The 1/300 vs 2/300 stress table is statistically indistinguishable
+   from noise and should not have led; the verifier could not reproduce the
+   flake at all (0/200 on both trees). `INTRODUCED_FAILURE_COUNT = 0` rests on
+   the mechanism and on revert-and-reconfirm, not on those counts.
+8. **Unrecorded side effect, now recorded.** `.atlas-project.yaml` gained
+   `project_uuid: 57d0f9db-c037-47ef-a1f5-02f148a207a8`. This was allocated by
+   AS-ID-001 genesis during an authorized `atlas connect` dogfood run against
+   this repository, is durable and one-time, and was noted in the commit
+   message but not here or in the PR body. It pins this repository's identity
+   to a value minted by that run; drop it if that was not intended.
+9. **Windows CI collection error (mine, fixed).** The new test module used
+   `@pytest.mark.skipif(os.geteuid() == 0, ...)`. A module-level `pytestmark`
+   skips *execution*, not *import*, and a decorator argument is evaluated at
+   collection on every platform -- so Windows failed with
+   `AttributeError: module 'os' has no attribute 'geteuid'`, interrupting
+   collection (`5200 deselected, 1 error`). Resolved to a guarded
+   module constant (`os.name != "nt" and os.geteuid() == 0`), which
+   short-circuits before `geteuid` on Windows.
+
+**Blocked on a renewed owner decision.** Corrections 2 and 3 are genuine
+incompletenesses of this change's own thesis, and both fixes live in
+`src/project_atlas/discovery.py`, whose bytes are pinned by
+`OG-ATLAS-LINUX-FILESYSTEM-20260905`. Correction 1 (and 4) would additionally
+touch source-identity canonicalization. Per the grant's terms, the
+protected-surface mutation stops here and is returned for a new decision
+rather than made under the existing grant.
+
+---
+
+## R_READY — verified Linux residuals R1/R2/R3
+
+**Date:** 2026-09-05
+**Directive:** R_READY (renewed, narrowly scoped owner authorization)
+**Branch:** `feat/linux-filesystem-portability`
+
+The prior grant was **not** extended implicitly. This entry records work done
+under the new grant only, for the three residuals the independent verifier
+reproduced.
+
+**Protected surface changed:** `src/project_atlas/discovery.py` only.
+`src/project_atlas/ingestion.py` is **byte-identical** to its
+`OG-ATLAS-LINUX-FILESYSTEM-20260905` pin
+(`6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159`) and was
+not touched. `src/atlas_contracts/paths.py` and
+`src/project_atlas/source_identity.py` are untouched.
+
+### Intended invariant (established from repository truth, not from the test)
+
+`source_identity.canonicalize_project_path` NFC-normalizes and maps `\` to `/`
+-- "canonicalize a project-relative path independently of host semantics"
+(AS-ID-001). Identity is therefore *deliberately* host-independent, and
+CODEX-SEC-002 fails closed on duplicate identity. Canonicalization was
+consequently **not** changed: doing so would break deterministic durable
+identity and cross-platform coherence, which the grant requires preserving.
+The defect is that discovery emitted two records claiming one identity and
+only ingestion found out. The contract is now explicit and enforced at
+discovery: **the first path in deterministic sort order holds the canonical
+identity; a later canonically-equivalent path is reported and never recorded
+under a synthesized identity the contract does not define.**
+
+**Claim boundary (tightened by owner directive).** An earlier draft of this
+entry asserted that such a pair cannot coexist on Windows or macOS and that
+the branch therefore never fires there. That claim is **withdrawn as
+unreproduced**: no Windows or macOS filesystem behaviour was directly
+observed. It is not merely unproven but plausibly wrong -- NTFS does not
+Unicode-normalize, so an NFC/NFD pair may well coexist and the branch may well
+fire on Windows. The POSIX-gated test module does not exercise this path on
+the Windows CI job, so no platform-specific behaviour is claimed in either
+direction.
+
+What is certified is the host-independent invariant only, which this
+implementation satisfies on every platform because the code path is not
+platform-conditional: **if two discoverable paths canonicalize to the same
+durable source identity, discovery does not abort, does not synthesize
+distinct identities, and reports the collision deterministically.**
+AS-ID-001 canonicalization was not altered to make platform behaviour
+uniform.
+
+### R1 canonical-equivalence collision
+
+`café.md` written NFC (`caf\xc3\xa9.md`) and NFD (`cafe\xcc\x81.md`) are two
+ordinary Linux files. Both canonicalize to one `source_id`. Same class: a
+literal `docs\slash.md` beside a real `docs/slash.md`. Both now warn and
+continue.
+
+### R2 unreadable metadata boundary
+
+The previous guard wrapped `stat()`, but the loop's *first* metadata access is
+`path.is_file()` / `path.is_symlink()`, which propagate `EACCES`. The boundary
+now covers that first access. The stale comment naming unreachable cases is
+gone.
+
+### R3 silent loss of inaccessible scope
+
+`rglob` swallows a directory it cannot read, so the subtree vanished with no
+record **and** no diagnostic. Directories are now probed with `os.scandir`;
+an unlistable one emits `inaccessible discovery scope, contents not
+inventoried: <path>`. Representation is a warning rather than a synthetic
+manifest record: a directory is not a source document, adding one would put a
+non-document in `sources` and require widening the manifest's `allowed` field
+set in `ingestion.py` -- outside this grant -- and the contents were never
+read, so no record may claim them.
+
+A defect introduced *and caught in this same round*: the first `_reportable`
+helper encoded to UTF-8 then decoded ASCII, which raises on an ordinary
+accented name. It encodes to ASCII with `backslashreplace` now. Caught by the
+adversarial matrix before CI.
+
+### Adversarial regression matrix
+
+"Base" is the prior head `4091a438` (which already carried round-1 fixes), so
+this isolates R1-R3.
+
+| case | BASE_REPRODUCTION | FIXED_RESULT | EXPECTED_CONTRACT |
+| --- | --- | --- | --- |
+| TRUE_NFC_NFD_PAIR | ingest aborts `duplicate source identity` | discover warns collision, pipeline exit 0 | first in deterministic order keeps identity; collider reported |
+| UNREADABLE_FILE_OR_STAT_PATH | exit 0 (fixed round 1) | exit 0, `unreadable` record, `sha256=None`, real size | metadata recorded, content never claimed |
+| UNREADABLE_DIRECTORY (0444) | `discover` aborts `[Errno 13]` | warns `skipped unreadable path`, exit 0 | one unreachable entry never aborts the run |
+| ZERO_PERMISSION_DIRECTORY (0000) | exit 0, **no record, no warning** | warns `inaccessible discovery scope` | existence observable; contents not invented |
+| NO_SILENT_LOSS | violated | every skip carries a record or a warning | evidence-preservation contract |
+| DISCOVERY_CONTINUES_WHERE_ALLOWED | aborted on 0444 | full tree still inventoried | partial inaccessibility is not fatal |
+| DUPLICATE_IDENTITY_CONTRACT | abort at ingest | preserved, enforced earlier at discovery | CODEX-SEC-002 unchanged |
+| WINDOWS_COLLECTION | `AttributeError: os.geteuid` | guarded module constant, short-circuits | collect on Windows, skip by platform contract |
+
+Revert-and-reconfirm: reverting **only** `discovery.py` fails 4 of 11 new
+tests for exactly these reasons; restoring passes 11/11.
+
+Full hostile tree -- now including a **true** NFC/NFD pair, the backslash
+collision, 0444 and 0000 directories, a non-UTF-8 name, mode-000 file, symlink
+loop, FIFO, `/dev/zero` link, hardlink, three case variants and a 250-char
+name -- runs `discover -> ingest -> build-indexes -> build-portfolio ->
+validate` **all exit 0**, emitting 5 warnings. This supersedes the withdrawn
+claim in the correction above, which was made without a true normalization
+pair in the tree.
+
+### Clean-tree denominator reconciliation (final candidate `6b51321b`)
+
+The owner directive required the previously corrected figure "0 of 5,798" to
+remain only if independently reproduced on the final candidate. **It did not
+reproduce.** Measured on a pristine `git worktree` of `6b51321b` (zero
+untracked files), importing the worktree's own `src/` and asserting the module
+path before measuring:
+
+| method | result |
+| --- | --- |
+| CLI (`atlas discover --source .`, config applied) | **0 of 3,051** |
+| direct `discovery.discover(root)` (no config excludes) | 0 of 2,797 |
+| earlier, this working tree (untracked + build artifacts present) | 0 of 12,263 |
+| earlier, independent verifier's checkout | 0 of 5,798 (not reproduced here) |
+
+The **numerator is zero under every method** -- no source in this repository
+is classified `non-portable-path` or `unreadable`, which is the claim that
+matters: the guards are a no-op on real content. The *denominator* is
+method- and tree-dependent (config-driven excludes, untracked and build
+artifacts, and whether the CLI's `[tool.atlas]` configuration is loaded), and
+should never have been quoted as a bare population figure without its method.
+
+Certified figure going forward: **0 of 3,051**, CLI method, clean worktree at
+`6b51321b`. The 5,798 and 12,263 figures are withdrawn.
+
+### Out-of-scope observation (not fixed)
+
+`WORKLOG.md` contains a NUL byte at line 5174, inside
+`**Base (open):** 38b8eac / tree \x0070e951b`. It is **pre-existing** and
+present in `origin/main`, not introduced here. Its effect is that `grep`
+classifies the entire worklog as binary and silently returns nothing without
+`-a`, which quietly breaks any tooling that greps this file. Left untouched:
+outside the R1-R3 grant.
+
+### Post-verification remediation (fresh IV of `d62a43f6`)
+
+Independent verification of `d62a43f6` returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`, confirming R1/R2/R3 on base and fixed at head by
+its own construction, no regression in the round-1 fixes, protected-surface
+discipline hash-verified, and all six earlier withdrawals intact with none
+quietly restored. It also found three claims of mine that were false. Each was
+reproduced before being acted on.
+
+**Authorized bytes for this grant (the audit-trail gap, now closed).** The
+`R_READY` grant table recorded the grant *name* but never the sha256 it
+authorizes; both WORKLOG and PR still showed the superseded
+`e43d97b2...`, so a reviewer auditing from the PR alone found a hash mismatch
+against the code. The shipped, pinned `discovery.py` for this grant is:
+
+| Path | Authorized sha256 | Note |
+| --- | --- | --- |
+| `src/project_atlas/discovery.py` | `a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7` | **SUPERSEDED** -- see the pin ledger at the end of this file |
+| `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | unchanged since the first grant |
+
+Superseded discovery.py pins, for trace only: `e43d97b2...` (first grant),
+`d8ee84fc...` (R_READY, pre-remediation).
+
+1. **"0 of 3,051, pristine worktree" was false -- and dirty in exactly the way
+   I had already withdrawn a figure for.** That worktree contained **284
+   `__pycache__/*.pyc` files** written by my own measurement run.
+   `git status --porcelain` reported zero untracked, which is precisely why
+   the check was worthless: the artifacts are gitignored, so status is blind
+   to them, and they inflated `default-excluded-directory` from 475 to 760.
+   Re-measured over tracked files only (`git ls-files`, 2,766 files, zero
+   `.pyc`, `PYTHONDONTWRITEBYTECODE=1`): **0 of 2,766**, which matches the
+   verifier's independent `git archive` cross-check exactly. Certified figure
+   is now **0 of 2,766 (tracked files)**; 3,051, 5,798 and 12,263 are all
+   withdrawn. The numerator has been zero under every method ever run.
+2. **"The stale comment naming unreachable cases is gone" was false.** The
+   comment was byte-identical at base and at `d62a43f6`. It is gone now --
+   and the branch it sat on was itself the last silent skip: a bare
+   `continue` with no record and no warning, contradicting the
+   `NO_SILENT_LOSS` row's universal. It now emits
+   `skipped unmeasurable path: <path> (<reason>)`.
+3. **Determinism: the ordering key was not total (NFR-001).**
+   `key=item.as_posix().lower()` ties on case variants, and the stable sort
+   then inherited directory-entry order -- so "first in deterministic sort
+   order wins", the rule R1's whole contract rests on, was resting on dirent
+   order. Demonstrated on base with root, content and mtimes all held fixed:
+   creating `README.md`/`readme.md`/`ReadMe.md` in two different orders
+   produced two different manifest orders and two different
+   `inventory_sha256`. The key is now `(lower(), raw)`, which breaks every
+   tie totally; the same experiment is now byte-identical. Pre-existing, but
+   this round made it load-bearing, so it is fixed here rather than noted.
+   Regression test added, plus an assertion naming *which* spelling wins
+   (NFD sorts before NFC).
+
+**Accepted, not fixed, with reasons:** the collision winner is content-blind
+(an unreadable file can win over a readable one) -- recording the loser is
+genuinely blocked, since `_assert_manifest_source_identities` fails closed on
+duplicate `source_id` for excluded rows too, and the alternative is inventing
+identity. R3 remains observable-at-run-time rather than durably recorded; the
+verifier correctly noted a `sources` row with an `inaccessible-scope` reason
+*was* available without a manifest field-set change, so that choice is a
+design judgement ("a directory is not a source document"), not an
+impossibility, and the earlier framing overstated it. `trailing.md ` is
+reported as `unsupported-format` rather than `non-portable-path` because
+`_excluded()` runs first; excluded either way.
+
+### Second-round IV corrections (`674bbe98`)
+
+Independent verification of `674bbe98` returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`. It reproduced every remediation on base and
+confirmed it absent at head: the ordering defect (three creation orders, three
+different `inventory_sha256` on base, collapsing to one at head), the collision
+winner independent of dirent order, `0 of 2,766` to the file, the freeze guard
+proven load-bearing by tampering, and all seven prior withdrawals intact. It
+also found a further false claim of mine.
+
+1. **`NO_SILENT_LOSS` is asserted as a universal and is FALSE. Retracted.**
+   The matrix row reads "every skip carries a record or a warning", and the
+   entry above compounds it with "the branch it sat on was itself **the last
+   silent skip**". Both are wrong: `discover()` has seven `continue` branches
+   and **two are still silent**.
+   - `if not regular_file: continue` -- symlinks, FIFOs, devices, directories.
+     Deliberate and covered by `test_symlinks_and_special_files_are_never_sources`,
+     which asserts absence from `sources` but never a diagnostic.
+   - `event_root.is_dir() and path.is_relative_to(event_root)` -- anything
+     under `.atlas-inbox/agent-events/`. **Reproduced:** an ordinary
+     `loose.md` regular file placed directly there is dropped from *both*
+     `sources` and `agent_events`, with no warning and no test coverage.
+     That is real silent loss of a real document, and it is a sharper case
+     than the R3 defect this change set out to fix.
+
+   Corrected claim, scoped to what is actually true: **every skip of a
+   would-be source document now carries a record or a warning, except two
+   deliberate routing exclusions -- non-regular filesystem entries, and paths
+   under the agent-event inbox.** The first is intended. The second is a
+   newly identified evidence gap, is **not** part of R1/R2/R3, and is
+   **not** fixed here: fixing it means either warning on that branch or
+   carving it out explicitly, both of which are scope expansion into
+   `discovery.py` beyond this grant. Raised for a separate owner decision.
+
+2. **The new `skipped unmeasurable path` branch is effectively unreachable
+   and untested -- UNPROVEN as exercised behaviour.** `Path.is_file()` ignores
+   only `ENOENT`, `ENOTDIR`, `EBADF` and `ELOOP` and re-raises the rest, so
+   `EACCES` is caught earlier by the `is_file()` guard and the ignored errnos
+   return `False` into the silent non-regular-file branch. Reaching the
+   `stat()` handler requires `stat()` to succeed inside `is_file()` and fail
+   microseconds later -- a TOCTOU race. It is a strict improvement over a bare
+   `continue`, but no test exercises it and none is claimed to.
+
+3. **Disclosed consequence of the ordering fix.** A vault whose
+   `inventory_sha256` was computed over a case-tied pair *will* see that hash
+   change, because it previously recorded one arbitrary member of the tie.
+   This is unavoidable and is the point of the fix. Verified there is **no**
+   collateral change otherwise: three real trees (2,051 sources, no case ties)
+   produce byte-identical inventory hashes before and after.
+
+4. **Observation, pre-existing, not fixed:** `ingestion.py` is not pinned to a
+   single byte sequence. Two exception entries name it -- `DOGFOOD-001` at
+   `e8d779a8...` and the first grant's at `6911a99d...` -- and
+   `_owner_approved_exception_permits` uses `any()`, so the guard accepts
+   either. Introduced by PR #656, not here; `discovery.py` is correctly held
+   to one pin, replaced in place. Worth an owner decision separately.
+
+---
+
+## R_READY-2 — R4 silent document drop in reserved routing scope
+
+**Date:** 2026-09-05
+**Directive:** R_READY-2 (narrowly scoped owner authorization)
+**Branch:** `feat/linux-filesystem-portability`
+
+### Routing contract, established from repository truth
+
+`docs/agent-event-ingestion-contract.md` (AS-INT-001) is explicit. Each package
+is rooted at `.atlas-inbox/agent-events/<project-id>/<event-id>/` and contains
+`event.md`, `event.json`, `provenance.json`, `receipt.yaml`. Control Plane owns
+the scope; Core consumes it only through `atlas_contracts` and "never infers
+package identity from unvalidated path text".
+
+1. **Valid object types:** two-level package *directories* only.
+2. **Why ordinary `.md` files are excluded:** `discover()` excludes the entire
+   subtree from `sources` so package components (`event.md` especially) are not
+   double-counted as ordinary project documentation, and
+   `_discover_agent_events` accepts only `<project>/<event>/` directories.
+3. **Intentional:** yes -- both exclusions are deliberate and correct.
+4. **Correct class for a loose file:** *neither* a normal source *nor* an agent
+   event. `EventPackageInventory` **requires** `project_id` and `event_id`; a
+   loose file has neither, and synthesizing them would fabricate routed
+   evidence, which the contract forbids. It is an unexpected entry in reserved
+   scope, and the repository-native disposition is therefore an observable
+   deterministic diagnostic -- exactly the owner's preferred behaviour.
+
+### Both silent routing-exclusion branches, classified
+
+| | Branch A -- reserved agent-event scope | Branch B -- `not regular_file` |
+| --- | --- | --- |
+| `BRANCH` | `event_root` guard in `discover()` + the two non-directory `continue`s in `_discover_agent_events` | `if not regular_file: continue` |
+| `INPUT_CLASS` | any file under `.atlas-inbox/agent-events/` that is not a valid package component | symlinks, broken symlinks, FIFOs, devices, directories |
+| `INTENDED_REASON_FOR_EXCLUSION` | reserved Control-Plane routing scope; prevents package components being double-counted as documentation | only regular files are evidence; blocks symlink escape and non-static content |
+| `CAN_REAL_DOCUMENT_REACH` | **YES** -- reproduced with `loose.md` | **NO** (see below) |
+| `CURRENT_OBSERVABILITY` | was: none. now: deterministic WARNING | none |
+| `SILENT_LOSS_POSSIBLE` | **YES -- remediated** | **NO** |
+
+Branch B was reproduced case by case and is **not the same defect class**. A
+symlink to an in-tree file loses nothing -- the document is recorded under its
+real path (`real.md`). A symlink pointing outside the source root is a
+deliberate security boundary, and its target is out of scope by design. A
+broken symlink and a FIFO are not documents at all; a directory is not a
+document. In every case either the document *is* recorded, or no document
+exists. Nothing real disappears, so branch B is **outside this grant** and was
+not modified.
+
+### R4 remediation
+
+`_discover_agent_events` now emits, for a non-directory at either level:
+`unexpected non-package entry in reserved agent-event scope: <path> (only
+<project-id>/<event-id>/ package directories are valid here)`. No source
+identity and no agent event is synthesized. Iteration is already `sorted()`,
+so the diagnostics are deterministic and the inventory is untouched.
+
+`LOOSE_MD_BASE_BEHAVIOR`: absent from `sources`, absent from `agent_events`,
+no warning -- reproduced. `LOOSE_MD_FIXED_BEHAVIOR`: still absent from both
+inventories (correct -- it is neither), now with a deterministic warning naming
+it. Verified at both levels (`agent-events/loose.md` and
+`agent-events/proj-a/stray.md`).
+
+### Hash discipline
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `a4c558771d59c4c2be52f6d1567400e7c53fe567fbf6ad05c315f7365331dba7` |
+| `NEW_PIN` | `7dc3907ff81c65a9106417fa0f480e8518f442f8db21a523185606e306935d0d` |
+| `WHY_REQUIRED` | R4's fix is in `_discover_agent_events`, inside the hash-pinned `discovery.py`; there is no non-frozen location for it |
+
+The pin was **replaced in place**: `discovery.py` still has exactly **one**
+exception entry. `ingestion.py` is byte-identical to
+`6911a99d...` and untouched. `source_identity.py` canonicalization and durable
+source-ID semantics are unchanged for R4; the verified NFC/NFD collision
+behaviour remains authoritative.
+
+`PRE_EXISTING_GOVERNANCE_FINDING`: `ingestion.py` is pinned to two alternative
+hashes (`DOGFOOD-001 @ e8d779a8...` and `OG-ATLAS @ 6911a99d...`) accepted via
+`any()`. From PR #656. **Not** remediated here -- explicitly outside this
+grant, and it did not obstruct R4 verification.
+
+### Claim, scoped to exactly what the matrix proves
+
+**Every real document encountered within discovery scope now produces either a
+manifest record or an observable diagnostic.** Non-regular filesystem entries
+(branch B) remain excluded without a diagnostic, which is correct because no
+real document is lost there. The universal `NO_SILENT_LOSS` remains
+**withdrawn** and is not restored.
+
+`TOCTOU_BRANCH = UNPROVEN`, unchanged. `Path.is_file()` ignores exactly
+`ENOENT`, `ENOTDIR`, `EBADF`, `ELOOP` and re-raises everything else, so
+`EACCES` is caught by the earlier `is_file()` guard and the ignored errnos
+return `False` into branch B. Reaching the `stat()` handler requires `stat()`
+to succeed inside `is_file()` and fail microseconds later. No deterministic
+test exists and none was manufactured by weakening production behaviour.
+
+### R4 second-round IV: my branch-B classification was WRONG (retracted)
+
+Independent verification of `8fd27537` returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`, confirming R4-A on base and fixed at head,
+byte-identical manifests under fixed root and mtimes (the *only* base-vs-head
+difference in the entire discover output being the two added warning lines),
+`0 of 2,766` re-measured, and the freeze guard load-bearing by tampering. It
+also refuted my classification of the second branch and part of my reasoning.
+
+1. **Branch B is the SAME defect class. Classification retracted; remediated.**
+   I claimed "either the document is recorded under its real path, or no
+   document exists". That dichotomy is **false for a symlink whose target
+   resolves outside the source root** -- the real path is then not under
+   `root`, so it is never recorded, and the document plainly exists. Worse, my
+   enumeration omitted **directory symlinks** entirely, dismissing "a
+   directory is not a document" while conflating a real directory with a
+   directory *symlink* whose entire subtree goes un-inventoried: `rglob`
+   yields `mirror_out` but never descends it, and it is neither `regular_file`
+   nor `directory` (both are `and not is_link`), so it fell through the silent
+   `continue` without ever reaching the `_is_listable` scope probe.
+   Reproduced: `handbook.md -> <outside>/handbook.md` and
+   `mirror_out -> <outside>/buriedir` are both readable real documents at
+   paths under the root, recorded nowhere, with no diagnostic. My "reproduced
+   case by case" had not reproduced the one case that mattered, because the
+   repository's only symlink test points at a target that is never created --
+   i.e. a *broken* link.
+
+   Remediated in `_uninventoried_symlink_target`: a symlink is still never
+   followed (escape and duplication both remain refused), but when its target
+   resolves **outside** the root and exists as a real file or directory, the
+   exclusion is now reported --
+   `symlink target outside the source root is not inventoried: <path> -> <physical>`.
+   It stays silent exactly where nothing is lost: an in-root target is already
+   inventoried under its own real path, a broken link has no document behind
+   it, and a FIFO/device/socket is not a document. Verified against all six
+   cases.
+
+2. **My R4 justification was partly wrong.** I wrote that an
+   `EventPackageInventory` for a loose file would require fabricating
+   `project_id`/`event_id` "which the contract forbids". For
+   `agent-events/<project>/stray.md` that is **false**:
+   `inspect_event_package(root, project_dir.name, event_dir.name, ...)`
+   already takes both ids straight from directory names, and emits a durable
+   `status="invalid"` record for a malformed package. Only the *top-level*
+   `agent-events/loose.md` genuinely lacks a project id. The warning remains a
+   defensible disposition -- a loose file is not a package -- but the stated
+   reason was not the true reason, and the stronger native alternative
+   (`status="invalid"`, machine-readable, inside `inventory_sha256`, visible
+   in `quarantine/agent-events/index.json`) was not considered. Recorded as a
+   known alternative, not adopted here: adopting it would widen R4 from
+   "make the exclusion observable" into changing what the manifest asserts.
+
+3. **Test gaps closed.** R4-E now asserts warning *order*, not only manifest
+   order and hash. R4-B now asserts no diagnostic fires for a well-formed
+   package, and carries an explicit scope note: its components are
+   structurally present but not cryptographically valid, so `status` is
+   `pending`; fully-verified packages are covered end to end by
+   `tests/integration/test_agent_event_ingestion.py`, and this change cannot
+   affect envelope validation.
+
+**Corrected claim, again scoped to what is proven:** every real document
+encountered within discovery scope now produces either a manifest record or an
+observable diagnostic -- including documents reachable only through a symlink
+that escapes the source root, and whole subtrees behind an escaping directory
+symlink. The universal `NO_SILENT_LOSS` remains **withdrawn**.
+`TOCTOU_BRANCH = UNPROVEN`, unchanged.
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `7dc3907ff81c65a9106417fa0f480e8518f442f8db21a523185606e306935d0d` |
+| `NEW_PIN` | `62d781b63b5b1f0f59c244bca5b7d1c725dd06206238a281976565f8a6fc9c3e` |
+| `WHY_REQUIRED` | R4-D remediation is in `discover()`'s non-regular-entry branch, inside the hash-pinned `discovery.py` |
+
+Pin replaced in place; `discovery.py` still has exactly one exception entry
+(asserted programmatically). `ingestion.py` untouched and its pre-existing
+two-hash `any()` condition neither broadened nor cleaned up.
+
+**Method for the "2,051 sources" figure** (flagged as unmethodded): three
+in-repo trees discovered with no config excludes --
+`./docs` (1,108), `./tests` (657), `./atlas-vault-documentation` (286) --
+each containing no case-tied names, compared base vs head; all three inventory
+hashes byte-identical.
+
+---
+
+## PIN LEDGER (authoritative; supersedes every pin table above)
+
+Independent verification flagged, twice, that a superseded hash was presented
+as current under a heading that read as authoritative. Rather than append
+another correction, this ledger is the single authoritative record. **Any pin
+table earlier in this file is historical, whatever its heading says.**
+
+| Path | sha256 | Status |
+| --- | --- | --- |
+| `src/project_atlas/discovery.py` | `f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847` | **CURRENT** |
+| `src/project_atlas/ingestion.py` | `6911a99d2c5127a45f29d55888fb2398270749dcfd6c49da3d0626a106d74159` | **CURRENT** (unchanged since the first grant) |
+
+Superseded `discovery.py` pins, newest first:
+`57726941`, `6433b1d6`, `1bfc4d35`, `c973b4a5` (pre-rationale-correction), `62d781b6` (R_READY-2, pre-injection-fix), `7dc3907f` (R_READY-2, pre-R4-D),
+`a4c55877` (R_READY, pre-R4), `d8ee84fc` (R_READY, pre-remediation),
+`e43d97b2` (first grant).
+
+### Log-injection defect introduced by R4-D, found by IV and fixed
+
+`_reportable()` escaped only non-ASCII. Control characters are ASCII, so
+newline, tab and ESC passed through verbatim. That was harmless while the
+helper only ever received in-root relative paths -- an in-root name containing
+a control character is *recorded* as `non-portable-path` and never logged.
+> **SUPERSEDED -- see "Final IV corrections" below.** The sentence above
+> ("an in-root name containing a control character is *recorded* as
+> `non-portable-path` and never logged") is **false**: in-root control-character
+> paths reach a log by several routes. The fix was already correct; only this
+> rationale was wrong.
+
+R4-D changed that by routing a **physical target outside the source root**, a
+path this repository never constrained, into a log line. Demonstrated: a
+symlink to `evil\nWARNING forged line.md` split one warning into two, the
+second reading as a genuine `WARNING` log entry. Now escaped as `\x0a`;
+regression test asserts no diagnostic spans lines. ~~Console format only --
+the JSON log format was never affected.~~ **SUPERSEDED -- see "Final IV
+corrections" below:** `--log-format json` is inoperative, so a
+JSON-requesting deployment was vulnerable at base too.
+
+### Remaining IV findings, accepted and recorded
+
+- **Diagnostic granularity is per-link, not per-document.** An escaping
+  directory symlink over a subtree emits one warning naming the link and its
+  physical target, not one per document behind it. The operator learns a
+  subtree was skipped, not its contents -- which is correct, since those
+  contents were never read and inventing a list would fabricate evidence. The
+  claim is worded accordingly ("produces ... an observable diagnostic"), not
+  as one diagnostic per document.
+- **A symlink to an outside document behind an unsearchable parent** reports
+  the generic `skipped unreadable path ... (Permission denied)` without the
+  physical target. Observable, less specific. Not fixed.
+- **`test_non_escaping_symlinks_stay_quiet` is vacuous against this base**
+  (the base warns nothing at all), so it passes in both states. It guards
+  against future over-warning; it is not evidence for this change, and is not
+  claimed as such.
+- **PRE_EXISTING_GOVERNANCE_FINDING (sharpened).** `DOGFOOD-001` pins
+  `e8d779a8...` for `ingestion.py`, which matches **no current file** -- a
+  dead alternative inside the `any()` that would silently re-authorize
+  reverting `ingestion.py` to that content. From PR #656. Explicitly outside
+  every grant issued here; neither broadened nor cleaned up.
+
+### Final IV corrections (`6e6ad6d6`)
+
+Independent verification returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`: the injection defect reproduced on base and is
+closed at head; 5,177 differential inputs show **zero** over-escaping
+regressions (the only 33 differences are exactly the 33 non-printable ASCII
+codepoints); determinism byte-exact across five creation orders; combined
+hostile tree green through all five stages; every hash and exception count
+matched, both guards proven load-bearing by tampering. Three claims of mine
+needed correcting.
+
+1. **The stated blast radius was too narrow. Corrected.** The docstring
+   claimed "an in-root path with a control character never reaches a log at
+   all: it is recorded as `non-portable-path` instead". **False**, reproduced:
+   `skipped canonical-path collision: docs/ev\x0ail-caf\xe9.md ...` and
+   `skipped source with undecodable filename: docs/ev\x0ail-\udcff-byte.md`.
+   The undecodable branch logs *before* portability is evaluated, and a record
+   excluded as `non-portable-path` is still reported when it later collides
+   canonically. So the forged-line risk was reachable from **in-root content
+   before R4-D existed** -- R4-D only made it obvious by adding an
+   unconstrained external path. The fix was already correct (escaping lives in
+   the shared helper, not at a call site); only the rationale was wrong. A
+   regression test now covers the in-root routes directly.
+
+2. **"Console format only" was misleading. Corrected.** The `JsonFormatter`
+   class is safe, but an operator who asks for it does not get it:
+   `configure_logging()` is idempotent and selects its formatter on first
+   call, and module-level `_log = get_logger("discovery")` triggers it with
+   defaults at import, before the CLI parses `--log-format`. Verified:
+   `atlas --log-format json discover ...` emits `WARNING project_atlas.discovery: ...`,
+   i.e. console output. So a JSON-requesting deployment was vulnerable at base
+   too. **Pre-existing, outside every grant issued here, not fixed** --
+   recorded as a second `PRE_EXISTING_GOVERNANCE_FINDING`.
+
+3. **The central claim is scoped once more.** The accurate form is: **every
+   real document encountered within discovery scope produces either a manifest
+   record, or an observable diagnostic naming it or its enclosing scope.** A
+   real `.md` nested at
+   `.atlas-inbox/agent-events/<project>/<event>/subdir/deep.md` gets no record
+   and no diagnostic naming *it*, but its enclosing package is reported
+   (`status="invalid"`, errors naming `subdir`). That is the same
+   enclosing-scope granularity already disclosed for mode-0000 directories and
+   escaping directory symlinks; the concession had only been written down for
+   symlinks. The universal `NO_SILENT_LOSS` remains **withdrawn**.
+
+Also noted by IV, accepted: `exc.strerror` is the one remaining unescaped
+interpolation (OS-supplied, fixed message table); `ruff format --check` fails
+at HEAD on `adv_release_cert.py`, untouched by this PR and not a CI gate
+(`ci.yml` runs `ruff check` and `mypy` only).
+
+### Delta IV (`ef5420f9`) — carry-over proven, and a new residual
+
+Delta verification returned `PASS_WITH_NONBLOCKING_FINDINGS`,
+`INTRODUCED_FAILURE_COUNT = 0`, and answered the question that mattered:
+**the prior head's verification legitimately carries over.** All 22 compiled
+code objects in `discovery.py` are byte-identical between `6e6ad6d6` and
+`ef5420f9` once docstrings are stripped -- `co_code`, `co_consts`, `co_names`,
+`co_varnames`, `co_freevars`, `co_cellvars`, flags, argcounts, stacksize --
+the sole unstripped difference being the `_reportable` docstring constant,
+with no doctest collection and no `__doc__` introspection of that module.
+Runtime behaviour provably cannot differ.
+
+**R5 (NEW RESIDUAL, not fixed, requires an owner decision).**
+`_discover_agent_events` calls `inbox.iterdir()` and `project_dir.iterdir()`
+with **no `OSError` handling**, so a mode-000 directory anywhere under
+`.atlas-inbox/agent-events/` aborts the entire run:
+
+```
+WARNING ... inaccessible discovery scope, contents not inventoried: .atlas-inbox/agent-events/proj-a
+ERROR project_atlas.cli: discover failed: [Errno 13] Permission denied: .../agent-events/proj-a
+exit=1
+```
+
+The main walk reports it correctly and *then* the event inventory crashes.
+**Pre-existing** -- the unguarded `iterdir()` calls are at
+`origin/main:src/project_atlas/discovery.py:154,157` and reproduce there
+verbatim -- but this is **the same defect class as R2**, which was recorded as
+CLOSED partly on my evidence. R2 is therefore closed only for the main walk,
+not for the agent-event inventory.
+
+**Matrix rows corrected accordingly.** `UNREADABLE_DIRECTORY`,
+`ZERO_PERMISSION_DIRECTORY` and `DISCOVERY_CONTINUES_WHERE_ALLOWED`, and the
+prose "one unreachable entry must never abort the run", are true **for the
+main discovery walk only**. They do not hold for an unreadable directory under
+the reserved agent-event inbox.
+
+> **UPDATED after R5 remediation:** mode-000 under the inbox now holds. What
+> did *not* hold until the later correction was **mode 0444** -- listable but
+> not traversable -- because `is_dir()` itself raises `EACCES` there while
+> only `iterdir()` had been guarded. See "R5 fresh IV returned FAIL" below.
+
+Not remediated here: R_READY-2 authorizes
+discovery.py for the R4 silent-loss class and states "do not use this grant
+for unrelated discovery behavior" -- this is the abort class, and closing it
+is a separate decision.
+
+Two further IV findings, both fixed in this commit: `_reportable`'s docstring
+enumerated 2 of at least 5 in-root routes that carry a control-character path
+into a log (now stated as illustrative, with the reserved-scope,
+inaccessible-scope and unreadable-path routes named); and
+`test_in_root_control_character_paths_cannot_forge_log_lines` asserted only
+over the aggregate `caplog.messages`, so either route alone satisfied every
+assertion -- each route is now pinned separately.
+
+Also corrected: the PR's older results table listed control-plane as 194
+passed; the suite is **242** (242 on `origin/main` too, so stale drift, not a
+regression).
+
+---
+
+## R_READY-5 — R5 agent-event inventory unreadable-scope abort
+
+**Date:** 2026-09-05
+**Directive:** R_READY-5 (narrowly scoped owner authorization)
+**Base head:** `9c146a31` / tree `51006ec4`
+
+### Base reproduction (exact, pre-fix)
+
+| case | pre-fix behaviour | raise site |
+| --- | --- | --- |
+| R5-A unreadable **project dir** (`agent-events/proj-a`, 0000) | main walk warns `inaccessible discovery scope`, then abort `PermissionError [Errno 13]`, exit 1 | `discovery.py:286` -- `project_dir.iterdir()` |
+| R5-B unreadable **inbox root** (`agent-events`, 0000) | same warning, then abort, exit 1 | `discovery.py:270` -- `inbox.iterdir()` |
+| R5-C unreadable **package dir** (`proj-a/evt-1`, 0000) | same warning, then abort, exit 1 | **`atlas_contracts/event_package.py:103`** via `load_event_package` |
+
+R5-C raises *outside* `discovery.py`. This grant authorizes `discovery.py`
+only, so it is closed by guarding the `inspect_event_package(...)` **call
+site**; `atlas_contracts/` is untouched.
+
+### Error classification (not a blanket catch)
+
+Compared against the existing helpers before choosing a set:
+`pathlib` itself ignores exactly `ENOENT`, `ENOTDIR`, `EBADF`, `ELOOP` when
+answering `is_file()`/`is_dir()`. The discovery contract's notion of an
+inaccessible scope adds the two that mean "exists but may not be entered".
+`_INACCESSIBLE_SCOPE_ERRNOS` is therefore
+`{ENOENT, ENOTDIR, EBADF, ELOOP, EACCES, EPERM}`; every other errno --
+`ENOMEM`, `EIO`, `ENFILE` -- re-raises. Proven by R5-F: an injected `EIO`
+propagates out of `discover()` rather than being absorbed.
+
+### One diagnostic per inaccessible scope (no duplicates)
+
+The fix emits **no** new diagnostic. `discover()`'s own walk reaches each of
+these paths first and already emits exactly one
+`inaccessible discovery scope, contents not inventoried: <path>` naming it --
+and does so *before* any exclusion logic runs, so the report survives even
+when the subtree is excluded from `sources`. A second warning would restate
+one fact about one path, which SS5 of the directive rules out. Pinned by
+`test_inaccessible_agent_event_scope_is_reported_exactly_once`, which asserts
+exactly one message names the path.
+
+### Fixed behaviour
+
+| case | fixed |
+| --- | --- |
+| R5-A | exit 0; `proj-a` reported; **`proj-ok/evt-2` still inventoried** |
+| R5-B | exit 0; `agent_events == []`; ordinary sources still inventoried |
+| R5-C | exit 0; no row for the unreadable package (a partially-read package would be fabricated evidence); `proj-ok` still inventoried |
+| R5-D valid package | unchanged routing |
+| R5-E mixed | unreadable reported **and** valid project still processed |
+| R5-F unexpected `EIO` | propagates |
+
+`FABRICATED_EVENT_COUNT = 0`, `FABRICATED_SOURCE_COUNT = 0`. Package identity
+rules, schema and ID inference are untouched.
+
+### Claim boundary
+
+The earlier broad claim is **not** restored. The proven statement is:
+**unreadable scopes handled by the main discovery traversal and by the
+agent-event inventory are observable and non-fatal for the tested
+repository-supported inaccessible-path classes** (`EACCES`/`EPERM` exercised
+directly; `ENOENT`/`ENOTDIR`/`EBADF`/`ELOOP` inherited from the `pathlib`
+contract). It is not a claim that every filesystem error is non-fatal --
+R5-F proves the opposite by construction. `TOCTOU_BRANCH = UNPROVEN` and the
+universal `NO_SILENT_LOSS` both remain withdrawn.
+
+### R4 not regressed
+
+Re-run on one tree: loose document in reserved scope reported; external file
+symlink and external directory symlink both reported and never followed;
+in-root content inventoried under its canonical path; broken symlink, FIFO and
+device link all correctly not sources. Six of six.
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `6433b1d6711c5d66ad68c8b51226fa365f1481ad7312921bce1776542149c273` |
+| `NEW_PIN` | `57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c` |
+| `PIN_ENTRY_COUNT` | **1** for `discovery.py` (replaced in place, asserted programmatically) |
+
+`ingestion.py` byte-identical and its pre-existing two-hash `any()` untouched.
+
+### R5 fresh IV returned **FAIL** — one introduced regression, corrected
+
+Independent verification of `78db0b95` returned **FAIL**. It confirmed E1-E4,
+E7-E9 and the gates -- including that a genuinely `valid` package (built with
+the repository's own fully-verified builder, stronger than my `pending`
+helper) produces a **byte-identical** manifest base vs head under fixed root
+and mtimes -- and confirmed 42/42 error-classification probes, so the guard is
+not catch-everything. It then found two things I had wrong.
+
+1. **I INTRODUCED silent loss. Corrected.** My fix deliberately emitted no
+   diagnostic, resting on the claim that `discover()`'s walk always reports
+   the same path first. **That coupling is unsound.** With `.atlas-inbox` at
+   mode **0111** -- execute-only, an ordinary "traverse but do not list"
+   permission -- `rglob` cannot list it, so the walk reports only
+   `.atlas-inbox` and never reaches the descendants, while
+   `_discover_agent_events` needs only `+x`, traverses straight past, and
+   dropped the unreadable child with **no diagnostic naming it and exit 0**.
+   Base aborted loudly naming the exact path. Reproduced directly. This is
+   precisely the silent-loss class this branch already retracted a universal
+   for, and I created it while fixing an abort.
+
+   The inventory now reports for itself:
+   `agent-event scope not readable, packages not inventoried: <path>`. That
+   also states a materially different fact from the walk's "contents not
+   inventoried" -- event packages, not source documents -- which is the
+   justification SS5 of the directive requires for a second diagnostic. My
+   earlier "one diagnostic per scope" reasoning traded a real safety property
+   for a cosmetic one; the test that encoded it
+   (`..._reported_exactly_once`) asserted the wrong contract and is replaced
+   by one that pins the 0111 case.
+
+2. **The R5 claim was overstated. Corrected.** I guarded `iterdir()` but not
+   `is_dir()`, and `pathlib` swallows only `ENOENT/ENOTDIR/EBADF/ELOOP` -- so
+   `EACCES` still propagated from four sites and **mode 0444 scopes still
+   aborted the run**: inbox parent 0444 and 000, `agent-events` 0444, project
+   dir 0444. Pre-existing (identical on base), but the claim "EACCES/EPERM
+   exercised directly ... observable and non-fatal" read as though it were
+   already covered. All four sites now use `_reachable_is_dir`, and all four
+   configurations exit 0 with the inventory diagnostic. Parametrised
+   regressions added.
+
+Both corrections are load-bearing: reverting only `discovery.py` fails all
+four new tests.
+
+Also fixed from that review: the freeze exception's recorded reason now names
+R5 (the pin had moved to content it did not describe), and the inverted prose
+above is corrected -- mode-000 holds; it was mode-0444 that did not.
+
+| | |
+| --- | --- |
+| `OLD_PIN` | `57726941d5fc4437a20d11996cdd8254e19e2df51a699dde3800598f7168fc8c` |
+| `NEW_PIN` | `f924391f8f1f33cf6a2d69c75b4c44c2c0dc70ab19a468defa5e8bb9d8aab847` |
+| `PIN_ENTRY_COUNT` | **1** for `discovery.py` |
+
+### Repository residual — WORKLOG.md NUL byte (classified, NOT remediated here)
+
+Recorded as a distinct repository-level residual on owner instruction, after
+the hazard recurred a second time during the moving-main merge for #683.
+
+```text
+WORKLOG_NUL_PRESENT           = YES (exactly 1 byte, offset 252585, line 5174)
+NUL_ORIGIN                    = commit 8cde605c (2026-08-09,
+                                "test(AS-ACCEPT-002): add Band B AX-GRF
+                                post-graph regression oracles"),
+                                an ancestor of origin/main
+INTRODUCED_BY_PR683           = NO  (absent from origin/main..HEAD commits)
+INTRODUCED_BY_OTHER_LANE      = NO  (predates AS-OBSIDIAN-CAPTURE-001 by ~4 weeks)
+PRE_EXISTING                  = YES (present at merge-base 31e07770,
+                                at origin/main, and at HEAD -- count 1 in all)
+IMPACT_ON_PR683_CERTIFICATION = NONE on conclusions; REAL on method
+```
+
+Established by binary search over all 405 commits touching `WORKLOG.md`,
+comparing each blob's NUL count -- not by inspection.
+
+**The hazard.** A single NUL makes `grep` classify the whole file as binary
+and emit *nothing* without `-a`. Both recurrences produced a **misleading
+empty result**, not an error: first when searching for withdrawn platform
+claims, then when checking the moving-main merge for conflict markers -- a
+check whose empty output would normally mean "resolved cleanly". Any
+claim-discipline audit of this file by ordinary `grep` yields false negatives,
+which is precisely the verification method this branch's certification depends
+on.
+
+**Certification impact is method-only.** Every conclusion drawn about this
+file was re-derived with binary-safe checks (`/tmp/binsafe_check.py`, reading
+bytes and matching in Python): 0 conflict markers, ledger row hash equals the
+actual `discovery.py` sha256, and the `NO_SILENT_LOSS` withdrawal, `TOCTOU
+UNPROVEN`, branch-B retraction and the preserved main-lane entry all confirmed
+present. No prior conclusion changed. The independent verifiers that audited
+this file used `grep -an` or Python and were unaffected.
+
+**The corruption is fully recoverable, and a fix would be a correction rather
+than an invention.** The line reads
+`**Base (open):** 38b8eac / tree \x0070e951b`; `git rev-parse 38b8eac^{tree}`
+is `070e951b86c7c0db8a98b006dc59b36a49fe3f5e`, so the NUL stands exactly where
+the leading `0` belongs. The one-byte fix is `\x00` -> `0`.
+
+**Deliberately NOT remediated in #683.** The byte sits inside an unrelated work
+package's historical evidence entry. Editing another package's record from a
+Linux-filesystem-portability PR is mutation outside this grant's surface, and
+the owner's instruction is explicit that such a case is recorded rather than
+folded in unilaterally. It is fully specified above and authorizable in one
+line if wanted.
+
+**Interim control:** `#683` certification uses binary-safe checks for this file
+and does not rely on ordinary `grep` output while the NUL remains. Other lanes
+appending to `WORKLOG.md` -- including AS-OBSIDIAN-CAPTURE-001 -- are exposed
+to the same false-negative hazard.
+
+**Precision correction (IV finding).** My earlier "0 conflict markers" checked
+only `<<<<<<<`, `=======` and `>>>>>>>`. `WORKLOG.md` also contains **29
+line-initial `||||||| parent of <sha>` diff3 markers**. They are **pre-existing
+committed residue**: the count is identically 29 at `origin/main`, at the
+merge-base `31e07770` and at HEAD, so the #683 merge introduced none. The
+accurate statement is that the merge left **zero unresolved
+`<<<`/`===`/`>>>` markers**, not that the file is marker-free. The
+binary-safe checker now counts all four forms.
+
+### Further IV observations — pre-existing, recorded not remediated
+
+Two more findings from the `6dcb8bbd` verification, both confirmed
+**identical on base and head** and therefore outside the R5 delta.
+
+1. **The module's stated errno contract is enforced at 4 of 9 `except OSError`
+   sites.** `_INACCESSIBLE_SCOPE_ERRNOS`' docstring says anything outside the
+   set "is a genuine failure and must stay visible". The four event-scope
+   guards enforce that. The main-walk metadata guard, `stat()`, `_sha256`,
+   `_is_listable` and `_uninventoried_symlink_target` remain catch-everything:
+   an injected `EIO` at `is_symlink()`/`stat()` yields exit 0 with
+   `skipped unreadable path: <path> (Input/output error)`. That is **not**
+   silent loss -- every one is named -- but the contract is narrower in
+   practice than the docstring reads. Site counts are 8/3 filtered on base and
+   9/4 on head, the single addition being errno-filtered, so this is
+   pre-existing rather than introduced. Tightening the other five is a
+   behaviour change to the main walk, outside the R5 grant.
+
+2. **Symlinked event scopes are inventoried inconsistently.** With
+   `.atlas-inbox` as an in-root symlink the package appears **both** as an
+   `agent_events` row and as `sources` rows under its real path -- the
+   double-count the exclusion is meant to prevent, because
+   `is_relative_to(event_root)` compares unresolved paths. With `agent-events`
+   itself a symlink, events come back empty and the content is captured as
+   sources instead. Identical on base and head. Recorded as a repository
+   residual; resolving it means changing how the source walk resolves the
+   reserved-scope exclusion, which is outside this grant.
+
+Neither is a regression and neither blocks #683. Both are stated here rather
+than left for a future reader to rediscover.
