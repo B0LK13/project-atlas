@@ -38,21 +38,38 @@ CERTIFIED_COMMANDS = ("connect", "ask2", "kdiff", "brief", "capture")
 #: Documented flags per certified command, with the attribute each must land
 #: on. `dest` is pinned deliberately: renaming it leaves the flag accepted and
 #: silently drops its effect, which no "the option exists" check would catch.
-CERTIFIED_OPTIONS: dict[str, tuple[tuple[str, str], ...]] = {
-    # `brief --project` is repeatable, so its dest is plural. Pinned from the
-    # built parser rather than assumed -- this test caught the assumption.
-    "brief": (("--vault", "vault"), ("--project", "projects")),
-    "ask2": (("--vault", "vault"), ("--project", "project"), ("--question", "question")),
+#: Documented flags per certified command, as
+#: ``(flag, dest, nargs, leaf_type, repeatable)``.
+#:
+#: `dest` alone is not the operator contract. Verification defeated a
+#: `dest`-only pin three separate ways: renaming `dest` (P04), changing `nargs`
+#: so a single value arrives as a one-element list that `_carries` happily
+#: recurses into, and dropping `type=` so a `Path` flag delivers a `str`. Each
+#: leaves the flag accepted, the suite green, and the handler receiving
+#: something it cannot use -- usually as an unhandled `AttributeError`.
+CERTIFIED_OPTIONS: dict[str, tuple[tuple[str, str, object, type, bool], ...]] = {
+    # `brief --project` is repeatable, so its dest is plural and its value is a
+    # list. Pinned from the built parser rather than assumed -- this test
+    # caught the assumption.
+    "brief": (
+        ("--vault", "vault", None, Path, False),
+        ("--project", "projects", None, str, True),
+    ),
+    "ask2": (
+        ("--vault", "vault", None, Path, False),
+        ("--project", "project", None, str, False),
+        ("--question", "question", None, str, False),
+    ),
     # CLAUDE.md documents `[--as-of T | --from T1 --to T2]` as kdiff's
     # time-travel interface, so those are part of the certified surface too.
     "kdiff": (
-        ("--vault", "vault"),
-        ("--project", "project"),
-        ("--as-of", "as_of"),
-        ("--from", "from_ref"),
-        ("--to", "to_ref"),
+        ("--vault", "vault", None, Path, False),
+        ("--project", "project", None, str, False),
+        ("--as-of", "as_of", None, str, False),
+        ("--from", "from_ref", None, str, False),
+        ("--to", "to_ref", None, str, False),
     ),
-    "connect": (("--vault", "vault"),),
+    "connect": (("--vault", "vault", None, Path, False),),
 }
 
 #: Documented POSITIONAL arguments, identified by their index among a command's
@@ -62,18 +79,20 @@ CERTIFIED_OPTIONS: dict[str, tuple[tuple[str, str], ...]] = {
 #: `nargs` is pinned beside `dest`, because `_carries` recurses into lists:
 #: `nargs="*"` turns a single value into a one-element list and satisfies a
 #: `dest`-only pin while the handler receives a `list` where it expects a path.
-CERTIFIED_POSITIONALS: dict[str, tuple[tuple[int, str, object], ...]] = {
-    "connect": ((0, "source", "?"),),
+CERTIFIED_POSITIONALS: dict[str, tuple[tuple[int, str, object, type], ...]] = {
+    "connect": ((0, "source", "?", Path),),
 }
 
 #: Certified subcommands, whose whole operator interface lives one level down.
-CERTIFIED_SUBCOMMAND_OPTIONS: dict[tuple[str, str], tuple[tuple[str, str], ...]] = {
+CERTIFIED_SUBCOMMAND_OPTIONS: dict[
+    tuple[str, str], tuple[tuple[str, str, object, type, bool], ...]
+] = {
     ("capture", "record"): (
-        ("--vault", "vault"),
-        ("--project", "project"),
-        ("--summary", "summary"),
+        ("--vault", "vault", None, Path, False),
+        ("--project", "project", None, str, False),
+        ("--summary", "summary", None, str, False),
     ),
-    ("capture", "list"): (("--vault", "vault"),),
+    ("capture", "list"): (("--vault", "vault", None, Path, False),),
 }
 
 
@@ -154,7 +173,7 @@ def test_certified_command_keeps_its_documented_options(
 ) -> None:
     """Flag *and* `dest`: a renamed dest accepts the flag and drops its effect."""
     options = _options(_commands(built)[command])
-    for flag, dest in CERTIFIED_OPTIONS[command]:
+    for flag, dest, *_shape in CERTIFIED_OPTIONS[command]:
         assert flag in options, f"{command} no longer accepts {flag}"
         assert options[flag] == dest, (
             f"{command} {flag} now lands on {options[flag]!r}, not {dest!r}; "
@@ -171,7 +190,7 @@ def test_certified_subcommand_keeps_its_documented_options(
     children = _commands(parent)
     assert subcommand in children, f"{command} no longer exposes {subcommand!r}"
     options = _options(children[subcommand])
-    for flag, dest in CERTIFIED_SUBCOMMAND_OPTIONS[pair]:
+    for flag, dest, *_shape in CERTIFIED_SUBCOMMAND_OPTIONS[pair]:
         assert flag in options, f"{command} {subcommand} no longer accepts {flag}"
         assert options[flag] == dest
 
@@ -243,7 +262,7 @@ def test_main_offers_each_documented_option(command: str) -> None:
     """The documented flags reach the operator, via `main`'s own parser."""
     code, help_text = _main_help([command, "--help"])
     assert code == 0
-    for flag, _dest in CERTIFIED_OPTIONS[command]:
+    for flag, *_rest in CERTIFIED_OPTIONS[command]:
         assert flag in help_text, f"`atlas {command} --help` does not offer {flag}"
 
 
@@ -347,14 +366,65 @@ def _sentinel_alt(name: str) -> str:
     One marker can only ever catch the transforms it is not a fixed point of.
     Verification found three that the first marker survives unchanged:
     `lstrip("/")`, truncation to its own length, and stripping spaces. This one
-    is absolute, contains a space, and is long, so each of those changes it.
-    Two markers of different shape is not a proof of completeness -- it is a
-    much smaller target than one.
+    is absolute, long, and carries a space, a dot and an underscore, so each of
+    those changes it -- and so do `replace(".", "")` and `replace("_", "")`,
+    which a later round found were identities on both earlier markers.
+    Two markers of different shape is not a proof of completeness -- truncation
+    to the longest marker's length is invariant against any fixed set of them.
+    It is a much smaller target than one.
     """
-    return "/Oracle " + name.lstrip("-").replace("-", "_") + "/deep/nested-7x"
+    return "/Oracle " + name.lstrip("-").replace("-", "_") + ".d/deep_nested-7x"
 
 
 MARKERS = (_sentinel, _sentinel_alt)
+
+
+def _leaves(value: object) -> list[object]:
+    """Flatten one level of list/tuple, which is all argparse ever produces."""
+    if isinstance(value, (list, tuple)):
+        return [leaf for item in value for leaf in _leaves(item)]
+    return [value]
+
+
+def _assert_value_shape(
+    label: str, name: str, value: object, leaf_type: type, repeatable: bool
+) -> None:
+    """The half of the shape contract that needs no parser, so it holds at the
+    dispatch boundary too, where only the namespace is in hand."""
+    assert isinstance(value, list) is repeatable, (
+        f"`{label}` {name} is {'no longer' if repeatable else 'now'} "
+        f"repeatable; the handler receives {type(value).__name__}"
+    )
+    for leaf in _leaves(value):
+        assert isinstance(leaf, leaf_type), (
+            f"`{label}` {name} delivered {type(leaf).__name__} where "
+            f"{leaf_type.__name__} is documented; the flag is accepted and the "
+            "handler receives a value it cannot use"
+        )
+
+
+def _assert_shape(
+    label: str,
+    name: str,
+    action: argparse.Action,
+    value: object,
+    nargs: object,
+    leaf_type: type,
+    repeatable: bool,
+) -> None:
+    """`dest` says where the value lands; this says what lands there.
+
+    Three shape mutations each leave `dest` correct and the flag accepted:
+    `nargs` turning one value into a list, `type=` removed so a `Path` slot
+    receives a `str`, and a repeatable flag becoming single-valued. All three
+    reach the handler as an unhandled `AttributeError` on a documented
+    invocation.
+    """
+    assert action.nargs == nargs, (
+        f"`{label}` {name} now takes nargs={action.nargs!r}, not {nargs!r}; "
+        "the handler receives a different shape"
+    )
+    _assert_value_shape(label, name, value, leaf_type, repeatable)
 
 
 def _carries(value: object, sentinel: str) -> bool:
@@ -433,14 +503,14 @@ def _descend(
 def _argv_for(
     path: tuple[str, ...],
     options: tuple[tuple[str, str], ...],
-    positionals: tuple[tuple[int, str, object], ...] = (),
+    positionals: tuple[tuple[int, str, object, type], ...] = (),
     marker: Callable[[str], str] = _sentinel,
 ) -> list[str]:
     """A documented invocation carrying a distinct marker on every certified slot."""
     argv = list(path)
-    for flag, _dest in options:
+    for flag, *_rest in options:
         argv += [flag, marker(flag)]
-    argv += [marker(name) for _index, name, _nargs in positionals]
+    argv += [marker(name) for _index, name, _nargs, _leaf in positionals]
     return argv
 
 
@@ -448,14 +518,14 @@ def _assert_positionals(
     parser: argparse.ArgumentParser,
     namespace: argparse.Namespace,
     path: tuple[str, ...],
-    positionals: tuple[tuple[int, str, object], ...],
+    positionals: tuple[tuple[int, str, object, type], ...],
     marker: Callable[[str], str] = _sentinel,
 ) -> None:
     """Positionals carry no option strings, so an `option -> dest` map is blind
     to them. They are pinned by index instead."""
     label = "atlas " + " ".join(path)
     found = _positional_actions(_descend(parser, path))
-    for index, dest, nargs in positionals:
+    for index, dest, nargs, leaf_type in positionals:
         assert len(found) > index, (
             f"`{label}` no longer takes a positional at index {index}; "
             f"documented as {dest!r}"
@@ -465,11 +535,11 @@ def _assert_positionals(
             f"`{label}` positional {index} lands on {action.dest!r}, not "
             f"{dest!r}; the argument is accepted and silently ignored"
         )
-        assert action.nargs == nargs, (
-            f"`{label}` positional {dest!r} now takes nargs={action.nargs!r}, "
-            f"not {nargs!r}; the handler receives a different shape"
-        )
         assert hasattr(namespace, dest), f"`{label}` parsed without producing {dest!r}"
+        _assert_shape(
+            label, f"positional {dest!r}", action, getattr(namespace, dest),
+            nargs, leaf_type, False,
+        )
         assert _carries(getattr(namespace, dest), marker(dest)), (
             f"`{label}` positional {dest!r} did not receive its value "
             f"(found {getattr(namespace, dest)!r})"
@@ -480,7 +550,7 @@ def _assert_certified_dests(
     entry: Callable[[list[str]], object],
     path: tuple[str, ...],
     options: tuple[tuple[str, str], ...],
-    positionals: tuple[tuple[int, str, object], ...] = (),
+    positionals: tuple[tuple[int, str, object, type], ...] = (),
     marker: Callable[[str], str] = _sentinel,
 ) -> None:
     """The certified surface, checked on the parser argparse was handed.
@@ -504,8 +574,9 @@ def _assert_certified_dests(
             f"the namespace records no route to subcommand {path[1]!r}"
         )
 
-    exposed = _options(_descend(parser, path))
-    for flag, dest in options:
+    target = _descend(parser, path)
+    exposed = _options(target)
+    for flag, dest, nargs, leaf_type, repeatable in options:
         label = "atlas " + " ".join(path)
         assert flag in exposed, f"`{label}` no longer accepts {flag}"
         assert exposed[flag] == dest, (
@@ -519,6 +590,15 @@ def _assert_certified_dests(
         assert _carries(getattr(namespace, dest), marker(flag)), (
             f"`{label}` {flag}={marker(flag)!r} did not land on {dest!r} "
             f"(found {getattr(namespace, dest)!r})"
+        )
+        _assert_shape(
+            label,
+            flag,
+            _action_for(parser, path, flag),
+            getattr(namespace, dest),
+            nargs,
+            leaf_type,
+            repeatable,
         )
     _assert_positionals(parser, namespace, path, positionals, marker)
 
@@ -632,7 +712,7 @@ def _p04e(argv: list[str]) -> object:
     subparsers = decoy.add_subparsers(dest="command")
     for command in CERTIFIED_COMMANDS:
         child = subparsers.add_parser(command)
-        for flag, _dest in CERTIFIED_OPTIONS.get(command, ()):
+        for flag, *_rest in CERTIFIED_OPTIONS.get(command, ()):
             child.add_argument(flag, dest="swallowed")
     return decoy.parse_args(argv)
 
@@ -791,7 +871,7 @@ def _assert_dispatch_dests(
     entry: Callable[[list[str]], object],
     path: tuple[str, ...],
     options: tuple[tuple[str, str], ...],
-    positionals: tuple[tuple[int, str, object], ...] = (),
+    positionals: tuple[tuple[int, str, object, type], ...] = (),
     marker: Callable[[str], str] = _sentinel,
 ) -> None:
     """Check certified marker values on the captured, processed namespace."""
@@ -802,7 +882,7 @@ def _assert_dispatch_dests(
     assert getattr(namespace, "command", None) == path[0], (
         f"`{label}` dispatches as {getattr(namespace, 'command', None)!r}"
     )
-    for flag, dest in options:
+    for flag, dest, _nargs, leaf_type, repeatable in options:
         assert hasattr(namespace, dest), (
             f"`{label}` reaches dispatch without {dest!r}; {flag} was accepted "
             "and its value is gone by the time the command runs"
@@ -812,8 +892,14 @@ def _assert_dispatch_dests(
             f"dispatch (found {getattr(namespace, dest)!r}); it was altered "
             "after parsing"
         )
-    for _index, dest, _nargs in positionals:
+        _assert_value_shape(
+            label, flag, getattr(namespace, dest), leaf_type, repeatable
+        )
+    for _index, dest, _nargs, leaf_type in positionals:
         assert hasattr(namespace, dest), f"`{label}` reaches dispatch without {dest!r}"
+        _assert_value_shape(
+            label, f"positional {dest!r}", getattr(namespace, dest), leaf_type, False
+        )
         assert _carries(getattr(namespace, dest), marker(dest)), (
             f"`{label}` positional {dest!r} is not intact at dispatch "
             f"(found {getattr(namespace, dest)!r})"
