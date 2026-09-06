@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -1662,3 +1663,33 @@ def test_nested_distinct_document_is_stable_after_the_first_merge() -> None:
 
     assert second == first, "merge is not idempotent for nested distinct names"
     assert third == second
+
+
+def test_duplicate_detection_stays_linear_in_region_count() -> None:
+    """The ambiguity check runs on every merge, so it must not go superlinear.
+
+    An earlier structural version compared every span against every other:
+    O(n^2) typical, O(n^3) worst case. Independent verification measured 400
+    same-name regions in a 22 KB note at 7.2 seconds. Containment is resolved
+    with a stack over spans in document order instead, so each span is pushed
+    and popped once.
+
+    The bound is deliberately loose -- this is a guard against an algorithmic
+    class, not a benchmark. The quadratic version needed minutes at this size;
+    the linear one needs milliseconds, so ordinary CI noise cannot decide it.
+    """
+    regions = 2000
+    document = (
+        f"{GENERATED_START}\ngenerated\n{GENERATED_END}\n"
+        + "<!-- BEGIN HUMAN: dup -->\nx\n<!-- END HUMAN: dup -->\n" * regions
+    )
+
+    started = time.perf_counter()
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        merge_protected_regions(existing=document, rendered=document, path="big.md")
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 5.0, (
+        f"duplicate detection took {elapsed:.1f}s for {regions} regions; "
+        "the quadratic implementation needed minutes at this size"
+    )

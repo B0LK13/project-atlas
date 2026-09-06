@@ -90,29 +90,25 @@ def _ambiguous_region_names(text: str) -> list[str]:
     succeeded and the second failed. Whether that nesting behaviour is right
     is the open F2 question, and refusing it here would answer it by
     side effect.
+
+    Containment is resolved with a stack over spans already in document
+    order, so each span is pushed and popped once: linear in the number of
+    regions, like the plain count it replaces. Comparing every span against
+    every other would be quadratic, and this runs on every merge.
     """
-    spans = _human_region_spans(text)
     ambiguous: set[str] = set()
-    for index, (name, start, end) in enumerate(spans):
-        container_names = [
-            other_name
-            for other_index, (other_name, other_start, other_end) in enumerate(spans)
-            if other_index != index and other_start < start and end <= other_end
-        ]
-        if name in container_names:
+    top_level_seen: set[str] = set()
+    open_spans: list[tuple[str, int, int]] = []
+    for name, start, end in _human_region_spans(text):
+        while open_spans and open_spans[-1][2] <= start:
+            open_spans.pop()
+        if any(ancestor == name for ancestor, _, _ in open_spans):
             ambiguous.add(name)  # a region nested inside one of its own name
-        if container_names:
-            continue  # nested under a differently-named region: not a sibling
-        for other_index, (other_name, other_start, other_end) in enumerate(spans):
-            if other_index == index or other_name != name:
-                continue
-            nested = any(
-                third_start < other_start and other_end <= third_end
-                for third_index, (_, third_start, third_end) in enumerate(spans)
-                if third_index != other_index
-            )
-            if not nested:
+        elif not open_spans:
+            if name in top_level_seen:
                 ambiguous.add(name)  # two blocks of this name at the top level
+            top_level_seen.add(name)
+        open_spans.append((name, start, end))
     return sorted(ambiguous)
 
 
