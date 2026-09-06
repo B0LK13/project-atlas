@@ -12969,3 +12969,20 @@ and belongs to the separately-tracked nesting question.
 
 Three regression cases cover the fail-open and were each confirmed to fail
 against `89e0ac38` and pass here.
+
+## FRESH-AGENT-V2 backlog honesty (2026-09-06, current-main successor to #655)
+
+- Docs-only truth-sync against live `main` `4fb91beb`.
+- `AS-CODER-ALPHA-FRESH-AGENT-CHALLENGE-V2` was still unchecked even though
+  `src/project_atlas/fresh_agent_challenge.py` is a real ancestor of
+  `origin/main` (`91c53b7f` confirmed via `git merge-base --is-ancestor`).
+- Re-ran `tests/unit/test_as_coder_alpha_fresh_agent_challenge_v2.py` on
+  that tree: 16/16 pass. `HARNESS != AUTHENTIC_PILOT`.
+  `MERGE_AUTHORIZATION = NOT_GRANTED` remains a standing honesty stamp.
+- Reconstructed fresh (not cherry-picked) as a current-main successor to
+  the still-open, stale, `mergeable=CONFLICTING` PR #655 (`app/cursor`,
+  base `e1bcca47`) -- same contract, same conclusion, independently
+  reproduced on the current tree rather than reusing its stale patch or
+  certification.
+- Isolated from #654 (D-PHASE2A-2) and #700/#703. Do not mix carriers.
+- PRODUCTION_FILES_CHANGED = 0. MERGE_AUTHORIZATION = NOT_GRANTED.
