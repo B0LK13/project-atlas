@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from atlas_contracts import event_package
 from atlas_contracts.event_package import (
     EVENT_PACKAGE_FILES,
     PackageValidationError,
@@ -57,12 +58,19 @@ def test_component_symlinked_outside_the_root_is_refused(
 
 
 def test_the_refusal_happens_before_any_outside_bytes_are_hashed(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The hash is the evidence identity, so it must never be the outside file's.
+    """Refused *before* reading, not merely refused.
 
-    Before the fix this assertion was the defect: `hashes["event.md"]` equalled
-    the sha256 of a file the source root does not contain.
+    The hash is the package's evidence identity, so the outside file's bytes
+    must never be read to produce one. Asserting on the returned hashes cannot
+    establish this: the call raises, so there is nothing to inspect, and an
+    assertion placed after it inside `pytest.raises` never executes at all --
+    which is what this test did when it was written, as independent
+    verification found.
+
+    So the ordering is observed directly, at the only place it is decidable:
+    whether the hashing function was ever called for the symlinked component.
     """
     root = tmp_path / "source"
     package = _package(root)
@@ -72,9 +80,25 @@ def test_the_refusal_happens_before_any_outside_bytes_are_hashed(
     (package / "event.md").symlink_to(outside)
     outside_digest = hashlib.sha256(outside.read_bytes()).hexdigest()
 
+    hashed: list[Path] = []
+    real_sha256 = event_package._sha256
+
+    def _spy(path: Path) -> str:
+        hashed.append(Path(path))
+        return real_sha256(path)
+
+    monkeypatch.setattr(event_package, "_sha256", _spy)
+
     with pytest.raises(PackageValidationError):
-        _, hashes = _raw_inventory(root, PACKAGE_PATH)
-        assert hashes["event.md"] != outside_digest, "outside content was hashed as evidence"
+        _raw_inventory(root, PACKAGE_PATH)
+
+    assert package / "event.md" not in hashed, (
+        "the symlinked component was hashed before the refusal; the outside "
+        "file's bytes were read to produce evidence identity"
+    )
+    assert outside_digest not in [real_sha256(path) for path in hashed], (
+        "a recorded hash equals the outside file's digest"
+    )
 
 
 def test_a_component_symlinked_inside_the_root_is_also_refused(
