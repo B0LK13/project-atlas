@@ -25,7 +25,6 @@ module carries no dependency on either caller's error vocabulary.
 from __future__ import annotations
 
 import re
-from collections import Counter
 
 GENERATED_START = "<!-- atlas:generated:start -->"
 GENERATED_END = "<!-- atlas:generated:end -->"
@@ -50,14 +49,80 @@ def validate_protected_markers(text: str, *, path: str) -> None:
         raise ProtectedRegionError(f"malformed-generated-markers:{path}")
 
 
-def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
-    """Fail closed when two HUMAN regions in one document share a name.
+def _human_region_spans(text: str) -> list[tuple[str, int, int]]:
+    """``(name, start, end)`` for every HUMAN block, in document order.
 
-    A region's name is its identity. The fresh render has one slot per name,
-    so two blocks answering to the same name give no way to say which slot
-    owns which block. :func:`extract_human_regions` keys blocks by name, so
-    before this check the later block silently overwrote the earlier one and a
-    re-render dropped human-authored content with no error and no diagnostic.
+    Span end is the first ``END HUMAN: <name>`` after the begin, which is the
+    same rule :func:`extract_human_regions` uses -- the two must agree or the
+    ambiguity verdict would be about a different document than the merge.
+    """
+    spans: list[tuple[str, int, int]] = []
+    for match in _HUMAN_BEGIN.finditer(text):
+        name = match.group(1)
+        end_match = re.search(
+            rf"<!--\s*END HUMAN:\s*{re.escape(name)}\s*-->",
+            text[match.end() :],
+        )
+        if end_match is None:
+            raise ProtectedRegionError(f"malformed-protected-markers:missing-end:{name}")
+        spans.append((name, match.start(), match.end() + end_match.end()))
+    return spans
+
+
+def _ambiguous_region_names(text: str) -> list[str]:
+    """Names whose identity is genuinely ambiguous in ``text``.
+
+    Two situations, and only these two:
+
+    * **the same name appears twice at the same level** -- siblings, however
+      far apart, empty or not, identical content or not. The fresh render has
+      one slot per name and there is no way to say which block owns it.
+    * **a region contains another region of its own name.** The inner block's
+      identity is indistinguishable from its container's.
+
+    Deliberately *not* ambiguous: a name that appears once at the top level
+    and once inside a region with a **different** name. That is the shape a
+    nested distinct-name document takes after one merge -- the merge appends
+    the inner block alongside the outer block that already contains it -- and
+    it is an artifact of the existing nesting behaviour, not an F1 identity
+    conflict. Counting raw name occurrences cannot tell the two apart, so it
+    refused a document the merge itself had just produced: the first render
+    succeeded and the second failed. Whether that nesting behaviour is right
+    is the open F2 question, and refusing it here would answer it by
+    side effect.
+    """
+    spans = _human_region_spans(text)
+    ambiguous: set[str] = set()
+    for index, (name, start, end) in enumerate(spans):
+        container_names = [
+            other_name
+            for other_index, (other_name, other_start, other_end) in enumerate(spans)
+            if other_index != index and other_start < start and end <= other_end
+        ]
+        if name in container_names:
+            ambiguous.add(name)  # a region nested inside one of its own name
+        if container_names:
+            continue  # nested under a differently-named region: not a sibling
+        for other_index, (other_name, other_start, other_end) in enumerate(spans):
+            if other_index == index or other_name != name:
+                continue
+            nested = any(
+                third_start < other_start and other_end <= third_end
+                for third_index, (_, third_start, third_end) in enumerate(spans)
+                if third_index != other_index
+            )
+            if not nested:
+                ambiguous.add(name)  # two blocks of this name at the top level
+    return sorted(ambiguous)
+
+
+def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
+    """Fail closed when HUMAN region identity is ambiguous.
+
+    A region's name is its identity. :func:`extract_human_regions` keys blocks
+    by name, so before this check a second block of the same name silently
+    overwrote the first and a re-render dropped human-authored content with no
+    error and no diagnostic.
 
     Owner policy is to refuse rather than choose: no first-wins, no last-wins,
     no concatenation, no reordering. Content equality does not disambiguate --
@@ -66,17 +131,13 @@ def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
     identity contract the merge itself uses, so ``Notes`` and ``notes`` are two
     different regions rather than a duplicate.
 
-    **Scope: this is applied to the merge's *inputs* only, never to its
-    output.** Nested regions with *distinct* names legitimately produce a
-    merged document carrying the inner block twice; whether that nesting
-    behaviour is correct is a separate open question, and running this check
-    over the merged text would answer it by refusing every nested document.
-    Nested *same-name* regions are still refused here, because their identity
-    is ambiguous for exactly the reason above -- that is an F1 ambiguity
-    verdict, not a general ruling on nesting.
+    What counts as ambiguous is decided structurally by
+    :func:`_ambiguous_region_names`, which is what keeps this an F1 identity
+    verdict rather than a ruling on nesting: nested *same-name* regions are
+    refused, nested *distinct-name* documents keep the behaviour they had
+    before F1 existed, at every generation rather than only the first.
     """
-    counts = Counter(_HUMAN_BEGIN.findall(text))
-    duplicates = sorted(name for name, seen in counts.items() if seen > 1)
+    duplicates = _ambiguous_region_names(text)
     if duplicates:
         raise ProtectedRegionError(
             f"duplicate-protected-region-names:{','.join(duplicates)}:{path}"
@@ -84,6 +145,22 @@ def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
 
 
 def extract_human_regions(text: str) -> dict[str, str]:
+    """Named HUMAN blocks, keyed by name.
+
+    Refuses ambiguous identity for the same reason the merge does: this
+    function is exported and callable on its own, and silently dropping a
+    block is exactly the human-data loss this module exists to prevent.
+
+    A name that also appears nested inside a differently-named region is not
+    ambiguous, and the later occurrence wins, which is the behaviour that
+    predates F1. Changing it would alter what a nested distinct-name document
+    renders to, which is an F2 decision this must not make.
+    """
+    duplicates = _ambiguous_region_names(text)
+    if duplicates:
+        raise ProtectedRegionError(
+            f"duplicate-protected-region-names:{','.join(duplicates)}:extract"
+        )
     regions: dict[str, str] = {}
     for match in _HUMAN_BEGIN.finditer(text):
         name = match.group(1)
@@ -93,15 +170,6 @@ def extract_human_regions(text: str) -> dict[str, str]:
         )
         if end_match is None:
             raise ProtectedRegionError(f"malformed-protected-markers:missing-end:{name}")
-        if name in regions:
-            # Unreachable through merge_protected_regions, which runs
-            # reject_ambiguous_region_identity over its inputs first. Kept
-            # because this function is exported and callable on its own, and
-            # silently dropping a block here is exactly the human-data loss
-            # this module exists to prevent.
-            raise ProtectedRegionError(
-                f"duplicate-protected-region-names:{name}:extract"
-            )
         regions[name] = text[match.start() : match.end() + end_match.end()]
     return regions
 

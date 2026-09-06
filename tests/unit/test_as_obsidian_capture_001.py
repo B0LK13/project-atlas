@@ -1597,3 +1597,68 @@ def test_ai_enrichment_true_is_rejected_rather_than_silently_ignored() -> None:
     AtlasConfig.model_validate({"capture": {"processing": {"ai_enrichment": False}}})
     with pytest.raises(ValidationError, match="not implemented"):
         AtlasConfig.model_validate({"capture": {"processing": {"ai_enrichment": True}}})
+
+
+def test_nested_distinct_names_survive_repeated_renders_like_pre_f1() -> None:
+    """R0..R3: the scope leak. A single first render is not enough to see it.
+
+    Nested distinct-name regions merge cleanly the first time, and the merge
+    itself emits the inner block a second time alongside the outer block that
+    already contains it. That merged document is the *next* render's input, so
+    a duplicate-name check counting raw occurrences refused, at R2, a document
+    the merge had just produced. Pre-F1 the same sequence rendered
+    indefinitely.
+
+    Independently reproduced against sealed main before the fix: R1 identical
+    on both trees, R2 refused on the candidate and fine on main. F1 must not
+    change nested distinct-name behaviour at any generation -- that is F2's
+    question, and refusing here would answer it by side effect.
+    """
+    human = (
+        "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
+    ).format
+    document = (
+        f"{GENERATED_START}\ngenerated v0\n{GENERATED_END}\n"
+        + human(name="outer", body="outer text\n" + human(name="inner", body="INNER"))
+        + "\n"
+    )
+
+    for generation in range(1, 4):
+        document = merge_protected_regions(
+            existing=document,
+            rendered=f"{GENERATED_START}\ngenerated v{generation}\n{GENERATED_END}\n",
+            path="nested.md",
+        )
+        # Human payload is never lost, at any generation.
+        assert "INNER" in document, f"inner content lost at R{generation}"
+        assert "outer text" in document, f"outer content lost at R{generation}"
+        # The pre-F1 shape: the inner block appears twice and stays stable.
+        assert document.count("<!-- BEGIN HUMAN: outer -->") == 1
+        assert document.count("<!-- BEGIN HUMAN: inner -->") == 2, (
+            f"nested-distinct shape changed at R{generation}"
+        )
+
+
+def test_nested_distinct_document_is_stable_after_the_first_merge() -> None:
+    """The merged document is a fixed point once the generated body settles.
+
+    Guards the other direction: the fix must not make each render accumulate
+    another copy of the inner block, which would be silent growth rather than
+    a refusal.
+    """
+    human = (
+        "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
+    ).format
+    rendered = f"{GENERATED_START}\nstable\n{GENERATED_END}\n"
+    document = (
+        rendered
+        + human(name="outer", body="o\n" + human(name="inner", body="I"))
+        + "\n"
+    )
+
+    first = merge_protected_regions(existing=document, rendered=rendered, path="n.md")
+    second = merge_protected_regions(existing=first, rendered=rendered, path="n.md")
+    third = merge_protected_regions(existing=second, rendered=rendered, path="n.md")
+
+    assert second == first, "merge is not idempotent for nested distinct names"
+    assert third == second
