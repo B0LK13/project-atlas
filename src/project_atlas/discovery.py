@@ -279,8 +279,12 @@ def _symlinked_scope_target(path: Path) -> str | None:
     one is inventoried under its real path as ordinary sources -- and if the
     inventory followed the same link it would count the package a second
     time, or (a link to outside the root) inventory content the walk refused.
-    Decided with `lstat`, never by resolving: the loader's own refusal of a
-    symlinked package inspects an already-resolved path and so never fires.
+
+    Detection is by `lstat` (`is_symlink`), which is what makes the answer
+    about the entry itself rather than about whatever it points at -- the
+    loader's own refusal of a symlinked package inspects an already-resolved
+    path and so never fires. `realpath` is used only afterwards, to name the
+    physical target in the diagnostic; the decision never depends on it.
     """
     try:
         if not path.is_symlink():
@@ -359,21 +363,17 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
     """Inventory Control Plane packages without importing its implementation.
 
     A symbolic link anywhere on the chain from the root to a package directory
-    is never followed (see `_symlinked_scope_target`; the one probe that runs
-    before it, `_reachable_is_dir(inbox)`, only asks whether a scope exists
-    at all, so a dangling link or a link to a file is simply "no scope", as
-    it was before). The scope or project
+    is never followed (see `_symlinked_scope_target`). The scope or project
     behind one is refused with a diagnostic naming the alias and its physical
     target; a linked event directory is recorded as an `invalid` row, so the
     refusal reaches the manifest and ingestion quarantines it without loading.
+
+    The chain is tested before any probe that would follow it. Asking
+    `is_dir()` first would stat *through* an escaping link before the refusal
+    ran, and would answer False for a dangling or file-targeted scope link --
+    dropping it as "no scope at all", with no diagnostic naming the alias.
     """
     inbox = root / ".atlas-inbox" / "agent-events"
-    inbox_is_dir = _reachable_is_dir(inbox)
-    if inbox_is_dir is None:
-        _report_unreadable_event_scope(inbox, root)
-        return []
-    if not inbox_is_dir:
-        return []
     for scope in (inbox.parent, inbox):
         target = _symlinked_scope_target(scope)
         if target is not None:
@@ -383,6 +383,12 @@ def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
                 _reportable(target),
             )
             return []
+    inbox_is_dir = _reachable_is_dir(inbox)
+    if inbox_is_dir is None:
+        _report_unreadable_event_scope(inbox, root)
+        return []
+    if not inbox_is_dir:
+        return []
     inventories: list[EventPackageInventory] = []
     try:
         project_dirs = sorted(inbox.iterdir(), key=lambda path: path.name.lower())

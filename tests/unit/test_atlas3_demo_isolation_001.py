@@ -89,11 +89,15 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
             "on physical identity, reported, and a linked event directory is "
             "recorded as an invalid row), plus the IV remediation (ENAMETOOLONG "
             "joins the inaccessible-scope set: a tree grown past PATH_MAX is "
-            "one unaddressable path, not a fault)"
+            "one unaddressable path, not a fault) and the review remediation "
+            "(the event-scope chain is tested before any probe that would "
+            "follow it, so an escaping link is refused without a metadata "
+            "probe through it and a dangling or file-targeted scope link is "
+            "named rather than dropped as 'no scope')"
         ),
         "path": "src/project_atlas/discovery.py",
         "allowed_sha256": (
-            "11d5918d8569d915f5851bd001629b532cdda308acb64453170147bd1562ff0a"
+            "471a56af7fcb45220f7c18b5b96efeb32acf7460489c2e9e7525eeec0a429f35"
         ),
     },
     {

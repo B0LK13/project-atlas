@@ -34,6 +34,7 @@ from pathlib import Path
 
 import pytest
 
+import project_atlas.discovery as discovery_module
 from project_atlas.discovery import discover
 
 pytestmark = pytest.mark.skipif(
@@ -217,6 +218,75 @@ def test_scope_escaping_the_root_is_refused_and_reported(
     assert physical.resolve().as_posix() in refusals[0]
     # The walk's own escape diagnostic (R4-D) is independent and still fires.
     assert any("outside the source root" in m and alias in m for m in caplog.messages)
+
+
+@pytest.mark.parametrize("shape", ["dangling", "file-target"])
+@pytest.mark.parametrize("level", ["inbox", "scope"])
+def test_unusable_scope_link_is_reported_not_silently_dropped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, shape: str, level: str
+) -> None:
+    """A link at the reserved scope is named even when it leads nowhere usable.
+
+    Asking `is_dir()` first answers False for a dangling or file-targeted
+    link, so the scope was dropped as "no scope at all" with no diagnostic --
+    the alias existed and went unmentioned. Testing the chain first is what
+    makes it observable.
+    """
+    root = _root(tmp_path)
+    if shape == "file-target":
+        target = root / "not-a-directory.md"
+        target.write_text("# not a scope\n", encoding="utf-8")
+    else:
+        target = root / "nowhere"
+    if level == "inbox":
+        alias = root / ".atlas-inbox"
+    else:
+        (root / ".atlas-inbox").mkdir()
+        alias = root / ".atlas-inbox" / "agent-events"
+    alias.symlink_to(target)
+
+    with caplog.at_level("WARNING"):
+        manifest = discover(root)
+
+    assert _events(manifest) == []
+    refusals = _scope_refusals(caplog)
+    assert len(refusals) == 1, caplog.messages
+    assert alias.relative_to(root).as_posix() in refusals[0]
+    assert target.resolve().as_posix() in refusals[0], "the physical target is named"
+
+
+def test_escaping_scope_link_is_refused_before_any_probe_follows_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Order matters: the inventory refuses before anything stats through the link.
+
+    `_reachable_is_dir` resolves, so calling it first performed a metadata
+    probe on an out-of-root location before the refusal path ran.
+
+    Scoped to the inventory deliberately. `discover()`'s own walk still asks
+    `_reachable_is_dir(event_root)` to decide whether to exclude the reserved
+    subtree, and that probe resolves through the alias exactly as it did on
+    the base -- pre-existing, unchanged here, and outside this contract.
+    """
+    root = _root(tmp_path)
+    outside = tmp_path / "outside"
+    _package(outside / "agent-events", "proj", "evt-1")
+    (root / ".atlas-inbox").symlink_to(outside, target_is_directory=True)
+
+    probed: list[str] = []
+    real = discovery_module._reachable_is_dir
+
+    def recording(path: Path) -> bool | None:
+        probed.append(path.as_posix())
+        return real(path)
+
+    monkeypatch.setattr(discovery_module, "_reachable_is_dir", recording)
+    with caplog.at_level("WARNING"):
+        events = discovery_module._discover_agent_events(root)
+
+    assert events == []
+    assert probed == [], f"the inventory must not follow the escaping link: {probed}"
+    assert len(_scope_refusals(caplog)) == 1
 
 
 # --- the real scope is unchanged, including next to an alias of itself
