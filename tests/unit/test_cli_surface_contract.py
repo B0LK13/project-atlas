@@ -54,6 +54,14 @@ CERTIFIED_OPTIONS: dict[str, tuple[tuple[str, str], ...]] = {
     "connect": (("--vault", "vault"),),
 }
 
+#: Documented POSITIONAL arguments, identified by their index among a command's
+#: positionals rather than by name -- a renamed `dest` is exactly what this
+#: pins, so it cannot also be the thing used to find the argument.
+#: `atlas connect [source]` is CLAUDE.md's spelling.
+CERTIFIED_POSITIONALS: dict[str, tuple[tuple[int, str], ...]] = {
+    "connect": ((0, "source"),),
+}
+
 #: Certified subcommands, whose whole operator interface lives one level down.
 CERTIFIED_SUBCOMMAND_OPTIONS: dict[tuple[str, str], tuple[tuple[str, str], ...]] = {
     ("capture", "record"): (
@@ -63,6 +71,16 @@ CERTIFIED_SUBCOMMAND_OPTIONS: dict[tuple[str, str], tuple[tuple[str, str], ...]]
     ),
     ("capture", "list"): (("--vault", "vault"),),
 }
+
+
+def _positional_dests(parser: argparse.ArgumentParser) -> list[str]:
+    """The command's positionals, in the order argparse consumes them."""
+    return [
+        action.dest
+        for action in parser._actions
+        if not action.option_strings
+        and not isinstance(action, argparse._SubParsersAction)
+    ]
 
 
 def _subparser_action(parser: argparse.ArgumentParser) -> argparse._SubParsersAction:
@@ -270,11 +288,17 @@ def test_connect_keeps_its_documented_positional(built: argparse.ArgumentParser)
 # every check above green, and `args.vault` absent from the namespace the
 # command function is called with.
 #
-# The only place where "what the operator gets" is a settled fact is the
-# instant argparse finishes parsing. These tests observe exactly that: they
-# run the real `main(argv)`, intercept `argparse.ArgumentParser.parse_args`,
+# So these tests observe the parser at the instant argparse finishes parsing:
+# they run the real `main(argv)`, intercept `argparse.ArgumentParser.parse_args`,
 # and capture both the parser argparse was invoked on and the namespace it
 # produced -- then stop, before dispatch and before any side effect.
+#
+# That instant is *not* the last word, and an earlier revision of this comment
+# wrongly said it was. Production `main` calls `_apply_stranger_defaults(args)`
+# after parsing, which rewrites `args.vault`, `args.project` and
+# `args.projects`, so the namespace keeps changing after argparse is done. Two
+# attacks live in that gap and are caught at the dispatch boundary further
+# down, not here.
 #
 # This subsumes the build-time checks rather than replacing them: a mutation
 # anywhere between `build_parser`'s first line and argparse's last is visible
@@ -298,21 +322,40 @@ class _ParseBoundary(BaseException):
         self.namespace = namespace
 
 
-def _sentinel(flag: str) -> str:
+def _sentinel(name: str) -> str:
     """A per-flag marker value, unique so two flags cannot share a landing site.
 
-    Alphanumeric only: `--vault` is `type=Path`, and a value containing a
-    separator comes back as a `WindowsPath` whose string form uses
-    backslashes. This round-trips identically on both platforms.
+    Deliberately mixed-case and separator-bearing. An earlier version was
+    uppercase alphanumeric, to survive `type=Path` round-tripping on Windows
+    where a separator comes back as a backslash. Independent verification
+    showed that made the marker blind to a whole class: any `type=` that is a
+    no-op on `[A-Z0-9]+` -- `lambda v: Path(str(v).replace("/", ""))`, or
+    `str.upper` -- mangled the operator's real value while leaving the marker
+    intact. The platform problem is solved by comparing as a `Path` instead
+    (see `_carries`), which costs nothing and keeps the marker sensitive.
     """
-    return "ORACLE" + flag.lstrip("-").replace("-", "").upper()
+    return "Oracle/" + name.lstrip("-").replace("-", "_") + "-7x"
 
 
 def _carries(value: object, sentinel: str) -> bool:
-    """Did `sentinel` land here? Repeatable flags append, so lists count."""
+    """Did `sentinel` land here, unmodified?
+
+    Repeatable flags append, so lists count. `--vault` is `type=Path`, so the
+    parsed value is a `WindowsPath` on Windows whose string form uses
+    backslashes; comparing as a `Path` makes a separator-bearing marker
+    portable, where comparing strings would not be.
+    """
     if isinstance(value, (list, tuple)):
         return any(_carries(item, sentinel) for item in value)
-    return value == sentinel or str(value) == sentinel
+    if value == sentinel or str(value) == sentinel:
+        return True
+    try:
+        # `as_posix()`, not `==`: `PurePath` comparison is case-insensitive on
+        # Windows, and the marker is case-sensitive by design. This form is
+        # exact in both case and separators on every platform.
+        return Path(str(value)).as_posix() == Path(sentinel).as_posix()
+    except (TypeError, ValueError):
+        return False
 
 
 def _parse_boundary(
@@ -367,10 +410,50 @@ def _descend(
     return current
 
 
+def _argv_for(
+    path: tuple[str, ...],
+    options: tuple[tuple[str, str], ...],
+    positionals: tuple[tuple[int, str], ...] = (),
+) -> list[str]:
+    """A documented invocation carrying a distinct marker on every certified slot."""
+    argv = list(path)
+    for flag, _dest in options:
+        argv += [flag, _sentinel(flag)]
+    argv += [_sentinel(name) for _index, name in positionals]
+    return argv
+
+
+def _assert_positionals(
+    parser: argparse.ArgumentParser,
+    namespace: argparse.Namespace,
+    path: tuple[str, ...],
+    positionals: tuple[tuple[int, str], ...],
+) -> None:
+    """Positionals carry no option strings, so an `option -> dest` map is blind
+    to them. They are pinned by index instead."""
+    label = "atlas " + " ".join(path)
+    found = _positional_dests(_descend(parser, path))
+    for index, dest in positionals:
+        assert len(found) > index, (
+            f"`{label}` no longer takes a positional at index {index}; "
+            f"documented as {dest!r}"
+        )
+        assert found[index] == dest, (
+            f"`{label}` positional {index} lands on {found[index]!r}, not "
+            f"{dest!r}; the argument is accepted and silently ignored"
+        )
+        assert hasattr(namespace, dest), f"`{label}` parsed without producing {dest!r}"
+        assert _carries(getattr(namespace, dest), _sentinel(dest)), (
+            f"`{label}` positional {dest!r} did not receive its value "
+            f"(found {getattr(namespace, dest)!r})"
+        )
+
+
 def _assert_certified_dests(
     entry: Callable[[list[str]], object],
     path: tuple[str, ...],
     options: tuple[tuple[str, str], ...],
+    positionals: tuple[tuple[int, str], ...] = (),
 ) -> None:
     """The certified surface, checked on the parser argparse was handed.
 
@@ -380,9 +463,7 @@ def _assert_certified_dests(
     edits the action object is caught by both; one that intercepts binding
     without touching the action is caught by the second.
     """
-    argv = list(path)
-    for flag, _dest in options:
-        argv += [flag, _sentinel(flag)]
+    argv = _argv_for(path, options, positionals)
     parser, namespace = _parse_boundary(argv, entry=entry)
 
     assert getattr(namespace, "command", None) == path[0], (
@@ -411,13 +492,19 @@ def _assert_certified_dests(
             f"`{label}` {flag}={_sentinel(flag)!r} did not land on {dest!r} "
             f"(found {getattr(namespace, dest)!r})"
         )
+    _assert_positionals(parser, namespace, path, positionals)
 
 
 @pytest.mark.parametrize("command", sorted(CERTIFIED_OPTIONS))
 def test_certified_dests_hold_at_the_parse_boundary(command: str) -> None:
     """P04: the certified `dest`s, observed after `main` has finished with the
     parser rather than before it starts."""
-    _assert_certified_dests(main, (command,), CERTIFIED_OPTIONS[command])
+    _assert_certified_dests(
+        main,
+        (command,),
+        CERTIFIED_OPTIONS[command],
+        CERTIFIED_POSITIONALS.get(command, ()),
+    )
 
 
 @pytest.mark.parametrize("pair", sorted(CERTIFIED_SUBCOMMAND_OPTIONS))
@@ -558,3 +645,218 @@ def test_p04_matrix_control_passes_undamaged() -> None:
             else CERTIFIED_SUBCOMMAND_OPTIONS[(path[0], path[1])]
         )
         _assert_certified_dests(main, path, options)
+
+
+# ---------------------------------------------------------------------------
+# The dispatch boundary.
+#
+# The parse boundary above is not the last word, and an earlier revision of
+# this file claimed it was. Independent verification pointed at production
+# `main`, which calls `_apply_stranger_defaults(args)` *after* parsing and
+# rewrites `args.vault`, `args.project` and `args.projects`. So parsing is not
+# the instant the operator's namespace becomes a settled fact, and two attacks
+# live in the gap:
+#
+#   * `main` parses twice -- a healthy decoy parse whose result is discarded,
+#     then the real one. A check that stops on the first `parse_args` call
+#     never observes the second.
+#   * `main` edits `args` after parsing. Nothing about either parser is wrong.
+#
+# Both are observed here instead, at the last point before any command does
+# work: `_apply_stranger_defaults` receives the very namespace `main` will
+# dispatch on, and `load_config` is the next call on every path. Recording the
+# namespace at the first and stopping at the second yields its state after
+# every parse and every post-parse edit, with no side effect performed.
+# ---------------------------------------------------------------------------
+
+
+class _DispatchBoundary(BaseException):
+    """Stop `main` after post-parse processing, before any command runs."""
+
+
+def _dispatch_boundary(
+    argv: list[str], entry: Callable[[list[str]], object]
+) -> argparse.Namespace:
+    """The namespace `main` would dispatch on, captured without dispatching."""
+    from project_atlas import cli as cli_module
+
+    captured: list[argparse.Namespace] = []
+    real_apply = cli_module._apply_stranger_defaults
+    real_load = cli_module.load_config
+
+    def _apply_spy(args: argparse.Namespace) -> None:
+        real_apply(args)
+        captured.append(args)
+
+    def _load_spy(*_args: object, **_kwargs: object) -> object:
+        raise _DispatchBoundary("dispatch-boundary")
+
+    cli_module._apply_stranger_defaults = _apply_spy  # type: ignore[assignment]
+    cli_module.load_config = _load_spy  # type: ignore[assignment]
+    try:
+        entry(argv)
+    except _DispatchBoundary:
+        pass
+    except SystemExit as exc:
+        raise AssertionError(
+            f"`atlas {' '.join(argv)}` exited {exc.code} before dispatch"
+        ) from exc
+    except Exception as exc:
+        # A documented invocation that cannot reach dispatch is broken, however
+        # it fails. `ConnectError` is the common shape: damage that empties
+        # `args.vault` sends `_apply_stranger_defaults` looking for a bind that
+        # is not there. Real `main` catches that and returns EXIT_ERROR, which
+        # arrives here as the `else` branch below; an entry point that lets it
+        # escape arrives here.
+        raise AssertionError(
+            f"`atlas {' '.join(argv)}` raised {type(exc).__name__} before "
+            f"dispatch: {exc}"
+        ) from exc
+    else:
+        raise AssertionError(
+            f"`atlas {' '.join(argv)}` never reached the dispatch boundary; "
+            "the entry point does not process the operator's arguments the "
+            "way the CLI does"
+        )
+    finally:
+        cli_module._apply_stranger_defaults = real_apply  # type: ignore[assignment]
+        cli_module.load_config = real_load  # type: ignore[assignment]
+
+    assert len(captured) == 1, (
+        f"expected exactly one namespace at the dispatch boundary, "
+        f"captured {len(captured)}"
+    )
+    return captured[0]
+
+
+def _assert_dispatch_dests(
+    entry: Callable[[list[str]], object],
+    path: tuple[str, ...],
+    options: tuple[tuple[str, str], ...],
+    positionals: tuple[tuple[int, str], ...] = (),
+) -> None:
+    """Every certified value still reachable where the command would read it."""
+    argv = _argv_for(path, options, positionals)
+    namespace = _dispatch_boundary(argv, entry=entry)
+    label = "atlas " + " ".join(path)
+
+    assert getattr(namespace, "command", None) == path[0], (
+        f"`{label}` dispatches as {getattr(namespace, 'command', None)!r}"
+    )
+    for flag, dest in options:
+        assert hasattr(namespace, dest), (
+            f"`{label}` reaches dispatch without {dest!r}; {flag} was accepted "
+            "and its value is gone by the time the command runs"
+        )
+        assert _carries(getattr(namespace, dest), _sentinel(flag)), (
+            f"`{label}` {flag}={_sentinel(flag)!r} is not on {dest!r} at "
+            f"dispatch (found {getattr(namespace, dest)!r}); it was altered "
+            "after parsing"
+        )
+    for _index, dest in positionals:
+        assert hasattr(namespace, dest), f"`{label}` reaches dispatch without {dest!r}"
+        assert _carries(getattr(namespace, dest), _sentinel(dest)), (
+            f"`{label}` positional {dest!r} is not intact at dispatch "
+            f"(found {getattr(namespace, dest)!r})"
+        )
+
+
+@pytest.mark.parametrize("command", sorted(CERTIFIED_OPTIONS))
+def test_certified_values_survive_to_the_dispatch_boundary(command: str) -> None:
+    """Not merely parsed correctly -- still intact where the command reads them."""
+    _assert_dispatch_dests(
+        main,
+        (command,),
+        CERTIFIED_OPTIONS[command],
+        CERTIFIED_POSITIONALS.get(command, ()),
+    )
+
+
+@pytest.mark.parametrize("pair", sorted(CERTIFIED_SUBCOMMAND_OPTIONS))
+def test_certified_subcommand_values_survive_to_dispatch(pair: tuple[str, str]) -> None:
+    _assert_dispatch_dests(main, pair, CERTIFIED_SUBCOMMAND_OPTIONS[pair])
+
+
+# --- Negative controls for the attacks the parse boundary cannot see --------
+
+
+def _r_double_parse(argv: list[str]) -> object:
+    """Parse twice: a healthy decoy first, the damaged real parse second.
+
+    Defeats any check that stops on the first `parse_args` call.
+    """
+    from project_atlas import cli as cli_module
+
+    parser = build_parser()
+    build_parser().parse_args(argv)
+    _action_for(parser, ("brief",), "--vault").dest = "vault_renamed"
+    args = parser.parse_args(argv)
+    cli_module._apply_stranger_defaults(args)
+    cli_module.load_config(getattr(args, "config", None))
+    return 0
+
+
+def _r_post_parse_edit(argv: list[str]) -> object:
+    """Edit the namespace after parsing. Both parsers are beyond reproach."""
+    from project_atlas import cli as cli_module
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    args.vault = None
+    args.projects = None
+    cli_module._apply_stranger_defaults(args)
+    cli_module.load_config(getattr(args, "config", None))
+    return 0
+
+
+def _r_healthy(argv: list[str]) -> object:
+    """The control: `main`'s own shape, undamaged."""
+    from project_atlas import cli as cli_module
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    cli_module._apply_stranger_defaults(args)
+    cli_module.load_config(getattr(args, "config", None))
+    return 0
+
+
+DISPATCH_MATRIX: tuple[tuple[str, Callable[[list[str]], object]], ...] = (
+    ("P04F-second-parse-wins", _r_double_parse),
+    ("P04G-post-parse-namespace-edit", _r_post_parse_edit),
+)
+
+
+@pytest.mark.parametrize(
+    "case", DISPATCH_MATRIX, ids=[case[0] for case in DISPATCH_MATRIX]
+)
+def test_dispatch_matrix_is_blocked(
+    case: tuple[str, Callable[[list[str]], object]],
+) -> None:
+    """Damage that is invisible at the parse boundary must block at dispatch."""
+    _label, entry = case
+    with pytest.raises(AssertionError):
+        _assert_dispatch_dests(entry, ("brief",), CERTIFIED_OPTIONS["brief"])
+
+
+def test_dispatch_matrix_control_passes_undamaged() -> None:
+    """An undamaged entry point of the same shape passes the same assertions."""
+    _assert_dispatch_dests(_r_healthy, ("brief",), CERTIFIED_OPTIONS["brief"])
+
+
+def test_omitted_certified_flags_keep_their_documented_default() -> None:
+    """A post-build `set_defaults` supplies a value the operator never gave.
+
+    `brief --vault` is documented optional, and omitting it must leave the
+    slot empty for `_apply_stranger_defaults` to resolve from the local bind.
+    `parser.set_defaults(vault=Path("/attacker/vault"))` after `build_parser()`
+    returns leaves every flag, `dest` and help string correct, and hands the
+    command a vault the operator did not name. Observed before
+    `_apply_stranger_defaults` runs, which is the only point where the
+    documented default is still distinguishable from a resolved one.
+    """
+    _parser, namespace = _parse_boundary(["brief", "--project", "p"], entry=main)
+    assert namespace.vault is None, (
+        f"`atlas brief --project p` arrived with vault={namespace.vault!r}; "
+        "a value was supplied for a flag the operator omitted"
+    )
+    assert namespace.projects == ["p"]
