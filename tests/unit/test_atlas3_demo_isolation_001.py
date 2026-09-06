@@ -538,6 +538,15 @@ _CERTIFIED_COMMAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "connect": ("--vault",),
 }
 
+#: Certified *sub*commands and the arguments CLAUDE.md documents for them.
+#: `capture` is a certified command whose whole interface lives one level
+#: down, so pinning only the top-level parser would protect its name and
+#: nothing an operator actually types.
+_CERTIFIED_SUBCOMMAND_ARGUMENTS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("capture", "record"): ("--vault", "--project", "--summary"),
+    ("capture", "list"): ("--vault",),
+}
+
 #: The one call that creates the shared CLI's top-level subparser group.
 _TOP_LEVEL_SUBPARSERS_NAME = "subparsers"
 
@@ -549,28 +558,100 @@ def _cli_module_ast(source: str) -> ast.Module:
         raise AssertionError(f"cli.py does not parse: {exc}") from exc
 
 
-def _assigned_names(tree: ast.Module) -> list[tuple[str, int]]:
-    """Every name bound by assignment, `:=`, `def`, `class`, or `import as`."""
+def _bound_names(scope: ast.AST, *, descend_into_functions: bool = True) -> list[tuple[str, int]]:
+    """Every name bound in `scope`, by any binding form Python has.
+
+    Walking `ast.Name` nodes in `Store`/`Del` context covers assignment, `for`
+    targets, `with ... as`, comprehension targets and `:=` in one pass -- the
+    forms an earlier version enumerated node-type by node-type, and therefore
+    missed. `for subparsers in (ops_sub,): pass` was a one-line rewrite of an
+    assignment that the enumeration did not model, and it reproduced the exact
+    damage the assignment form was added to prevent.
+
+    Also covers the binding forms that do not produce a `Name` node at all:
+    `except ... as`, `def`, `class`, `import ... as`, and parameters.
+    """
     bound: list[tuple[str, int]] = []
-    for node in ast.walk(tree):
-        targets: list[ast.expr] = []
-        if isinstance(node, ast.Assign):
-            targets = list(node.targets)
-        elif isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.NamedExpr)):
-            targets = [node.target]
+    for node in ast.walk(scope):
+        if (
+            not descend_into_functions
+            and node is not scope
+            and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        ):
+            continue
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            bound.append((node.id, node.lineno))
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            bound.append((node.name, node.lineno))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             bound.append((node.name, node.lineno))
-            continue
+            for argument in [
+                *node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs
+            ] if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) else []:
+                bound.append((argument.arg, argument.lineno))
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             for alias in node.names:
                 if alias.asname:
                     bound.append((alias.asname, node.lineno))
-            continue
-        for target in targets:
-            for sub in ast.walk(target):
-                if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Store):
-                    bound.append((sub.id, sub.lineno))
     return bound
+
+
+def _scoped_bound_names(scope: ast.AST, name: str) -> list[int]:
+    """Lines where `name` is bound in `scope`, not descending into nested defs.
+
+    Scope matters in both directions. Without it, an unrelated helper that
+    happens to use a local called `subparsers` fails a check about a seam it
+    never touches -- and a guard that fires on ordinary work is a guard that
+    gets switched off.
+    """
+    lines: list[int] = []
+    for node in ast.walk(scope):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            if node.id == name:
+                lines.append(node.lineno)
+        elif isinstance(node, ast.ExceptHandler) and node.name == name:
+            lines.append(node.lineno)
+    return sorted(lines)
+
+
+def _seam_attribute_writes(tree: ast.Module) -> list[tuple[str, int]]:
+    """`<module>.register_atlas3_parsers = ...` -- rebinding via the module object.
+
+    Binds no local name, so no `Name` in `Store` context exists to find, yet it
+    replaces what the seam call resolves to at runtime.
+    """
+    writes: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            targets = [node.target]
+        for target in targets:
+            if isinstance(target, ast.Attribute) and target.attr in _ATLAS3_SEAM_CALLS:
+                writes.append((target.attr, target.lineno))
+    return writes
+
+
+def _function_containing_top_level_subparsers(tree: ast.Module) -> ast.AST | None:
+    """The function whose body creates the shared top-level subparser group."""
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for inner in ast.walk(node):
+            if not isinstance(inner, ast.Assign) or len(inner.targets) != 1:
+                continue
+            target = inner.targets[0]
+            call = inner.value
+            if (
+                isinstance(target, ast.Name)
+                and target.id == _TOP_LEVEL_SUBPARSERS_NAME
+                and isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and call.func.attr == "add_subparsers"
+            ):
+                return node
+    return None
 
 
 def _add_parser_calls(tree: ast.Module) -> list[tuple[str, str, int]]:
@@ -598,10 +679,15 @@ def _add_parser_calls(tree: ast.Module) -> list[tuple[str, str, int]]:
     return found
 
 
-def _added_arguments(tree: ast.Module, parser_variable: str) -> set[str]:
-    """Option strings registered on `<parser_variable>.add_argument(...)`."""
+def _added_arguments(scope: ast.AST, parser_variable: str) -> set[str]:
+    """Option strings registered on `<parser_variable>.add_argument(...)`.
+
+    `scope` is the function that owns the variable, not the whole module: a
+    decoy parser bound to the same variable name elsewhere would otherwise
+    satisfy the pin for a command whose real argument had been deleted.
+    """
     options: set[str] = set()
-    for node in ast.walk(tree):
+    for node in ast.walk(scope):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
         if node.func.attr != "add_argument" or not isinstance(node.func.value, ast.Name):
@@ -614,9 +700,11 @@ def _added_arguments(tree: ast.Module, parser_variable: str) -> set[str]:
     return options
 
 
-def _parser_variable_for(tree: ast.Module, command: str) -> str | None:
-    """The variable a top-level `add_parser("command")` result is bound to."""
-    for node in ast.walk(tree):
+def _parser_variable_for(
+    scope: ast.AST, command: str, *, receiver: str = _TOP_LEVEL_SUBPARSERS_NAME
+) -> str | None:
+    """The variable an `add_parser("command")` result is bound to, in `scope`."""
+    for node in ast.walk(scope):
         if not isinstance(node, ast.Assign) or len(node.targets) != 1:
             continue
         target = node.targets[0]
@@ -627,9 +715,25 @@ def _parser_variable_for(tree: ast.Module, command: str) -> str | None:
             continue
         if call.func.attr != "add_parser" or not isinstance(call.func.value, ast.Name):
             continue
-        if call.func.value.id != _TOP_LEVEL_SUBPARSERS_NAME:
+        if call.func.value.id != receiver:
             continue
         if call.args and isinstance(call.args[0], ast.Constant) and call.args[0].value == command:
+            return target.id
+    return None
+
+
+def _subparser_group_variable(scope: ast.AST, parent_variable: str) -> str | None:
+    """The variable holding `<parent_variable>.add_subparsers(...)`."""
+    for node in ast.walk(scope):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        call = node.value
+        if not isinstance(target, ast.Name) or not isinstance(call, ast.Call):
+            continue
+        if not isinstance(call.func, ast.Attribute) or call.func.attr != "add_subparsers":
+            continue
+        if isinstance(call.func.value, ast.Name) and call.func.value.id == parent_variable:
             return target.id
     return None
 
@@ -652,6 +756,25 @@ def _dispatched_commands(tree: ast.Module) -> set[str]:
     return dispatched
 
 
+def _assert_parser_variable_is_unambiguous(
+    scope: ast.AST, variable: str, command: str
+) -> None:
+    """A certified command's parser variable must be bound exactly once.
+
+    Arguments are attributed to a parser by variable name, so a second
+    binding of that name makes the attribution ambiguous -- and a decoy
+    parser bound to it can satisfy the interface pin for a command whose real
+    flag was deleted. Rebinding a parser variable is not something ordinary
+    CLI code does; requiring it to be singular is what makes the pin mean
+    what it says.
+    """
+    bindings = _scoped_bound_names(scope, variable)
+    assert len(bindings) == 1, (
+        f"certified command parser ambiguous: {variable!r} (for {command}) is bound "
+        f"{len(bindings)} times (lines {bindings}); argument attribution is unreliable"
+    )
+
+
 def assert_cli_semantic_invariants(*, source: str, atlas3_commands: frozenset[str]) -> None:
     """Invariants that survive rebinding, shadowing and reformatting.
 
@@ -660,25 +783,45 @@ def assert_cli_semantic_invariants(*, source: str, atlas3_commands: frozenset[st
     a shadowing assignment adds a line and removes none.
     """
     tree = _cli_module_ast(source)
-    bound = _assigned_names(tree)
 
     # (C) The seam symbols must never be rebound. Importing them is the only
     #     legitimate binding; anything else can neutralise the call while
-    #     leaving it textually intact.
+    #     leaving it textually intact. Checked module-wide and across every
+    #     binding form, including `for`/`with`/`except` targets and writes
+    #     through the imported module object.
+    bound = _bound_names(tree)
     for symbol in sorted(_ATLAS3_SEAM_CALLS):
-        rebindings = [line for name, line in bound if name == symbol]
-        assert rebindings == [], (
+        rebindings = sorted(
+            line
+            for name, line in bound
+            if name == symbol
+        )
+        # The canonical `from ... import symbol` is not a rebinding; only
+        # `import ... as symbol` records a name here, which is.
+        attribute_writes = sorted(
+            line for name, line in _seam_attribute_writes(tree) if name == symbol
+        )
+        offending = sorted(rebindings + attribute_writes)
+        assert offending == [], (
             f"Atlas 3 seam neutralised: cli.py rebinds {symbol!r} at line(s) "
-            f"{rebindings}; the seam call would still be present but inert"
+            f"{offending}; the seam call would still be present but inert"
         )
 
-    # (D) The top-level subparser group is created once and never rebound.
-    #     Rebinding it re-routes every later registration under another parser.
-    subparser_bindings = [line for name, line in bound if name == _TOP_LEVEL_SUBPARSERS_NAME]
+    # (D) The top-level subparser group is created once and never rebound
+    #     *within the function that creates it*. Rebinding it re-routes every
+    #     later registration under another parser. Scoped deliberately: an
+    #     unrelated helper with its own local named `subparsers` is ordinary
+    #     code, and failing it would teach contributors to disable the guard.
+    creator = _function_containing_top_level_subparsers(tree)
+    assert creator is not None, (
+        f"top-level parser missing: no function assigns {_TOP_LEVEL_SUBPARSERS_NAME!r} "
+        "from add_subparsers()"
+    )
+    subparser_bindings = _scoped_bound_names(creator, _TOP_LEVEL_SUBPARSERS_NAME)
     assert len(subparser_bindings) == 1, (
         f"top-level parser identity unstable: {_TOP_LEVEL_SUBPARSERS_NAME!r} is bound "
-        f"{len(subparser_bindings)} times (lines {subparser_bindings}); later "
-        "registrations would attach to a different parser than the guard checks"
+        f"{len(subparser_bindings)} times (lines {subparser_bindings}) in the function "
+        "that creates it; later registrations would attach to a different parser"
     )
 
     registrations = _add_parser_calls(tree)
@@ -704,15 +847,41 @@ def assert_cli_semantic_invariants(*, source: str, atlas3_commands: frozenset[st
         )
 
     # (G) The documented interface of a certified command may not be dropped.
+    #     Resolved inside the creating function so a same-named decoy parser
+    #     elsewhere cannot satisfy the pin for a command that lost its flag.
     for command, required in sorted(_CERTIFIED_COMMAND_ARGUMENTS.items()):
-        variable = _parser_variable_for(tree, command)
+        variable = _parser_variable_for(creator, command)
         assert variable is not None, (
             f"certified CLI surface removed: no top-level parser variable for {command!r}"
         )
-        registered = _added_arguments(tree, variable)
-        missing = sorted(set(required) - registered)
+        _assert_parser_variable_is_unambiguous(creator, variable, command)
+        missing = sorted(set(required) - _added_arguments(creator, variable))
         assert missing == [], (
             f"certified command contract eroded: {command!r} no longer accepts {missing}"
+        )
+
+    # (G2) Certified *subcommands*. `capture`'s entire operator interface is
+    #      one level down, so pinning only its top-level name would protect
+    #      the word and nothing anyone types.
+    for (command, subcommand), required in sorted(_CERTIFIED_SUBCOMMAND_ARGUMENTS.items()):
+        parent = _parser_variable_for(creator, command)
+        assert parent is not None, (
+            f"certified CLI surface removed: no top-level parser variable for {command!r}"
+        )
+        group = _subparser_group_variable(creator, parent)
+        assert group is not None, (
+            f"certified CLI surface removed: {command!r} no longer creates a subparser group"
+        )
+        variable = _parser_variable_for(creator, subcommand, receiver=group)
+        assert variable is not None, (
+            f"certified CLI surface removed: {command!r} no longer registers "
+            f"subcommand {subcommand!r}"
+        )
+        _assert_parser_variable_is_unambiguous(creator, variable, f"{command} {subcommand}")
+        missing = sorted(set(required) - _added_arguments(creator, variable))
+        assert missing == [], (
+            f"certified command contract eroded: {command} {subcommand} no longer "
+            f"accepts {missing}"
         )
 
     # (H) Atlas 3 owned names must not be registered here at any depth. The
@@ -2319,3 +2488,108 @@ def test_h18_future_nested_command_addition_passes() -> None:
         "    capture_record = capture_sub.add_parser(",
     )
     _semantic(source)
+
+
+# ---------------------------------------------------------------------------
+# V-matrix -- bypasses found by independent verification of the first version
+# of this guard, each reproduced against the real cli.py before being fixed.
+#
+# The first version modelled binding forms by enumerating node types, which
+# missed every spelling except `=`. The verifier demonstrated that rewriting
+# `subparsers = ops_sub` as a one-line `for subparsers in (ops_sub,)` restored
+# G2's exact damage profile (98 -> 42 top-level commands, certified `ask2` and
+# `kdiff` demoted). A guard that only catches one spelling of an attack is a
+# guard the next attacker spells differently.
+# ---------------------------------------------------------------------------
+
+_OPS_SUB = '    ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)'
+_SEAM_CALL = "    register_atlas3_parsers(subparsers)"
+_DISPATCH_CALL = "    atlas3_exit = dispatch_atlas3(args)"
+
+
+def test_v01_for_target_rebinding_subparsers_is_blocked() -> None:
+    """The one-line rewrite that reproduced G2 verbatim."""
+    source = _mutate(_OPS_SUB, _OPS_SUB + "\n    for subparsers in (ops_sub,):\n        pass")
+    with pytest.raises(AssertionError, match="top-level parser identity unstable"):
+        _semantic(source)
+
+
+@pytest.mark.parametrize(
+    "prelude",
+    [
+        "    for register_atlas3_parsers in (lambda sp: None,):\n        pass\n",
+        "    import contextlib\n"
+        "    with contextlib.nullcontext(lambda sp: None) as register_atlas3_parsers:\n"
+        "        pass\n",
+    ],
+    ids=["for-target", "with-as"],
+)
+def test_v02_non_assignment_shadowing_of_the_seam_is_blocked(prelude: str) -> None:
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(_mutate(_SEAM_CALL, prelude + _SEAM_CALL))
+
+
+def test_v02b_shadowing_the_dispatch_symbol_by_with_as_is_blocked() -> None:
+    prelude = (
+        "    import contextlib\n"
+        "    with contextlib.nullcontext(lambda a: None) as dispatch_atlas3:\n"
+        "        pass\n"
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(_mutate(_DISPATCH_CALL, prelude + _DISPATCH_CALL))
+
+
+def test_v03_module_object_monkeypatch_of_the_seam_is_blocked() -> None:
+    """Binds no local name at all, yet replaces what the seam call resolves to."""
+    prelude = (
+        "    import project_atlas.atlas3.cli as _a3\n"
+        "    _a3.register_atlas3_parsers = lambda sp: None\n"
+    )
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(_mutate(_SEAM_CALL, prelude + _SEAM_CALL))
+
+
+def test_v04_deleting_a_guarded_name_is_blocked() -> None:
+    with pytest.raises(AssertionError, match="Atlas 3 seam neutralised"):
+        _semantic(_mutate(_SEAM_CALL, _SEAM_CALL + "\n    del register_atlas3_parsers"))
+
+
+@pytest.mark.parametrize("flag", ["--summary", "--vault"])
+def test_v05_capture_subcommand_contract_is_pinned(flag: str) -> None:
+    """`capture` is certified, and its whole interface lives one level down."""
+    anchor = {
+        "--summary": '    capture_record.add_argument("--summary", required=True)\n',
+        "--vault": '    capture_record.add_argument("--vault", type=Path, default=None)\n',
+    }[flag]
+    with pytest.raises(AssertionError, match="certified command contract eroded"):
+        _semantic(_mutate(anchor, ""))
+
+
+def test_v06_a_decoy_parser_cannot_satisfy_the_interface_pin() -> None:
+    """Arguments are attributed by variable name, so the name must be singular."""
+    source = _mutate('    brief_parser.add_argument("--vault", type=Path, default=None)\n', "")
+    source = source.replace(
+        _OPS_SUB,
+        _OPS_SUB
+        + '\n    brief_parser = ops_sub.add_parser("brief-decoy")'
+        + '\n    brief_parser.add_argument("--vault", type=Path, default=None)',
+        1,
+    )
+    with pytest.raises(AssertionError, match="certified command parser ambiguous"):
+        _semantic(source)
+
+
+def test_v07_unrelated_helper_using_a_local_named_subparsers_passes() -> None:
+    """The false positive that would have got this guard switched off.
+
+    Checking `subparsers` module-wide failed any future helper that happened
+    to use so ordinary a local name, reporting a seam problem the contributor
+    never caused. The check is scoped to the function that creates the
+    top-level group instead.
+    """
+    _semantic(
+        REAL_CLI_SOURCE
+        + "\n\ndef _unrelated_helper(parser):\n"
+        + "    subparsers = parser.add_subparsers()\n"
+        + "    return subparsers\n"
+    )
