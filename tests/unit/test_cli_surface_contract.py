@@ -41,7 +41,15 @@ CERTIFIED_OPTIONS: dict[str, tuple[tuple[str, str], ...]] = {
     # built parser rather than assumed -- this test caught the assumption.
     "brief": (("--vault", "vault"), ("--project", "projects")),
     "ask2": (("--vault", "vault"), ("--project", "project"), ("--question", "question")),
-    "kdiff": (("--vault", "vault"), ("--project", "project")),
+    # CLAUDE.md documents `[--as-of T | --from T1 --to T2]` as kdiff's
+    # time-travel interface, so those are part of the certified surface too.
+    "kdiff": (
+        ("--vault", "vault"),
+        ("--project", "project"),
+        ("--as-of", "as_of"),
+        ("--from", "from_ref"),
+        ("--to", "to_ref"),
+    ),
     "connect": (("--vault", "vault"),),
 }
 

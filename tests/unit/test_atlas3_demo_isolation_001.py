@@ -643,10 +643,18 @@ def _add_parser_calls(tree: ast.Module) -> list[tuple[str, str, int]]:
 
 
 def _dispatched_commands(tree: ast.Module) -> set[str]:
-    """Commands compared against `args.command` anywhere in the module."""
+    """Commands compared against `args.command` anywhere in the module.
+
+    The namespace is required to be `args`, not merely any object with a
+    `.command` attribute: accepting `anything.command == "brief"` would let an
+    unrelated comparison elsewhere satisfy the check after the real dispatch
+    branch had been deleted.
+    """
     dispatched: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Compare) or not isinstance(node.left, ast.Attribute):
+            continue
+        if not (isinstance(node.left.value, ast.Name) and node.left.value.id == "args"):
             continue
         if node.left.attr != "command":
             continue
