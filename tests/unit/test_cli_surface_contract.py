@@ -120,6 +120,19 @@ def _commands(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentPar
     return dict(_subparser_action(parser).choices)
 
 
+def _routing_dest(parser: argparse.ArgumentParser, path: tuple[str, ...]) -> str:
+    """The attribute a subcommand's route lands on, read off the real parser.
+
+    `command` is not the whole route. `atlas capture record` selects its
+    handler through `args.capture_command`, and `cli.main` branches on that
+    attribute directly. Reading the `dest` from the parser argparse was handed
+    -- rather than assuming the `f"{path[0]}_command"` spelling -- keeps a
+    deliberate rename of the routing attribute a refactor rather than a
+    failure, while damage to its *value* still blocks.
+    """
+    return _subparser_action(_descend(parser, path[:-1])).dest
+
+
 def _options(parser: argparse.ArgumentParser) -> dict[str, str]:
     """option string -> dest, for every action on this parser."""
     return {
@@ -596,9 +609,13 @@ def _assert_certified_dests(
         f"{getattr(namespace, 'command', None)!r}, not {path[0]!r}"
     )
     if len(path) > 1:
-        routed = {str(value) for value in vars(namespace).values()}
-        assert path[1] in routed, (
-            f"the namespace records no route to subcommand {path[1]!r}"
+        route = _routing_dest(parser, path)
+        assert getattr(namespace, route, None) == path[1], (
+            f"`atlas {' '.join(argv)}` records its route on {route!r} as "
+            f"{getattr(namespace, route, None)!r}, not {path[1]!r}. A scan of "
+            "every namespace value for the subcommand name was the previous "
+            "check; it passes on any attribute that happens to hold the "
+            "string, which is not the same as the route being intact."
         )
 
     target = _descend(parser, path)
@@ -815,12 +832,18 @@ class _DispatchBoundary(BaseException):
 
 def _dispatch_boundary(
     argv: list[str], entry: Callable[[list[str]], object]
-) -> argparse.Namespace:
-    """Capture the processed namespace at the pre-load_config observation seam."""
+) -> tuple[argparse.ArgumentParser, argparse.Namespace]:
+    """Capture the processed namespace at the pre-load_config observation seam.
+
+    The parser argparse was handed comes back with it, because the route's
+    landing site is a property of the parser and the route's *value* is a
+    property of the namespace; pinning the route needs both.
+    """
     from project_atlas import cli as cli_module
 
     captured: list[argparse.Namespace] = []
     parsed: list[argparse.Namespace] = []
+    parsers: list[argparse.ArgumentParser] = []
     real_apply = cli_module._apply_stranger_defaults
     real_load = cli_module.load_config
     real_parse_args = argparse.ArgumentParser.parse_args
@@ -832,6 +855,7 @@ def _dispatch_boundary(
     ) -> argparse.Namespace:
         result = real_parse_args(self, args, namespace)  # type: ignore[arg-type]
         parsed.append(result)
+        parsers.append(self)
         return result
 
     def _apply_spy(args: argparse.Namespace) -> None:
@@ -891,7 +915,7 @@ def _dispatch_boundary(
         "The entry point processed a copy, so what this oracle observed is not "
         "what the command will receive"
     )
-    return captured[0]
+    return parsers[parsed.index(captured[0])], captured[0]
 
 
 def _assert_dispatch_dests(
@@ -903,12 +927,28 @@ def _assert_dispatch_dests(
 ) -> None:
     """Check certified marker values on the captured, processed namespace."""
     argv = _argv_for(path, options, positionals, marker)
-    namespace = _dispatch_boundary(argv, entry=entry)
+    parser, namespace = _dispatch_boundary(argv, entry=entry)
     label = "atlas " + " ".join(path)
 
     assert getattr(namespace, "command", None) == path[0], (
         f"`{label}` dispatches as {getattr(namespace, 'command', None)!r}"
     )
+    # `command` alone is not the route. `cli.main` branches on
+    # `args.capture_command` to choose between `capture record` and
+    # `capture list`, so a post-parse `args.capture_command = "list"` sends
+    # the operator's `record` invocation to the wrong handler while every
+    # certified flag value on this namespace survives intact -- invisible to
+    # every other assertion here. Verified: with this pin absent the whole
+    # suite passes under exactly that mutation, and only two unrelated
+    # functional tests catch it, which is the incidental backstop this file
+    # rejects as a substitute for a pin.
+    if len(path) > 1:
+        route = _routing_dest(parser, path)
+        assert getattr(namespace, route, None) == path[1], (
+            f"`{label}` reaches dispatch routed to "
+            f"{getattr(namespace, route, None)!r} on {route!r}, not "
+            f"{path[1]!r}; the operator's subcommand was changed after parsing"
+        )
     for flag, dest, _nargs, leaf_type, repeatable in options:
         assert hasattr(namespace, dest), (
             f"`{label}` reaches dispatch without {dest!r}; {flag} was accepted "
@@ -1052,6 +1092,62 @@ def test_dispatch_matrix_is_blocked(
 def test_dispatch_matrix_control_passes_undamaged() -> None:
     """An undamaged entry point of the same shape passes the same assertions."""
     _assert_dispatch_dests(_r_healthy, ("ask2",), CERTIFIED_OPTIONS["ask2"])
+
+
+# --- The route is part of the operator's request, not just its values -------
+
+
+# Every case above damages a *value*. This one leaves all of them intact and
+# changes which handler runs. `cli.main` selects between `capture record` and
+# `capture list` on `args.capture_command`, so rewriting it after parsing runs
+# the operator's `record` invocation as a `list` -- with `command`, `--vault`,
+# `--project` and every other certified value still exactly as typed. It was
+# invisible to this file until the route was pinned: the whole suite passed
+# under it, and the only tests that failed were two unrelated functional
+# suites that happen to exercise `capture`. That is the incidental backstop
+# this file rejects everywhere else, so the route is pinned directly.
+
+
+def _r_route_rewrite(argv: list[str]) -> object:
+    """Rewrite the subcommand route after parsing. Every value survives."""
+    from project_atlas import cli as cli_module
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    args.capture_command = "list"
+    cli_module._apply_stranger_defaults(args)
+    cli_module.load_config(getattr(args, "config", None))
+    return 0
+
+
+def _r_route_healthy(argv: list[str]) -> object:
+    """The control: the same shape, with the route left alone."""
+    from project_atlas import cli as cli_module
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    cli_module._apply_stranger_defaults(args)
+    cli_module.load_config(getattr(args, "config", None))
+    return 0
+
+
+def test_post_parse_route_rewrite_is_blocked() -> None:
+    """A post-parse subcommand-route rewrite must block at dispatch."""
+    with pytest.raises(AssertionError):
+        _assert_dispatch_dests(
+            _r_route_rewrite,
+            ("capture", "record"),
+            CERTIFIED_SUBCOMMAND_OPTIONS[("capture", "record")],
+        )
+
+
+def test_post_parse_route_control_passes_undamaged() -> None:
+    """The control for it: same shape, undamaged, same assertions."""
+    _assert_dispatch_dests(
+        _r_route_healthy,
+        ("capture", "record"),
+        CERTIFIED_SUBCOMMAND_OPTIONS[("capture", "record")],
+    )
 
 
 def test_omitted_certified_flags_keep_their_documented_default() -> None:
