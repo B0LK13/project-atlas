@@ -51,9 +51,28 @@ def validate_protected_markers(text: str, *, path: str) -> None:
     start_count = text.count(GENERATED_START)
     end_count = text.count(GENERATED_END)
     if start_count != end_count or start_count > 1:
-        raise ProtectedRegionError(f"malformed-generated-markers:{path}")
+        # AS-OBSIDIAN-CAPTURE-001-F3. Two different situations reach here and
+        # this function cannot tell them apart: an operator wrote the exact
+        # reserved marker spelling as prose (the spelling is reserved
+        # everywhere, including inside a HUMAN region), or Atlas's own
+        # generated structure is malformed. The count runs over the whole
+        # document, before regions are extracted, so the offending occurrence
+        # has no known owner at this point.
+        #
+        # Report the observable facts and name neither cause. Telling an
+        # operator they caused a fault that may be ours is worse than telling
+        # them what was counted and letting them look.
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:{path} "
+            f"(start={start_count} end={end_count} expected=1 note_unchanged=yes) "
+            "-- either an exact Atlas marker spelling was authored as prose, or "
+            "the note's generated markers are malformed; the note was not modified"
+        )
     if start_count == 1 and text.index(GENERATED_END) < text.index(GENERATED_START):
-        raise ProtectedRegionError(f"malformed-generated-markers:{path}")
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:{path} "
+            "(generated end marker precedes start; note_unchanged=yes)"
+        )
 
 
 #: A region's identity: the names of its open ancestors, outermost first,
