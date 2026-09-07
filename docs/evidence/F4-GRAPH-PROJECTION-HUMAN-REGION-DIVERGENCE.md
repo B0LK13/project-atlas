@@ -1,118 +1,104 @@
 # F4 — graph projections diverge from canonical protected-region semantics
 
-**Status:** evidence only. No implementation is claimed or contained here.
+**Status:** evidence only. No implementation is claimed or contained here;
+`src/project_atlas/graph_projections.py` is unmodified on this branch.
 **Finding class:** silent HUMAN-content loss in derived graph projections.
 **Recorded:** 2026-09-07.
 
 `src/project_atlas/graph_projections.py` carries a second, private
 implementation of HUMAN-region preservation (`_validate_protected_markers`,
 `_extract_human_regions`, `_merge_protected_regions`) alongside the canonical
-`src/project_atlas/protected_regions.py`. The divergence is already
-acknowledged in the canonical module's docstring; this receipt quantifies its
-consequence so the finding survives without conversational history.
+`src/project_atlas/protected_regions.py`. The divergence is acknowledged in the
+canonical module's docstring; this receipt quantifies its consequence so the
+finding survives without conversational history.
 
-## Base object
+## How to reproduce everything here
 
-| field | value |
-|---|---|
-| `BASE_HEAD` | `5d7d76d9536afbe07d5bff2b7b5ffdc1fa117385` |
-| `BASE_TREE` | `c354134e8bb4c8d066fcb550b472139673a87d9e` |
-| canonical module | `src/project_atlas/protected_regions.py` (F1 semantics on this base) |
-| graph module | `src/project_atlas/graph_projections.py` |
-| graph merge call site | `graph_projections.py:625` (single internal caller) |
-
-The F2 candidate (PR #699, scope-qualified `RegionPath` identity) is measured
-separately below because it is the intended convergence target.
-
-## Harness
-
-`docs/scripts/f4_protected_region_divergence_harness.py` — deterministic and
-seeded, so every number here is reconstructible:
+`docs/scripts/f4_protected_region_divergence_harness.py` is deterministic and
+seeded. From a checkout of this branch:
 
 ```
 python docs/scripts/f4_protected_region_divergence_harness.py --trials 4000 --seed 20260907
 ```
 
-It generates random HUMAN-region forests (depth ≤ 3, breadth ≤ 3, names drawn
-from a deliberately colliding three-name alphabet), gives every region a unique
-payload token, renders a fresh template of the same shape with empty bodies,
-merges through **both** implementations, and counts payload survival.
+It prints, in order: the marker-parser self-tests, the helper-level case table,
+the production-path case table, and the randomized JSON summary. Two runs at the
+same seed produce byte-identical output.
 
-Loss is counted **only among accepted merges**. A refusal is fail-closed and
-preserves the file on disk, so it is not data loss.
+`canonical` is whatever `project_atlas.protected_regions` is importable at the
+tree under test, and `graph` is `project_atlas.graph_projections`. Which
+semantics each column measures therefore follows from the checkout — nothing is
+vendored into `docs/`, and there is no second copy of either implementation.
 
-## Result — 4,000 trials, seed 20260907
+## Current baseline — canonical F2 as integrated on main
 
-Against `BASE_TREE` (canonical = F1, as on main today):
+This branch contains merged `main`, so the canonical column below is the **F2
+implementation now on main**, measured directly rather than inferred from an
+unmerged candidate.
 
-| implementation | accepted | refused | loss cases | payloads lost | cross-scope substitution cases |
-|---|---|---|---|---|---|
-| canonical (`protected_regions`) | 2178 | 1822 | 45 | 51 | 35 |
-| graph (`graph_projections`) | 3051 | 949 | **897** | **2080** | **362** |
+4,000 trials, seed 20260907:
 
-Against the same base with the F2 candidate applied (PR #699 head
-`a9d2d3b4874c9f147fcbbd97f66b3520a6bd386a`; graph module byte-identical):
+| implementation | accepted | refused | loss cases | payloads lost | cross-scope substitutions | malformed output |
+|---|---|---|---|---|---|---|
+| canonical (F2, on main) | 2178 | 1822 | **0** | **0** | **0** | 0 |
+| graph (`graph_projections`, unchanged) | 3051 | 949 | **897** | **2080** | **362** | 0 |
 
-| implementation | accepted | refused | loss cases | payloads lost | cross-scope substitution cases |
-|---|---|---|---|---|---|
-| canonical (F2) | 2178 | 1822 | **0** | **0** | **0** |
-| graph (unchanged) | 3051 | 949 | 897 | 2080 | 362 |
+Graph loses HUMAN payloads in **897 of 3,051 accepted harness merges — 29.4%**.
+The canonical path loses nothing.
 
-Two things follow. First, the graph implementation loses HUMAN payloads in
-**897 of 3,051 accepted harness cases (29.4%)**. Second, F2 is the correct
-convergence target: the canonical path on today's main still loses content in
-45 accepted cases, and F2 drives that to zero, so converging graph projections
-on *current main's* canonical semantics would not be sufficient.
+A sanity run at a different seed (99) gives the same picture: canonical
+0 losses of 2,175 accepted; graph 890 loss cases and 364 substitutions of 3,039
+accepted.
 
 ### Claim boundary
 
-The 29.4% figure is **incidence within this synthetic harness**, whose
-generator oversamples name collisions on purpose. It is **not** a claim about
-the prevalence of content loss in production vaults, and must not be restated
-as one. The denominator is 3,051 accepted harness merges, not documents in any
-real vault.
+29.4% is **incidence within this seeded harness**, whose generator oversamples
+name collisions on purpose (three-name alphabet, depth ≤ 3, breadth ≤ 3). It is
+**not** a claim about the prevalence of content loss in production vaults and
+must not be restated as one. The denominator is 3,051 accepted harness merges,
+not documents in any real vault.
 
-A previously circulated figure of ~50.5% (1,838 of 3,642 accepted, 4,000
-trials) came from a harness that was not preserved and is therefore not
-reconstructible. It is recorded here only as superseded: the numbers in this
-document come from the committed harness above and are the ones to cite.
+## Historical pre-F2 measurement
 
-## Minimal differential cases (helper level)
+Before F2 was integrated, the canonical path had losses of its own. Those
+figures are **historical**, not a description of main today. They are bound to
+an exact commit and remain reproducible: check out `5d7d76d9536afbe07d5bff2b7b5ffdc1fa117385`
+(the pre-F2 merge base, tree `c354134e8bb4c8d066fcb550b472139673a87d9e`) and run
+the same command against it.
 
-Printed by the same script, calling the two merge helpers directly.
-`canonical` is the F2 candidate; `graph` is current main. These isolate the
-mechanism; see *Production-path baseline* below for impact at the real refresh
-surface, where some outcomes differ.
+| implementation at `5d7d76d9` | accepted | refused | loss cases | payloads lost | cross-scope substitutions |
+|---|---|---|---|---|---|
+| canonical (F1, pre-F2) | 2178 | 1822 | 45 | 51 | 35 |
+| graph | 3051 | 949 | 897 | 2080 | 362 |
 
-| case | canonical (F2) | graph (main) |
-|---|---|---|
-| same-leaf-name, different scope (`a/x` + `b/x`) | ACCEPT, no loss | **ACCEPT, loses `PAY-A`** |
-| same-scope duplicate at root (`x` + `x`) | REFUSE `duplicate-protected-region-names` | **ACCEPT, loses `PAY-1`** |
-| same-scope duplicate nested (`c/(x + x)`) | REFUSE `duplicate-protected-region-names` | **ACCEPT, loses `PAY-1`** |
-| self nesting (`x` inside `x`) | REFUSE `ambiguous-protected-region-nesting` | REFUSE `malformed-protected-markers` |
-| crossed markers (`a b /a /b`) | REFUSE `malformed-protected-markers` | **ACCEPT** (fails open on crossed structure) |
-| unclosed marker | REFUSE `malformed-protected-markers` | REFUSE `malformed-protected-markers` |
-| nested distinct names (`a/b`) | ACCEPT, no loss | ACCEPT, no loss |
+Two things follow. F2 eliminated the canonical path's own residual loss
+(45 → 0). And F2, not pre-F2 main, is the correct convergence target for F4:
+converging graph projections on the *older* canonical semantics would still
+have lost content.
+
+The graph column is identical at both commits, which is the expected control —
+F2 did not touch `graph_projections.py`.
+
+### A superseded figure
+
+A previously circulated figure of ~50.5% (1,838 of 3,642 accepted, 4,000 trials)
+came from a harness that was never preserved and is **not reconstructible**. It
+is recorded here only as a superseded, non-reconstructible historical agent
+measurement, and must not be cited as F4 evidence. The committed harness numbers
+above control.
 
 ## Production-path baseline
 
-The preceding table compares the two merge helpers directly. Outcomes differ at the
-real refresh surface (`write_projection_outputs`), because there the fresh
-render carries only the default `notes` stub, so a human's own regions are
-*appended* rather than substituted and the final marker validation sees a
-different document. The production path is the one that matters, so it is
-measured separately.
+The helper-level table below compares the two merge functions directly. Outcomes
+differ at the real refresh surface (`write_projection_outputs`), because there
+the fresh render carries only the default `notes` stub, so a human's own regions
+are *appended* rather than substituted and the final marker validation sees a
+different document. **The production path is authoritative for impact**; the
+helper table explains mechanism. Their numbers are not combined.
 
-Reproduce with the same script (it seeds a real projection in a temp vault,
-authors each HUMAN structure into it, and refreshes once):
+Measured at this head:
 
-```
-python docs/scripts/f4_protected_region_divergence_harness.py
-```
-
-Baseline against `BASE_HEAD`:
-
-| case | production-path outcome on main | verdict |
+| case | production-path outcome | verdict |
 |---|---|---|
 | same-leaf-name, different scope (`a/x` + `b/x`) | ACCEPT, drops `PAY-A` | **silent HUMAN loss** |
 | same-scope duplicate at root (`x` + `x`) | ACCEPT, drops `PAY-1` | **silent HUMAN loss** |
@@ -127,13 +113,25 @@ refresh surface.** Self-nesting is the sharpest: the graph path accepts a
 structure the canonical path refuses as ambiguous, *and* loses the outer
 region's content while doing so.
 
-Two further shapes were exercised separately and behave correctly on main:
+Two further shapes were exercised separately and behave correctly today —
 reordering distinct-name siblings transfers no identity, and four consecutive
 refreshes are byte-stable with no accumulation. They are recorded so a fix is
 held to not regressing them.
 
-Where the helper-level and production-path tables disagree — crossed markers
-and self-nesting — this production-path table is authoritative for impact.
+## Minimal differential cases (helper level)
+
+| case | canonical (F2, on main) | graph |
+|---|---|---|
+| same-leaf-name, different scope (`a/x` + `b/x`) | ACCEPT, no loss | **ACCEPT, loses `PAY-A`** |
+| same-scope duplicate at root (`x` + `x`) | REFUSE `duplicate-protected-region-names` | **ACCEPT, loses `PAY-1`** |
+| same-scope duplicate nested (`c/(x + x)`) | REFUSE `duplicate-protected-region-names` | **ACCEPT, loses `PAY-1`** |
+| self nesting (`x` inside `x`) | REFUSE `ambiguous-protected-region-nesting` | REFUSE `malformed-protected-markers` |
+| crossed markers (`a b /a /b`) | REFUSE `malformed-protected-markers` | **ACCEPT** (fails open) |
+| unclosed marker | REFUSE `malformed-protected-markers` | REFUSE `malformed-protected-markers` |
+| nested distinct names (`a/b`) | ACCEPT, no loss | ACCEPT, no loss |
+
+Where the two tables disagree — crossed markers and self-nesting — the
+production-path table is authoritative for impact.
 
 ## Mechanism
 
@@ -146,12 +144,27 @@ first name-matching position it finds, which is how a payload authored under
 `b/x` can land under `a/x`.
 
 `_validate_protected_markers` compares BEGIN and END markers as a sorted
-multiset (`graph_projections.py:138`) rather than pairing them structurally, so
-crossed markers satisfy it and are accepted.
+multiset (`graph_projections.py:138`) rather than pairing them structurally.
 
-The canonical F2 implementation identifies a region by its `RegionPath` —
-ancestry scope plus name — which is what makes `a/x` and `b/x` independent and
-what makes same-scope duplicates refusable rather than silently merged.
+The canonical implementation identifies a region by its `RegionPath` — ancestry
+scope plus name — which is what makes `a/x` and `b/x` independent and same-scope
+duplicates refusable rather than silently merged.
+
+## How the measurement itself is guarded
+
+The harness's own structural parser (`observed_path`) pairs markers strictly: an
+`END name` must match the current stack top, and anything else is classified
+malformed rather than assigned a fabricated path. An earlier version popped the
+stack on *any* END, which could pop the wrong scope, invent a path for a crossed
+document, and so miscount cross-scope substitution. `_self_test_observed_path`
+asserts the shapes it must not fudge — orphan END, unclosed BEGIN at EOF,
+crossed markers, extra END, a fault occurring after the payload, and same-leaf
+sibling scopes — and runs on every invocation.
+
+Correcting the parser did **not** change the substitution counts on these
+corpora (362 before and after, with zero malformed merged outputs). The counts
+were right by luck rather than by construction; they are now right by
+construction.
 
 ## Divergences, classified
 
@@ -159,9 +172,9 @@ what makes same-scope duplicates refusable rather than silently merged.
 |---|---|---|
 | 1 | region identity: bare name vs `RegionPath` | HISTORICAL DRIFT |
 | 2 | same-scope duplicates accepted vs refused | HISTORICAL DRIFT |
-| 3 | crossed markers accepted vs refused | HISTORICAL DRIFT |
-| 4 | self-nesting refused by both, different error vocabulary | HISTORICAL DRIFT (non-material) |
-| 5 | with no HUMAN regions, graph preserves text outside the generated span; canonical returns the fresh render | INTENTIONAL CONTRACT (graph-specific; must be retained or explicitly withdrawn) |
+| 3 | crossed markers accepted vs refused (helper level) | HISTORICAL DRIFT |
+| 4 | self-nesting accepted-and-lossy vs refused | HISTORICAL DRIFT |
+| 5 | with no HUMAN regions, graph preserves text outside the generated span; canonical returns the fresh render | INTENTIONAL CONTRACT (graph-specific) |
 
 `F4_DIVERGENCE_COUNT = 5` (4 drift, 1 intentional).
 `F4_STOP_CONDITION_TRIGGERED = NO` — divergence 5 is a graph-specific outer-text
@@ -171,7 +184,8 @@ change to serve graph projections.
 
 ## Production surfaces at risk
 
-Written by the graph projection refresh path (`graph_projections.py:625`):
+Written by the graph projection refresh path (`graph_projections.py:625`, the
+single internal call site):
 
 - `generated/graph/projections/<project>/graph-health.md`
 - `generated/graph/projections/<project>/relationships.md`
@@ -183,4 +197,4 @@ HUMAN annotation is a first-class preservation contract on these files.
 
 - It does not claim any fix exists. `graph_projections.py` is unmodified.
 - It does not claim a production prevalence rate. See *Claim boundary*.
-- It does not certify PR #699. That is a separate independent verification.
+- The historical pre-F2 figures describe `5d7d76d9`, not main today.

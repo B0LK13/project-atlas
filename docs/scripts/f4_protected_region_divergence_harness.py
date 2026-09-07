@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sys
 
 GEN_START = "<!-- atlas:generated:start -->"
@@ -71,23 +72,95 @@ def payload_paths(forest: list[Region], prefix: tuple[str, ...] = ()) -> dict[st
     return out
 
 
-def observed_path(text: str, payload: str) -> tuple[str, ...] | None:
-    """RegionPath of ``payload`` in ``text``, by walking BEGIN/END markers."""
-    import re
+_TOKEN = re.compile(r"<!--\s*(BEGIN|END) HUMAN:\s*([^\s>]+)\s*-->")
 
+
+class _Malformed:
+    """Sentinel: the document's marker structure does not pair.
+
+    Distinct from ``None`` (payload absent) so a caller cannot silently treat
+    a structurally broken document as "payload found at some path".
+    """
+
+    __slots__ = ("reason",)
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+    def __repr__(self) -> str:  # pragma: no cover - diagnostics only
+        return f"MALFORMED({self.reason})"
+
+
+ABSENT = None
+
+
+def observed_path(text: str, payload: str) -> tuple[str, ...] | _Malformed | None:
+    """RegionPath of ``payload`` in ``text``, by strict structural pairing.
+
+    ``BEGIN name`` pushes; ``END name`` must match the current stack top or the
+    document is malformed. An earlier version popped on *any* END, which could
+    pop the wrong scope, invent a path for a crossed document, and so miscount
+    cross-scope substitution. It now refuses to guess.
+
+    Returns the path, ``None`` if the payload is absent, or a ``_Malformed``
+    sentinel naming the first structural fault -- never a fabricated path. The
+    whole document is walked even when the payload is found early, so a fault
+    *after* the payload still classifies the document as malformed.
+    """
     idx = text.find(payload)
-    if idx < 0:
-        return None
-    token = re.compile(r"<!--\s*(BEGIN|END) HUMAN:\s*([^\s>]+)\s*-->")
     stack: list[str] = []
-    for m in token.finditer(text):
-        if m.start() > idx:
-            break
+    found: tuple[str, ...] | None = None
+    for m in _TOKEN.finditer(text):
+        if idx >= 0 and found is None and m.start() > idx:
+            found = tuple(stack)
         if m.group(1) == "BEGIN":
             stack.append(m.group(2))
-        elif stack:
-            stack.pop()
-    return tuple(stack)
+            continue
+        name = m.group(2)
+        if not stack:
+            return _Malformed(f"orphan-end:{name}")
+        if stack[-1] != name:
+            return _Malformed(f"unpaired:{name}-closes-{stack[-1]}")
+        stack.pop()
+    if stack:
+        return _Malformed(f"unclosed:{stack[-1]}")
+    if idx < 0:
+        return ABSENT
+    return found if found is not None else tuple(stack)
+
+
+def _self_test_observed_path() -> None:
+    """Assertions for the structural shapes the parser must not fudge."""
+    ok = "<!-- BEGIN HUMAN: a -->\n<!-- BEGIN HUMAN: x -->\nP\n" \
+         "<!-- END HUMAN: x -->\n<!-- END HUMAN: a -->\n"
+    assert observed_path(ok, "P") == ("a", "x"), observed_path(ok, "P")
+    assert observed_path(ok, "NOPE") is ABSENT
+
+    crossed = "<!-- BEGIN HUMAN: a -->\nP\n<!-- BEGIN HUMAN: b -->\n" \
+              "<!-- END HUMAN: a -->\n<!-- END HUMAN: b -->\n"
+    assert isinstance(observed_path(crossed, "P"), _Malformed)
+
+    orphan = "<!-- END HUMAN: a -->\nP\n"
+    assert isinstance(observed_path(orphan, "P"), _Malformed)
+
+    unclosed = "<!-- BEGIN HUMAN: a -->\nP\n"
+    assert isinstance(observed_path(unclosed, "P"), _Malformed)
+
+    extra_end = "<!-- BEGIN HUMAN: a -->\nP\n<!-- END HUMAN: a -->\n" \
+                "<!-- END HUMAN: a -->\n"
+    assert isinstance(observed_path(extra_end, "P"), _Malformed)
+
+    # A fault after the payload must still be caught.
+    late = "<!-- BEGIN HUMAN: a -->\nP\n<!-- END HUMAN: a -->\n<!-- END HUMAN: b -->\n"
+    assert isinstance(observed_path(late, "P"), _Malformed)
+
+    # Sibling scopes with the same leaf name are distinct, not malformed.
+    sib = "<!-- BEGIN HUMAN: a -->\n<!-- BEGIN HUMAN: x -->\nPA\n" \
+          "<!-- END HUMAN: x -->\n<!-- END HUMAN: a -->\n" \
+          "<!-- BEGIN HUMAN: b -->\n<!-- BEGIN HUMAN: x -->\nPB\n" \
+          "<!-- END HUMAN: x -->\n<!-- END HUMAN: b -->\n"
+    assert observed_path(sib, "PA") == ("a", "x")
+    assert observed_path(sib, "PB") == ("b", "x")
 
 
 # --- Minimal named differential cases (the shapes the randomized run finds) ---
@@ -133,8 +206,6 @@ _CASE_BODIES: dict[str, tuple[str, list[str]]] = {
 
 def run_named_cases() -> None:
     """Print the canonical-vs-graph verdict for each named shape."""
-    import re as _re
-
     from project_atlas import graph_projections, protected_regions
 
     def _doc(body: str, gen: str) -> str:
@@ -144,7 +215,7 @@ def run_named_cases() -> None:
     print("-" * 132)
     for name, (body, pays) in _CASE_BODIES.items():
         existing = _doc(body, "OLD generated body")
-        rendered = _doc(_re.sub(r"(?m)^PAY[-A-Z0-9]*\n", "", body), "NEW generated body")
+        rendered = _doc(re.sub(r"(?m)^PAY[-A-Z0-9]*\n", "", body), "NEW generated body")
         row = []
         for fn, err in (
             (protected_regions.merge_protected_regions, protected_regions.ProtectedRegionError),
@@ -216,12 +287,13 @@ def main() -> int:
 
     from project_atlas import graph_projections, protected_regions
 
+    _self_test_observed_path()
     run_named_cases()
     run_production_cases()
 
     stats = {
         impl: {"accepted": 0, "refused": 0, "loss_cases": 0, "lost_payloads": 0,
-               "xscope_cases": 0, "error": 0}
+               "xscope_cases": 0, "malformed_output": 0, "error": 0}
         for impl in ("canonical", "graph")
     }
     shapes_with_graph_loss: dict[str, int] = {}
@@ -258,10 +330,20 @@ def main() -> int:
                 if impl == "graph":
                     shape = describe_shape(forest)
                     shapes_with_graph_loss[shape] = shapes_with_graph_loss.get(shape, 0) + 1
-            xscope = any(
-                p not in lost and observed_path(out, p) != expected[p] for p in expected
-            )
-            if xscope:
+            malformed = False
+            xscope = False
+            for payload, want in expected.items():
+                if payload in lost:
+                    continue
+                got = observed_path(out, payload)
+                if isinstance(got, _Malformed):
+                    malformed = True
+                    break
+                if got != want:
+                    xscope = True
+            if malformed:
+                stats[impl]["malformed_output"] += 1
+            elif xscope:
                 stats[impl]["xscope_cases"] += 1
 
     report = {
