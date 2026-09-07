@@ -13034,3 +13034,51 @@ remain owner-gated and untouched.
 
 This entry is implementation evidence, not certification: exact-head CI and
 fresh independent verification are required before merge.
+
+## F4 durable baseline — graph-projection HUMAN-region divergence (evidence only)
+
+`graph_projections.py` carries a second, private implementation of HUMAN-region
+preservation alongside the canonical `protected_regions.py`. The canonical
+module's docstring acknowledged the divergence, but nothing in the repository
+measured its consequence, so the finding lived only in agent memory. This work
+package makes it durable and reconstructible. **No runtime source is changed:**
+`git diff --name-only origin/main..HEAD -- src tests` is empty and
+`graph_projections.py` is blob-identical to main.
+
+Added `docs/scripts/f4_protected_region_divergence_harness.py` (deterministic,
+seeded) and `docs/evidence/F4-GRAPH-PROJECTION-HUMAN-REGION-DIVERGENCE.md`. One
+command prints the parser self-tests, the helper-level table, the production-path
+table and the randomized summary.
+
+Measured at this head, 4,000 trials, seed 20260907, with the canonical column
+importing the F2 implementation now on main (#699, `eadc0f62`) rather than an
+unmerged candidate:
+
+| | accepted | loss cases | lost | substitutions | duplicate cases | marker growth |
+|---|---|---|---|---|---|---|
+| canonical (F2) | 2178 | 0 | 0 | 0 | 0 | 0 |
+| graph | 3051 | 897 | 2080 | 362 | 194 | 108 |
+
+At the real refresh surface (`write_projection_outputs`) four of nine shapes
+silently drop human bytes, self-nesting among them -- graph accepts a structure
+canonical refuses as ambiguous *and* loses the outer region's content.
+
+Two things were corrected during review and are recorded rather than quietly
+fixed. The harness's own `observed_path` was not a structural parser: it popped
+the marker stack on any `END` without checking it matched the top, so it could
+pop the wrong scope and invent a `RegionPath`. It now pairs strictly and
+classifies malformed documents instead of guessing, with self-tests that kill
+the old parser. The correction did **not** change the substitution counts (362
+before and after) -- they were right by luck, and are now right by construction.
+Separately, independent verification found that loss is not graph's only
+corruption mode: it also duplicates payloads and grafts spurious region
+subtrees. Both are now counted, because a fix that only stopped dropping bytes
+would otherwise have scored clean.
+
+Claim boundary: 29.4% is incidence within a harness whose generator oversamples
+name collisions deliberately. It is not a production prevalence rate. A
+previously circulated ~50.5% figure came from a harness that was never preserved
+and is marked superseded and non-reconstructible. Pre-F2 figures are retained but
+bound to `5d7d76d9`, where they still reproduce from the same committed harness.
+
+This entry is baseline evidence, not certification, and it claims no fix.
