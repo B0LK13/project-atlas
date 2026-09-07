@@ -15,9 +15,17 @@ runtime packages under `src/project_atlas`.
   - modes: `-Check`, `-DryRun`, `-Install`
   - detect-before-install and no forced upgrades
   - user-scope install preference via npm/pipx/winget
+  - explicit exit contract: `0` healthy/success, `3` required missing,
+    `4` install required-item failure, `10` hard failure
+  - installs/configures required MCPs (`codebase-memory`, `github`,
+    `playwright`) and optional `context7` for Copilot/VS Code/Cursor
+  - writes Windows GitHub MCP runtime-auth wrapper at
+    `%USERPROFILE%\\.local\\bin\\github-mcp-wrapper.ps1`
 - Added Windows health reporter: `scripts/check-windows-dev-health.ps1`
   - read-only JSON machine report
-  - no token extraction commands
+  - bounded tool probes with per-tool status (`healthy`, `missing`,
+    `version_drift`, `probe_failed`, `optional_missing`) and no full-script
+    abort when an individual probe fails
 - Extended canonical tooling manifest to cross-platform metadata:
   - `development-tooling-manifest.json`
   - platform-aware install methods and config locations
@@ -32,6 +40,8 @@ runtime packages under `src/project_atlas`.
 - Added Windows-oriented test coverage:
   - `experiments/agents_sdk/tests/test_bootstrap_script_windows.py`
   - updated `experiments/agents_sdk/README.md` with PowerShell run commands
+  - added deterministic eval case:
+    `prospective_open_pr_merge_sha_not_merge_receipt`
 
 ## Validation run
 

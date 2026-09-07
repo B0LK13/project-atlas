@@ -37,6 +37,8 @@ class DecisionInput:
     verifier_repo_write_attempt: bool
     lane_states: list[LaneState]
     head_moved_after_decision: bool
+    prospective_open_pr_merge_sha: bool = False
+    actual_merge_receipt_present: bool = True
 
 
 @dataclass(frozen=True)
@@ -112,6 +114,8 @@ class Governor:
                 stale_head=False,
                 implementer_self_certification_attempt=False,
                 verifier_repo_write_attempt=False,
+                prospective_open_pr_merge_sha=False,
+                actual_merge_receipt_present=True,
                 lane_states=[LaneState("lane-owner-request", "RUNNABLE")],
                 head_moved_after_decision=False,
             )
@@ -133,6 +137,8 @@ def evaluate_gate(inputs: DecisionInput) -> GateResult:
         reasons.append("implementer_self_certification")
     if inputs.verifier_repo_write_attempt:
         reasons.append("verifier_write_attempt")
+    if inputs.prospective_open_pr_merge_sha and not inputs.actual_merge_receipt_present:
+        reasons.append("prospective_open_pr_merge_sha_not_merge_receipt")
     if inputs.stale_head:
         reasons.append("stale_head")
     if not inputs.remote_head_match:

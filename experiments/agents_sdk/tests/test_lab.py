@@ -1,5 +1,4 @@
 import pytest
-
 from experiments.agents_sdk.lab import (
     DecisionInput,
     Governor,
@@ -204,9 +203,36 @@ def test_head_moves_after_decision_invalidates_authorization() -> None:
             stale_head=False,
             implementer_self_certification_attempt=False,
             verifier_repo_write_attempt=False,
+            prospective_open_pr_merge_sha=False,
+            actual_merge_receipt_present=True,
             lane_states=[LaneState("lane-a", "RUNNABLE")],
             head_moved_after_decision=True,
         )
     )
     assert result.verdict == "BLOCK"
     assert "head_moved_after_decision" in result.reasons
+
+
+def test_prospective_merge_sha_without_receipt_is_blocked() -> None:
+    result = evaluate_gate(
+        DecisionInput(
+            remote_head_match=True,
+            exact_head_ci=True,
+            exact_head_iv=True,
+            claim_integrity=True,
+            p0_count=0,
+            p1_count=0,
+            current_main_compatibility=True,
+            mergeable=True,
+            owner_gate_resolved=True,
+            stale_head=False,
+            implementer_self_certification_attempt=False,
+            verifier_repo_write_attempt=False,
+            prospective_open_pr_merge_sha=True,
+            actual_merge_receipt_present=False,
+            lane_states=[LaneState("lane-a", "RUNNABLE")],
+            head_moved_after_decision=False,
+        )
+    )
+    assert result.verdict == "BLOCK"
+    assert "prospective_open_pr_merge_sha_not_merge_receipt" in result.reasons

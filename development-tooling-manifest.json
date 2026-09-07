@@ -39,15 +39,15 @@
       "name": "github-mcp-server",
       "version": "1.12.0",
       "kind": "mcp",
-      "source": "wrapper+upstream-binary",
+      "source": "npm+wrapper",
       "required": true,
       "platform": [
         "linux",
         "windows"
       ],
       "install_method": {
-        "linux": "Install wrapper script and runtime-auth gh token indirection.",
-        "windows": "Install PowerShell wrapper and runtime-auth gh token indirection."
+        "linux": "npm i -g github-mcp-server@1.12.0 and wrapper with runtime-auth gh token indirection.",
+        "windows": "npm i -g github-mcp-server@1.12.0 and PowerShell wrapper with runtime-auth gh token indirection."
       },
       "config_locations": {
         "linux": [
@@ -64,7 +64,7 @@
         ]
       },
       "security_scope": "runtime-token-only",
-      "health_command": "gh auth status",
+      "health_command": "github-mcp-server --version",
       "purpose": "Repository metadata, PR, issue, commit, and CI truth."
     },
     {

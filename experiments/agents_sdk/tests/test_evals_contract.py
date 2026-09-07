@@ -18,6 +18,8 @@ def _case_input(case_id: str) -> DecisionInput:
         stale_head=False,
         implementer_self_certification_attempt=False,
         verifier_repo_write_attempt=False,
+        prospective_open_pr_merge_sha=False,
+        actual_merge_receipt_present=True,
         lane_states=[LaneState("lane-a", "RUNNABLE")],
         head_moved_after_decision=False,
     )
@@ -38,6 +40,9 @@ def _case_input(case_id: str) -> DecisionInput:
         base["lane_states"] = [LaneState("lane-a", "WAITING_CI"), LaneState("lane-b", "RUNNABLE")]
     elif case_id == "eval-head-moves-after-decision":
         base["head_moved_after_decision"] = True
+    elif case_id == "eval-prospective-merge-sha-without-receipt":
+        base["prospective_open_pr_merge_sha"] = True
+        base["actual_merge_receipt_present"] = False
     else:
         raise AssertionError(f"unknown case id: {case_id}")
     return DecisionInput(**base)

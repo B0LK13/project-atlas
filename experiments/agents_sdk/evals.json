@@ -39,6 +39,11 @@
       "id": "eval-head-moves-after-decision",
       "expect": "BLOCK",
       "reason": "head_moved_after_decision"
+    },
+    {
+      "id": "eval-prospective-merge-sha-without-receipt",
+      "expect": "BLOCK",
+      "reason": "prospective_open_pr_merge_sha_not_merge_receipt"
     }
   ]
 }

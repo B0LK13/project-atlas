@@ -33,6 +33,13 @@ pwsh -File scripts/check-windows-dev-health.ps1
 The script is idempotent: it checks command presence before install attempts and
 does not force upgrades.
 
+Exit contract:
+
+- `0`: healthy (`-Check`/`-DryRun`) or successful install (`-Install`)
+- `3`: required tooling/config missing in `-Check`/`-DryRun`
+- `4`: install attempted but one or more required items failed
+- `10`: script hard failure
+
 ## Install policy
 
 Preferred order:
@@ -55,6 +62,11 @@ Avoid opaque bootstrap scripts and `curl|iex` patterns.
 Each selected server must pass startup plus one real tool call in the target
 client. Equivalent capability coverage is accepted without requiring exact MCP
 server-count parity across clients.
+
+`context7` is optional in the manifest (`required=false`), so absence is
+reported as optional and does not fail required parity.
+
+`pip-audit` remains exact-pinned to `2.10.1` in manifest and bootstrap.
 
 ## Worktree collision checks (Codebase Memory)
 
