@@ -115,17 +115,26 @@ Measured at this head:
 | crossed markers (`a b /a /b`) | REFUSE `malformed-protected-markers` | fail-closed |
 | unclosed marker | REFUSE `malformed-protected-markers` | fail-closed |
 | nested distinct names (`a/b`) | ACCEPT, both payloads preserved | matches canonical |
-| sibling reorder, distinct names | no identity transfer | matches canonical |
-| repeated refresh (x4) | stable, no accumulation | matches canonical |
+| sibling reorder, distinct names | no identity transfer | correct today |
+| repeated refresh (x4) | stable, no accumulation | correct today |
 
 **Four of these nine shapes silently drop human-authored bytes at the real
 refresh surface.** Self-nesting is the sharpest: the graph path accepts a
 structure the canonical path refuses as ambiguous, *and* loses the outer
 region's content while doing so.
 
-The last two shapes behave correctly today and are recorded so a fix is held to
-not regressing them. They are run by the harness rather than asserted in prose,
-so the same command produces them alongside every other table.
+The last two rows are behaviour checks rather than document shapes, which is
+why the ratio above is four of nine rather than four of seven — the denominator
+grew without any behaviour changing. They are recorded so a fix is held to not
+regressing them, and they are run by the harness rather than asserted in prose.
+`write_projection_outputs` is graph-only, so these two rows have no canonical
+column; "correct today" is an observed property of the current graph path, and
+canonical was confirmed to behave the same way separately.
+
+The reorder check resolves each payload's `RegionPath` with the strict parser
+and requires it to equal the authored one. An earlier version used a substring
+scan that reported success both when a payload had migrated forward into a later
+sibling and when it had been dropped outright.
 
 One behaviour worth noting because it is *shared*, and so is not an F4
 divergence: orphaned regions are re-emitted in sorted-name order by both
@@ -182,11 +191,36 @@ corpora (362 before and after, with zero malformed merged outputs). The counts
 were right by luck rather than by construction; they are now right by
 construction.
 
-The parser locates a payload's *first* occurrence, so where graph duplicates a
-payload and the first copy sits at the expected path, a stray second copy is not
-counted as substitution. The bias is deliberate and conservative — it understates
-graph's misbehaviour rather than overstating it — and the duplication counters
-above catch those cases separately.
+### Two conservative biases in the substitution counter
+
+Both understate graph's misbehaviour rather than overstating it, so no published
+figure is inflated by them — but **362 substitutions is a lower bound, not a
+measurement of the true rate**.
+
+1. *First-occurrence location.* The parser locates a payload's first occurrence,
+   so where graph duplicates a payload and the first copy sits at the expected
+   path, a stray second copy elsewhere is not counted. The duplication counters
+   catch those cases separately.
+2. *Path ambiguity.* A `RegionPath` here is a tuple of ancestor **names**, so two
+   same-name sibling scopes under one parent collapse to the same tuple and an
+   identity swap between them is invisible to this counter. The exposure is
+   large and worth stating: **5,270 of 13,780 generated payloads (38.2%)** sit at
+   a path shared with another payload, across roughly 39% of trials.
+
+### What this instrument does not measure
+
+Each region carries one fixed ASCII token, so the harness measures token
+*presence, count and placement* — not human-byte fidelity. Independent review
+fed it ten deliberately corrupt merges that all scored clean: prose truncation
+inside a region with the token kept, whitespace and indentation mutation, CRLF
+rewrite, encoding mutation of human prose, line reordering within a region,
+injection of generated text into a HUMAN region, and any corruption of the
+generated span itself.
+
+So "canonical records zero on every corruption counter" means exactly that —
+zero on loss, cross-scope substitution, duplication, structural growth and
+malformed output. It is **not** a general no-corruption certificate, and this
+baseline should not be read as one when signing off a fix.
 
 ## Divergences, classified
 

@@ -323,12 +323,26 @@ def _run_reorder_and_refresh_cases() -> None:
             print(f"{'sibling reorder, distinct names':52} | REFUSE {exc}")
         else:
             out = path.read_text(encoding="utf-8")
-            owner_ok = all(
-                out.rfind(f"BEGIN HUMAN: {n}", 0, out.find(f"PAY-{n.upper()}")) >= 0
-                for n in ("p", "q")
-            )
-            print(f"{'sibling reorder, distinct names':52} | "
-                  f"{'no identity transfer' if owner_ok else 'IDENTITY TRANSFER'}")
+            # Reuse the strict parser rather than a substring scan: an earlier
+            # version used rfind, which matched *any* preceding BEGIN of that
+            # name (so a payload migrated into a later sibling still read as
+            # "no transfer"), and on an absent payload find() returned -1,
+            # making rfind scan the whole document and report success for a
+            # dropped payload. Both now fail loudly.
+            verdict = "no identity transfer"
+            for name in ("p", "q"):
+                payload = f"PAY-{name.upper()}"
+                got = observed_path(out, payload)
+                if got is ABSENT:
+                    verdict = f"DROPPED {payload}"
+                    break
+                if isinstance(got, _Malformed):
+                    verdict = f"MALFORMED OUTPUT ({got.reason})"
+                    break
+                if got != (name,):
+                    verdict = f"IDENTITY TRANSFER: {payload} at {'/'.join(got) or '(root)'}"
+                    break
+            print(f"{'sibling reorder, distinct names':52} | {verdict}")
 
     with tempfile.TemporaryDirectory() as tmp:
         vault, bundle, path = _seeded(tmp, two)
