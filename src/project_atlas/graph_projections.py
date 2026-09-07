@@ -161,6 +161,25 @@ def _validate_protected_markers(text: str, *, path: str) -> None:
             raise GraphProjectionError(f"malformed-generated-markers:{path}")
 
 
+def _generated_span(text: str, *, path: str) -> tuple[int, int] | None:
+    """Bounds of the single generated span, or ``None`` when there is none.
+
+    :func:`_validate_protected_markers` treats a document carrying *no*
+    generated markers as balanced (zero begins, zero ends), so the retained
+    graph-specific splice below cannot assume they are present. Locating them
+    with ``str.index`` raised a bare :class:`ValueError` that escaped this
+    module's ``GraphProjectionError`` boundary. Fails closed instead when the
+    markers are present but unusable -- only one side, or END before BEGIN.
+    """
+    start = text.find(_GENERATED_START)
+    end = text.find(_GENERATED_END)
+    if start < 0 and end < 0:
+        return None
+    if start < 0 or end < 0 or end < start:
+        raise GraphProjectionError(f"malformed-generated-markers:{path}")
+    return start, end + len(_GENERATED_END)
+
+
 def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:
     """Preserve HUMAN regions via the canonical protected-region core (F4).
 
@@ -188,13 +207,21 @@ def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) 
         # render in this case, which would discard that text.
         _validate_protected_markers(existing, path=path)
         _validate_protected_markers(rendered, path=path)
-        if _GENERATED_START in existing and _GENERATED_END in existing:
-            start_index = existing.index(_GENERATED_START)
-            end_index = existing.index(_GENERATED_END) + len(_GENERATED_END)
-            gen_start = rendered.index(_GENERATED_START)
-            gen_end = rendered.index(_GENERATED_END) + len(_GENERATED_END)
-            return existing[:start_index] + rendered[gen_start:gen_end] + existing[end_index:]
-        return rendered
+        existing_span = _generated_span(existing, path=path)
+        if existing_span is None:
+            return rendered
+        rendered_span = _generated_span(rendered, path=path)
+        if rendered_span is None:
+            # The prior note has a generated span to replace but the fresh
+            # render offers none. Refuse rather than fall back to overwriting
+            # the whole document, which would discard the outside text this
+            # branch exists to preserve.
+            raise GraphProjectionError(f"malformed-generated-markers:{path}")
+        return (
+            existing[: existing_span[0]]
+            + rendered[rendered_span[0] : rendered_span[1]]
+            + existing[existing_span[1] :]
+        )
 
     try:
         return _canonical_merge_protected_regions(existing=existing, rendered=rendered, path=path)

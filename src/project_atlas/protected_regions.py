@@ -13,12 +13,14 @@ the way the atomic-write layer already guards against for filesystem writes
 
 This is **not** the only consumer of the semantics in the repository:
 :mod:`project_atlas.graph_projections` reaches this module through a narrow
-adapter (AS-OBSIDIAN-CAPTURE-001-F4), so its HUMAN-region identity,
-ambiguity, and preservation behavior is exactly the behavior tested here.
-The adapter retains one intentional graph-specific contract: when the prior
-note has no HUMAN regions, graph projections preserve text outside the
-generated span and replace only that span, where this module returns the
-fresh render.
+adapter (AS-OBSIDIAN-CAPTURE-001-F4). It reuses this module's HUMAN-region
+identity, ambiguity and preservation semantics **when HUMAN regions are
+present**, and retains one separately documented graph-specific contract for
+when they are not: with a prior note carrying no HUMAN regions, graph
+projections preserve the text outside the generated span and replace only
+that span, where this module returns the fresh render. So graph projections
+are not equivalent to this module in general -- only on the HUMAN-region
+semantics themselves.
 
 Callers translate :class:`ProtectedRegionError` into their own domain error
 type at the boundary (the existing convention in this codebase for

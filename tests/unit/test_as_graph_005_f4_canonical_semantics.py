@@ -296,3 +296,92 @@ def test_f4_differential_randomized_matches_canonical_core() -> None:
             for leaf in leaves:
                 want = f"PAYLOAD-E-{trial}-{top}-{leaf}"
                 assert want in regions[(top, leaf)], f"trial {trial}: lost {want}"
+
+
+# --- F707-1: the retained no-HUMAN path must fail closed through the graph
+# --- error type, never a bare ValueError from a substring lookup -------------
+
+_NO_HUMAN_EXISTING = "PREFIX-KEEP\n" + _GENERATED_V1 + "\nSUFFIX-KEEP\n"
+
+
+def _no_human_merge(rendered: str) -> str:
+    return _gp_merge(_NO_HUMAN_EXISTING, rendered)
+
+
+@pytest.mark.parametrize(
+    ("label", "rendered"),
+    [
+        # Only this first case is load-bearing against the pre-fix
+        # implementation: with zero generated markers the balance check sees
+        # 0 == 0 and passes, then str.index raised ValueError. The other two
+        # were already refused by the count/order check, and are pinned here
+        # as regression guards rather than as evidence of the fix.
+        ("missing both generated markers", "fresh body only\n"),
+        ("missing generated BEGIN", "fresh body\n<!-- atlas:generated:end -->\n"),
+        ("missing generated END", "<!-- atlas:generated:start -->\nfresh body\n"),
+    ],
+)
+def test_f707_1_malformed_rendered_span_raises_graph_error(label: str, rendered: str) -> None:
+    with pytest.raises(GraphProjectionError, match="malformed-generated-markers"):
+        _no_human_merge(rendered)
+
+
+def test_f707_1_end_before_begin_in_rendered_raises_graph_error() -> None:
+    rendered = "<!-- atlas:generated:end -->\nbody\n<!-- atlas:generated:start -->\n"
+    with pytest.raises(GraphProjectionError, match="malformed-generated-markers"):
+        _no_human_merge(rendered)
+
+
+def test_f707_1_no_bare_valueerror_escapes_the_graph_boundary() -> None:
+    """Whatever the rendered shape, the caller sees GraphProjectionError only."""
+    for rendered in (
+        "fresh body only\n",
+        "<!-- atlas:generated:start -->\nbody\n",
+        "body\n<!-- atlas:generated:end -->\n",
+        "<!-- atlas:generated:end -->\nbody\n<!-- atlas:generated:start -->\n",
+    ):
+        try:
+            _no_human_merge(rendered)
+        except GraphProjectionError:
+            continue
+        except Exception as exc:  # pragma: no cover - the defect this pins
+            raise AssertionError(
+                f"{type(exc).__name__} escaped the GraphProjectionError boundary: {exc}"
+            ) from exc
+
+
+def test_f707_1_valid_span_still_accepted_and_outside_text_preserved() -> None:
+    merged = _no_human_merge("HEADER-DROP\n" + _GENERATED_V2 + "\nFOOTER-DROP\n")
+    assert merged.startswith("PREFIX-KEEP\n"), "outside-span prefix must survive"
+    assert merged.endswith("SUFFIX-KEEP\n"), "outside-span suffix must survive"
+    assert "gen v2" in merged and "gen v1" not in merged, "generated span must be replaced"
+    # The fresh render's own outside text is deliberately NOT adopted: this
+    # branch preserves the prior note's surroundings, not the template's.
+    assert "HEADER-DROP" not in merged and "FOOTER-DROP" not in merged
+
+
+def test_f707_1_existing_without_generated_span_returns_fresh_render() -> None:
+    """Prior note with no generated span at all keeps the historical fallback."""
+    assert _gp_merge("just prose, no markers\n", _GENERATED_V2) == _GENERATED_V2
+
+
+def test_f707_1_refusal_leaves_the_real_projection_untouched(tmp_path: Path) -> None:
+    """No partial mutation: a refused refresh leaves the file byte-identical."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    bundle = materialize_projections(project_id="demo")
+    write_projection_outputs(bundle, vault=vault)
+    path = vault / "generated/graph/projections/demo/graph-health.md"
+    # Strip the HUMAN stub so the note takes the retained no-HUMAN path, and
+    # break its generated span so the next refresh must refuse.
+    text = path.read_text(encoding="utf-8")
+    stub = "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->\n"
+    assert stub in text, "projection stub shape changed; fixture needs updating"
+    path.write_text(
+        text.replace(stub, "").replace("<!-- atlas:generated:end -->", "") + "TAIL\n",
+        encoding="utf-8",
+    )
+    before = path.read_bytes()
+    with pytest.raises(GraphProjectionError):
+        write_projection_outputs(bundle, vault=vault)
+    assert path.read_bytes() == before, "refusal must not partially rewrite the note"

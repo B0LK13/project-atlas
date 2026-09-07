@@ -13053,12 +13053,19 @@ fresh independent verification are required before merge.
   with last-wins silent loss of one payload each; self-nesting, crossed
   markers and unclosed BEGIN are refused only via marker-count mismatch.
   Reordered siblings, nested distinct names and orphan appends are preserved
-  in the tested shapes. Historical 4,000-trial harness figures (synthetic
-  incidence, NOT a claim about production prevalence): graph projections
-  accepted 3,642 / refused 358 / lost 1,838 (~50.5% loss over accepted),
-  vs canonical F2 accepted 1,241 / refused 2,759 / lost 0; cross-scope
-  substitution reproduced. F2 does not reach `graph_projections.py` -- the
-  defect survived F2 integration unchanged, as expected.
+  in the tested shapes. F2 does not reach `graph_projections.py` -- the defect
+  survived F2 integration unchanged, as expected.
+- Baseline evidence policy. An earlier draft of this entry quantified the
+  defect as "3,642 accepted / 358 refused / 1,838 lost (~50.5%)". That figure
+  came from a harness that was never preserved: it is a SUPERSEDED,
+  NON-RECONSTRUCTIBLE historical agent measurement and is NOT authoritative,
+  so it is withdrawn here rather than restated with a qualifier. It must not
+  be used to support merge eligibility. The durable, deterministic and
+  repository-visible baseline is the seeded harness in PR #706
+  (`docs/scripts/f4_protected_region_divergence_harness.py`), which is a
+  separate evidence lane under its own independent review; this entry does not
+  depend on it and claims only what the directed reproduction above and the
+  acceptance evidence below prove at this branch.
 - F4 implementation (branch `fix/graph-projections-canonical-human-region-semantics`,
   base `eadc0f62`): `graph_projections._merge_protected_regions` now delegates
   HUMAN-region identity, ambiguity and preservation semantics to the canonical
