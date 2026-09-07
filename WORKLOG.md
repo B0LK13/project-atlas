@@ -13089,6 +13089,18 @@ KNOWN_MATERIAL_GOVERNANCE_FINDING   = OPEN
 CLI_GOVERNANCE_TEMP_FREEZE          = ACTIVE   (CLI-contract surface only)
 ```
 
+That block records the coordination state **as asserted at the time of this
+entry (2026-09-06)**, not a landed repository policy. Verified afterwards:
+`CLI_GOVERNANCE_TEMP_FREEZE` had no declaration anywhere on `main` -- all 2,781
+tracked files byte-scanned, zero hits -- so it existed only in pull-request
+prose and coordination comments. It was therefore never "active" in the sense
+of a governing repository rule, and could not have been "lifted" either. The
+term was retired on 2026-09-07 in favour of the gates actually enforced:
+exact-object evidence, independent verification, claim integrity, thread
+adjudication, current-main compatibility, the merge gate, and the postmerge
+seal. The three lines above it -- `PR690_INTEGRATED`, `PR690_SEALED`,
+`KNOWN_MATERIAL_GOVERNANCE_FINDING` -- are unaffected and stand as published.
+
 The earlier report that #690 was sealed was wrong and is not retired by this
 entry; it is corrected by it. The historical FAIL_MATERIAL verdict stands as
 published.
