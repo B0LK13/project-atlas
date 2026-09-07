@@ -19,3 +19,10 @@ def test_windows_bootstrap_script_avoids_plaintext_github_token() -> None:
     script = Path("scripts/bootstrap-dev-tooling.ps1").read_text()
     assert "gh auth token" not in script
     assert "GITHUB_TOKEN=" not in script
+
+
+def test_windows_health_script_is_read_only_report() -> None:
+    script = Path("scripts/check-windows-dev-health.ps1").read_text()
+    assert "ConvertTo-Json" in script
+    assert "gh auth status" in script
+    assert "gh auth token" not in script

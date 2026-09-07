@@ -23,6 +23,7 @@ Status: non-production developer tooling guidance for Windows hosts.
 pwsh -File scripts/bootstrap-dev-tooling.ps1 -Check
 pwsh -File scripts/bootstrap-dev-tooling.ps1 -DryRun
 pwsh -File scripts/bootstrap-dev-tooling.ps1 -Install
+pwsh -File scripts/check-windows-dev-health.ps1
 ```
 
 The script is idempotent: it checks command presence before install attempts and
