@@ -38,13 +38,21 @@ unmerged candidate.
 
 4,000 trials, seed 20260907:
 
-| implementation | accepted | refused | loss cases | payloads lost | cross-scope substitutions | malformed output |
-|---|---|---|---|---|---|---|
-| canonical (F2, on main) | 2178 | 1822 | **0** | **0** | **0** | 0 |
-| graph (`graph_projections`, unchanged) | 3051 | 949 | **897** | **2080** | **362** | 0 |
+| implementation | accepted | refused | loss cases | payloads lost | cross-scope substitutions | duplicate cases | payloads duplicated | marker growth | malformed |
+|---|---|---|---|---|---|---|---|---|---|
+| canonical (F2, on main) | 2178 | 1822 | **0** | **0** | **0** | **0** | **0** | **0** | 0 |
+| graph (`graph_projections`, unchanged) | 3051 | 949 | **897** | **2080** | **362** | **194** | **235** | **108** | 0 |
 
 Graph loses HUMAN payloads in **897 of 3,051 accepted harness merges — 29.4%**.
 The canonical path loses nothing.
+
+**Loss is not the only corruption mode.** Graph also *duplicates* human content
+in **194 of 3,051 accepted merges (6.4%)**, emitting 235 payloads more than
+once, and in **108 cases grafts in spurious region structure** — the merged
+document ends up with more HUMAN markers than the document it merged from. A
+narrow fix that merely stopped *dropping* bytes could still amplify them and
+would score clean on loss alone, so both are measured here. Canonical F2 records
+zero on every corruption counter.
 
 A sanity run at a different seed (99) gives the same picture: canonical
 0 losses of 2,175 accepted; graph 890 loss cases and 364 substitutions of 3,039
@@ -107,16 +115,24 @@ Measured at this head:
 | crossed markers (`a b /a /b`) | REFUSE `malformed-protected-markers` | fail-closed |
 | unclosed marker | REFUSE `malformed-protected-markers` | fail-closed |
 | nested distinct names (`a/b`) | ACCEPT, both payloads preserved | matches canonical |
+| sibling reorder, distinct names | no identity transfer | matches canonical |
+| repeated refresh (x4) | stable, no accumulation | matches canonical |
 
-**Four of these seven shapes silently drop human-authored bytes at the real
+**Four of these nine shapes silently drop human-authored bytes at the real
 refresh surface.** Self-nesting is the sharpest: the graph path accepts a
 structure the canonical path refuses as ambiguous, *and* loses the outer
 region's content while doing so.
 
-Two further shapes were exercised separately and behave correctly today —
-reordering distinct-name siblings transfers no identity, and four consecutive
-refreshes are byte-stable with no accumulation. They are recorded so a fix is
-held to not regressing them.
+The last two shapes behave correctly today and are recorded so a fix is held to
+not regressing them. They are run by the harness rather than asserted in prose,
+so the same command produces them alongside every other table.
+
+One behaviour worth noting because it is *shared*, and so is not an F4
+divergence: orphaned regions are re-emitted in sorted-name order by both
+implementations, so a human's authored ordering of top-level regions is not
+preserved by either. The claim above is the narrower one actually tested — that
+reordering transfers no *identity*. An F4 fix should not assume ordering is
+preserved today.
 
 ## Minimal differential cases (helper level)
 
@@ -166,6 +182,12 @@ corpora (362 before and after, with zero malformed merged outputs). The counts
 were right by luck rather than by construction; they are now right by
 construction.
 
+The parser locates a payload's *first* occurrence, so where graph duplicates a
+payload and the first copy sits at the expected path, a stray second copy is not
+counted as substitution. The bias is deliberate and conservative — it understates
+graph's misbehaviour rather than overstating it — and the duplication counters
+above catch those cases separately.
+
 ## Divergences, classified
 
 | # | divergence | classification |
@@ -175,8 +197,9 @@ construction.
 | 3 | crossed markers accepted vs refused (helper level) | HISTORICAL DRIFT |
 | 4 | self-nesting accepted-and-lossy vs refused | HISTORICAL DRIFT |
 | 5 | with no HUMAN regions, graph preserves text outside the generated span; canonical returns the fresh render | INTENTIONAL CONTRACT (graph-specific) |
+| 6 | graph duplicates payloads and grafts spurious region structure; canonical does neither | HISTORICAL DRIFT |
 
-`F4_DIVERGENCE_COUNT = 5` (4 drift, 1 intentional).
+`F4_DIVERGENCE_COUNT = 6` (5 drift, 1 intentional).
 `F4_STOP_CONDITION_TRIGGERED = NO` — divergence 5 is a graph-specific outer-text
 contract that a narrow adapter can retain while delegating identity, ambiguity
 and preservation to the canonical core. No canonical F2 behaviour needs to

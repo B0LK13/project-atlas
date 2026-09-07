@@ -275,9 +275,74 @@ def run_production_cases() -> None:
                 continue
             out = path.read_text(encoding="utf-8")
             lost = [p for p in pays if p not in out]
-            verdict = f"ACCEPT, drops {lost}" if lost else "ACCEPT, all payloads preserved"
+            dup = [p for p in pays if out.count(p) > 1]
+            if lost:
+                verdict = f"ACCEPT, drops {lost}"
+            elif dup:
+                verdict = f"ACCEPT, duplicates {dup}"
+            else:
+                verdict = "ACCEPT, all payloads preserved"
             print(f"{name:52} | {verdict}")
+    _run_reorder_and_refresh_cases()
     print()
+
+
+def _run_reorder_and_refresh_cases() -> None:
+    """Sibling-ordering identity and repeated-refresh stability.
+
+    Held by the harness rather than asserted in prose, so the same command
+    that produces every other table also produces these two.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from project_atlas.graph_projections import (
+        GraphProjectionError,
+        materialize_projections,
+        write_projection_outputs,
+    )
+
+    two = ("<!-- BEGIN HUMAN: p -->\nPAY-P\n<!-- END HUMAN: p -->\n"
+           "<!-- BEGIN HUMAN: q -->\nPAY-Q\n<!-- END HUMAN: q -->\n")
+
+    def _seeded(tmp: str, body: str):
+        vault = Path(tmp) / "vault"
+        vault.mkdir()
+        bundle = materialize_projections(project_id="demo")
+        write_projection_outputs(bundle, vault=vault)
+        path = vault / _HEALTH_REL
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace(_STUB, body), encoding="utf-8")
+        return vault, bundle, path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        vault, bundle, path = _seeded(tmp, two)
+        try:
+            write_projection_outputs(bundle, vault=vault)
+        except GraphProjectionError as exc:
+            print(f"{'sibling reorder, distinct names':52} | REFUSE {exc}")
+        else:
+            out = path.read_text(encoding="utf-8")
+            owner_ok = all(
+                out.rfind(f"BEGIN HUMAN: {n}", 0, out.find(f"PAY-{n.upper()}")) >= 0
+                for n in ("p", "q")
+            )
+            print(f"{'sibling reorder, distinct names':52} | "
+                  f"{'no identity transfer' if owner_ok else 'IDENTITY TRANSFER'}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        vault, bundle, path = _seeded(tmp, two)
+        try:
+            write_projection_outputs(bundle, vault=vault)
+        except GraphProjectionError as exc:
+            print(f"{'repeated refresh (x4)':52} | REFUSE {exc}")
+            return
+        first = path.read_text(encoding="utf-8")
+        for _ in range(3):
+            write_projection_outputs(bundle, vault=vault)
+        stable = path.read_text(encoding="utf-8") == first
+        print(f"{'repeated refresh (x4)':52} | "
+              f"{'stable, no accumulation' if stable else 'NOT STABLE'}")
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -293,7 +358,8 @@ def main() -> int:
 
     stats = {
         impl: {"accepted": 0, "refused": 0, "loss_cases": 0, "lost_payloads": 0,
-               "xscope_cases": 0, "malformed_output": 0, "error": 0}
+               "xscope_cases": 0, "dup_cases": 0, "duplicated_payloads": 0,
+               "marker_growth_cases": 0, "malformed_output": 0, "error": 0}
         for impl in ("canonical", "graph")
     }
     shapes_with_graph_loss: dict[str, int] = {}
@@ -324,6 +390,16 @@ def main() -> int:
                 continue
             stats[impl]["accepted"] += 1
             lost = [p for p in expected if p not in out]
+            # Loss is not the only way to corrupt human content: a merge can
+            # also emit a payload twice, or graft in whole spurious region
+            # subtrees. A fix that only stops dropping bytes would still score
+            # clean here without these two counters.
+            duplicated = [p for p in expected if out.count(p) > 1]
+            if duplicated:
+                stats[impl]["dup_cases"] += 1
+                stats[impl]["duplicated_payloads"] += len(duplicated)
+            if len(_TOKEN.findall(out)) > len(_TOKEN.findall(existing)):
+                stats[impl]["marker_growth_cases"] += 1
             if lost:
                 stats[impl]["loss_cases"] += 1
                 stats[impl]["lost_payloads"] += len(lost)
@@ -335,6 +411,13 @@ def main() -> int:
             for payload, want in expected.items():
                 if payload in lost:
                     continue
+                # observed_path locates the FIRST occurrence. Where a payload
+                # is duplicated and the first copy sits at the expected path,
+                # a stray second copy elsewhere is not counted as substitution
+                # -- the bias is conservative (it understates misbehaviour) and
+                # dup_cases catches those separately. Payload tokens are
+                # fixed-width so no token is a prefix of another; widening the
+                # token space would need this revisited.
                 got = observed_path(out, payload)
                 if isinstance(got, _Malformed):
                     malformed = True
