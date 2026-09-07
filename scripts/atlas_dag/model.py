@@ -23,19 +23,24 @@ def utcnow() -> str:
 def ci_status_for_head(runs: list[dict]) -> tuple[str, str | None]:
     """Reduce CI runs for one exact head to (status, run_id).
 
-    status in {PASS, FAIL, PENDING, NONE}. Latest created run wins; a pending run
-    beats concluded history only if it is newer than any concluded run.
+    status in {PASS, FAIL, PENDING, NONE}. Deterministic and conservative:
+    any concluded non-success run on this head => FAIL (a newer passing run can
+    never launder an older failure); pending runs => PENDING; PASS requires at
+    least one concluded run and none failing or pending.
     """
     if not runs:
         return "NONE", None
-    ordered = sorted(runs, key=lambda r: r.get("created_at", ""))
-    latest = ordered[-1]
-    conclusion = latest.get("conclusion")
-    if latest.get("status") != "completed":
-        return "PENDING", str(latest.get("id"))
-    if conclusion == "success":
-        return "PASS", str(latest.get("id"))
-    return "FAIL", str(latest.get("id"))
+    ordered = sorted(runs, key=lambda r: (r.get("created_at", ""), str(r.get("id", ""))))
+    completed = [r for r in ordered if r.get("status") == "completed"]
+    failing = [r for r in completed if r.get("conclusion") != "success"]
+    if failing:
+        return "FAIL", str(failing[-1].get("id"))
+    pending = [r for r in ordered if r.get("status") != "completed"]
+    if pending:
+        return "PENDING", str(pending[-1].get("id"))
+    if completed:
+        return "PASS", str(completed[-1].get("id"))
+    return "NONE", None
 
 
 def _latest_event(events: list[dict], name: str, pr: int | None = None) -> dict | None:

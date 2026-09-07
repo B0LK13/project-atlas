@@ -134,7 +134,8 @@ class FakeEnv:
     def key_for(self, args):
         if args[0] == "api" and args[1].startswith(f"repos/{REPO}"):
             rest = args[1][len(f"repos/{REPO}/"):]
-            if not rest.startswith("branches") and not rest.startswith(("commits", "actions", "pulls", "issues")):
+            kinds = ("branches", "commits", "actions", "pulls", "issues")
+            if not rest.startswith(kinds):
                 return "default_branch"
             if rest.startswith("branches/"):
                 return ("branch", rest.split("/", 1)[1])
@@ -233,7 +234,6 @@ def test_ev001_duplicate_event_id_is_idempotent():
 
 
 def test_ev002_reordered_events_are_canonically_ordered():
-    env = base_env()
     late = make_event("evt-b-long01", "OWNER_CLAIMED", ts="2026-09-02T00:00:00Z", pr=10)
     early = make_event("evt-a-long01", "OWNER_CLAIMED", ts="2026-09-01T00:00:00Z", pr=11)
     result = events_mod.ingest_comments(comments_with(late, early))
@@ -241,7 +241,6 @@ def test_ev002_reordered_events_are_canonically_ordered():
 
 
 def test_ev003_stable_state_noise_rejected():
-    env = base_env()
     noise = make_event("evt-noise01", "NO_CHANGE", pr=10, state="UNCHANGED")
     result = events_mod.ingest_comments(comments_with(noise))
     assert result.events == []
@@ -252,7 +251,6 @@ def test_ev003_stable_state_noise_rejected():
 
 
 def test_ev_invalid_schema_reported_not_fatal():
-    env = base_env()
     bad = {"schema": "ATLAS_EVENT_V1", "event_id": "x"}  # missing required fields
     result = events_mod.ingest_comments(comments_with(bad))
     assert result.events == []
@@ -501,3 +499,27 @@ def test_ci_status_reduction(status, conclusion, expected):
           "conclusion": conclusion}]
     )
     assert result == expected
+
+
+def test_ci_hidden_failing_run_cannot_be_laundered_by_newer_pass():
+    # Adversarial: newer passing workflow run must not hide an older failure
+    # on the same exact head (live #720 scenario).
+    from atlas_dag.model import ci_status_for_head
+    runs = [
+        {"id": 1, "created_at": "2026-09-01T10:00:00Z", "status": "completed",
+         "conclusion": "failure"},
+        {"id": 2, "created_at": "2026-09-01T11:00:00Z", "status": "completed",
+         "conclusion": "success"},
+    ]
+    assert ci_status_for_head(runs)[0] == "FAIL"
+
+
+def test_ci_pending_run_blocks_pass():
+    from atlas_dag.model import ci_status_for_head
+    runs = [
+        {"id": 1, "created_at": "2026-09-01T10:00:00Z", "status": "completed",
+         "conclusion": "success"},
+        {"id": 2, "created_at": "2026-09-01T11:00:00Z", "status": "queued",
+         "conclusion": None},
+    ]
+    assert ci_status_for_head(runs)[0] == "PENDING"
