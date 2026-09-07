@@ -11,12 +11,14 @@ call into it, so the merge algorithm cannot drift between those two surfaces
 the way the atomic-write layer already guards against for filesystem writes
 (:mod:`project_atlas.capture_io`).
 
-This is **not** yet the only implementation in the repository:
-:mod:`project_atlas.graph_projections` still carries its own private
-``_merge_protected_regions``, which diverges here (it preserves text outside
-the generated span when a note has no HUMAN regions, where this module
-returns the fresh render). Consolidating the two is tracked separately;
-until then, a change here does not automatically change graph projections.
+This is **not** the only consumer of the semantics in the repository:
+:mod:`project_atlas.graph_projections` reaches this module through a narrow
+adapter (AS-OBSIDIAN-CAPTURE-001-F4), so its HUMAN-region identity,
+ambiguity, and preservation behavior is exactly the behavior tested here.
+The adapter retains one intentional graph-specific contract: when the prior
+note has no HUMAN regions, graph projections preserve text outside the
+generated span and replace only that span, where this module returns the
+fresh render.
 
 Callers translate :class:`ProtectedRegionError` into their own domain error
 type at the boundary (the existing convention in this codebase for

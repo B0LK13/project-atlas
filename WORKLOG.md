@@ -13034,3 +13034,55 @@ remain owner-gated and untouched.
 
 This entry is implementation evidence, not certification: exact-head CI and
 fresh independent verification are required before merge.
+
+
+## F2 seal and F4 baseline + canonical-semantics implementation (2026-09-07, post-#699)
+
+- PR #699 (F2 structural-scope region identity) merged as `eadc0f62`, second
+  parent `a9d2d3b4` (exact object certified by two independent verifiers, CI
+  run 34108986396 all four jobs PASS, P0=0 P1=0). Merge tree
+  `c8626a2c` is byte-identical to the certified object tree. Certification
+  chain preserved: predecessor `05745a90` (IV PASS_WITH_NONBLOCKING_FINDINGS)
+  -> merge object `a9d2d3b4` (IV CERTIFIED) -> merge commit `eadc0f62`.
+- F4 baseline, reproduced against post-F2 main (`eadc0f62`) before any F4
+  mutation. Directed 10-case matrix through the pre-fix
+  `graph_projections._merge_protected_regions`: same-leaf cross-scope `a/x`
+  `b/x` is ACCEPTED with one payload silently destroyed and the surviving
+  block spliced into both scopes (loss + cross-scope substitution in one
+  merge, no error); same-scope duplicates at root and nested are ACCEPTED
+  with last-wins silent loss of one payload each; self-nesting, crossed
+  markers and unclosed BEGIN are refused only via marker-count mismatch.
+  Reordered siblings, nested distinct names and orphan appends are preserved
+  in the tested shapes. Historical 4,000-trial harness figures (synthetic
+  incidence, NOT a claim about production prevalence): graph projections
+  accepted 3,642 / refused 358 / lost 1,838 (~50.5% loss over accepted),
+  vs canonical F2 accepted 1,241 / refused 2,759 / lost 0; cross-scope
+  substitution reproduced. F2 does not reach `graph_projections.py` -- the
+  defect survived F2 integration unchanged, as expected.
+- F4 implementation (branch `fix/graph-projections-canonical-human-region-semantics`,
+  base `eadc0f62`): `graph_projections._merge_protected_regions` now delegates
+  HUMAN-region identity, ambiguity and preservation semantics to the canonical
+  `protected_regions.merge_protected_regions` core, translating
+  `ProtectedRegionError` to `GraphProjectionError` (fail-closed guarantee
+  unchanged). The old name-keyed extractor and regex-splice merger are
+  removed. ONE graph-specific contract is retained deliberately and disclosed
+  on the adapter: when the prior note has no HUMAN regions, text outside the
+  generated span is preserved and only the generated span is replaced, where
+  the canonical core returns the fresh render. No F3 mutation; no unrelated
+  graph cleanup; no copy/paste of the F2 algorithm.
+- F4 acceptance evidence at this branch: directed matrix F4-01..F4-10
+  (cross-scope independence, duplicate/self-nesting/crossed/unclosed refused,
+  reorder no-transfer, orphan append, repeat-refresh stability), retained
+  no-HUMAN contract, error-type translation, real-surface regeneration of
+  `generated/graph/projections/demo/relationships.md` and `graph-health.md`
+  with human annotations surviving, and a seeded 500-trial randomized
+  differential against the canonical core (accept/refuse agreement and
+  byte-identical merged output on every accepted case, zero lost payloads).
+  Suites: 15 new F4 tests + existing graph projections/adversarial + F2
+  capture suite (173 passed); `mypy src` clean (405 files); ruff check clean.
+- Claim boundary: this entry claims canonical-core reuse for HUMAN-region
+  semantics only. It does NOT claim all graph projection behavior is now
+  identical to `protected_regions` (the no-HUMAN outside-span contract above
+  is retained graph-specific behavior). This is implementation evidence, not
+  certification: fresh independent verification and exact-head CI are
+  required before merge (F4 merge is Owner-bound; not pre-authorized).

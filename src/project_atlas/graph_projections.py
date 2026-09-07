@@ -12,6 +12,11 @@ or Control Plane ``relationships/``.
 Truth boundary: GRAPH PROJECTION ≠ AUTOMATIC AUTHORITY.
 Projections are derived intelligence / operational views — never Layer A
 evidence and never domain-authoritative claims.
+
+HUMAN-region preservation on regeneration is delegated to the canonical
+protected-region core (``project_atlas.protected_regions``) through a narrow
+adapter (AS-OBSIDIAN-CAPTURE-001-F4); see ``_merge_protected_regions`` for the
+one retained graph-specific contract.
 """
 
 from __future__ import annotations
@@ -28,6 +33,12 @@ from uuid import uuid4
 
 from project_atlas.graph_quarantine import GraphHealthSnapshot, HealthState
 from project_atlas.graph_relationships import LinkQuality, RelationshipRecord
+from project_atlas.protected_regions import (
+    ProtectedRegionError,
+)
+from project_atlas.protected_regions import (
+    merge_protected_regions as _canonical_merge_protected_regions,
+)
 
 PACKAGE_ID = "AS-GRAPH-005"
 SOURCE_RELATIONSHIP_PACKAGE = "AS-GRAPH-003"
@@ -150,35 +161,33 @@ def _validate_protected_markers(text: str, *, path: str) -> None:
             raise GraphProjectionError(f"malformed-generated-markers:{path}")
 
 
-def _extract_human_regions(text: str) -> dict[str, str]:
-    """Return name → full HUMAN block (including markers) for preservation."""
-    regions: dict[str, str] = {}
-    for match in _HUMAN_BEGIN.finditer(text):
-        name = match.group(1)
-        end_match = re.search(
-            rf"<!--\s*END HUMAN:\s*{re.escape(name)}\s*-->",
-            text[match.end() :],
-        )
-        if end_match is None:
-            raise GraphProjectionError(f"malformed-protected-markers:missing-end:{name}")
-        end_abs_finish = match.end() + end_match.end()
-        regions[name] = text[match.start() : end_abs_finish]
-    return regions
-
-
 def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:
-    """Preserve HUMAN regions byte-for-byte; replace generated body only."""
+    """Preserve HUMAN regions via the canonical protected-region core (F4).
+
+    AS-OBSIDIAN-CAPTURE-001-F4: HUMAN region identity, ambiguity handling,
+    and preservation semantics are delegated to
+    :func:`project_atlas.protected_regions.merge_protected_regions` so this
+    derived-view surface cannot drift from the canonical implementation
+    again. Canonical refusals are translated to
+    :class:`GraphProjectionError`; the fail-closed guarantee is unchanged.
+
+    One graph-specific contract is retained deliberately and disclosed: when
+    the prior note carries no HUMAN regions, text outside the generated span
+    is preserved and only the generated span is replaced, where the canonical
+    core returns the fresh render (discarding that outside text).
+    """
     if existing is None:
+        try:
+            return _canonical_merge_protected_regions(existing=None, rendered=rendered, path=path)
+        except ProtectedRegionError as exc:
+            raise GraphProjectionError(str(exc)) from exc
+
+    if not _HUMAN_BEGIN.search(existing):
+        # No HUMAN regions: keep the historical graph contract (preserve text
+        # outside the generated span). The canonical core returns the fresh
+        # render in this case, which would discard that text.
+        _validate_protected_markers(existing, path=path)
         _validate_protected_markers(rendered, path=path)
-        return rendered
-
-    _validate_protected_markers(existing, path=path)
-    _validate_protected_markers(rendered, path=path)
-
-    prior_humans = _extract_human_regions(existing)
-    if not prior_humans:
-        # No human regions — still fail closed on malformed generated markers
-        # and replace only the generated span when present.
         if _GENERATED_START in existing and _GENERATED_END in existing:
             start_index = existing.index(_GENERATED_START)
             end_index = existing.index(_GENERATED_END) + len(_GENERATED_END)
@@ -187,26 +196,10 @@ def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) 
             return existing[:start_index] + rendered[gen_start:gen_end] + existing[end_index:]
         return rendered
 
-    merged = rendered
-    for name, block in sorted(prior_humans.items()):
-        pattern = re.compile(
-            rf"<!--\s*BEGIN HUMAN:\s*{re.escape(name)}\s*-->.*?<!--\s*END HUMAN:\s*"
-            rf"{re.escape(name)}\s*-->",
-            re.DOTALL,
-        )
-        if not pattern.search(merged):
-            # Append preserved human block after generated section when template
-            # omitted the named region (still preserve bytes).
-            merged = merged.rstrip() + "\n\n" + block + "\n"
-        else:
-            preserved = block
-
-            def _replacer(_match: re.Match[str], *, _block: str = preserved) -> str:
-                return _block
-
-            merged = pattern.sub(_replacer, merged, count=1)
-    _validate_protected_markers(merged, path=path)
-    return merged
+    try:
+        return _canonical_merge_protected_regions(existing=existing, rendered=rendered, path=path)
+    except ProtectedRegionError as exc:
+        raise GraphProjectionError(str(exc)) from exc
 
 
 def _frontmatter(*, project_id: str, projection: ProjectionName, source_state: str) -> str:
