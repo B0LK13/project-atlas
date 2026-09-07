@@ -77,10 +77,12 @@ trials) came from a harness that was not preserved and is therefore not
 reconstructible. It is recorded here only as superseded: the numbers in this
 document come from the committed harness above and are the ones to cite.
 
-## Minimal differential cases
+## Minimal differential cases (helper level)
 
-Printed by the same script. `canonical` is the F2 candidate; `graph` is
-current main.
+Printed by the same script, calling the two merge helpers directly.
+`canonical` is the F2 candidate; `graph` is current main. These isolate the
+mechanism; see *Production-path baseline* below for impact at the real refresh
+surface, where some outcomes differ.
 
 | case | canonical (F2) | graph (main) |
 |---|---|---|
@@ -91,6 +93,47 @@ current main.
 | crossed markers (`a b /a /b`) | REFUSE `malformed-protected-markers` | **ACCEPT** (fails open on crossed structure) |
 | unclosed marker | REFUSE `malformed-protected-markers` | REFUSE `malformed-protected-markers` |
 | nested distinct names (`a/b`) | ACCEPT, no loss | ACCEPT, no loss |
+
+## Production-path baseline
+
+The preceding table compares the two merge helpers directly. Outcomes differ at the
+real refresh surface (`write_projection_outputs`), because there the fresh
+render carries only the default `notes` stub, so a human's own regions are
+*appended* rather than substituted and the final marker validation sees a
+different document. The production path is the one that matters, so it is
+measured separately.
+
+Reproduce with the same script (it seeds a real projection in a temp vault,
+authors each HUMAN structure into it, and refreshes once):
+
+```
+python docs/scripts/f4_protected_region_divergence_harness.py
+```
+
+Baseline against `BASE_HEAD`:
+
+| case | production-path outcome on main | verdict |
+|---|---|---|
+| same-leaf-name, different scope (`a/x` + `b/x`) | ACCEPT, drops `PAY-A` | **silent HUMAN loss** |
+| same-scope duplicate at root (`x` + `x`) | ACCEPT, drops `PAY-1` | **silent HUMAN loss** |
+| same-scope duplicate nested (`c/(x + x)`) | ACCEPT, drops `PAY-1` | **silent HUMAN loss** |
+| self nesting (`x` inside `x`) | ACCEPT, drops `PAY-OUT` | **silent HUMAN loss** (canonical F2 refuses) |
+| crossed markers (`a b /a /b`) | REFUSE `malformed-protected-markers` | fail-closed |
+| unclosed marker | REFUSE `malformed-protected-markers` | fail-closed |
+| nested distinct names (`a/b`) | ACCEPT, both payloads preserved | matches canonical |
+
+**Four of these seven shapes silently drop human-authored bytes at the real
+refresh surface.** Self-nesting is the sharpest: the graph path accepts a
+structure the canonical path refuses as ambiguous, *and* loses the outer
+region's content while doing so.
+
+Two further shapes were exercised separately and behave correctly on main:
+reordering distinct-name siblings transfers no identity, and four consecutive
+refreshes are byte-stable with no accumulation. They are recorded so a fix is
+held to not regressing them.
+
+Where the helper-level and production-path tables disagree — crossed markers
+and self-nesting — this production-path table is authoritative for impact.
 
 ## Mechanism
 

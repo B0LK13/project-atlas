@@ -160,6 +160,54 @@ def run_named_cases() -> None:
         print(f"{name:52} | {row[0]:44} | {row[1]}")
     print()
 
+
+# --- Production-path cases: drive the real refresh, not the merge helper ---
+
+_HEALTH_REL = "generated/graph/projections/demo/graph-health.md"
+_STUB = "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->\n"
+
+
+def run_production_cases() -> None:
+    """Seed a real projection, author HUMAN structure into it, refresh once.
+
+    Outcomes differ from the helper-level table because the fresh render only
+    carries the default ``notes`` stub, so a human's own regions are appended
+    rather than substituted. This is the surface that matters.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from project_atlas.graph_projections import (
+        GraphProjectionError,
+        materialize_projections,
+        write_projection_outputs,
+    )
+
+    print(f"{'case':52} | production-path outcome on this tree")
+    print("-" * 110)
+    for name, (body, pays) in _CASE_BODIES.items():
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp) / "vault"
+            vault.mkdir()
+            bundle = materialize_projections(project_id="demo")
+            write_projection_outputs(bundle, vault=vault)
+            path = vault / _HEALTH_REL
+            text = path.read_text(encoding="utf-8")
+            if _STUB not in text:
+                print(f"{name:52} | SKIPPED (projection stub shape changed)")
+                continue
+            path.write_text(text.replace(_STUB, body), encoding="utf-8")
+            try:
+                write_projection_outputs(bundle, vault=vault)
+            except GraphProjectionError as exc:
+                print(f"{name:52} | REFUSE {str(exc).split(':')[0]} (fail-closed)")
+                continue
+            out = path.read_text(encoding="utf-8")
+            lost = [p for p in pays if p not in out]
+            verdict = f"ACCEPT, drops {lost}" if lost else "ACCEPT, all payloads preserved"
+            print(f"{name:52} | {verdict}")
+    print()
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--trials", type=int, default=4000)
@@ -169,6 +217,7 @@ def main() -> int:
     from project_atlas import graph_projections, protected_regions
 
     run_named_cases()
+    run_production_cases()
 
     stats = {
         impl: {"accepted": 0, "refused": 0, "loss_cases": 0, "lost_payloads": 0,
