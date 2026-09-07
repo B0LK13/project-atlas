@@ -13188,9 +13188,18 @@ The balanced forged pair is the load-bearing refusal: counting alone would see
 begins and ends match and could call it balanced, and it is refused only because
 Atlas owns exactly one generated span.
 
+Review then caught a real false-positive source in the containment check: it
+matched marker names with `[^\s>]*` and paired by a bare depth counter, so
+`<!-- BEGIN HUMAN: -->` — which the canonical `[^\s>]+` grammar does not treat
+as a region at all — produced a `reserved-marker-in-human-region` claim about a
+region that does not exist, and crossed markers were read as a balanced span.
+That is the same second-parser-drift failure this project keeps meeting, so the
+helper now shares the canonical grammar and strict name-matched pairing and
+returns "not determinable" for orphan, crossed or unclosed structure.
+
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`.
-Tests: F3 suite 31 passed; F3 + capture + F1/F2 + F4 + graph projection +
-Obsidian suites 243 passed / 0 failed; `ruff check .` clean; `mypy src` clean
+Tests: F3 suite 36 passed; F3 + capture + F1/F2 + F4 + graph projection +
+Obsidian suites 248 passed / 0 failed; `ruff check .` clean; `mypy src` clean
 (405 files). F4 differential harness unchanged at this branch — graph converges
 on canonical exactly, 2178/1822 with zero on every corruption counter.
 

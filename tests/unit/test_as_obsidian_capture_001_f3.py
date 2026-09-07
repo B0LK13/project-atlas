@@ -198,3 +198,65 @@ def test_f3_end_before_begin_reports_its_own_reason() -> None:
     with pytest.raises(ProtectedRegionError) as caught:
         _merge(existing)
     assert "end-before-begin" in str(caught.value)
+
+
+# --- containment must agree with the canonical grammar, or stay silent -------
+#
+# The diagnostic's containment fact is only honest if it uses the same marker
+# grammar and the same pairing rule as the canonical parser. A permissive
+# variant would report a reserved marker as sitting "in a HUMAN region" that
+# the canonical parser does not recognise as a region at all.
+
+
+def _generated_collision_message(document: str) -> str:
+    with pytest.raises(ProtectedRegionError) as caught:
+        merge_protected_regions(existing=document, rendered=_FRESH, path="n.md")
+    return str(caught.value)
+
+
+def test_f3_unnamed_marker_pair_is_not_a_human_region_for_containment() -> None:
+    """``<!-- BEGIN HUMAN: -->`` has no name, so canonically it is not a region."""
+    document = (
+        f"{GENERATED_START}\ngenerated body\n{GENERATED_END}\n"
+        f"<!-- BEGIN HUMAN: -->\nprose {GENERATED_START} prose\n<!-- END HUMAN: -->\n"
+    )
+    message = _generated_collision_message(document)
+    assert "begin=2" in message
+    assert "reserved-marker-in-human-region" not in message
+
+
+def test_f3_crossed_human_structure_is_not_determinable_containment() -> None:
+    """Crossed markers do not pair, so containment cannot be asserted."""
+    document = (
+        f"{GENERATED_START}\ngenerated body\n{GENERATED_END}\n"
+        "<!-- BEGIN HUMAN: a -->\n<!-- BEGIN HUMAN: b -->\n"
+        f"{GENERATED_START}\n"
+        "<!-- END HUMAN: a -->\n<!-- END HUMAN: b -->\n"
+    )
+    assert "reserved-marker-in-human-region" not in _generated_collision_message(document)
+
+
+def test_f3_orphan_end_marker_is_not_determinable_containment() -> None:
+    document = (
+        f"{GENERATED_START}\ngenerated body\n{GENERATED_END}\n"
+        f"<!-- END HUMAN: a -->\n{GENERATED_START}\n"
+    )
+    assert "reserved-marker-in-human-region" not in _generated_collision_message(document)
+
+
+def test_f3_unclosed_begin_is_not_determinable_containment() -> None:
+    document = (
+        f"{GENERATED_START}\ngenerated body\n{GENERATED_END}\n"
+        f"<!-- BEGIN HUMAN: a -->\n{GENERATED_START}\n"
+    )
+    assert "reserved-marker-in-human-region" not in _generated_collision_message(document)
+
+
+def test_f3_properly_named_region_still_reports_containment() -> None:
+    """The tightening must not silence the true positive."""
+    document = (
+        f"{GENERATED_START}\ngenerated body\n{GENERATED_END}\n"
+        f"<!-- BEGIN HUMAN: notes -->\nprose {GENERATED_START} prose\n"
+        "<!-- END HUMAN: notes -->\n"
+    )
+    assert "reserved-marker-in-human-region" in _generated_collision_message(document)

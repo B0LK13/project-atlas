@@ -52,10 +52,27 @@ structurally determinable — that a reserved spelling sits inside a HUMAN regio
 
 `_outermost_human_spans` is deliberately non-raising: it runs only to enrich a
 diagnostic for a document already known to be malformed, so it must not fail and
-mask the real error. When the HUMAN markers cannot be paired by a simple depth
-walk, the containment fact is omitted rather than guessed. A duplicated
-generated marker *outside* any HUMAN region is correspondingly **not** reported
-as a region collision — pinned by its own test.
+mask the real error. When the HUMAN markers cannot be paired, the containment
+fact is omitted rather than guessed. A duplicated generated marker *outside* any
+HUMAN region is correspondingly **not** reported as a region collision — pinned
+by its own test.
+
+### The containment check must share the canonical grammar
+
+The first version of this helper matched marker names with `[^\s>]*` and paired
+by a bare depth counter. Review caught that, and it was a real false-positive
+source: the canonical `_HUMAN_BEGIN` requires `[^\s>]+`, so `<!-- BEGIN HUMAN: -->`
+is **not** a region to the canonical parser — yet the permissive helper saw one
+and reported `reserved-marker-in-human-region` for a region that does not exist.
+A depth counter likewise treated crossed markers as a balanced span, where the
+canonical parser refuses them as unpaired.
+
+That is precisely the failure this project keeps meeting: a second parser
+drifting from the canonical one. The helper now uses the same `[^\s>]+` grammar
+and the same strict name-matched pairing, and returns "not determinable" for an
+orphan `END`, a crossed pair, or an unclosed `BEGIN`. Four tests pin the false
+positives and a fifth pins that the true positive still reports. A negative
+control confirms it: restoring `[^\s>]*` fails the unnamed-marker test.
 
 `no-write` is included because the most useful thing an operator can be told
 about a fail-closed refusal is that the note on disk was not touched.
@@ -104,6 +121,7 @@ Both were run in scratch and reverted; neither is committed.
 |---|---|---|
 | remove the diagnostic classification | the 4 diagnostic tests fail | 4 failed, exactly those |
 | emulate an escaping strategy on preserved HUMAN blocks | byte-preservation tests catch it | 6 failed |
+| restore the permissive `[^\s>]*` containment grammar | the unnamed-marker false-positive test fails | 1 failed, exactly that one |
 
 So the diagnostic tests are load-bearing on the change, and the byte tests would
 catch a future regression to auto-escaping.
@@ -122,8 +140,8 @@ catch a future regression to auto-escaping.
 
 | gate | result |
 |---|---|
-| F3 suite | **31 passed** |
-| F3 + capture + F1/F2 + F4 + graph projection + Obsidian suites | **243 passed, 0 failed** |
+| F3 suite | **36 passed** |
+| F3 + capture + F1/F2 + F4 + graph projection + Obsidian suites | **248 passed, 0 failed** |
 | `ruff check .` | All checks passed |
 | `mypy src` | Success, 405 source files |
 
@@ -133,6 +151,15 @@ environment. Cause: those tests run the CLI in a subprocess, which does not
 inherit `PYTHONPATH` and so resolves `project_atlas` through the editable
 install to the main checkout, which currently sits on a branch predating the
 logging fix `5d0ed763`. CI is authoritative here.
+
+## Failure atomicity
+
+Driven through the real `graph_projections.write_projection_outputs`, which
+writes two projection files in one operation: with legitimate human content in
+`relationships.md` and a reserved-marker collision in `graph-health.md`, the
+refusal leaves **every file byte-identical**, the first file not rewritten, the
+human text intact, and no staging residue. No first-file write followed by a
+second-file refusal.
 
 ## Claim boundary
 

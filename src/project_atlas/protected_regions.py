@@ -43,32 +43,44 @@ class ProtectedRegionError(ValueError):
     """Fail-closed: malformed generated/human region markers."""
 
 
+#: The same marker grammar the canonical parser uses, as one token stream.
+#: Sharing ``[^\s>]+`` with :data:`_HUMAN_BEGIN` matters: a permissive variant
+#: would recognise ``<!-- BEGIN HUMAN: -->`` as a marker where the canonical
+#: parser does not, and the diagnostic would then report containment inside a
+#: "region" that does not exist.
+_HUMAN_TOKEN = re.compile(r"<!--\s*(BEGIN|END) HUMAN:\s*([^\s>]+)\s*-->")
+
+
 def _outermost_human_spans(text: str) -> list[tuple[int, int]]:
-    """Best-effort ``(start, end)`` of each outermost HUMAN block.
+    """``(start, end)`` of each outermost HUMAN block, or ``[]`` if undecidable.
 
     Deliberately non-raising: this runs only to enrich a diagnostic for a
     document already known to be malformed, so it must not fail and mask the
-    real error. When the HUMAN markers cannot be paired by a simple depth walk
-    the containment fact is simply not determinable, and the caller omits it
-    rather than guessing.
+    real error.
+
+    Pairing is strict and name-matched, exactly as the canonical parser pairs
+    -- an ``END`` must close the region currently open. Anything else (an
+    orphan ``END``, a crossed pair, an unclosed ``BEGIN``) means containment is
+    *not* structurally determinable, and this returns ``[]`` so the caller omits
+    the fact rather than asserting something the canonical grammar would not
+    agree with.
     """
     spans: list[tuple[int, int]] = []
-    depth = 0
+    open_names: list[str] = []
     opened_at = 0
-    for match in re.finditer(
-        r"<!--\s*(BEGIN|END) HUMAN:\s*[^\s>]*\s*-->", text
-    ):
-        if match.group(1) == "BEGIN":
-            if depth == 0:
+    for match in _HUMAN_TOKEN.finditer(text):
+        kind, name = match.group(1), match.group(2)
+        if kind == "BEGIN":
+            if not open_names:
                 opened_at = match.start()
-            depth += 1
+            open_names.append(name)
             continue
-        if depth == 0:
-            return []  # an END with nothing open: not determinable
-        depth -= 1
-        if depth == 0:
+        if not open_names or open_names[-1] != name:
+            return []  # orphan or crossed: not determinable
+        open_names.pop()
+        if not open_names:
             spans.append((opened_at, match.end()))
-    return [] if depth else spans
+    return [] if open_names else spans
 
 
 def _generated_marker_diagnosis(text: str, *, reason: str) -> str:
