@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import shutil
 import signal
+import subprocess
 import time
 from pathlib import Path
+
+import pytest
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.autonomy.return_gate import (
     AutonomyReturnState,
     may_emit_final_return,
 )
+from project_atlas.orchestration.sdk import resident_windows
 from project_atlas.orchestration.sdk.ci_observer import CiObservation, classify_watch_session
 from project_atlas.orchestration.sdk.resident_driver import read_primary_lock_pid
 from project_atlas.orchestration.sdk.resident_status import load_status
@@ -126,6 +131,112 @@ def test_detach_resident_driver_returns_authoritative_lock_holder_pid(
     finally:
         with contextlib.suppress(OSError, ProcessLookupError):
             os.kill(resolved_pid, signal.SIGTERM)
+
+
+class _FakePopen:
+    """Minimal Popen stand-in: only ``pid`` is consumed by the launch path."""
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.args: list[str] | None = None
+        self.kwargs: dict[str, object] = {}
+
+
+def _capture_popen(monkeypatch: pytest.MonkeyPatch, fake_pid: int = 4242) -> _FakePopen:
+    fake = _FakePopen(fake_pid)
+    seen: dict[str, object] = {}
+
+    def _popen(args: list[str], **kwargs: object) -> _FakePopen:
+        fake.args = list(args)
+        fake.kwargs = dict(kwargs)
+        seen["args"] = list(args)
+        seen["kwargs"] = dict(kwargs)
+        return fake
+
+    monkeypatch.setattr(resident_windows.subprocess, "Popen", _popen)
+    return fake
+
+
+def test_detach_resident_driver_prefers_announced_lock_holder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D146-A non-spawn: when the resident announces itself (lock file) the
+    returned identity must be the announced holder, never the spawned
+    launcher PID -- and the host-identity receipt must record the same."""
+    root = tmp_path / "runtime"
+    package_src = tmp_path / "repo" / "src"
+    package_src.mkdir(parents=True)
+    fake = _capture_popen(monkeypatch, fake_pid=4242)
+    # Holder announced on the very first poll: no sleeping required.
+    monkeypatch.setattr(resident_windows, "read_primary_lock_pid", lambda _root: 7777)
+    resolved = detach_resident_driver(root=root, package_src=package_src)
+    assert resolved == 7777
+    assert resolved != int(fake.pid)
+    receipt = json.loads(
+        (root / ".atlas" / "orchestration" / "sdk-runtime" / "supervisor-host.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert receipt["supervisor_pid"] == 7777
+    assert (root / ".atlas" / "orchestration" / "sdk-runtime" / "supervisor.pid").read_text(
+        encoding="utf-8"
+    ).strip() == "7777"
+
+
+def test_detach_resident_driver_falls_back_to_spawned_pid_when_never_announced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D146-A non-spawn: a resident that never announces within the bounded
+    poll budget (genuine startup failure, or a launcher-host quirk) must
+    fall back to the spawned PID -- strictly no worse than pre-fix
+    behavior, and never block longer than attempts x interval."""
+    root = tmp_path / "runtime"
+    package_src = tmp_path / "repo" / "src"
+    package_src.mkdir(parents=True)
+    fake = _capture_popen(monkeypatch, fake_pid=4242)
+    monkeypatch.setattr(resident_windows, "read_primary_lock_pid", lambda _root: 0)
+    monkeypatch.setattr(resident_windows, "_RESIDENT_STARTUP_POLL_ATTEMPTS", 3)
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        resident_windows.time, "sleep", lambda sec: sleeps.append(float(sec))
+    )
+    resolved = detach_resident_driver(root=root, package_src=package_src)
+    assert resolved == int(fake.pid)
+    assert len(sleeps) == 3
+    assert all(sec == resident_windows._RESIDENT_STARTUP_POLL_INTERVAL_SEC for sec in sleeps)
+
+
+def test_detach_resident_driver_invokes_exact_interpreter_module_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D146-A/D146-C non-spawn defense: the launch command must be an exact
+    ``<interpreter> -m project_atlas.cli orchestrator governor-resident-run``
+    invocation with the package source pinned on PYTHONPATH -- never a bare
+    ``atlas`` resolved from PATH, which on this class of host can silently
+    execute an unrelated stale Atlas installation (see the D146-C finding)."""
+    root = tmp_path / "runtime"
+    package_src = tmp_path / "repo" / "src"
+    package_src.mkdir(parents=True)
+    fake = _capture_popen(monkeypatch, fake_pid=4242)
+    monkeypatch.setattr(resident_windows, "read_primary_lock_pid", lambda _root: 4242)
+    interpreter = tmp_path / "repo" / ".venv" / "Scripts" / "python.exe"
+    detach_resident_driver(root=root, package_src=package_src, python=str(interpreter))
+    assert fake.args is not None
+    assert fake.args == [
+        str(interpreter),
+        "-m",
+        "project_atlas.cli",
+        "orchestrator",
+        "governor-resident-run",
+        "--root",
+        str(root),
+        "--detached-worker",
+    ]
+    env = fake.kwargs["env"]
+    assert isinstance(env, dict)
+    assert env["PYTHONPATH"].split(os.pathsep)[0] == str(package_src)
+    assert fake.kwargs["stdin"] is subprocess.DEVNULL
+    assert fake.kwargs["cwd"] == str(root)
 
 
 def test_observer_timeout_pending_is_not_ci_fail() -> None:
