@@ -99,10 +99,21 @@ extra inner spacing, `startx` suffix variant, uppercase variant, partial token,
 ordinary HTML comment, HUMAN marker with no name. Only the exact spelling is
 reserved.
 
-Byte fidelity on accepted content: LF, **CRLF**, Unicode (`naïve café — ✅ 日本語
-🎉`), leading/trailing whitespace, Markdown, HTML-like prose, and content with no
+Byte fidelity on accepted content: LF, Unicode (`naïve café — ✅ 日本語 🎉`),
+leading/trailing whitespace, Markdown, HTML-like prose, and content with no
 trailing newline all round-trip unchanged. A CRLF note carrying a reserved
 marker still fails closed byte-identical.
+
+**CRLF, scoped precisely.** At the `protected_regions` module level a HUMAN
+block containing `\r\n` is preserved verbatim. **End to end through the writers
+it is not**, and this receipt previously overstated that. All three writers read
+the prior note with `Path.read_text(encoding="utf-8")`, whose universal-newline
+translation converts `\r\n` to `\n` *before the merge ever sees the bytes*, so a
+CRLF HUMAN block returns to disk LF-only. That behaviour is **pre-existing and
+reproduces byte-for-byte on base main `15c9a6d6`** — it is not introduced or
+changed here — but it does mean the owner policy phrase "no normalisation" is
+not currently honoured for line endings at the product boundary. It deserves its
+own work package; F3 does not fix it and does not claim to.
 
 Repeat behaviour: a near-miss note is stable across refreshes; a reserved-marker
 collision yields the same refusal class twice with no accumulated mutation.
@@ -119,7 +130,7 @@ Both were run in scratch and reverted; neither is committed.
 
 | control | expectation | observed |
 |---|---|---|
-| remove the diagnostic classification | the 4 diagnostic tests fail | 4 failed, exactly those |
+| remove the diagnostic classification | the diagnostic tests fail | **7 failed** at this head (it was 4 at the first candidate `56b1b0c2`, before the containment tests were added; the earlier figure was carried forward and is corrected here) |
 | emulate an escaping strategy on preserved HUMAN blocks | byte-preservation tests catch it | 6 failed |
 | restore the permissive `[^\s>]*` containment grammar | the unnamed-marker false-positive test fails | 1 failed, exactly that one |
 | restore the pairwise (quadratic) containment scan | the linearity test fails | 1 failed, at 18.3s |
@@ -146,12 +157,17 @@ catch a future regression to auto-escaping.
 | `ruff check .` | All checks passed |
 | `mypy src` | Success, 405 source files |
 
-Broader suite: 4 failures, all in `tests/unit/test_logging.py`. These are **not**
-caused by this change — they reproduce identically on unmodified main in this
-environment. Cause: those tests run the CLI in a subprocess, which does not
-inherit `PYTHONPATH` and so resolves `project_atlas` through the editable
-install to the main checkout, which currently sits on a branch predating the
-logging fix `5d0ed763`. CI is authoritative here.
+Broader suite: **5,616 passed, 8 skipped, 0 failed** under independent
+verification, and CI is green on all four required jobs.
+
+An earlier revision of this receipt reported 4 `tests/unit/test_logging.py`
+failures as a local environment artifact. Those did **not** reproduce for the
+independent verifier, who saw that file pass 18/18. The explanation still stands
+as a property of this machine rather than of the change — those tests run the
+CLI in a subprocess, which does not inherit `PYTHONPATH` and resolves
+`project_atlas` through the editable install to a checkout predating the logging
+fix `5d0ed763` — but the claim was more pessimistic than reality and is recorded
+here as machine-local, not as a property of this candidate.
 
 ### The refusal path must not be slow
 
@@ -175,6 +191,22 @@ writes two projection files in one operation: with legitimate human content in
 refusal leaves **every file byte-identical**, the first file not rewritten, the
 human text intact, and no staging residue. No first-file write followed by a
 second-file refusal.
+
+## Known residuals
+
+Recorded rather than left for a reader to discover.
+
+- **Self-nesting containment.** `_outermost_human_spans` pairs
+  `BEGIN x … BEGIN x … END x … END x` by name, where the canonical
+  `_human_region_spans` refuses it as `ambiguous-protected-region-nesting`
+  (52 of 66,430 exhaustive marker sequences in independent verification). The
+  asserted fact remains true under every reading of that ambiguity — the marker
+  really is inside a HUMAN block — but it is the one place the containment check
+  speaks about structure the canonical grammar declines to parse.
+- **The diagnostic is not uniform across surfaces.** The retained no-HUMAN-regions
+  branch in `graph_projections._validate_protected_markers` still emits the bare
+  `malformed-generated-markers:<path>`, so an operator can still meet an
+  uninformative refusal on that path. Nothing here claims uniformity.
 
 ## Claim boundary
 

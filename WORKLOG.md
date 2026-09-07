@@ -13215,11 +13215,21 @@ classification fails exactly the four diagnostic tests; emulating an escaping
 strategy on preserved HUMAN blocks fails six byte-preservation tests. Both are
 load-bearing.
 
-Broader suite shows four `tests/unit/test_logging.py` failures that reproduce
-identically on unmodified main in this environment — those tests spawn the CLI
-in a subprocess, which does not inherit `PYTHONPATH` and resolves
-`project_atlas` through the editable install to a checkout predating the logging
-fix `5d0ed763`. Not caused by this change; CI is authoritative.
+Broader suite under independent verification: 5,616 passed, 8 skipped, 0 failed.
+An earlier revision of this entry reported four `tests/unit/test_logging.py`
+failures as an environment artifact; those did not reproduce for the verifier
+(18/18 pass there), so the claim was more pessimistic than reality and is
+recorded as machine-local rather than as a property of this candidate.
+
+Two claim corrections from verification, made rather than waived: the
+disable-the-diagnostic negative control fails **7** tests at this head, not the
+4 carried forward from the first candidate before the containment tests existed;
+and the CRLF byte-fidelity claim holds at the `protected_regions` module level
+but **not** end to end, because all three writers read prior notes with
+`Path.read_text`, whose universal-newline translation converts CRLF to LF before
+the merge sees the bytes. That is pre-existing and identical on base main, but
+"no normalisation" is not currently honoured for line endings at the product
+boundary and deserves its own work package.
 
 This entry is implementation evidence, not certification: independent exact-head
 verification and CI are required before merge, and merge authority is not this
