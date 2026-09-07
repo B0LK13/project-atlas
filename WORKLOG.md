@@ -13198,8 +13198,15 @@ helper now shares the canonical grammar and strict name-matched pairing and
 returns "not determinable" for orphan, crossed or unclosed structure.
 
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`.
-Tests: F3 suite 36 passed; F3 + capture + F1/F2 + F4 + graph projection +
-Obsidian suites 248 passed / 0 failed; `ruff check .` clean; `mypy src` clean
+Review also caught that the containment check compared every marker against
+every span — quadratic on precisely the input that reaches it, so a refusal
+could spend seconds formatting its own error (1.09s at 5,000 regions). Both
+sequences are ascending and non-overlapping, so they are now walked together:
+0.012s at 5,000 and 0.070s at 20,000. A test pins the linearity; restoring the
+pairwise scan takes 18.3s and fails it.
+
+Tests: F3 suite 37 passed; F3 + capture + F1/F2 + F4 + graph projection +
+Obsidian suites 249 passed / 0 failed; `ruff check .` clean; `mypy src` clean
 (405 files). F4 differential harness unchanged at this branch — graph converges
 on canonical exactly, 2178/1822 with zero on every corruption counter.
 

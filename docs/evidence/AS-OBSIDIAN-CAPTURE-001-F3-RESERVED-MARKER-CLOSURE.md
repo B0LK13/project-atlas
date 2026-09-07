@@ -122,6 +122,7 @@ Both were run in scratch and reverted; neither is committed.
 | remove the diagnostic classification | the 4 diagnostic tests fail | 4 failed, exactly those |
 | emulate an escaping strategy on preserved HUMAN blocks | byte-preservation tests catch it | 6 failed |
 | restore the permissive `[^\s>]*` containment grammar | the unnamed-marker false-positive test fails | 1 failed, exactly that one |
+| restore the pairwise (quadratic) containment scan | the linearity test fails | 1 failed, at 18.3s |
 
 So the diagnostic tests are load-bearing on the change, and the byte tests would
 catch a future regression to auto-escaping.
@@ -140,8 +141,8 @@ catch a future regression to auto-escaping.
 
 | gate | result |
 |---|---|
-| F3 suite | **36 passed** |
-| F3 + capture + F1/F2 + F4 + graph projection + Obsidian suites | **248 passed, 0 failed** |
+| F3 suite | **37 passed** |
+| F3 + capture + F1/F2 + F4 + graph projection + Obsidian suites | **249 passed, 0 failed** |
 | `ruff check .` | All checks passed |
 | `mypy src` | Success, 405 source files |
 
@@ -151,6 +152,20 @@ environment. Cause: those tests run the CLI in a subprocess, which does not
 inherit `PYTHONPATH` and so resolves `project_atlas` through the editable
 install to the main checkout, which currently sits on a branch predating the
 logging fix `5d0ed763`. CI is authoritative here.
+
+### The refusal path must not be slow
+
+Review also caught that the containment check compared every marker occurrence
+against every span. That is quadratic on exactly the input which reaches it — a
+large malformed note with many markers and many sibling regions — so a refusal
+could spend seconds merely formatting its own error. Measured before the fix:
+0.01s at 500 regions, 0.17s at 2,000, **1.09s at 5,000**.
+
+Both sequences are ascending and the spans do not overlap, so they are now
+walked together. Measured after: **0.012s at 5,000** and 0.070s at 20,000 — from
+quadratic to linear, ~90× faster at 5,000. A regression test pins it with a
+generous 5s bound at 20,000 regions; the negative control (restoring the
+pairwise scan) takes **18.3s** and fails it.
 
 ## Failure atomicity
 

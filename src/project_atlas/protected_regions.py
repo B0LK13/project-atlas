@@ -83,6 +83,34 @@ def _outermost_human_spans(text: str) -> list[tuple[int, int]]:
     return [] if open_names else spans
 
 
+def _reserved_marker_inside_human_region(text: str) -> bool:
+    """Does a generated-marker occurrence fall inside an outermost HUMAN span?
+
+    Both sequences are ascending and the spans do not overlap, so this walks
+    them together rather than comparing every marker against every span. The
+    naive form was quadratic on exactly the input that reaches it -- a large
+    malformed note with many markers and many sibling regions -- and a refusal
+    path must not become slow while merely formatting its own error.
+    """
+    spans = _outermost_human_spans(text)
+    if not spans:
+        return False
+    positions = sorted(
+        index
+        for marker in (GENERATED_START, GENERATED_END)
+        for index in _all_indices(text, marker)
+    )
+    span_index = 0
+    for position in positions:
+        while span_index < len(spans) and spans[span_index][1] <= position:
+            span_index += 1
+        if span_index == len(spans):
+            return False
+        if spans[span_index][0] <= position:
+            return True
+    return False
+
+
 def _generated_marker_diagnosis(text: str, *, reason: str) -> str:
     """Observable facts about a generated-marker failure.
 
@@ -102,13 +130,7 @@ def _generated_marker_diagnosis(text: str, *, reason: str) -> str:
         f"end={text.count(GENERATED_END)}",
         "expected=1",
     ]
-    spans = _outermost_human_spans(text)
-    if spans and any(
-        start <= index < end
-        for marker in (GENERATED_START, GENERATED_END)
-        for index in _all_indices(text, marker)
-        for start, end in spans
-    ):
+    if _reserved_marker_inside_human_region(text):
         facts.append("reserved-marker-in-human-region")
     facts.append("no-write")
     return ",".join(facts)

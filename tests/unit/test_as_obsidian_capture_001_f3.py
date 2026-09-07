@@ -17,6 +17,8 @@ never rewritten -- no escaping, no normalisation, no zero-width insertion.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from project_atlas.protected_regions import (
@@ -260,3 +262,30 @@ def test_f3_properly_named_region_still_reports_containment() -> None:
         "<!-- END HUMAN: notes -->\n"
     )
     assert "reserved-marker-in-human-region" in _generated_collision_message(document)
+
+
+def test_f3_refusal_diagnostic_stays_linear_on_a_large_malformed_note() -> None:
+    """Formatting a refusal must not become the expensive part of refusing.
+
+    The containment check walks marker positions and region spans together
+    rather than comparing every marker against every span. Comparing them
+    pairwise was quadratic on exactly the input that reaches this path -- a
+    large malformed note with many markers and many sibling regions -- where it
+    cost seconds purely to build an error message. The bound here is generous;
+    it is chosen to catch a return to quadratic behaviour, not to police
+    micro-performance.
+    """
+    count = 20_000
+    regions = "".join(
+        f"<!-- BEGIN HUMAN: r{index} -->\nx\n<!-- END HUMAN: r{index} -->\n"
+        for index in range(count)
+    )
+    document = f"{GENERATED_START}\n" * count + f"{GENERATED_END}\n" + regions
+
+    started = time.perf_counter()
+    with pytest.raises(ProtectedRegionError) as caught:
+        merge_protected_regions(existing=document, rendered=_FRESH, path="big.md")
+    elapsed = time.perf_counter() - started
+
+    assert f"begin={count}" in str(caught.value)
+    assert elapsed < 5.0, f"refusal diagnostic took {elapsed:.1f}s; quadratic scan is back"
