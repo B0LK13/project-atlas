@@ -8,8 +8,11 @@ scope: platform mechanics only — no production code, no policy change
 
 This records mechanics that were mis-modelled for at least a day and produced
 wasted diagnosis across PRs #694, #697 and #698. It is an observation receipt,
-not a policy proposal. Every claim below is paired with the command that
-produced it, so it can be re-derived or falsified rather than believed.
+not a policy proposal. Every *configuration* claim below is paired with the
+command that produced it. The observations of PR state in section C are a recorded
+snapshot of `gh pr view` / `reviewThreads` output on the date given rather
+than a command that re-runs to the same values -- those PRs have since
+moved. They are cited as evidence for the mechanism, not as a fixture.
 
 **This is a snapshot of repository configuration and GitHub behaviour on
 2026-09-07. Configuration can change. Re-run the commands before relying on it.**
@@ -56,8 +59,11 @@ $ gh api repos/B0LK13/project-atlas/branches/main/protection/required_status_che
 ## C. Unresolved conversations are the platform blocker
 
 `mergeStateStatus = BLOCKED` on this repository means unresolved review
-threads, not failing CI. Observed on 2026-09-07, as a natural experiment
-nobody set up on purpose:
+threads, not failing CI. Read at **2026-09-07 ~11:20Z**, as a natural
+experiment nobody set up on purpose. Several of these PRs moved within the
+same day -- #706's head advanced and it left `CLEAN` about half an hour
+later -- which is the point of dating the reading rather than presenting it
+as a standing fact:
 
 | PR | unresolved threads | checks | `mergeStateStatus` |
 |---|---|---|---|
@@ -98,7 +104,10 @@ and current-main compatibility.
 `.github/workflows/ci.yml` triggers on `pull_request`, so `actions/checkout`
 evaluates **`refs/pull/<N>/merge`** — the PR head merged with the base — and
 not the branch tree. The tree under test therefore contains base content that
-is in no branch anyone can check out.
+matches **neither branch tip**. The base commit itself stays fetchable by
+SHA, so the tree is reconstructible once you know which base was used; the
+trap is that nothing in the PR view tells you, and the content can include
+files absent from both current tips.
 
 This is how #697 and #694 failed the Windows job on
 `tests/unit/test_windows_no_window_creationflags_d676.py`, a file **absent from
@@ -134,9 +143,13 @@ fresh exact-head verification.
 
 ## G. Read the merge ref before classifying an inherited failure
 
-Reasoning from `PR.base.sha` is not sufficient — that field records the base at
-PR creation and does not track the branch. Before attributing a CI failure to
-a candidate, record:
+Reasoning from `PR.base.sha` is not sufficient, though not for the reason it
+is tempting to give. It is **not** a creation-time pin: the value from the
+live PR API follows the current base ref, while the value inside a workflow
+event payload is frozen at the moment that event was emitted. Two readings
+of "the base" can therefore disagree, and neither is necessarily the base
+that was *tested* -- only `MERGE_REF_PARENT1` is that. Before attributing a
+CI failure to a candidate, record:
 
 ```
 PR_HEAD           =
