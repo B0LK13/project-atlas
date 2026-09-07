@@ -71,8 +71,13 @@ Behavioural, re-run against main after the merge:
 | `quality (windows-latest, 3.12, windows)` | success |
 | `control-plane` | success |
 
+Workflow run `34112249999` (`ci`, event `push`, `head_sha = eadc0f62…`),
+conclusion **success**.
+
 Main is green on all four required checks after the merge, on the same tree
-that was certified.
+that was certified. Both CI runs cited in this document are named by workflow
+run id so the closure evidence is traceable rather than a snapshot assertion:
+`34108986396` for the certified object and `34112249999` for post-merge main.
 
 ## Post-merge tests
 
