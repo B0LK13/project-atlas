@@ -41,6 +41,16 @@ class IngestResult:
         return {e["event_id"]: e for e in self.events}
 
 
+def _comment_source(comment: dict) -> dict:
+    """Trusted-source metadata for a receipt: who actually authored the comment."""
+    user = comment.get("user") or {}
+    return {
+        "comment_id": comment.get("id"),
+        "author": user.get("login"),
+        "url": comment.get("html_url"),
+    }
+
+
 def load_schema(name: str) -> dict:
     return json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
 
@@ -105,6 +115,9 @@ def ingest_comments(comments: list[dict]) -> IngestResult:
                 if payload["receipt_id"] in seen_receipts:
                     continue
                 seen_receipts.add(payload["receipt_id"])
+                # Carry trusted-source metadata: self-declared receipt fields are
+                # NOT authenticated identity (D-PR720 trust boundary).
+                payload["_source"] = _comment_source(comment)
                 result.receipts.append(payload)
             else:
                 result.invalid.append((f"{marker}/block{idx}", f"unknown schema: {schema_name}"))
@@ -114,10 +127,17 @@ def ingest_comments(comments: list[dict]) -> IngestResult:
     return result
 
 
-def parse_verifier_pool(issue_body: str | None) -> list[str]:
-    """Extract approved verifier IDs from an ATLAS_VERIFIER_POOL_V1 block in the issue body.
+def parse_verifier_pool(issue_body: str | None) -> tuple[dict[str, str], list[str], bool]:
+    """Extract the verifier pool from an ATLAS_VERIFIER_POOL_V1 block.
 
-    Absent or invalid pool => empty list (fail-closed: no formal IV can be satisfied).
+    Returns (bindings, declared, present):
+    - bindings: verifier_id -> trusted principal (e.g. "github:LOGIN").
+      Only object entries with both verifier_id and principal authenticate.
+    - declared: bare-string entries — parseable as DECLARED_BUT_UNBOUND, which
+      MUST NOT satisfy formal IV.
+    - present: whether a pool block was found at all.
+
+    Absent pool => ({}, [], False): fail-closed, no formal IV can be satisfied.
     """
     for _idx, raw in extract_payloads(issue_body or ""):
         try:
@@ -125,8 +145,20 @@ def parse_verifier_pool(issue_body: str | None) -> list[str]:
         except json.JSONDecodeError:
             continue
         if isinstance(payload, dict) and payload.get("schema") == "ATLAS_VERIFIER_POOL_V1":
-            verifiers = payload.get("verifiers")
-            if isinstance(verifiers, list):
-                return sorted({str(v) for v in verifiers if str(v).strip()})
-            return []
-    return []
+            entries = payload.get("verifiers")
+            if not isinstance(entries, list):
+                return {}, [], True
+            bindings: dict[str, str] = {}
+            declared: list[str] = []
+            for entry in entries:
+                if isinstance(entry, str):
+                    if entry.strip():
+                        declared.append(entry.strip())
+                elif isinstance(entry, dict):
+                    verifier_id = entry.get("verifier_id")
+                    principal = entry.get("principal")
+                    if isinstance(verifier_id, str) and isinstance(principal, str) \
+                            and verifier_id.strip() and principal.strip():
+                        bindings[verifier_id.strip()] = principal.strip()
+            return bindings, sorted(set(declared)), True
+    return {}, [], False

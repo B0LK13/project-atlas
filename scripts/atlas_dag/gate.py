@@ -54,6 +54,8 @@ def evaluate(
     for event in events:
         if event.get("pr") != pr:
             continue
+        if event.get("head") and head and event["head"] != head:
+            continue  # stale-head events are history only
         if event["event"] == "HUMAN_GATE_REQUIRED":
             reasons.append("HUMAN_GATE_OPEN")
         if event["event"] in ("MERGED", "SEALED") and pr_open:

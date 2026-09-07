@@ -26,8 +26,10 @@ def classify(node: dict) -> str:
         return "MERGE_ELIGIBLE"
     if node.get("frozen"):
         return "FROZEN"
-    if node.get("owner"):
+    if node.get("ownership") == "OWNED":
         return "RUNNABLE_WRITE"
+    # UNOWNED and AMBIGUOUS both fail closed to read-only: lane ownership is a
+    # mutex and ambiguous ownership is never write authorization.
     return "RUNNABLE_READONLY"
 
 

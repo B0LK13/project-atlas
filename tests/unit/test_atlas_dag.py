@@ -30,6 +30,15 @@ T3 = "f" * 40
 
 POOL_BODY = (
     "```json\n"
+    + json.dumps({"schema": "ATLAS_VERIFIER_POOL_V1", "verifiers": [
+        {"verifier_id": "IV-A", "principal": "github:iv-a-user"},
+        {"verifier_id": "IV-B", "principal": "github:iv-b-user"},
+    ]})
+    + "\n```"
+)
+
+BARE_POOL_BODY = (
+    "```json\n"
     + json.dumps({"schema": "ATLAS_VERIFIER_POOL_V1", "verifiers": ["IV-A", "IV-B"]})
     + "\n```"
 )
@@ -87,8 +96,12 @@ def fenced(payload):
     return "```json\n" + json.dumps(payload) + "\n```"
 
 
-def comments_with(*payloads):
-    return [{"body": fenced(p)} for p in payloads]
+def comments_with(*payloads, author="iv-a-user"):
+    return [
+        {"body": fenced(p), "id": 1000 + i,
+         "user": {"login": author}, "html_url": f"https://example/comment/{1000 + i}"}
+        for i, p in enumerate(payloads)
+    ]
 
 
 class FakeEnv:
@@ -132,6 +145,8 @@ class FakeEnv:
         self.comments = comments or []
 
     def key_for(self, args):
+        if "--paginate" in args:
+            args = [a for a in args if a != "--paginate"]
         if args[0] == "api" and args[1].startswith(f"repos/{REPO}"):
             rest = args[1][len(f"repos/{REPO}/"):]
             kinds = ("branches", "commits", "actions", "pulls", "issues")
@@ -305,6 +320,7 @@ def test_verifier_pool_undefined_fails_closed():
     node = node_for(snapshot, 10)
     assert node["formal_iv"] is None
     assert node["gate"]["merge_gate"] == "FAIL"
+    assert "VERIFIER_POOL_UNDEFINED" in node["rejected_receipts"]["rcpt-iv-ok"]
 
 
 def test_unapproved_verifier_rejected():
@@ -312,6 +328,44 @@ def test_unapproved_verifier_rejected():
     env.comments = comments_with(make_receipt("rcpt-iv-rogue", verifier="IV-ROGUE"))
     snapshot = build_snapshot(make_client(env))
     assert node_for(snapshot, 10)["formal_iv"] is None
+
+
+# -- trusted identity (D-PR720 §3/§4) -----------------------------------------
+
+def test_bare_label_pool_is_unbound_and_fails_closed():
+    # Bare-string pool entries are DECLARED_BUT_UNBOUND: parseable, never formal IV.
+    env = base_env()
+    env.add_issue(body=BARE_POOL_BODY)
+    env.comments = comments_with(make_receipt("rcpt-iv-bare"))
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["formal_iv"] is None
+    assert "VERIFIER_IDENTITY_UNBOUND" in node["rejected_receipts"]["rcpt-iv-bare"]
+
+
+def test_receipt_from_untrusted_principal_rejected():
+    # Schema-valid receipt posted by a GitHub login that is not the bound
+    # principal must not impersonate the verifier.
+    env = base_env()
+    env.comments = comments_with(make_receipt("rcpt-iv-mallory"), author="mallory")
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["formal_iv"] is None
+    assert "PRINCIPAL_MISMATCH" in node["rejected_receipts"]["rcpt-iv-mallory"]
+
+
+def test_unknown_candidate_tree_fails_closed():
+    # Transient commit-lookup failure => tree None => receipt must be rejected,
+    # never eligible via head-only identity.
+    env = base_env()
+    env.data["fail"].add(("commit", H1))
+    env.comments = comments_with(make_receipt("rcpt-iv-ok"))
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["tree"] is None
+    assert node["formal_iv"] is None
+    assert "CANDIDATE_TREE_UNKNOWN" in node["rejected_receipts"]["rcpt-iv-ok"]
+    assert node["gate"]["merge_gate"] == "FAIL"
 
 
 # -- CI gate (CI-*) ----------------------------------------------------------
@@ -429,9 +483,20 @@ def test_fail_closed_when_github_unavailable():
     env.data["fail"].add("prs")
     env.data["dag_issue"] = None
     snapshot = build_snapshot(make_client(env))
-    assert snapshot["main_head"] == "UNKNOWN"
+    assert snapshot["main_head"] is None
     assert snapshot["nodes"] == []
     assert snapshot["safe_runnable_count"] == 0
+
+
+def test_fail_closed_snapshot_still_validates_against_schema():
+    from atlas_dag.events import validator_for
+    env = base_env()
+    env.data["fail"].add(("branch", "main"))
+    snapshot = build_snapshot(make_client(env))
+    errors = list(validator_for("dag_snapshot_v1.schema.json").iter_errors(snapshot))
+    assert errors == [], "; ".join(
+        f"{'/'.join(map(str, e.path))}: {e.message}" for e in errors
+    )
 
 
 # -- ownership (OWN-*) ----------------------------------------------------------
@@ -482,9 +547,10 @@ def test_snapshot_conforms_to_dag_snapshot_schema():
     env = base_env()
     env.comments = comments_with(make_receipt("rcpt-iv-ok"))
     snapshot = build_snapshot(make_client(env))
-    validator = validator_for("dag_snapshot_v1.schema.json")
-    errors = list(validator.iter_errors(snapshot))
-    assert errors == [f"{e.message} at {'/'.join(map(str, e.path))}" for e in errors]
+    errors = list(validator_for("dag_snapshot_v1.schema.json").iter_errors(snapshot))
+    assert errors == [], "; ".join(
+        f"{'/'.join(map(str, e.path))}: {e.message}" for e in errors
+    )
 
 
 @pytest.mark.parametrize("status,conclusion,expected", [
@@ -523,3 +589,90 @@ def test_ci_pending_run_blocks_pass():
          "conclusion": None},
     ]
     assert ci_status_for_head(runs)[0] == "PENDING"
+
+
+# -- stale-head events are history only (D-PR720 §5) ----------------------------
+
+def test_stale_old_head_claim_pass_cannot_launder_new_candidate():
+    env = base_env()
+    # Head moves H1 -> H3; an old-head PASS claim and old-head freeze are history.
+    env.data["prs"][0]["headRefOid"] = H3
+    env.commits[H3] = {"sha": H3, "commit": {"tree": {"sha": T3}}}
+    env.comments = comments_with(
+        make_event("evt-old-claim-pass", "CLAIM_INTEGRITY_CHANGED", pr=10,
+                   head=H1, state="PASS", ts="2026-09-01T00:00:00Z"),
+        make_event("evt-old-freeze", "HUMAN_GATE_REQUIRED", pr=10,
+                   head=H1, state="FROZEN", ts="2026-09-01T00:01:00Z"),
+    )
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["claim_integrity"] != "PASS"  # stale PASS is history only
+    assert node["frozen"] is False  # stale freeze is history only
+    assert node["gate"]["merge_gate"] == "FAIL"
+
+
+def test_live_head_claim_event_applies_normally():
+    env = base_env()
+    env.comments = comments_with(
+        make_event("evt-live-claim-pass", "CLAIM_INTEGRITY_CHANGED", pr=10,
+                   head=H1, state="PASS"),
+        make_receipt("rcpt-iv-ok"),
+    )
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["claim_integrity"] == "PASS"
+    assert node["gate"]["merge_gate"] == "PASS"
+
+
+# -- event bus pagination (D-PR720 §6) -------------------------------------------
+
+def test_issue_comments_paginate_beyond_100():
+    # 101 comments; the material OWNER_RELEASED arrives as comment 101.
+    # gh api --paginate concatenates pages; all comments must be consumed.
+    from atlas_dag.gh import GhClient
+    from atlas_dag.model import ownership
+    claim = make_event("evt-claim-p1", "OWNER_CLAIMED", pr=10, actor="agent-x")
+    release = make_event("evt-release-p1", "OWNER_RELEASED", pr=10, actor="agent-x",
+                         ts="2026-09-02T00:00:00Z")
+    page1 = comments_with(*[dict(claim, event_id=f"evt-fill-{i:03d}") for i in range(100)])
+    page2 = comments_with(release)
+    all_comments = page1 + page2
+    assert len(all_comments) == 101
+
+    def paged_runner(argv, **_kw):
+        args = [a for a in argv[1:] if a != "--paginate"]
+        assert "--paginate" in argv[1:], "client must request pagination"
+        if args[0] == "api" and "issues/1/comments" in args[1]:
+            # simulate gh --paginate: concatenated JSON array pages
+            pages = json.dumps(all_comments[:100]) + json.dumps(all_comments[100:])
+            return _completed(argv, 0, pages, "")
+        raise AssertionError(f"unexpected: {argv}")
+
+    client = GhClient(repo=REPO, runner=paged_runner)
+    fetched = client.issue_comments(1)
+    assert len(fetched) == 101
+    ingested = events_mod.ingest_comments(fetched)
+    status, _actors = ownership(ingested.events, 10)
+    assert status == "UNOWNED"  # the release after comment 100 was consumed
+
+
+# -- ownership mutex (D-PR720 §7) --------------------------------------------------
+
+def test_competing_owner_claims_fail_closed_and_commands_agree():
+    from atlas_dag.model import ownership
+    env = base_env()
+    env.comments = comments_with(
+        make_event("evt-claim-a", "OWNER_CLAIMED", pr=10, actor="AGENT_A"),
+        make_event("evt-claim-b", "OWNER_CLAIMED", pr=10, actor="AGENT_B"),
+    )
+    events = events_mod.ingest_comments(env.comments).events
+    status, actors = ownership(events, 10)
+    assert status == "AMBIGUOUS"
+    assert actors == ["AGENT_A", "AGENT_B"]
+
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["ownership"] == "AMBIGUOUS"  # snapshot agrees with owners logic
+    assert node["owner"] is None
+    assert node["state"] != "RUNNABLE_WRITE"
+    assert node["state"] == "RUNNABLE_READONLY"

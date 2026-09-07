@@ -43,6 +43,21 @@ class GhClient:
     def gh_json(self, args: list[str]) -> Any:
         return json.loads(self.run_gh(args) or "null")
 
+    def gh_json_concat(self, args: list[str]) -> list:
+        """Decode `gh api --paginate` output: consecutive JSON arrays concatenated
+        into one stream (gh prints each page's body back-to-back)."""
+        out = self.run_gh(args)
+        decoder = json.JSONDecoder()
+        values, idx = [], 0
+        while idx < len(out):
+            while idx < len(out) and out[idx] in " \r\n\t":
+                idx += 1
+            if idx >= len(out):
+                break
+            value, idx = decoder.raw_decode(out, idx)
+            values.extend(value if isinstance(value, list) else [value])
+        return values
+
     @property
     def repo(self) -> str | None:
         if self._repo:
@@ -158,8 +173,11 @@ class GhClient:
         if not repo:
             return []
         try:
-            return self.gh_json(
-                ["api", f"repos/{repo}/issues/{issue_number}/comments?per_page=100"]
+            # The event bus is append-only; a partial first page would silently
+            # drop later transitions. --paginate fetches every page.
+            return self.gh_json_concat(
+                ["api", "--paginate",
+                 f"repos/{repo}/issues/{issue_number}/comments?per_page=100"]
             ) or []
         except GhError:
             return []

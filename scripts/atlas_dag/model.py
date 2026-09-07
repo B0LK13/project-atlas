@@ -43,28 +43,50 @@ def ci_status_for_head(runs: list[dict]) -> tuple[str, str | None]:
     return "NONE", None
 
 
-def _latest_event(events: list[dict], name: str, pr: int | None = None) -> dict | None:
+def _is_live_event(event: dict, live_head: str | None) -> bool:
+    """Head-bound events whose head differs from the live head are history only."""
+    event_head = event.get("head")
+    if not event_head or not live_head:
+        return True
+    return event_head == live_head
+
+
+def _latest_event(events: list[dict], name: str, pr: int | None = None,
+                  live_head: str | None = None) -> dict | None:
     matches = [
         e for e in events
-        if e.get("event") == name and (pr is None or e.get("pr") == pr)
+        if e.get("event") == name
+        and (pr is None or e.get("pr") == pr)
+        and _is_live_event(e, live_head)
     ]
     return matches[-1] if matches else None
 
 
-def _current_owner(events: list[dict], pr: int) -> str | None:
-    owner: str | None = None
+def ownership(events: list[dict], pr: int, live_head: str | None = None) -> tuple[str, list[str]]:
+    """Return (status, claimants). LANE OWNERSHIP IS A MUTEX: more than one
+    active claimant => AMBIGUOUS, never last-writer-wins."""
+    active: list[str] = []
     for e in events:
-        if e.get("pr") != pr:
+        if e.get("pr") != pr or not _is_live_event(e, live_head):
             continue
         if e["event"] == "OWNER_CLAIMED":
-            owner = e.get("actor")
-        elif e["event"] == "OWNER_RELEASED" and owner == e.get("actor"):
-            owner = None
-    return owner
+            actor = e.get("actor")
+            if actor and actor not in active:
+                active.append(actor)
+        elif e["event"] == "OWNER_RELEASED":
+            actor = e.get("actor")
+            if actor in active:
+                active.remove(actor)
+    if len(active) == 1:
+        return "OWNED", active
+    if len(active) > 1:
+        return "AMBIGUOUS", sorted(active)
+    return "UNOWNED", []
 
 
-def _claim_integrity(events: list[dict], receipt: dict | None, pr: int) -> str:
-    ev = _latest_event(events, "CLAIM_INTEGRITY_CHANGED", pr=pr)
+def _claim_integrity(events: list[dict], receipt: dict | None, pr: int,
+                     live_head: str | None) -> str:
+    ev = _latest_event(events, "CLAIM_INTEGRITY_CHANGED", pr=pr, live_head=live_head)
     if ev is not None:
         state = str(ev.get("state", "")).upper()
         if "FAIL" in state:
@@ -76,8 +98,9 @@ def _claim_integrity(events: list[dict], receipt: dict | None, pr: int) -> str:
     return UNKNOWN
 
 
-def _is_frozen(events: list[dict], pr: int, claim_integrity: str) -> bool:
-    ev = _latest_event(events, "HUMAN_GATE_REQUIRED", pr=pr)
+def _is_frozen(events: list[dict], pr: int, claim_integrity: str,
+               live_head: str | None) -> bool:
+    ev = _latest_event(events, "HUMAN_GATE_REQUIRED", pr=pr, live_head=live_head)
     if ev is not None:
         state = str(ev.get("state", "")).upper()
         if state == "FROZEN":
@@ -90,7 +113,9 @@ def build_pr_node(
     main_head: str | None,
     events: list[dict],
     receipts: list[dict],
-    approved_verifiers: set[str],
+    bindings: dict[str, str],
+    declared: list[str],
+    pool_present: bool,
     client,
 ) -> dict:
     number = pr["number"]
@@ -100,15 +125,16 @@ def build_pr_node(
 
     pr_receipts = [r for r in receipts if r.get("pr") == number]
     receipt, rejected_receipts = latest_eligible_receipt(
-        pr_receipts, head, tree, approved_verifiers
+        pr_receipts, head, tree, bindings, declared, pool_present
     )
 
     runs = client.runs_for_head(head) if head else []
     ci_status, ci_run_id = ci_status_for_head(runs)
 
-    owner = _current_owner(events, number)
-    claim = _claim_integrity(events, receipt, number)
-    frozen = _is_frozen(events, number, claim)
+    ownership_state, claimants = ownership(events, number, head)
+    owner = claimants[0] if ownership_state == "OWNED" else None
+    claim = _claim_integrity(events, receipt, number, head)
+    frozen = _is_frozen(events, number, claim, head)
 
     gate_result = gate_mod.evaluate(
         head=head,
@@ -131,6 +157,8 @@ def build_pr_node(
         "tree": tree,
         "base": pr.get("baseRefName"),
         "owner": owner,
+        "ownership": ownership_state,
+        "claimants": claimants,
         "state": None,  # filled by classify()
         "hazard_class": "A_REAL_HOST_SAFE",
         "ci_status": ci_status,
@@ -168,12 +196,13 @@ def build_snapshot(client, clock=utcnow) -> dict:
     issue = client.dag_issue()
     comments = client.issue_comments(issue["number"]) if issue else []
     ingested = events_mod.ingest_comments(comments)
-    approved = set(events_mod.parse_verifier_pool(
+    bindings, declared, pool_present = events_mod.parse_verifier_pool(
         client.issue_body(issue["number"]) if issue else None
-    ))
+    )
 
     nodes = [
-        build_pr_node(pr, main_head, ingested.events, ingested.receipts, approved, client)
+        build_pr_node(pr, main_head, ingested.events, ingested.receipts,
+                      bindings, declared, pool_present, client)
         for pr in sorted(client.open_prs(), key=lambda p: p["number"])
     ]
     runnable = [n for n in nodes if n["state"] in ("RUNNABLE_READONLY", "RUNNABLE_WRITE")]
@@ -182,7 +211,7 @@ def build_snapshot(client, clock=utcnow) -> dict:
         "generated_at_utc": clock(),
         "repo": client.repo or UNKNOWN,
         "main_branch": main_branch,
-        "main_head": main_head or UNKNOWN,
+        "main_head": main_head,
         "main_tree": main_tree,
         "dag_issue": issue["number"] if issue else None,
         "event_count": len(ingested.events),

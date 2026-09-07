@@ -105,36 +105,27 @@ def cmd_events(args) -> int:
 
 
 def cmd_owners(args) -> int:
+    from .model import ownership
     client = _client(args)
     issue = client.dag_issue()
     ingested = events_mod.ingest_comments(client.issue_comments(issue["number"])) if issue \
         else events_mod.IngestResult()
-    claims: dict[int, list[str]] = {}
-    releases: set[tuple[int, str]] = set()
-    for event in ingested.events:
-        if event.get("pr") is None:
-            continue
-        if event["event"] == "OWNER_CLAIMED":
-            claims.setdefault(event.get("pr"), []).append(event.get("actor"))
-        elif event["event"] == "OWNER_RELEASED":
-            releases.add((event.get("pr"), event.get("actor")))
-    current: dict[int, str] = {}
-    ambiguous: dict[int, list[str]] = {}
-    for pr, actors in sorted(claims.items()):
-        active = sorted({a for a in actors if (pr, a) not in releases})
-        if len(active) == 1:
-            current[pr] = active[0]
-        elif len(active) > 1:
-            ambiguous[pr] = active  # fail-closed: ambiguity is UNKNOWN, not UNOWNED
+    result: dict[int, dict] = {}
+    prs = {e["pr"] for e in ingested.events if e.get("pr") is not None}
+    for pr in sorted(prs):
+        status, actors = ownership(ingested.events, pr)
+        result[pr] = {"status": status, "claimants": actors}
     if args.json:
-        print(json.dumps({"owners": current, "ambiguous": ambiguous},
-                         indent=2, sort_keys=True))
+        print(json.dumps(result, indent=2, sort_keys=True))
         return 0
-    for pr, actor in current.items():
-        print(f"pr/{pr}: {actor}")
-    for pr, actors in ambiguous.items():
-        print(f"pr/{pr}: AMBIGUOUS {actors}")
-    if not current and not ambiguous:
+    for pr, info in result.items():
+        if info["status"] == "OWNED":
+            print(f"pr/{pr}: {info['claimants'][0]}")
+        elif info["status"] == "AMBIGUOUS":
+            print(f"pr/{pr}: AMBIGUOUS {info['claimants']}")
+        else:
+            print(f"pr/{pr}: UNOWNED")
+    if not result:
         print("no active owner claims")
     return 0
 

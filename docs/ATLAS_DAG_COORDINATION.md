@@ -24,8 +24,24 @@ One GitHub issue named `Atlas Autonomous DAG Control`. Events are fenced
 3. Duplicate `event_id` is idempotent; events are canonically ordered by
    `(timestamp_utc, event_id)`, so reordering cannot change reconstruction.
 4. A verifier pool is declared in the issue body as an
-   `ATLAS_VERIFIER_POOL_V1` fenced block: `{"schema": "ATLAS_VERIFIER_POOL_V1",
-   "verifiers": ["IV-A", "IV-B"]}`. No pool => no formal IV can pass (fail-closed).
+   `ATLAS_VERIFIER_POOL_V1` fenced block. Entries bind a verifier to a trusted
+   principal — the GitHub login that may actually author receipts:
+
+   ```json
+   {"schema": "ATLAS_VERIFIER_POOL_V1", "verifiers": [
+     {"verifier_id": "IV-A", "principal": "github:some-login"},
+     {"verifier_id": "IV-B", "principal": "github:other-login"}
+   ]}
+   ```
+
+   Bare-string entries remain parseable as `DECLARED_BUT_UNBOUND` but never
+   satisfy formal IV. No pool, no binding, or a receipt comment authored by a
+   different login => fail-closed (`VERIFIER_POOL_UNDEFINED`,
+   `VERIFIER_IDENTITY_UNBOUND`, `PRINCIPAL_MISMATCH`).
+
+5. The event bus is append-only; `gh api --paginate` consumes every comment
+   page. Stale-head events (their `head` differs from the live PR head) are
+   history only and never affect current claim/freeze/ownership state.
 
 ## CLI
 
@@ -38,8 +54,8 @@ python scripts/atlas-dag.py owners
 python scripts/atlas-dag.py gate 709    # exit 0 = PASS, 1 = FAIL, 2 = unknown PR
 ```
 
-Fail-closed: unavailable GitHub data => `UNKNOWN`; ownership ambiguity => `UNKNOWN`,
-never `UNOWNED`.
+Fail-closed: unavailable GitHub data => `UNKNOWN`; ownership ambiguity =>
+`AMBIGUOUS` (never last-writer-wins, never write authorization).
 
 ## Merge Guardian identity invariant (D-008)
 

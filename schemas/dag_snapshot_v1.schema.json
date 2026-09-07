@@ -18,7 +18,10 @@
       "format": "date-time"
     },
     "main_head": {
-      "type": "string",
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[0-9a-f]{40}$"
     },
     "main_tree": {
