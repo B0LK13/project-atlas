@@ -52,6 +52,11 @@ secret literal regex scan over changed files -> 0 findings
 - GitHub MCP is documented as runtime-auth (`gh auth`) only.
 - Codebase Memory is explicitly documented as derived intelligence, not
   canonical merge/verification evidence.
+- Governance skills were not duplicated per platform; role contracts remain
+  single-source and platform-invariant.
+- Agents SDK governance eval semantics remain platform-invariant.
+- MCP parity is capability-based and does not require exact identical MCP
+  server counts across all clients.
 - `src/project_atlas/**` unchanged in this lane.
 
 ## Known limitations

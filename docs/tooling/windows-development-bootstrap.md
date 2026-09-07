@@ -8,6 +8,10 @@ Status: non-production developer tooling guidance for Windows hosts.
 - Use Python 3.12 for Windows CI-equivalent Atlas work.
 - MCP tokens must be runtime-injected and never stored literally in tracked files.
 - Codebase Memory is derived developer intelligence, not canonical merge authority.
+- Governance skills remain single-source and cross-platform; do not duplicate
+  role policy per platform.
+- Role boundaries are platform-invariant (Ubuntu and Windows use the same
+  authority model).
 
 ## Canonical paths (Windows)
 
@@ -48,7 +52,9 @@ Avoid opaque bootstrap scripts and `curl|iex` patterns.
 - playwright
 - context7
 
-Each server must pass startup plus one real tool call in the target client.
+Each selected server must pass startup plus one real tool call in the target
+client. Equivalent capability coverage is accepted without requiring exact MCP
+server-count parity across clients.
 
 ## Worktree collision checks (Codebase Memory)
 

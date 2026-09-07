@@ -1,9 +1,10 @@
 # MCP Health and Permission Review
 
-## Enumerated MCP servers
+## Capability-based MCP parity
 
-Total configured servers detected across user configs: `17`  
-Healthy (command-resolvable): `17`
+Atlas parity is capability-based, not server-count-based.  
+Different clients may use different MCP inventories as long as required
+capabilities are present with equivalent security boundaries.
 
 Primary Atlas target servers are healthy:
 
