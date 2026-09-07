@@ -43,6 +43,74 @@ class ProtectedRegionError(ValueError):
     """Fail-closed: malformed generated/human region markers."""
 
 
+def _outermost_human_spans(text: str) -> list[tuple[int, int]]:
+    """Best-effort ``(start, end)`` of each outermost HUMAN block.
+
+    Deliberately non-raising: this runs only to enrich a diagnostic for a
+    document already known to be malformed, so it must not fail and mask the
+    real error. When the HUMAN markers cannot be paired by a simple depth walk
+    the containment fact is simply not determinable, and the caller omits it
+    rather than guessing.
+    """
+    spans: list[tuple[int, int]] = []
+    depth = 0
+    opened_at = 0
+    for match in re.finditer(
+        r"<!--\s*(BEGIN|END) HUMAN:\s*[^\s>]*\s*-->", text
+    ):
+        if match.group(1) == "BEGIN":
+            if depth == 0:
+                opened_at = match.start()
+            depth += 1
+            continue
+        if depth == 0:
+            return []  # an END with nothing open: not determinable
+        depth -= 1
+        if depth == 0:
+            spans.append((opened_at, match.end()))
+    return [] if depth else spans
+
+
+def _generated_marker_diagnosis(text: str, *, reason: str) -> str:
+    """Observable facts about a generated-marker failure.
+
+    Reports what can be counted and located, never who wrote it. The same
+    shape arises from an operator writing a reserved spelling as prose, from
+    Atlas corrupting its own structure, and from an unrelated malformed state,
+    and this function cannot tell those apart -- so it states the counts, notes
+    when a reserved spelling demonstrably sits inside a HUMAN region, and
+    leaves the cause to the reader.
+
+    ``no-write`` is included because the most useful thing an operator can be
+    told about a fail-closed refusal is that the note on disk was not touched.
+    """
+    facts = [
+        reason,
+        f"begin={text.count(GENERATED_START)}",
+        f"end={text.count(GENERATED_END)}",
+        "expected=1",
+    ]
+    spans = _outermost_human_spans(text)
+    if spans and any(
+        start <= index < end
+        for marker in (GENERATED_START, GENERATED_END)
+        for index in _all_indices(text, marker)
+        for start, end in spans
+    ):
+        facts.append("reserved-marker-in-human-region")
+    facts.append("no-write")
+    return ",".join(facts)
+
+
+def _all_indices(text: str, needle: str) -> list[int]:
+    found: list[int] = []
+    index = text.find(needle)
+    while index >= 0:
+        found.append(index)
+        index = text.find(needle, index + 1)
+    return found
+
+
 def validate_protected_markers(text: str, *, path: str) -> None:
     begins = _HUMAN_BEGIN.findall(text)
     ends = _HUMAN_END.findall(text)
@@ -51,9 +119,22 @@ def validate_protected_markers(text: str, *, path: str) -> None:
     start_count = text.count(GENERATED_START)
     end_count = text.count(GENERATED_END)
     if start_count != end_count or start_count > 1:
-        raise ProtectedRegionError(f"malformed-generated-markers:{path}")
+        # Atlas owns exactly one generated span, so the marker spellings are
+        # reserved syntax wherever they occur -- including inside a HUMAN
+        # region (AS-OBSIDIAN-CAPTURE-001-F3). A note carrying one is a
+        # structural collision, not opaque prose, and is refused with the note
+        # left untouched. Note that a *balanced* forged pair is caught here
+        # too: counting alone would call it balanced, and `start_count > 1` is
+        # what stops a forged pair becoming valid structure by accident.
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:"
+            f"{_generated_marker_diagnosis(text, reason='count')}:{path}"
+        )
     if start_count == 1 and text.index(GENERATED_END) < text.index(GENERATED_START):
-        raise ProtectedRegionError(f"malformed-generated-markers:{path}")
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:"
+            f"{_generated_marker_diagnosis(text, reason='end-before-begin')}:{path}"
+        )
 
 
 #: A region's identity: the names of its open ancestors, outermost first,

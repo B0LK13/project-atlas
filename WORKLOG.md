@@ -13148,3 +13148,63 @@ AS-OBSIDIAN-CAPTURE-001-F2, merged as `eadc0f62`).
   is retained graph-specific behavior). This is implementation evidence, not
   certification: fresh independent verification and exact-head CI are
   required before merge (F4 merge is Owner-bound; not pre-authorized).
+
+## AS-OBSIDIAN-CAPTURE-001-F3 — reserved marker closure (2026-09-07, post-F4)
+
+Work package: **AS-OBSIDIAN-CAPTURE-001-F3**, sequenced after F4 (merged as
+`15c9a6d6`). Base `15c9a6d6` / tree `ca209578`.
+
+Owner policy: Atlas structural marker spellings are **reserved everywhere**,
+including inside a HUMAN protected region. HUMAN payload is not opaque, and raw
+HUMAN bytes are immutable — no auto-escaping, no normalisation, no zero-width
+rewriting.
+
+The safety behaviour was measured before anything was changed, and it already
+held on main: all five exact reserved spellings inside a HUMAN region already
+failed closed with the note byte-identical, and all seven near-miss controls
+(bare token, extra inner spacing, `startx` suffix, uppercase, partial token,
+ordinary HTML comment, unnamed HUMAN marker) were already preserved as ordinary
+prose. Under the minimal-change principle no parser change was manufactured.
+
+The remaining defect was diagnostic quality. `malformed-generated-markers:<path>`
+told an operator nothing about what collided or whether anything had been
+written. The refusal now carries observable facts —
+`count` or `end-before-begin`, `begin=`/`end=`/`expected=` counts,
+`reserved-marker-in-human-region` **only when structurally determinable**, and
+`no-write` — behind the unchanged leading class token, so every existing
+matcher, including the `GraphProjectionError` translations in
+`graph_projections.py`, keeps working.
+
+Causal honesty is the constraint that shaped this. The same failure shape can
+arise from an operator writing a reserved spelling as prose, from Atlas
+corrupting its own generated structure, or from an unrelated malformed state,
+and the implementation cannot distinguish them — so it claims no authorship. A
+duplicated generated marker outside any HUMAN region is not reported as a region
+collision, and that is pinned by its own test. The containment helper is
+deliberately non-raising: it runs only to enrich a diagnostic for a document
+already known to be malformed, so it must not fail and mask the real error.
+
+The balanced forged pair is the load-bearing refusal: counting alone would see
+begins and ends match and could call it balanced, and it is refused only because
+Atlas owns exactly one generated span.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`.
+Tests: F3 suite 31 passed; F3 + capture + F1/F2 + F4 + graph projection +
+Obsidian suites 243 passed / 0 failed; `ruff check .` clean; `mypy src` clean
+(405 files). F4 differential harness unchanged at this branch — graph converges
+on canonical exactly, 2178/1822 with zero on every corruption counter.
+
+Negative controls, run in scratch and reverted: removing the diagnostic
+classification fails exactly the four diagnostic tests; emulating an escaping
+strategy on preserved HUMAN blocks fails six byte-preservation tests. Both are
+load-bearing.
+
+Broader suite shows four `tests/unit/test_logging.py` failures that reproduce
+identically on unmodified main in this environment — those tests spawn the CLI
+in a subprocess, which does not inherit `PYTHONPATH` and resolves
+`project_atlas` through the editable install to a checkout predating the logging
+fix `5d0ed763`. Not caused by this change; CI is authoritative.
+
+This entry is implementation evidence, not certification: independent exact-head
+verification and CI are required before merge, and merge authority is not this
+lane's.
