@@ -23,12 +23,13 @@ establish what the CLI exposes.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from project_atlas.atlas3.cli import ATLAS3_COMMANDS
-from project_atlas.cli import build_parser
+from project_atlas.cli import build_parser, main
 
 #: Certified top-level commands (CLAUDE.md's command list).
 CERTIFIED_COMMANDS = ("connect", "ask2", "kdiff", "brief", "capture")
@@ -190,8 +191,6 @@ def _main_help(argv: list[str]) -> tuple[int, str]:
     from contextlib import redirect_stdout
     from io import StringIO
 
-    from project_atlas.cli import main
-
     captured = StringIO()
     with redirect_stdout(captured), pytest.raises(SystemExit) as raised:
         main(argv)
@@ -258,3 +257,304 @@ def test_connect_keeps_its_documented_positional(built: argparse.ArgumentParser)
     parsed = built.parse_args(["connect", "/tmp/src"])
     assert parsed.command == "connect"
     assert Path(parsed.source) == Path("/tmp/src")
+
+
+# ---------------------------------------------------------------------------
+# The parse boundary.
+#
+# Everything above asserts `dest` on `build_parser()`'s return value. That is
+# one object short of the truth: `main` receives that parser and is free to
+# mutate it before handing it to argparse. Independent verification of #690
+# proved the gap (P04) -- renaming `brief --vault`'s `dest` to `vault_renamed`
+# immediately after `build_parser()` returns leaves the help text unchanged,
+# every check above green, and `args.vault` absent from the namespace the
+# command function is called with.
+#
+# The only place where "what the operator gets" is a settled fact is the
+# instant argparse finishes parsing. These tests observe exactly that: they
+# run the real `main(argv)`, intercept `argparse.ArgumentParser.parse_args`,
+# and capture both the parser argparse was invoked on and the namespace it
+# produced -- then stop, before dispatch and before any side effect.
+#
+# This subsumes the build-time checks rather than replacing them: a mutation
+# anywhere between `build_parser`'s first line and argparse's last is visible
+# here, because the observation happens after all of it.
+# ---------------------------------------------------------------------------
+
+
+class _ParseBoundary(BaseException):
+    """Stop `main` the moment argparse has parsed, before dispatch.
+
+    Derived from `BaseException`, not `Exception`, so a broad `except
+    Exception` anywhere in the entry point cannot swallow the sentinel and
+    turn a blocked mutation into a silent pass.
+    """
+
+    def __init__(
+        self, parser: argparse.ArgumentParser, namespace: argparse.Namespace
+    ) -> None:
+        super().__init__("parse-boundary")
+        self.parser = parser
+        self.namespace = namespace
+
+
+def _sentinel(flag: str) -> str:
+    """A per-flag marker value, unique so two flags cannot share a landing site.
+
+    Alphanumeric only: `--vault` is `type=Path`, and a value containing a
+    separator comes back as a `WindowsPath` whose string form uses
+    backslashes. This round-trips identically on both platforms.
+    """
+    return "ORACLE" + flag.lstrip("-").replace("-", "").upper()
+
+
+def _carries(value: object, sentinel: str) -> bool:
+    """Did `sentinel` land here? Repeatable flags append, so lists count."""
+    if isinstance(value, (list, tuple)):
+        return any(_carries(item, sentinel) for item in value)
+    return value == sentinel or str(value) == sentinel
+
+
+def _parse_boundary(
+    argv: list[str], entry: Callable[[list[str]], object]
+) -> tuple[argparse.ArgumentParser, argparse.Namespace]:
+    """Run `entry(argv)` and capture argparse's parser and namespace.
+
+    Every way of not reaching the boundary is an `AssertionError`, so a
+    mutation that makes the CLI exit early, or never parse at all, blocks
+    just as loudly as one that parses into the wrong place.
+    """
+    real_parse_args = argparse.ArgumentParser.parse_args
+
+    def _spy(
+        self: argparse.ArgumentParser,
+        args: object = None,
+        namespace: object = None,
+    ) -> argparse.Namespace:
+        parsed = real_parse_args(self, args, namespace)  # type: ignore[arg-type]
+        raise _ParseBoundary(self, parsed)
+
+    argparse.ArgumentParser.parse_args = _spy  # type: ignore[method-assign]
+    try:
+        entry(argv)
+    except _ParseBoundary as boundary:
+        return boundary.parser, boundary.namespace
+    except SystemExit as exc:
+        raise AssertionError(
+            f"`atlas {' '.join(argv)}` exited {exc.code} instead of parsing; "
+            "the documented invocation no longer reaches the parse boundary"
+        ) from exc
+    finally:
+        argparse.ArgumentParser.parse_args = real_parse_args  # type: ignore[method-assign]
+    raise AssertionError(
+        f"`atlas {' '.join(argv)}` returned without ever calling parse_args; "
+        "the entry point does not parse the operator's arguments"
+    )
+
+
+def _descend(
+    parser: argparse.ArgumentParser, path: tuple[str, ...]
+) -> argparse.ArgumentParser:
+    """Walk the captured parser down to a (sub)command, or fail closed."""
+    current = parser
+    for name in path:
+        choices = _commands(current)
+        assert name in choices, (
+            f"{name!r} is not exposed by the parser argparse actually used "
+            f"(available: {sorted(choices)[:12]}...)"
+        )
+        current = choices[name]
+    return current
+
+
+def _assert_certified_dests(
+    entry: Callable[[list[str]], object],
+    path: tuple[str, ...],
+    options: tuple[tuple[str, str], ...],
+) -> None:
+    """The certified surface, checked on the parser argparse was handed.
+
+    Two independent observations, because they fail to different attacks:
+    the parser's own `option -> dest` map, and whether the value actually
+    landed on that attribute in the produced namespace. A mutation that
+    edits the action object is caught by both; one that intercepts binding
+    without touching the action is caught by the second.
+    """
+    argv = list(path)
+    for flag, _dest in options:
+        argv += [flag, _sentinel(flag)]
+    parser, namespace = _parse_boundary(argv, entry=entry)
+
+    assert getattr(namespace, "command", None) == path[0], (
+        f"`atlas {' '.join(argv)}` routed to "
+        f"{getattr(namespace, 'command', None)!r}, not {path[0]!r}"
+    )
+    if len(path) > 1:
+        routed = {str(value) for value in vars(namespace).values()}
+        assert path[1] in routed, (
+            f"the namespace records no route to subcommand {path[1]!r}"
+        )
+
+    exposed = _options(_descend(parser, path))
+    for flag, dest in options:
+        label = "atlas " + " ".join(path)
+        assert flag in exposed, f"`{label}` no longer accepts {flag}"
+        assert exposed[flag] == dest, (
+            f"`{label}` {flag} lands on {exposed[flag]!r}, not {dest!r}, on the "
+            "parser argparse actually used; the flag is accepted and ignored"
+        )
+        assert hasattr(namespace, dest), (
+            f"`{label}` parsed without producing {dest!r}; {flag} was accepted "
+            "and its value is not reachable by the command function"
+        )
+        assert _carries(getattr(namespace, dest), _sentinel(flag)), (
+            f"`{label}` {flag}={_sentinel(flag)!r} did not land on {dest!r} "
+            f"(found {getattr(namespace, dest)!r})"
+        )
+
+
+@pytest.mark.parametrize("command", sorted(CERTIFIED_OPTIONS))
+def test_certified_dests_hold_at_the_parse_boundary(command: str) -> None:
+    """P04: the certified `dest`s, observed after `main` has finished with the
+    parser rather than before it starts."""
+    _assert_certified_dests(main, (command,), CERTIFIED_OPTIONS[command])
+
+
+@pytest.mark.parametrize("pair", sorted(CERTIFIED_SUBCOMMAND_OPTIONS))
+def test_certified_subcommand_dests_hold_at_the_parse_boundary(
+    pair: tuple[str, str],
+) -> None:
+    """The same boundary, one level down, where `capture`'s whole operator
+    interface lives."""
+    _assert_certified_dests(main, pair, CERTIFIED_SUBCOMMAND_OPTIONS[pair])
+
+
+def test_parse_boundary_parser_still_exposes_every_certified_command() -> None:
+    """Demotion and seam neutralisation, observed on the parser argparse used.
+
+    `build_parser()` returning a healthy parser says nothing if `main` parses
+    with a different one.
+    """
+    parser, _ = _parse_boundary(["brief", "--project", "p"], entry=main)
+    exposed = set(_commands(parser))
+    missing = sorted(set(CERTIFIED_COMMANDS) - exposed)
+    assert missing == [], f"not top-level on the parser main used: {missing}"
+    absent = sorted(set(ATLAS3_COMMANDS) - exposed)
+    assert absent == [], f"Atlas 3 seam absent from the parser main used: {absent}"
+
+
+# ---------------------------------------------------------------------------
+# Negative controls: P04A-P04E.
+#
+# A guard that cannot fail proves nothing, and source inspection is not proof
+# that it would. Each entry point below is a `main` damaged in one of the ways
+# post-build mutation can damage one, driven through the same assertions the
+# real tests use. Each must raise `AssertionError` -- BLOCK.
+# ---------------------------------------------------------------------------
+
+
+def _action_for(
+    parser: argparse.ArgumentParser, path: tuple[str, ...], flag: str
+) -> argparse.Action:
+    for action in _descend(parser, path)._actions:
+        if flag in action.option_strings:
+            return action
+    raise AssertionError(f"no {flag} on {' '.join(path)}")
+
+
+def _p04a(argv: list[str]) -> object:
+    """Rename a certified top-level `dest` after `build_parser()` returns.
+
+    Verbatim reproduction of the reported bypass.
+    """
+    parser = build_parser()
+    _action_for(parser, ("brief",), "--vault").dest = "vault_renamed"
+    return parser.parse_args(argv)
+
+
+def _p04b(argv: list[str]) -> object:
+    """The same, one level down, on a certified subcommand."""
+    parser = build_parser()
+    _action_for(parser, ("capture", "record"), "--vault").dest = "vault_renamed"
+    return parser.parse_args(argv)
+
+
+def _p04c(argv: list[str]) -> object:
+    """The same damage through a computed attribute write.
+
+    Spelling is what defeated six static rounds; the oracle observes the
+    resulting object, so `setattr` with a computed name is not a new case.
+    """
+    parser = build_parser()
+    action = _action_for(parser, ("kdiff",), "--project")
+    setattr(action, "".join(["d", "e", "s", "t"]), "project_elsewhere")
+    return parser.parse_args(argv)
+
+
+def _p04d(argv: list[str]) -> object:
+    """Delete a certified action after the parser is built."""
+    parser = build_parser()
+    target = _descend(parser, ("ask2",))
+    action = _action_for(parser, ("ask2",), "--question")
+    target._actions.remove(action)
+    for option in action.option_strings:
+        target._option_string_actions.pop(option, None)
+    return parser.parse_args(argv)
+
+
+def _p04e(argv: list[str]) -> object:
+    """Build a healthy parser, then parse the operator's arguments with a decoy.
+
+    Nothing observable about `build_parser()` is wrong here. Only the object
+    argparse is handed is.
+    """
+    build_parser()
+    decoy = argparse.ArgumentParser(prog="atlas")
+    subparsers = decoy.add_subparsers(dest="command")
+    for command in CERTIFIED_COMMANDS:
+        child = subparsers.add_parser(command)
+        for flag, _dest in CERTIFIED_OPTIONS.get(command, ()):
+            child.add_argument(flag, dest="swallowed")
+    return decoy.parse_args(argv)
+
+
+#: Each damaged entry point, with the certified surface it must be caught on.
+P04_MATRIX: tuple[tuple[str, Callable[[list[str]], object], tuple[str, ...]], ...] = (
+    ("P04A-top-level-dest-rename", _p04a, ("brief",)),
+    ("P04B-subcommand-dest-rename", _p04b, ("capture", "record")),
+    ("P04C-computed-setattr-dest-rename", _p04c, ("kdiff",)),
+    ("P04D-post-build-action-deletion", _p04d, ("ask2",)),
+    ("P04E-decoy-parser-at-the-boundary", _p04e, ("brief",)),
+)
+
+
+@pytest.mark.parametrize("case", P04_MATRIX, ids=[case[0] for case in P04_MATRIX])
+def test_p04_mutation_matrix_is_blocked(
+    case: tuple[str, Callable[[list[str]], object], tuple[str, ...]],
+) -> None:
+    """Every post-build mutation of the certified surface must BLOCK.
+
+    These run against the real `cli.py` parser, not a fixture, so the matrix
+    stays honest as the CLI evolves.
+    """
+    _label, entry, path = case
+    options = (
+        CERTIFIED_OPTIONS[path[0]]
+        if len(path) == 1
+        else CERTIFIED_SUBCOMMAND_OPTIONS[(path[0], path[1])]
+    )
+    with pytest.raises(AssertionError):
+        _assert_certified_dests(entry, path, options)
+
+
+def test_p04_matrix_control_passes_undamaged() -> None:
+    """The matrix's own control: the real `main` passes the identical
+    assertions the damaged entry points fail. Without this, a checker that
+    rejected everything would look like a working guard."""
+    for _label, _entry, path in P04_MATRIX:
+        options = (
+            CERTIFIED_OPTIONS[path[0]]
+            if len(path) == 1
+            else CERTIFIED_SUBCOMMAND_OPTIONS[(path[0], path[1])]
+        )
+        _assert_certified_dests(main, path, options)
