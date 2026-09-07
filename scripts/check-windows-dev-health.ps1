@@ -103,7 +103,19 @@ $toolSpecs = @(
     @{ Name = "winget"; Args = @("--version"); Required = $false; Expected = "" },
     @{ Name = "codebase-memory-mcp"; Args = @("--version"); Required = $true; Expected = "0.10.8" },
     @{ Name = "npx"; Args = @("-y", "@playwright/mcp@0.0.80", "--help"); Required = $true; Expected = "" },
-    @{ Name = "npx"; Args = @("-y", "@upstash/context7-mcp@4.0.5", "--help"); Required = $false; Expected = "" }
+    @{ Name = "npx"; Args = @("-y", "@upstash/context7-mcp@4.0.5", "--help"); Required = $false; Expected = "" },
+    @{ Name = "semgrep"; Args = @("--version"); Required = $true; Expected = "1.176.1" },
+    @{ Name = "pip-audit"; Args = @("--version"); Required = $true; Expected = "2.10.1" },
+    @{ Name = "yamllint"; Args = @("--version"); Required = $true; Expected = "1.38.0" },
+    @{ Name = "gitleaks"; Args = @("version"); Required = $true; Expected = "8.30.1" },
+    @{ Name = "trivy"; Args = @("--version"); Required = $true; Expected = "0.74.0" },
+    @{ Name = "syft"; Args = @("version"); Required = $true; Expected = "1.51.1" },
+    @{ Name = "grype"; Args = @("version"); Required = $true; Expected = "0.118.0" },
+    @{ Name = "actionlint"; Args = @("-version"); Required = $true; Expected = "1.7.12" },
+    @{ Name = "hadolint"; Args = @("--version"); Required = $true; Expected = "2.15.1" },
+    @{ Name = "taplo"; Args = @("--version"); Required = $false; Expected = "0.10.0" },
+    @{ Name = "markdownlint-cli2"; Args = @("--version"); Required = $false; Expected = "0.23.2" },
+    @{ Name = "pre-commit"; Args = @("--version"); Required = $false; Expected = "4.6.2" }
 )
 
 $tools = [ordered]@{}

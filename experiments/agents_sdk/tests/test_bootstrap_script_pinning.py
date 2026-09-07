@@ -13,6 +13,11 @@ def test_bootstrap_script_pins_versions_for_all_install_targets() -> None:
         "PLAYWRIGHT_MCP_VERSION=",
         "CONTEXT7_MCP_VERSION=",
         "MARKDOWNLINT_CLI2_VERSION=",
+        "GITHUB_MCP_VERSION=",
+        "SEMGREP_VERSION=",
+        "PIP_AUDIT_VERSION=",
+        "YAMLLINT_VERSION=",
+        "HADOLINT_VERSION=",
         "GITLEAKS_VERSION=",
         "TRIVY_VERSION=",
         "SYFT_VERSION=",
@@ -34,7 +39,6 @@ def test_bootstrap_script_separates_npm_identity_from_version() -> None:
     assert 'install_npm "@playwright/mcp" "${PLAYWRIGHT_MCP_VERSION}"' in script
     assert 'install_npm "@upstash/context7-mcp" "${CONTEXT7_MCP_VERSION}"' in script
     assert 'install_npm "markdownlint-cli2" "${MARKDOWNLINT_CLI2_VERSION}"' in script
-    assert 'npm list -g --depth=0 "${pkg_name}"' in script
     assert 'npm list -g --depth=0 "${pkg_name}@${pkg_version}"' in script
 
 

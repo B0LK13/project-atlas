@@ -26,6 +26,8 @@ runtime packages under `src/project_atlas`.
   - bounded tool probes with per-tool status (`healthy`, `missing`,
     `version_drift`, `probe_failed`, `optional_missing`) and no full-script
     abort when an individual probe fails
+  - probes now include required pinned security/dependency tools for explicit
+    pin-drift visibility (presence alone is not treated as healthy)
 - Extended canonical tooling manifest to cross-platform metadata:
   - `development-tooling-manifest.json`
   - platform-aware install methods and config locations
@@ -39,6 +41,7 @@ runtime packages under `src/project_atlas`.
   - `docs/tooling/CODEBASE_MEMORY_BASELINE.md`
 - Added Windows-oriented test coverage:
   - `experiments/agents_sdk/tests/test_bootstrap_script_windows.py`
+  - `experiments/agents_sdk/tests/test_bootstrap_tooling_behavior.py`
   - updated `experiments/agents_sdk/README.md` with PowerShell run commands
   - added deterministic eval case:
     `prospective_open_pr_merge_sha_not_merge_receipt`

@@ -30,6 +30,11 @@ pwsh -File scripts/bootstrap-dev-tooling.ps1 -Install
 pwsh -File scripts/check-windows-dev-health.ps1
 ```
 
+`check-windows-dev-health.ps1` is a read-only probe across core platform tools,
+required pinned security/dependency tools, and MCP bootstrap prerequisites. It
+does not execute MCP tool calls and is not a substitute for native MCP E2E
+validation.
+
 The script is idempotent: it checks command presence before install attempts and
 does not force upgrades.
 

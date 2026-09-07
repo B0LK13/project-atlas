@@ -88,6 +88,34 @@ function Get-PathRoot {
     return $null
 }
 
+function Test-VersionProbe {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$Args,
+        [Parameter(Mandatory = $true)][string]$ExpectedVersion
+    )
+    try {
+        $output = & $Name @Args 2>&1
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            return [ordered]@{ status = "probe_failed"; message = "version_exit_$exitCode" }
+        }
+        $line = ($output | Select-Object -First 1).ToString().Trim()
+        if (-not $line) {
+            return [ordered]@{ status = "probe_failed"; message = "empty_version_output" }
+        }
+        if ($line -match [regex]::Escape($ExpectedVersion)) {
+            return [ordered]@{ status = "healthy"; message = $line }
+        }
+        if ($line -match "[0-9]+(\.[0-9]+){1,3}") {
+            return [ordered]@{ status = "version_drift"; message = $line }
+        }
+        return [ordered]@{ status = "probe_failed"; message = "unparseable_version_output: $line" }
+    } catch {
+        return [ordered]@{ status = "probe_failed"; message = $_.Exception.Message }
+    }
+}
+
 function Install-NpmPackage {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -133,11 +161,20 @@ function Install-PipxPackage {
     param(
         [Parameter(Mandatory = $true)][string]$Package,
         [Parameter(Mandatory = $true)][string]$Binary,
-        [Parameter(Mandatory = $true)][bool]$Required
+        [Parameter(Mandatory = $true)][bool]$Required,
+        [Parameter(Mandatory = $true)][string[]]$VersionArgs,
+        [Parameter(Mandatory = $true)][string]$ExpectedVersion
     )
     if (Test-Command $Binary) {
-        Add-Result -Name $Package -Required $Required -Status "healthy"
-        return
+        $probe = Test-VersionProbe -Name $Binary -Args $VersionArgs -ExpectedVersion $ExpectedVersion
+        if ($probe.status -eq "healthy") {
+            Add-Result -Name $Package -Required $Required -Status "healthy" -Message $probe.message
+            return
+        }
+        if ($Mode -ne "Install") {
+            Add-Result -Name $Package -Required $Required -Status $probe.status -Message $probe.message
+            return
+        }
     }
     if (-not (Test-Command "pipx")) {
         Add-Result -Name $Package -Required $Required -Status $(if ($Required) { "missing" } else { "optional_missing" }) -Message "pipx_not_found"
@@ -150,10 +187,19 @@ function Install-PipxPackage {
     }
 
     try {
-        & pipx install $Package
+        & pipx install --force $Package
         if ($LASTEXITCODE -eq 0) {
-            $Script:Mutated = $true
-            Add-Result -Name $Package -Required $Required -Status "installed"
+            if (Test-Command $Binary) {
+                $probe = Test-VersionProbe -Name $Binary -Args $VersionArgs -ExpectedVersion $ExpectedVersion
+                if ($probe.status -eq "healthy") {
+                    $Script:Mutated = $true
+                    Add-Result -Name $Package -Required $Required -Status "installed" -Message $probe.message
+                    return
+                }
+                Add-Result -Name $Package -Required $Required -Status "install_failed" -Message $probe.message
+                return
+            }
+            Add-Result -Name $Package -Required $Required -Status "install_failed" -Message "binary_missing_after_install"
         } else {
             Add-Result -Name $Package -Required $Required -Status "install_failed" -Message "pipx_exit_$LASTEXITCODE"
         }
@@ -166,11 +212,20 @@ function Install-WingetPackage {
     param(
         [Parameter(Mandatory = $true)][string]$Id,
         [Parameter(Mandatory = $true)][string]$CommandName,
-        [Parameter(Mandatory = $true)][bool]$Required
+        [Parameter(Mandatory = $true)][bool]$Required,
+        [Parameter(Mandatory = $true)][string[]]$VersionArgs,
+        [Parameter(Mandatory = $true)][string]$ExpectedVersion
     )
     if (Test-Command $CommandName) {
-        Add-Result -Name $Id -Required $Required -Status "healthy"
-        return
+        $probe = Test-VersionProbe -Name $CommandName -Args $VersionArgs -ExpectedVersion $ExpectedVersion
+        if ($probe.status -eq "healthy") {
+            Add-Result -Name $Id -Required $Required -Status "healthy" -Message $probe.message
+            return
+        }
+        if ($Mode -ne "Install") {
+            Add-Result -Name $Id -Required $Required -Status $probe.status -Message $probe.message
+            return
+        }
     }
     if ($Mode -ne "Install") {
         Add-Result -Name $Id -Required $Required -Status $(if ($Required) { "missing" } else { "optional_missing" }) -Message "install_required"
@@ -182,10 +237,19 @@ function Install-WingetPackage {
     }
 
     try {
-        & winget install --id $Id --exact --scope user --accept-source-agreements --accept-package-agreements
+        & winget install --id $Id --exact --version $ExpectedVersion --scope user --accept-source-agreements --accept-package-agreements
         if ($LASTEXITCODE -eq 0) {
-            $Script:Mutated = $true
-            Add-Result -Name $Id -Required $Required -Status "installed"
+            if (Test-Command $CommandName) {
+                $probe = Test-VersionProbe -Name $CommandName -Args $VersionArgs -ExpectedVersion $ExpectedVersion
+                if ($probe.status -eq "healthy") {
+                    $Script:Mutated = $true
+                    Add-Result -Name $Id -Required $Required -Status "installed" -Message $probe.message
+                    return
+                }
+                Add-Result -Name $Id -Required $Required -Status "install_failed" -Message $probe.message
+                return
+            }
+            Add-Result -Name $Id -Required $Required -Status "install_failed" -Message "binary_missing_after_install"
         } else {
             Add-Result -Name $Id -Required $Required -Status "install_failed" -Message "winget_exit_$LASTEXITCODE"
         }
@@ -317,18 +381,18 @@ foreach ($kv in $Pinned.GetEnumerator()) {
 }
 
 Install-NpmPackage -Name "github-mcp-server" -Version "1.12.0" -Required $true
-Install-PipxPackage -Package "semgrep==1.176.1" -Binary "semgrep" -Required $true
-Install-PipxPackage -Package "pip-audit==2.10.1" -Binary "pip-audit" -Required $true
-Install-PipxPackage -Package "yamllint==1.38.0" -Binary "yamllint" -Required $true
-Install-PipxPackage -Package "pre-commit==4.6.2" -Binary "pre-commit" -Required $false
+Install-PipxPackage -Package "semgrep==1.176.1" -Binary "semgrep" -Required $true -VersionArgs @("--version") -ExpectedVersion "1.176.1"
+Install-PipxPackage -Package "pip-audit==2.10.1" -Binary "pip-audit" -Required $true -VersionArgs @("--version") -ExpectedVersion "2.10.1"
+Install-PipxPackage -Package "yamllint==1.38.0" -Binary "yamllint" -Required $true -VersionArgs @("--version") -ExpectedVersion "1.38.0"
+Install-PipxPackage -Package "pre-commit==4.6.2" -Binary "pre-commit" -Required $false -VersionArgs @("--version") -ExpectedVersion "4.6.2"
 
-Install-WingetPackage -Id "Gitleaks.Gitleaks" -CommandName "gitleaks" -Required $true
-Install-WingetPackage -Id "AquaSecurity.Trivy" -CommandName "trivy" -Required $true
-Install-WingetPackage -Id "Anchore.Syft" -CommandName "syft" -Required $true
-Install-WingetPackage -Id "Anchore.Grype" -CommandName "grype" -Required $true
-Install-WingetPackage -Id "rhysd.actionlint" -CommandName "actionlint" -Required $true
-Install-WingetPackage -Id "tamasfe.taplo" -CommandName "taplo" -Required $false
-Install-WingetPackage -Id "hadolint.hadolint" -CommandName "hadolint" -Required $true
+Install-WingetPackage -Id "Gitleaks.Gitleaks" -CommandName "gitleaks" -Required $true -VersionArgs @("version") -ExpectedVersion "8.30.1"
+Install-WingetPackage -Id "AquaSecurity.Trivy" -CommandName "trivy" -Required $true -VersionArgs @("--version") -ExpectedVersion "0.74.0"
+Install-WingetPackage -Id "Anchore.Syft" -CommandName "syft" -Required $true -VersionArgs @("version") -ExpectedVersion "1.51.1"
+Install-WingetPackage -Id "Anchore.Grype" -CommandName "grype" -Required $true -VersionArgs @("version") -ExpectedVersion "0.118.0"
+Install-WingetPackage -Id "rhysd.actionlint" -CommandName "actionlint" -Required $true -VersionArgs @("-version") -ExpectedVersion "1.7.12"
+Install-WingetPackage -Id "tamasfe.taplo" -CommandName "taplo" -Required $false -VersionArgs @("--version") -ExpectedVersion "0.10.0"
+Install-WingetPackage -Id "hadolint.hadolint" -CommandName "hadolint" -Required $true -VersionArgs @("--version") -ExpectedVersion "2.15.1"
 
 $wrapperPath = Ensure-GitHubWrapper
 $mcpDefinitions = [ordered]@{
@@ -360,7 +424,7 @@ foreach ($cfg in $configPaths) {
     Ensure-McpConfigEntry -ConfigPath $cfg -ServerName "context7" -Definition $mcpDefinitions["context7"] -Required $false
 }
 
-$requiredIssues = @($Script:Results | Where-Object { $_.required -and $_.status -in @("missing", "not_configured", "probe_failed", "install_failed") }).Count
+$requiredIssues = @($Script:Results | Where-Object { $_.required -and $_.status -in @("missing", "version_drift", "not_configured", "probe_failed", "install_failed") }).Count
 $installFailures = @($Script:Results | Where-Object { $_.status -eq "install_failed" }).Count
 $optionalIssues = @($Script:Results | Where-Object { -not $_.required -and $_.status -ne "healthy" -and $_.status -ne "installed" }).Count
 
