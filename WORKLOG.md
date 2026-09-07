@@ -13038,6 +13038,9 @@ fresh independent verification are required before merge.
 
 ## F2 seal and F4 baseline + canonical-semantics implementation (2026-09-07, post-#699)
 
+Work package: **AS-OBSIDIAN-CAPTURE-001-F4** (following
+AS-OBSIDIAN-CAPTURE-001-F2, merged as `eadc0f62`).
+
 - PR #699 (F2 structural-scope region identity) merged as `eadc0f62`, second
   parent `a9d2d3b4` (exact object certified by two independent verifiers, CI
   run 34108986396 all four jobs PASS, P0=0 P1=0). Merge tree
@@ -13085,8 +13088,13 @@ fresh independent verification are required before merge.
   with human annotations surviving, and a seeded 500-trial randomized
   differential against the canonical core (accept/refuse agreement and
   byte-identical merged output on every accepted case, zero lost payloads).
-  Suites: 15 new F4 tests + existing graph projections/adversarial + F2
-  capture suite (173 passed); `mypy src` clean (405 files); ruff check clean.
+  Suites: 23 F4 tests + existing graph projections/adversarial + F2
+  capture suite (181 passed); `mypy src` clean (405 files); ruff check clean.
+  (An earlier revision of this bullet carried 15 tests / 173 passed. Those
+  were the counts at the predecessor `98ec49b6`, before the F707-1 error-
+  boundary tests were added; they were left behind when the paragraph above
+  was rewritten, and are corrected here rather than left as a false current
+  claim.)
 - Claim boundary: this entry claims canonical-core reuse for HUMAN-region
   semantics only. It does NOT claim all graph projection behavior is now
   identical to `protected_regions` (the no-HUMAN outside-span contract above
