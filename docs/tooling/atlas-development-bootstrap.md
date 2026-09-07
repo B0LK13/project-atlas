@@ -3,13 +3,17 @@
 Date: 2026-09-06  
 Target repository: `B0LK13/project-atlas`
 
+> This record is a Linux-host evidence snapshot. Use
+> `docs/tooling/windows-development-bootstrap.md` for Windows-native bootstrap
+> policy and commands.
+
 ## Scope and safety
 
 - Production Atlas runtime behavior was not modified.
 - No secrets were written into tracked files.
 - MCP configs use runtime token indirection (`gh auth token`) through a local wrapper.
 - Backups were created before MCP/client configuration changes:
-  - `/home/gebruiker/.copilot/session-state/c3462b7b-03f8-4687-be90-7ae98cf949a6/files/backup-20260906T183505Z/`
+  - `$HOME/.copilot/session-state/<session-id>/files/backup-<timestamp>/`
 
 ## Installation decision manifest
 
@@ -27,7 +31,7 @@ Target repository: `B0LK13/project-atlas`
 | actionlint | missing | Go install | INSTALL | GitHub Actions workflow validation |
 | markdownlint-cli2 | missing | npm | INSTALL | docs/markdown quality checks |
 | taplo | missing | official GitHub release | INSTALL | TOML lint/format validation |
-| hyperfine | missing | apt (requires sudo) | SKIP | non-blocking optimization tool; needs owner install |
+| hyperfine | missing | Linux package manager (requires privilege) | SKIP | non-blocking optimization tool; optional |
 
 ## MCP configuration applied
 
@@ -40,7 +44,8 @@ Configured files:
 Configured servers:
 
 1. `codebase-memory` → `codebase-memory-mcp`
-2. `github` → `/home/gebruiker/.local/bin/github-mcp-wrapper`
+2. `github` → `$HOME/.local/bin/github-mcp-wrapper`
+   - Windows counterpart: `%USERPROFILE%\\.local\\bin\\github-mcp-wrapper.ps1`
 3. `playwright` → `npx -y @playwright/mcp@0.0.80 --headless`
 4. `context7` → `npx -y @upstash/context7-mcp@4.0.5`
 

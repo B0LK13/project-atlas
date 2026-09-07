@@ -1,6 +1,6 @@
 # Codebase Memory Baseline — Project Atlas
 
-Project key: `home-gebruiker-project-atlas`  
+Project key: `home-gebruiker-project-atlas` (Linux-host sample only)  
 Status: `indexed` / `ready`
 
 ## INDEX_STATUS
@@ -42,5 +42,7 @@ Governance-related signals include:
 ## KNOWN_LIMITATIONS
 
 - Codebase Memory output is derived developer intelligence, not canonical evidence.
+- Project key derivation is host/path dependent; validate key separation per
+  Windows worktree (`D:\atlas-worktrees\...`) before reusing Linux assumptions.
 - Ignore rules exclude intentionally sensitive/noisy areas by design.
 - Partial parse on long operational logs can hide some symbols; verify claims in source before certifying.

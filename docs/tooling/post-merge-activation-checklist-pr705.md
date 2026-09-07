@@ -15,15 +15,21 @@ Status: design/operations checklist for tooling activation after merge.
 ## Bootstrap script
 
 - Run `scripts/bootstrap-dev-tooling.sh --check` first.
+- On Windows, run `pwsh -File scripts/bootstrap-dev-tooling.ps1 -Check`.
 - Use `--dry-run` to preview deltas.
 - Use `--install` only when explicit installation is intended.
 
 ## MCP clients
 
 - Local configs are required for each client:
-  - `~/.copilot/mcp-config.json`
-  - `~/.config/Code/User/mcp.json`
-  - `~/.cursor/mcp.json`
+  - Linux:
+    - `$HOME/.copilot/mcp-config.json`
+    - `$HOME/.config/Code/User/mcp.json`
+    - `$HOME/.cursor/mcp.json`
+  - Windows:
+    - `$env:USERPROFILE\.copilot\mcp-config.json`
+    - `$env:APPDATA\Code\User\mcp.json`
+    - `$env:USERPROFILE\.cursor\mcp.json`
 - GitHub MCP must continue runtime token injection (`gh auth token` wrapper), never literal tokens in config.
 
 ## Codebase Memory
@@ -44,10 +50,10 @@ Status: design/operations checklist for tooling activation after merge.
 
 ## Kimi filesystem MCP
 
-- Current root scope is broad (`/home/gebruiker`).
+- Current root scope can be broader than least privilege and must be reviewed per host.
 - Recommended least-privilege roots:
-  - `/home/gebruiker/project-atlas`
-  - `/home/gebruiker/project-atlas-worktrees`
+  - Linux: `$HOME/project-atlas`, `$HOME/project-atlas-worktrees`
+  - Windows: `D:\atlas-worktrees`, `$env:USERPROFILE\project-atlas`
 
 ## Merge guardian status
 

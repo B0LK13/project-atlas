@@ -20,3 +20,10 @@ The lab is deterministic and does not require network calls or credentials.
 .venv/bin/python -m pytest -q experiments/agents_sdk/tests/test_lab.py
 .venv/bin/python -m experiments.agents_sdk.run_demo
 ```
+
+Windows PowerShell equivalent:
+
+```powershell
+py -3.12 -m pytest -q experiments/agents_sdk/tests/test_lab.py
+py -3.12 -m experiments.agents_sdk.run_demo
+```

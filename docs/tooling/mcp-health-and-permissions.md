@@ -20,7 +20,7 @@ Primary Atlas target servers are healthy:
 | github | `AUTHENTICATED`, `NETWORK`, `EXTERNAL_WRITE` (potential by toolset) | token is injected at runtime by wrapper; no token in tracked config |
 | playwright | `NETWORK`, `BROWSER_AUTOMATION`, `LOCAL_FILE_READ` | configured headless, localhost default |
 | context7 | `NETWORK`, `READ_ONLY` | external documentation retrieval |
-| filesystem (Kimi-only pre-existing) | `REPO_WRITE`, `READ_ONLY` depends on tool call | pre-existing scope is broad (`/home/gebruiker`), not changed by this bootstrap |
+| filesystem (Kimi-only pre-existing) | `REPO_WRITE`, `READ_ONLY` depends on tool call | pre-existing scope may be broad; keep roots constrained to Atlas development paths per platform |
 | memory (Kimi-only pre-existing) | `LOCAL_PERSISTENCE` | non-canonical convenience memory |
 
 ## Least-privilege notes
