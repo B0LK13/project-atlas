@@ -204,8 +204,19 @@ measurement of the true rate**.
 2. *Path ambiguity.* A `RegionPath` here is a tuple of ancestor **names**, so two
    same-name sibling scopes under one parent collapse to the same tuple and an
    identity swap between them is invisible to this counter. The exposure is
-   large and worth stating: **5,270 of 13,780 generated payloads (38.2%)** sit at
-   a path shared with another payload, across roughly 39% of trials.
+   large and worth stating: **5,184 of 13,561 generated payloads (38.2%)** sit at
+   a path shared with another payload, across **1,559 of 4,000 trials (39.0%)**.
+   These absolutes are emitted by the harness itself (`corpus` block in the JSON
+   summary), on the same seeded stream as every other figure here, so they
+   reproduce by construction.
+
+   An earlier revision published `5,270 / 13,780` for this one measurement. That
+   was wrong: it came from a separate throwaway script whose replay of the
+   generator drifted out of step with the harness's own loop. The *rate* was
+   unaffected (38.2% either way), but an evidence document whose premise is
+   reconstructibility has no business carrying absolutes that do not reproduce,
+   so the measurement was moved into the instrument rather than re-run outside
+   it.
 
 ### What this instrument does not measure
 

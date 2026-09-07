@@ -378,6 +378,7 @@ def main() -> int:
     }
     shapes_with_graph_loss: dict[str, int] = {}
 
+    corpus = {"payloads": 0, "path_ambiguous_payloads": 0, "path_ambiguous_trials": 0}
     rng = random.Random(args.seed)
     for _ in range(args.trials):
         counter = [0]
@@ -387,6 +388,21 @@ def main() -> int:
         existing = render_doc(forest, with_payload=True, gen_body="old generated body")
         rendered = render_doc(forest, with_payload=False, gen_body="new generated body")
         expected = payload_paths(forest)
+        # Exposure of the path-ambiguity bias documented in the receipt,
+        # measured here rather than by a separate script so the absolute
+        # counts come off the same seeded stream as every other figure and
+        # reproduce by construction. A payload is "path-ambiguous" when
+        # another payload in the same document occupies an identical
+        # RegionPath -- ancestor names only -- so a swap between the two is
+        # invisible to the substitution counter.
+        corpus["payloads"] += len(expected)
+        _seen: dict[tuple[str, ...], int] = {}
+        for _path in expected.values():
+            _seen[_path] = _seen.get(_path, 0) + 1
+        _ambiguous = sum(n for n in _seen.values() if n > 1)
+        corpus["path_ambiguous_payloads"] += _ambiguous
+        if _ambiguous:
+            corpus["path_ambiguous_trials"] += 1
 
         merges = (
             ("canonical", protected_regions.merge_protected_regions),
@@ -443,9 +459,17 @@ def main() -> int:
             elif xscope:
                 stats[impl]["xscope_cases"] += 1
 
+    corpus["path_ambiguous_payload_rate"] = (
+        round(corpus["path_ambiguous_payloads"] / corpus["payloads"], 5)
+        if corpus["payloads"] else None
+    )
+    corpus["path_ambiguous_trial_rate"] = round(
+        corpus["path_ambiguous_trials"] / args.trials, 5
+    ) if args.trials else None
     report = {
         "seed": args.seed,
         "trials": args.trials,
+        "corpus": corpus,
         "implementations": stats,
         "graph_loss_shapes_top": dict(
             sorted(shapes_with_graph_loss.items(), key=lambda kv: -kv[1])[:10]
