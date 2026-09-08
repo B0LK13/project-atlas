@@ -13745,7 +13745,9 @@ ownership probe only (F5); it now also strips a leading BOM from that same probe
 copy. The note's bytes are untouched, and ownership still requires
 `atlas.managed is True` and a matching `capture_id` from genuine YAML.
 
-Controls, each load-bearing with a disjoint set:
+Controls, each load-bearing and each failing a DISTINCT set -- not a disjoint
+one: |A n B| = 3 and C is a subset of D, which the entry below refutes itself by
+noting that dropping the `capture_id` match fails all 18 hostile shapes:
 
     baseline                             26 passed
     A  BOM strip removed (this fix)       6 failed

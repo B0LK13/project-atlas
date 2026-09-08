@@ -78,7 +78,10 @@ exactly that reason.
 
 **Recognition (8 tests):** five editor-realistic shapes still refresh (plain,
 CRLF, BOM+LF, BOM+CRLF, BOM+CR-only); a BOM'd note's HUMAN bytes survive the
-refresh; the probe is exercised directly at unit level.
+refresh; the probe is exercised directly at unit level; and the BOM-not-preserved
+behaviour is pinned (that eighth test is described under the claim boundary
+below, and an earlier revision of this sentence enumerated only seven while
+claiming eight).
 
 **Refusal — the load-bearing half (18 tests):** every shape Atlas does *not*
 own must still be refused **and** left byte-identical: no frontmatter, foreign
@@ -87,7 +90,11 @@ malformed YAML, an indented delimiter, `atlas` as a scalar, a non-string
 `capture_id`, unterminated frontmatter, an empty file, a BOM-only file, a double
 BOM — each also in its BOM-prefixed variant where that differs.
 
-**Negative controls — each load-bearing, each failing a disjoint set:**
+**Negative controls — each load-bearing, each failing a *distinct* set.** Not
+*disjoint*: verification measured `|A ∩ B| = 3` and `C ⊂ D`, and the receipt
+refuted itself two sentences later by noting that dropping the `capture_id`
+match fails **all 18** hostile shapes — which necessarily includes C's three.
+"Distinct" is the accurate word, and it is the one the F5 precedent used:
 
 | control | reverted | result |
 |---|---|---|
@@ -115,8 +122,12 @@ around. (Two sentences of this receipt were themselves holding invisible
 literals while describing the escape.)
 
 **Suites:** the group set, every filename written out in full because an
-abbreviated list is not runnable as written — an earlier revision expanded only
-the last of six abbreviations, and a verifier ran the wrong set because of it:
+abbreviated list is not runnable as written — an earlier revision expanded only the
+last of six abbreviations, and two of the remaining ones expand to filenames
+that do not exist — so the list was not runnable as written. (The claim that
+a verifier consequently ran the wrong set comes from a verification report that
+is not published in this repository, so it is not checkable from the artifacts;
+the unrunnable list is.)
 
     tests/unit/test_as_obsidian_capture_001.py
     tests/unit/test_as_obsidian_capture_001_f3.py
@@ -155,6 +166,16 @@ id; and a BOM placed *after* the delimiter is tolerated mid-stream by PyYAML. In
 genuine `capture_id`, so they are alternate spellings of Atlas's own marker
 rather than foreign notes — which is why they are a residual-register line for
 the lane rather than a defect in this package.
+
+**A pre-existing fail-open-shaped path, found by verification and recorded
+rather than fixed.** `yaml.safe_load` raises a bare `KeyError` — not a
+`yaml.YAMLError` — for a malformed explicit bool tag, and only `yaml.YAMLError`
+is caught, so `_existing_capture_id` *escapes* instead of refusing cleanly.
+Reproduced: `---\natlas: !!bool nope\n---\nbody\n` → `KeyError: 'nope'`,
+**identically at base and head**, so it is not introduced here and is outside
+F7's scope. It belongs in the residual register because an ownership probe that
+raises rather than returning `None` is shaped like a fail-open, even though the
+caller currently turns it into a failure.
 
 **Also not claimed:** that other encoding signatures (UTF-16 BOMs, which would
 fail the UTF-8 decode long before this probe) are handled; that ownership
