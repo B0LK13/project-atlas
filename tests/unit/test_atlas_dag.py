@@ -452,6 +452,32 @@ def test_dag001_waiting_lane_does_not_block_runnable_lane():
     assert snapshot["safe_runnable_count"] >= 1
 
 
+def test_dag002_ci_pending_lane_still_runnable_for_readonly_diagnosis():
+    env = base_env()
+    env.runs[H1] = [{"id": 102, "created_at": "2026-09-01T10:05:00Z",
+                     "status": "in_progress", "conclusion": None}]
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["state"] == "RUNNABLE_READONLY"  # read-only diagnosis stays safe
+    assert "CI" in node["waiting_on"]  # waiting is lane-local annotation
+    assert node["gate"]["merge_gate"] == "FAIL"
+    assert any(r.startswith("EXACT_HEAD_CI_NOT_PASS") for r in node["gate"]["reasons"])
+
+
+def test_dag003_owner_gated_lane_does_not_block_unrelated_lane():
+    env = base_env()
+    env.comments = comments_with(
+        make_event("evt-claim-10", "OWNER_CLAIMED", pr=10, actor="agent-x"),
+    )
+    snapshot = build_snapshot(make_client(env))
+    n10, n11 = node_for(snapshot, 10), node_for(snapshot, 11)
+    assert n10["owner"] == "agent-x"
+    assert n10["state"] == "RUNNABLE_WRITE"
+    assert "OWNER" not in n10["waiting_on"]
+    assert n11["owner"] is None
+    assert n11["state"] == "RUNNABLE_READONLY"
+
+
 def test_dag005_head_move_invalidates_exact_head_evidence():
     env = base_env()
     # Candidate head moves H1 -> H3; old CI + old IV attach to H1 only.
