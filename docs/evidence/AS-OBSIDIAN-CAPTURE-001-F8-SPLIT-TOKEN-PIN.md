@@ -144,8 +144,8 @@ left as the base corpus with F8's pins stripped from the tree.
 B and C at zero against the base corpus is the whole argument for this package,
 and it holds on the integrated result.
 
-Verification built a matcher-relaxing model -- patching
-`_validate_protected_markers` to count via regex, leaving the document untouched
+Verification built a matcher-relaxing model -- patching the public
+`validate_protected_markers` in `protected_regions.py` to count via regex, leaving the document untouched
 -- where this tool canonicalises the input, and obtained the same cells. The
 credit needs bounding: that instrument **reused this tool's three regex
 patterns** and changed only the mechanism, so it corroborates the

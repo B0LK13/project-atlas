@@ -14262,11 +14262,17 @@ relaxations of marker matching that `main`'s existing corpus does not detect at
 all — and it holds on the integrated result, not only on the branch.
 
 **Confirmed by independent fault models, with the provenance stated exactly.**
-Verification built a *matcher-relaxing* model -- patching
-`_validate_protected_markers` to count via regex, leaving the document untouched
+Verification built a *matcher-relaxing* model -- patching the public
+`validate_protected_markers` in `protected_regions.py` to count via regex, leaving the document untouched
 -- where the committed tool canonicalises the input inside
 `merge_protected_regions`. Different mechanism, same cells, same failing test
 names.
+
+An earlier revision named `_validate_protected_markers` here. That is a real
+function but the wrong one -- it is the private copy in `graph_projections.py`,
+not the public `validate_protected_markers` in `protected_regions.py` that was
+actually patched. A reader reproducing the corroboration this seal rests on
+would have patched a different function in a different module.
 
 The credit needs bounding, and an earlier revision of this paragraph overstated
 it. The second instrument was **not** derived from prose: it reused the three
@@ -14277,7 +14283,7 @@ is one derivation tested two ways, which is real corroboration of the
 The precision matters, and an earlier revision of this paragraph lacked it. The
 round that verified PR #740 measured the **pre-byte-test** object, whose figures
 are 41 baseline and 5/3/1; the **9/6/2** corroboration comes from this seal's
-own verification round, which built a third instrument and reproduced 1/0/0 and
+own verification round, which built the second instrument and reproduced 1/0/0 and
 9/6/2. Placing the sentence under the 9/6/2 table without saying which round
 produced which figures attributed corroboration to numbers it predated. Both
 results are real; only the attribution was loose.
