@@ -217,7 +217,14 @@ def test_locator_collision_with_a_different_digest_fails_closed(tmp_path: Path) 
     ident = seal_execution_identity(identity_body())
     target = _proof_dir(vault, "L") / f"{ident.identity_digest[:16]}.json"
     target.parent.mkdir(parents=True)
-    target.write_text(json.dumps({"identity_digest": "f" * 64}), encoding="utf-8")
+    # Same 16-char locator prefix, different full digest: the full digest is
+    # the identity, the prefix is only a locator.
+    prefix_collision = ident.identity_digest[:16] + (
+        "0" if ident.identity_digest[16] != "0" else "1"
+    )
+    prefix_collision += ident.identity_digest[17:]
+    assert prefix_collision != ident.identity_digest
+    target.write_text(json.dumps({"identity_digest": prefix_collision}), encoding="utf-8")
     before = target.read_bytes()
     with pytest.raises(Atlas3Error) as excinfo:
         evaluate_proof_v2(vault, "L", project_id="harbor-api", identity=ident, attestations=[])
@@ -228,6 +235,85 @@ def test_locator_collision_with_a_different_digest_fails_closed(tmp_path: Path) 
     with pytest.raises(Atlas3Error) as excinfo:
         evaluate_proof_v2(vault, "L", project_id="harbor-api", identity=ident, attestations=[])
     assert excinfo.value.code == "PROOF_LOCATOR_COLLISION"
+
+
+def _symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+
+
+def test_symlinked_locator_task_dir_or_namespace_is_refused_not_followed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    chain = full_chain(ident.identity_digest)
+    evaluate_proof_v2(vault, "T1", project_id="harbor-api", identity=ident, attestations=chain)
+    t1 = _proof_dir(vault, "T1") / f"{ident.identity_digest[:16]}.json"
+    t1_bytes = t1.read_bytes()
+
+    # (d) locator symlink -> sibling task's report (same identity)
+    _proof_dir(vault, "T2").mkdir(parents=True)
+    _symlink(_proof_dir(vault, "T2") / t1.name, t1)
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "T2", project_id="harbor-api", identity=ident, attestations=chain)
+    assert excinfo.value.code == "PROOF_LOCATOR_UNSAFE"
+    assert t1.read_bytes() == t1_bytes
+
+    # (h) task directory symlink -> sibling task directory
+    _symlink(_proof_dir(vault, "T6"), _proof_dir(vault, "T1"))
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "T6", project_id="harbor-api", identity=ident, attestations=chain)
+    assert excinfo.value.code == "PROOF_LOCATOR_UNSAFE"
+    assert t1.read_bytes() == t1_bytes
+
+    # (f) dangling locator symlink inside the root
+    _proof_dir(vault, "T4").mkdir(parents=True)
+    _symlink(_proof_dir(vault, "T4") / t1.name, _proof_dir(vault, "ELSEWHERE") / "x.json")
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "T4", project_id="harbor-api", identity=ident, attestations=chain)
+    assert excinfo.value.code == "PROOF_LOCATOR_UNSAFE"
+    assert not _proof_dir(vault, "ELSEWHERE").exists()
+
+    # task path exists as a regular file
+    _proof_dir(vault, "T7").parent.mkdir(parents=True, exist_ok=True)
+    _proof_dir(vault, "T7").write_text("x", encoding="utf-8")
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "T7", project_id="harbor-api", identity=ident, attestations=chain)
+    assert excinfo.value.code == "PROOF_LOCATOR_UNSAFE"
+
+
+def test_symlinked_v2_namespace_pointing_outside_the_vault_is_refused(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    ns = vault / "generated" / "ops" / "atlas3" / "proof" / "v2"
+    ns.parent.mkdir(parents=True)
+    _symlink(ns, outside)
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "J", project_id="harbor-api", identity=ident, attestations=[])
+    assert excinfo.value.code == "PROOF_LOCATOR_UNSAFE"
+    assert list(outside.iterdir()) == []
+
+
+def test_containment_recheck_is_load_bearing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Defence in depth: even if the task-id guard were bypassed, the resolved
+    locator must sit under the proof root."""
+    from project_atlas.atlas3 import proof as proof_module
+
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    monkeypatch.setattr(proof_module, "_safe_task_id", lambda _tid: "../../escape")
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault, "ignored", project_id="harbor-api", identity=ident, attestations=[]
+        )
+    assert excinfo.value.code == "UNSAFE_TASK_ID"
+    assert not (vault / "generated" / "ops" / "atlas3" / "escape").exists()
+    assert not (vault / "generated" / "ops" / "escape").exists()
 
 
 def test_proof_v1_still_accepts_presence_only_evidence_and_says_so(tmp_path: Path) -> None:
@@ -502,6 +588,16 @@ def test_secret_shaped_identity_content_is_refused(tmp_path: Path) -> None:
         "",
         ".",
         "..",
+        "a b",
+        "a\x7fb",
+        "a<b",
+        "a|b",
+        'a"b',
+        "a?b",
+        "a*b",
+        "-x",
+        ".hidden",
+        "AKIAIOSFODNN7EXAMPLE:x",
     ],
 )
 def test_unsafe_task_ids_are_refused_before_any_write(tmp_path: Path, task_id: str) -> None:
@@ -510,6 +606,36 @@ def test_unsafe_task_ids_are_refused_before_any_write(tmp_path: Path, task_id: s
     with pytest.raises(Atlas3Error) as excinfo:
         evaluate_proof_v2(vault, task_id, project_id="harbor-api", identity=ident, attestations=[])
     assert excinfo.value.code == "UNSAFE_TASK_ID"
+    assert "AKIA" not in str(excinfo.value)
+    assert not (vault / "generated").exists()
+
+
+@pytest.mark.parametrize("task_id", [42, None, b"x", ["x"]])
+def test_non_string_task_ids_are_refused(tmp_path: Path, task_id: Any) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, task_id, project_id="harbor-api", identity=ident, attestations=[])
+    assert excinfo.value.code == "UNSAFE_TASK_ID"
+
+
+def test_accepted_task_ids_are_a_bounded_ascii_identifier(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    for tid in ("X", "AT3-103", "a.b.c", "v2", "x" * 128, "T_1"):
+        evaluate_proof_v2(vault, tid, project_id="harbor-api", identity=ident, attestations=[])
+        assert (_proof_dir(vault, tid) / f"{ident.identity_digest[:16]}.json").is_file()
+
+
+@pytest.mark.parametrize("attestations", [None, "x", b"x", {"attestations": []}, 3])
+def test_attestations_must_be_a_sequence(tmp_path: Path, attestations: Any) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault, "SEQ", project_id="harbor-api", identity=ident, attestations=attestations
+        )
+    assert excinfo.value.code == "ATTESTATIONS_INVALID"
     assert not (vault / "generated").exists()
 
 
@@ -916,6 +1042,26 @@ def test_cli_refuses_symlink_oversize_and_nested_inputs(
                 str(atts_ok),
                 "--evidence",
                 "{}",
+            ]
+        )
+        == EXIT_ERROR
+    )
+    assert json.loads(capsys.readouterr().out)["error"] == "PROOF_V2_INPUTS_CONFLICT"
+    assert (
+        main(
+            [
+                "proof",
+                "C2",
+                "--vault",
+                str(vault),
+                "--project",
+                "harbor-api",
+                "--identity",
+                str(real_identity),
+                "--attestations",
+                str(atts_ok),
+                "--evidence",
+                "",
             ]
         )
         == EXIT_ERROR

@@ -31,7 +31,7 @@ import re
 from collections.abc import Mapping
 from typing import Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationInfo, model_validator
 
 from atlas_contracts.canonical import content_digest, short_id
 from atlas_contracts.identity import safe_relative_component
@@ -199,7 +199,7 @@ class ExecutionIdentity(_Contract):
     schema_id: Literal["atlas.execution-identity.v1"] = Field(
         default="atlas.execution-identity.v1", alias="schema"
     )
-    schema_version: Literal[1] = 1
+    schema_version: StrictInt = Field(default=1, ge=1, le=1)
     project_id: str = Field(min_length=1, max_length=128)
     source: GitSource
     environment: EnvironmentIdentity
@@ -247,13 +247,15 @@ class ExecutionIdentity(_Contract):
 
     def body(self) -> dict[str, Any]:
         """Canonical content without the self-referential digest fields."""
-        return self.model_dump(mode="json", by_alias=True, exclude=set(_DIGEST_FIELDS))
+        return self.model_dump(
+            mode="json", by_alias=True, exclude=set(_DIGEST_FIELDS), warnings=False
+        )
 
     def compute_digest(self) -> str:
         return content_digest(self.body())
 
     def to_record(self) -> dict[str, Any]:
-        return self.model_dump(mode="json", by_alias=True)
+        return self.model_dump(mode="json", by_alias=True, warnings=False)
 
     def candidate_object(self) -> tuple[str, str] | None:
         if self.source.candidate_head is None or self.source.candidate_tree is None:

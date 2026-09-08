@@ -775,7 +775,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         "PROOF_V2_INPUTS_INCOMPLETE",
                         "--identity and --attestations must be given together",
                     )
-                if getattr(args, "evidence", None):
+                if getattr(args, "evidence", None) is not None:
                     raise Atlas3Error(
                         "PROOF_V2_INPUTS_CONFLICT",
                         "--evidence is proof v1 input; it cannot be combined with v2 flags",

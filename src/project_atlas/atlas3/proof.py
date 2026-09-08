@@ -6,6 +6,7 @@ Evidence chain: TASK → IMPLEMENTATION → TESTS → CI → IV → ADV → INTE
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
@@ -13,14 +14,12 @@ from typing import Any, Final
 from pydantic import ValidationError
 
 from atlas_contracts.attestation import (
-    AttestationError,
     EvidenceAttestation,
     load_evidence_attestation,
 )
 from atlas_contracts.canonical import canonical_json
 from atlas_contracts.execution_identity import (
     ExecutionIdentity,
-    ExecutionIdentityError,
     load_execution_identity,
 )
 from atlas_contracts.identity import safe_relative_component
@@ -51,6 +50,11 @@ PROOF_V2_SCHEMA: Final[str] = "atlas3.agent-proof.v2"
 PROOF_V2_PACKAGE_ID: Final[str] = "AT3-103"
 PROOF_V2_RELATIVE: Final[Path] = OPS_RELATIVE / "proof" / "v2"
 MAX_TASK_ID_LENGTH: Final[int] = 128
+# v2 task ids are safe logical identifiers, not descriptive text: an ASCII
+# identifier alphabet that every supported filesystem accepts, so Linux and
+# Windows make the same decision before any filesystem access.
+TASK_ID_PATTERN: Final[str] = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+_TASK_ID_RE: Final[re.Pattern[str]] = re.compile(TASK_ID_PATTERN)
 
 
 def evaluate_proof(
@@ -117,22 +121,34 @@ def evaluate_proof(
     return report
 
 
-def _safe_task_id(task_id: str) -> str:
-    """v2 task ids name a directory: reuse the shared path-component guard.
+def _safe_task_id(task_id: object) -> str:
+    """v2 task ids name a directory: a bounded ASCII identifier, then the shared
+    path-component guard (reserved Windows names, trailing dot, ``..``).
 
-    Stricter than v1's check on purpose (controls, ``:``, reserved Windows
-    names, trailing dot/space, NUL and unbounded length are refused). v1's own
-    check is untouched.
+    Stricter than v1's check on purpose; v1's own check is untouched. The value
+    is never echoed in the error, because a task id may also be secret-shaped.
     """
-    if not isinstance(task_id, str) or len(task_id) > MAX_TASK_ID_LENGTH:
-        raise Atlas3Error("UNSAFE_TASK_ID", "task id must be a string of at most 128 chars")
-    tid = task_id.strip()
-    if tid != task_id or not tid.isascii() or not tid.isprintable():
-        raise Atlas3Error("UNSAFE_TASK_ID", "task id must be printable ASCII without padding")
+    if not isinstance(task_id, str) or not _TASK_ID_RE.fullmatch(task_id):
+        raise Atlas3Error(
+            "UNSAFE_TASK_ID",
+            "task id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}",
+        )
     try:
-        return safe_relative_component(tid, label="task id")
+        return safe_relative_component(task_id, label="task id")
     except ValueError as exc:
-        raise Atlas3Error("UNSAFE_TASK_ID", str(exc)) from exc
+        raise Atlas3Error("UNSAFE_TASK_ID", "task id is not a safe path component") from exc
+
+
+def _assert_no_symlink_components(root: Path, relative: Path) -> None:
+    """Refuse if any path component below ``root`` is a symlink (checked with
+    ``lstat`` on the *unresolved* path, before any ``resolve()``), so a planted
+    link at ``proof/v2``, at the task directory or at the locator cannot
+    redirect a report inside or outside the vault."""
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise Atlas3Error("PROOF_LOCATOR_UNSAFE", f"proof path component {part!r} is a symlink")
 
 
 def _load_identity(identity: ExecutionIdentity | Mapping[str, Any]) -> ExecutionIdentity:
@@ -145,8 +161,6 @@ def _load_identity(identity: ExecutionIdentity | Mapping[str, Any]) -> Execution
         raise Atlas3Error("EXECUTION_IDENTITY_MALFORMED", "identity must be a JSON object")
     try:
         return load_execution_identity(identity)
-    except ExecutionIdentityError as exc:
-        raise Atlas3Error(exc.code, str(exc)) from exc
     except ValidationError as exc:
         code = _pydantic_code(exc, default="EXECUTION_IDENTITY_MALFORMED")
         raise Atlas3Error(code, _pydantic_detail(exc)) from exc
@@ -161,8 +175,6 @@ def _load_attestation(
         raise Atlas3Error("ATTESTATION_MALFORMED", "attestation must be a JSON object")
     try:
         return load_evidence_attestation(attestation)
-    except AttestationError as exc:
-        raise Atlas3Error(exc.code, str(exc)) from exc
     except ValidationError as exc:
         code = _pydantic_code(exc, default="ATTESTATION_MALFORMED")
         raise Atlas3Error(code, _pydantic_detail(exc)) from exc
@@ -239,10 +251,15 @@ def evaluate_proof_v2(
     cannot collide. ``<digest16>`` is a locator only; the full
     ``identity_digest`` inside the file is the identity, and a locator that
     already holds a different full digest fails closed instead of overwriting.
+    Every path component under the vault is checked with ``lstat`` before any
+    resolution: a symlink at ``proof/v2``, at the task directory or at the
+    locator is refused (``PROOF_LOCATOR_UNSAFE``), never followed.
     """
     root = require_vault(vault)
     tid = _safe_task_id(task_id)
     pid = safe_project_id(project_id)
+    if isinstance(attestations, (str, bytes, Mapping)) or not isinstance(attestations, Sequence):
+        raise Atlas3Error("ATTESTATIONS_INVALID", "attestations must be a list of attestations")
     ident = _load_identity(identity)
     if ident.project_id != pid:
         raise Atlas3Error(
@@ -362,12 +379,18 @@ def evaluate_proof_v2(
         "honesty": honesty_block(),
         "generated": {"by": GENERATOR_ID},
     }
-    proof_root = (root / PROOF_V2_RELATIVE).resolve()
-    target = (proof_root / tid / f"{ident.identity_digest[:16]}.json").resolve()
-    if not target.is_relative_to(proof_root):
-        raise Atlas3Error("UNSAFE_TASK_ID", "proof path escaped the proof root")
-    if target.is_symlink() or (target.exists() and not target.is_file()):
+    locator = PROOF_V2_RELATIVE / tid / f"{ident.identity_digest[:16]}.json"
+    _assert_no_symlink_components(root, locator)
+    task_dir = root / PROOF_V2_RELATIVE / tid
+    if task_dir.exists() and not task_dir.is_dir():
+        raise Atlas3Error("PROOF_LOCATOR_UNSAFE", "proof task path is not a directory")
+    target = root / locator
+    if target.exists() and not target.is_file():
         raise Atlas3Error("PROOF_LOCATOR_UNSAFE", "proof locator is not a regular file")
+    # Defence in depth after the symlink walk: the resolved locator must still
+    # sit under the resolved proof root.
+    if not target.resolve().is_relative_to((root / PROOF_V2_RELATIVE).resolve()):
+        raise Atlas3Error("UNSAFE_TASK_ID", "proof path escaped the proof root")
     if target.is_file():
         existing = read_json(target)
         if existing is None or existing.get("identity_digest") != ident.identity_digest:

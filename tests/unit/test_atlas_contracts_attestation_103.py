@@ -242,8 +242,11 @@ def test_version_identifier_is_conservative_ascii(version: str) -> None:
 
 
 def test_summary_values_must_be_counts() -> None:
-    with pytest.raises(ValidationError, match="SUMMARY_VALUE_INVALID"):
+    with pytest.raises(ValidationError):
         seal_evidence_attestation(body(result={"status": "PASS", "summary": {"passed": -1}}))
+    with pytest.raises(ValidationError):
+        seal_evidence_attestation(body(result={"status": "PASS", "summary": {"passed": 10**30}}))
+    seal_evidence_attestation(body(result={"status": "PASS", "summary": {"passed": 10**9}}))
     with pytest.raises(ValidationError):
         seal_evidence_attestation(body(result={"status": "PASS", "summary": {"passed": "many"}}))
     record = seal_evidence_attestation(body()).to_record()
@@ -292,6 +295,13 @@ def test_error_type_carries_a_stable_code() -> None:
         seal_evidence_attestation(body(stage="ADV", evidence_type="ADVERSARIAL_RESULT"))
     # The stable code must surface in the pydantic message so callers can map it.
     assert "INDEPENDENCE_NOT_DECLARED" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("value", [1.0, True, "1", 2, 0])
+def test_schema_version_is_strictly_the_integer_one(value: Any) -> None:
+    with pytest.raises(ValidationError):
+        seal_evidence_attestation(body(schema_version=value))
+    seal_evidence_attestation(body(schema_version=1))
 
 
 def test_json_schema_summary_and_version_constraints_are_declarative() -> None:

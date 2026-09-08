@@ -214,6 +214,12 @@ def test_unsafe_project_ids_are_refused(project_id: str) -> None:
         seal_execution_identity(body(project_id=project_id))
 
 
+@pytest.mark.parametrize("value", [1.0, True, "1", 2])
+def test_schema_version_is_strictly_the_integer_one(value: Any) -> None:
+    with pytest.raises(ValidationError):
+        seal_execution_identity(body(schema_version=value))
+
+
 def test_placeholder_digest_is_not_accepted_on_strict_load() -> None:
     record = seal_execution_identity(body()).to_record()
     record["identity_digest"] = "0" * 64

@@ -52,7 +52,7 @@ not by a second attestation system.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Final, Literal
+from typing import Annotated, Any, Final, Literal
 
 from pydantic import (
     BaseModel,
@@ -171,6 +171,7 @@ SUMMARY_COUNTERS: Final[frozenset[str]] = frozenset(
     }
 )
 VERSION_PATTERN: Final[str] = r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"
+MAX_SUMMARY_COUNT: Final[int] = 10**9
 
 
 class AttestationError(ValueError):
@@ -214,21 +215,19 @@ class AttestationResult(_Contract):
     status: Literal["PASS", "FAIL", "UNKNOWN"]
     exit_code: StrictInt | None = Field(default=None, ge=-255, le=255)
     artifact_digest: str | None = Field(default=None, pattern=HASH_PATTERN)
-    summary: dict[str, StrictInt] = Field(default_factory=dict)
+    summary: dict[str, Annotated[StrictInt, Field(ge=0, le=MAX_SUMMARY_COUNT)]] = Field(
+        default_factory=dict
+    )
 
     @model_validator(mode="after")
     def _summary_keys(self) -> AttestationResult:
-        for key, value in self.summary.items():
+        for key in self.summary:
             # Positive vocabulary: an unknown key is refused whatever it spells,
             # so no authority-shaped key (in any casing, separator or
             # look-alike form) can exist in a summary.
             if key not in SUMMARY_COUNTERS:
                 raise AttestationError(
                     "SUMMARY_KEY_UNKNOWN", f"summary key {key!r} is not a known counter"
-                )
-            if value < 0:
-                raise AttestationError(
-                    "SUMMARY_VALUE_INVALID", f"summary value for {key!r} must be a count"
                 )
         return self
 
@@ -239,7 +238,7 @@ class EvidenceAttestation(_Contract):
     schema_id: Literal["atlas.evidence-attestation.v1"] = Field(
         default="atlas.evidence-attestation.v1", alias="schema"
     )
-    schema_version: Literal[1] = 1
+    schema_version: StrictInt = Field(default=1, ge=1, le=1)
     project_id: str = Field(min_length=1, max_length=128)
     execution_identity_digest: str = Field(pattern=HASH_PATTERN)
     stage: Literal[
@@ -317,13 +316,15 @@ class EvidenceAttestation(_Contract):
         return self
 
     def body(self) -> dict[str, Any]:
-        return self.model_dump(mode="json", by_alias=True, exclude=set(_DIGEST_FIELDS))
+        return self.model_dump(
+            mode="json", by_alias=True, exclude=set(_DIGEST_FIELDS), warnings=False
+        )
 
     def compute_digest(self) -> str:
         return content_digest(self.body())
 
     def to_record(self) -> dict[str, Any]:
-        return self.model_dump(mode="json", by_alias=True)
+        return self.model_dump(mode="json", by_alias=True, warnings=False)
 
 
 def seal_evidence_attestation(payload: Mapping[str, Any]) -> EvidenceAttestation:
@@ -353,6 +354,7 @@ __all__ = [
     "EVIDENCE_STAGES",
     "EVIDENCE_TYPES",
     "INDEPENDENT_STAGES",
+    "MAX_SUMMARY_COUNT",
     "OBJECT_DEPENDENCIES",
     "PRODUCER_KINDS",
     "RESULT_STATUSES",
