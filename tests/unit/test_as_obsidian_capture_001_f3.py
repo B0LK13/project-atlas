@@ -102,6 +102,14 @@ NEAR_MISS = {
     "partial-token": "<!-- atlas:generated: -->\n",
     "ordinary-html-comment": "<!-- just an ordinary note -->\n",
     "human-marker-without-name": "<!-- BEGIN HUMAN: -->\n",
+    # #716's split-token near miss. Recorded as an open residual in the F1-F4
+    # register ("pinned by no assertion") and pinned here. A whitespace-tolerant
+    # marker matcher would start REFUSING these, turning ordinary prose into a
+    # permanent refresh failure, and nothing would have caught it.
+    "split-token-inside-start": "<!-- atlas:generated:sta rt -->\n",
+    "split-token-inside-end": "<!-- atlas:generated:e nd -->\n",
+    "split-token-before-colon": "<!-- atlas:generated :start -->\n",
+    "split-token-across-newline": "<!-- atlas:generated:sta\nrt -->\n",
 }
 
 
