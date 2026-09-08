@@ -9,7 +9,8 @@ running an independently constructed matcher-relaxing family and obtaining the
 same six cells. The distinction is recorded because "makes matching more
 tolerant" describes the modelled fault, not the edit.
 
-Each is run twice -- against the F3 corpus as it exists on the merge base, and against the corpus with F8's four split-token pins -- because a
+Each is run twice -- against the F3 corpus as it exists on the merge base, and
+against the corpus with F8's four split-token pins -- because a
 control that only shows the new tests failing proves they are tests, not that
 they are needed.
 
