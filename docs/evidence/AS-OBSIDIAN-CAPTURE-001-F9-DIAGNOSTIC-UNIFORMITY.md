@@ -5,7 +5,7 @@
 ## The defect
 
 A generated-marker collision is one operator condition. It did not read as one.
-Reproduced on current `main` (`e264d599`) with the identical corrupt note put
+Reproduced on `e264d599` and re-checked on the current base `7f3dff69` with the identical corrupt note put
 through both generated-span-preserving writers:
 
     canonical : malformed-generated-markers:count,begin=2,end=1,expected=1,no-write:n.md
@@ -30,8 +30,7 @@ asserted refused *and* asserted to leave the note byte-identical, and a positive
 control asserts a well-formed note still merges.
 
 The message **prefix** is unchanged, so the change is backward compatible with
-every existing assertion matching `malformed-generated-markers` — **89 tests
-across five suites**, verified passing before and after.
+every existing assertion matching `malformed-generated-markers` — **100 tests across five suites**, verified passing before and after.
 
 ## One site gets an honest reason instead of the shared one
 
@@ -50,11 +49,11 @@ each reverted with both sources confirmed byte-identical afterwards.
 | control | reverted | result |
 |---|---|---|
 | baseline | — | **33 passed** |
-| A | count site → bare message | **12 failed** |
-| B | end-before-begin site → bare | **4 failed** |
-| C | `_generated_span` site → bare | **4 failed** |
+| A | count site → bare message | **13 failed** |
+| B | end-before-begin site → bare | **5 failed** |
+| C | `_generated_span` site → bare | **5 failed** |
 | D | rendered-no-span site → bare | **1 failed** |
-| E | `_generated_span` reason always `count` | **2 failed** |
+| E | `_generated_span` reason always `count` | **3 failed** |
 
 **A test that could not fail, found by review.** An earlier revision asserted
 the note was left byte-identical by comparing the `existing` *string* against

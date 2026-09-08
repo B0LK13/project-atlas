@@ -186,6 +186,11 @@ def test_f9_rendered_without_a_generated_span_is_not_mislabelled() -> None:
     assert "rendered-has-no-generated-span" in message
     assert "count" not in message.split(":")[1].split(",")[0]
     assert "no-write" in message
+    # The counts must name the artifact they describe. Reporting bare
+    # `begin=`/`end=` here read as the operator's note, which in this scenario
+    # has one marker of each -- so it told them the opposite of the truth.
+    assert "rendered-begin=0" in message and "rendered-end=0" in message
+    assert ",begin=" not in message and ",end=" not in message
 
 
 def test_f9_a_well_formed_note_is_untouched_by_any_of_this() -> None:

@@ -4793,7 +4793,7 @@ authority/temporal CONSUME-ONLY.
 
 ### Commands / gates
 - Focused AS-CORE-008: 26 passed
-- AS-CORE-007: 22 passed; AS-CORE-005/006: 33 passed; AS-RET: 5 passed
+- AS-CORE-007: 22 passed; AS-CORE-005/006: 32 passed; AS-RET: 5 passed
 - Full Core: 611 passed, 1 skipped
 - Control Plane (WSL): 146 + 12 agent-control passed
 - ruff / mypy / compileall: PASS
@@ -9851,7 +9851,7 @@ recovery independently re-verified PASS and merged via PR #638.)
 
 - Owner explicitly granted a narrow certified-surface freeze exception for
   DOGFOOD-001 (`src/project_atlas/ingestion.py` only, pinned by exact
-  sha256, non-transferable -- see `docs/atlas-3/ARCHITECTURE.md` §9.1 and
+  sha256, non-transferable -- see `docs/atlas-3/ARCHITECTURE.md` SS9.1 and
   `tests/unit/test_atlas3_demo_isolation_001.py`'s
   `_OWNER_APPROVED_EXCEPTIONS`). Encoded per the prior entry.
 - Fixed one ordinary CI defect (F841 unused `result` in a regression test)
@@ -11495,7 +11495,7 @@ exact-head independent verification and CI run are required before merge.
 
 The Project Owner explicitly authorized two exact-content exceptions to the
 Atlas 3 certified-surface freeze (`tests/unit/test_atlas3_demo_isolation_001.py`,
-§9.1 of `docs/atlas-3/ARCHITECTURE.md`):
+SS9.1 of `docs/atlas-3/ARCHITECTURE.md`):
 
 | Path | Authorized sha256 |
 | --- | --- |
@@ -13512,7 +13512,7 @@ The first candidate fixed all four sites. The full suite then failed
 `test_atlas3_demo_isolation_001.test_certified_surfaces_unmodified`:
 `src/project_atlas/ingestion.py` is a **certified surface**, and editing it
 requires an owner-approved, sha256-pinned exception under
-`docs/atlas-3/ARCHITECTURE.md` §9.1. That gate cannot be self-granted by this
+`docs/atlas-3/ARCHITECTURE.md` SS9.1. That gate cannot be self-granted by this
 lane, and the mechanism is content-pinned so even a one-byte further edit
 invalidates it.
 
@@ -14358,8 +14358,7 @@ fail-closed guarantee and the same bytes left on disk -- both pinned, not
 assumed: every corrupt shape is asserted refused AND asserted to leave the note
 byte-identical, and a positive control asserts a well-formed note still merges.
 The message PREFIX is unchanged, so the change is backward compatible with every
-existing assertion matching `malformed-generated-markers` -- **89 tests across
-five suites**, verified passing before and after.
+existing assertion matching `malformed-generated-markers` -- **100 tests across five suites**, verified passing before and after.
 
 **One site gets an honest reason instead of the shared one.** The fifth is not a
 marker malformation at all: it refuses because the *fresh render* offers no
@@ -14372,11 +14371,11 @@ reason token is not `count`.
 assertion that it changed the file, each reverted with both sources confirmed
 byte-identical:
 
-    A  count site -> bare message                12 failed
-    B  end-before-begin site -> bare              4 failed
-    C  `_generated_span` site -> bare             4 failed
+    A  count site -> bare message                13 failed
+    B  end-before-begin site -> bare              5 failed
+    C  `_generated_span` site -> bare             5 failed
     D  rendered-no-span site -> bare              1 failed
-    E  `_generated_span` reason always `count`    2 failed
+    E  `_generated_span` reason always `count`    3 failed
 
 **Controls C and E earned their place by first failing to fail.** On the initial
 test set, reverting the `_generated_span` site left the suite at **27 passed** --
