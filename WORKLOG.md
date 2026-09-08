@@ -13372,11 +13372,13 @@ the revert, as does the linearity test.
 Carried forward, not closed. Each is recorded because a reader of the sealed
 entries would otherwise have to rediscover it.
 
-- **CRLF is normalised LF-only end to end, at FOUR sites.** The three
-  `merge_protected_regions` callers (`obsidian_capture_note.py:378`,
-  `obsidian_projection.py:360`, `graph_projections.py:644`) plus
-  **`ingestion.py:99`** (`_generated_content`), which preserves a generated
-  span and normalises the same way without going through `protected_regions` --
+- **CRLF is normalised LF-only end to end, at FOUR sites.** The anchors below
+  are the `read_text` lines -- where the normalisation actually happens -- not
+  the lines that call `merge_protected_regions`. Three sit in writers that do go
+  on to call it (`obsidian_capture_note.py:378`, `obsidian_projection.py:360`,
+  `graph_projections.py:644`); the fourth, **`ingestion.py:99`**
+  (`_generated_content`), preserves a generated span and normalises the same way
+  without going through `protected_regions` at all --
   so a grep for the merge function misses it. Pre-existing and byte-identical
   on base main -- `sha256 ingestion.py` is `6911a99d...` at both head and
   `15c9a6d6` -- therefore not introduced by F3. (An earlier revision cited a

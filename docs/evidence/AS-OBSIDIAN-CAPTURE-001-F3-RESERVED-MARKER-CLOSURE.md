@@ -230,6 +230,16 @@ observable structural facts.
 opaque; that any render output is reversible; that a malformed state identifies
 operator action; or that Obsidian note corruption in general is solved.
 
-This is implementation evidence, not certification. Independent exact-head
-verification and CI are required before merge, and merge authority does not
-belong to this lane.
+This began as implementation evidence, not certification, and said that
+independent exact-head verification and CI were required before merge and that
+merge authority did not belong to this lane. **All three conditions were met**:
+the exact head `c6b0ecb8` returned `PASS_WITH_NONBLOCKING_FINDINGS` (P0=0,
+P1=0), CI was green on all four required jobs at that object, and the merge was
+made by the owner. It merged unrebased as `48a51875`, whose `src` and `tests`
+trees are byte-identical to the verified object, so the verdict transfers
+without an inference step.
+
+What this receipt still does **not** certify is unchanged: no `CODEX_VALIDATED`,
+no discharge of `EXTERNAL_SECURITY_REVALIDATION_REQUIRED`, and F3's runtime
+delta remains diagnostic-only -- the fail-closed behaviour predates this work
+package.
