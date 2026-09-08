@@ -1,6 +1,16 @@
 # AS-OBSIDIAN-CAPTURE-001-F5 — HUMAN line endings are bytes, not formatting
 
-**Status:** implemented, awaiting independent verification. **Not sealed.**
+**Status:** **SEALED 2026-09-08 on main** — merged as PR #724, merge commit
+`91f40368`, second parent `2b472b91`. **What was verified, stated precisely.** The four IV rounds ran against four
+*different* objects — `6788f3bc`, `7e632070`, `78b48d93`, `bf8799ee` — each
+superseded by the next, so no single object carries all four verdicts. The
+merged object equals the final branch head (`git diff 2b472b91 91f40368` is
+empty), and its `src` (`0f909c49`) and `tests` (`8c3b9dfc`) trees are
+hash-identical to round 4's object `bf8799ee`, so **round 4's runtime and test
+certification transfers**. The docs-only delta `bf8799ee`→`2b472b91` — WORKLOG
+and evidence prose, no code or test change — was **not** independently verified.
+An earlier revision of this line claimed the merged object was the object all
+four rounds ran against, which conflated the chain with its final link.
 
 **Owner policy this serves (F3, unchanged):** raw HUMAN bytes are immutable —
 no auto-escaping, no normalisation, no zero-width rewriting.
@@ -248,5 +258,62 @@ previous refresh are recoverable (they are not — this stops further loss, it
 does not undo it); that non-newline normalisation elsewhere is absent; or that
 Obsidian note corruption in general is solved.
 
-Implementation evidence, not certification. Independent exact-head verification
-and CI are required before merge, and merge authority is not this lane's.
+*(Superseded by the post-merge seal below.)* This began as implementation
+evidence, not certification: independent exact-head verification and CI **were**
+required before merge, and merge authority was not this lane's. All three were
+satisfied — see **Post-merge seal** at the end of this document.
+
+## Post-merge seal (2026-09-08)
+
+Merged as `91f40368` (PR #724), first parent `7a9eeb76`, second parent
+`2b472b91`. Re-run **on the merge commit**, in a venv built inside a worktree at
+that commit with subprocess resolution proved to reach it first:
+
+| check | result |
+|---|---|
+| F5 suite | 27 passed, 4 xfailed |
+| full suite | **5,643 passed, 8 skipped, 4 xfailed** |
+| freeze guard | 78 passed |
+| `ruff check .` | All checks passed |
+| `mypy src` | Success, 405 source files |
+
+**Negative controls re-run on the merge commit** — the point being that the
+protections are load-bearing on `main`, not only on the branch:
+
+| control | result |
+|---|---|
+| baseline | 27 passed, 4 xfailed |
+| helper → `read_text` | 19 failed |
+| `graph_projections` only | 5 failed |
+| `obsidian_capture_note` only | 6 failed |
+| `obsidian_projection` only | 4 failed |
+| ownership probe LF-naive | 3 failed |
+
+Each fails a distinct set. The owner gate survived: `ingestion.py` on `main` is
+byte-identical to its pre-F5 state.
+
+### What four verification rounds cost, and bought
+
+Round 1 found a **regression this fix introduced** — the faithful read exposed
+`_existing_capture_id`'s `startswith("---\n")` gate, so a note whose first line
+ended CRLF was judged unmanaged and refused forever. That is the lesson worth
+keeping: *reading faithfully is not enough if a consumer was silently relying on
+the translation.* Round 2 proved the remedy did not trade a false-negative for a
+false-positive (18 hostile shapes still refused; 42/42 probe-decision
+equivalence with base). Rounds 3 and 4 found only evidence-consistency defects,
+and round 4 returned P0/P1/P2 = none.
+
+Rounds 2–4 all found the same defect class in my own bookkeeping: a correction
+applied in some copies and not others. The figures were never wrong; the record
+of them kept drifting.
+
+### Residuals unchanged by this seal
+
+The fourth writer (`ingestion.py:99`) is **still defective on `main`** — F5-B,
+owner-gated behind a sha256-pinned exception, with four `xfail(strict=True)`
+reproductions that flip to visible failure the moment it is fixed. Separately
+open and unowned: raw `UnicodeDecodeError`/`PermissionError` escaping the domain
+boundary in the projection writers (F6), and a UTF-8 BOM making a note
+permanently unmanageable (pre-existing, not introduced here). Handed off to
+another subsystem: issue #726, bridge-import `source_sha256` hashing translated
+text.
