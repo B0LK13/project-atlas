@@ -156,7 +156,12 @@ def test_f6_projection_unreadable_note_raises_domain_error(
 
 
 # ---------------------------------------------------------------------------
-# Adversarial: the failure path must still write nothing.
+# Adversarial: the graph writer's failure path must still write nothing.
+#
+# Scoped deliberately: both tests below drive `write_projection_outputs`, which
+# builds the whole plan before `_promote`. `obsidian_projection` does NOT have
+# this property -- it writes inside its per-project loop -- as the module
+# docstring above records.
 #
 # The value of the existing contract is that a failed promote leaves prior bytes
 # intact. Adding an exception boundary must not change that -- and asserting it
@@ -322,6 +327,11 @@ def test_f6_cleanup_failure_does_not_mask_the_domain_error(
         return real_replace(src, dst, *a, **k)
 
     def deny_unlink(self: Path, *a, **k):  # type: ignore[no-untyped-def]
+        # errno deliberately DIFFERENT from the replace failure above, so the
+        # cause-chain assertion below can tell them apart. Both are
+        # PermissionError, so `isinstance(..., PermissionError)` alone would
+        # pass under either -- verification pointed that out, and it is the
+        # half of the property that actually matters here.
         raise PermissionError(13, "Permission denied", str(self))
 
     monkeypatch.setattr("project_atlas.obsidian_projection.os.replace", deny_replace)
@@ -333,4 +343,9 @@ def test_f6_cleanup_failure_does_not_mask_the_domain_error(
     assert "unwritable-note" in str(caught.value), (
         "the cleanup failure masked the real error"
     )
-    assert isinstance(caught.value.__cause__, PermissionError)
+    cause = caught.value.__cause__
+    assert isinstance(cause, PermissionError)
+    assert cause.errno == 5, (
+        f"__cause__ is the cleanup failure (errno {cause.errno}), not the "
+        "replace failure it should be chained from"
+    )

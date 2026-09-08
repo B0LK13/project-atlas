@@ -13747,13 +13747,26 @@ Fix: `try/except (OSError, UnicodeError)` at each read, raising the module's own
 error naming the note and the underlying class, `from exc` so the cause chain
 survives for a developer while the operator gets a path.
 
-Controls, each load-bearing with a disjoint failure set:
+Controls, re-derived in full at this head rather than patched line by line --
+which is how the previous revision came to have a correct suite figure sitting
+eight rows below a stale control table:
 
-    baseline                             11 passed
-    A graph read guard removed            5 failed
-    B obsidian read guard removed         2 failed
-    C obsidian WRITE guard removed        2 failed
-    D read guard widened over the merge   1 failed
+    baseline                              12 passed
+    A graph read guard removed             5 failed
+    B obsidian read guard removed          2 failed
+    C obsidian WRITE guard removed         3 failed
+    D read guard widened, body AND clause  1 failed
+    E finally cleanup guard removed        1 failed
+
+    body widened only                     12 passed
+    clause widened only                   12 passed
+
+A-D fail pairwise disjoint sets. **E does not**: its single failing test
+(`cleanup_failure_does_not_mask_the_domain_error`) is also in C's set, because
+removing the write guard removes the very error E exists to prove is not masked.
+E is still load-bearing -- reverting only the finally guard fails exactly that
+one test -- but the blanket "each failing a disjoint set" predated E and is
+false. Corrected rather than dropped.
 
 Control D is the important one, and it took TWO attempts to describe correctly.
 The first candidate said "widen the clause to `except Exception`"; verification

@@ -86,8 +86,11 @@ candidate therefore failed Windows CI with a raw `PermissionError` escaping
 
 `obsidian_projection._write_atomic` now guards its `tmp.write_bytes` /
 `os.replace` the same way, raising `unwritable-note:<class>:<path>`. The
-existing `finally` still removes the staging file, and a test pins that no
-`.tmp` residue survives a refused write.
+existing `finally` still removes the staging file on the ordinary refused-write
+path, and a test pins that no `.tmp` residue survives it. Cleanup is now
+best-effort, so if the removal *itself* fails the residue can survive — see the
+residual register below. An earlier revision of this paragraph said only "still
+removes", contradicting that residual eighty lines later.
 
 ## Evidence
 
@@ -113,7 +116,9 @@ testing the operating system's permission semantics. One real-filesystem
 used by `test_logging.py` (`skipif(os.name == "nt")`) and additionally skipped
 as root.
 
-**Negative controls — each load-bearing, each failing a disjoint set:**
+**Negative controls — each load-bearing. A–D fail pairwise disjoint sets; E's
+single failure is contained in C's, because removing the write guard removes the
+very error E proves is not masked:**
 
 | control | reverted | result |
 |---|---|---|

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import ensure_under_root, safe_relative_component
+from project_atlas.logging import get_logger
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.protected_regions import GENERATED_END as _GENERATED_END
 from project_atlas.protected_regions import GENERATED_START as _GENERATED_START
@@ -28,6 +29,9 @@ PACKAGE_ID_R1 = "AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001"
 # across the R1 gap-fill (finding 4, PR #412 remediation).
 GENERATOR_ID = "atlas-coder-alpha-obsidian-001"
 OBS_ROOT = Path("generated") / "obsidian" / "projects"
+
+
+_LOG = get_logger(__name__)
 
 
 class ObsidianProjectionError(ValueError):
@@ -74,8 +78,15 @@ def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
         try:
             if tmp.exists():
                 tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as cleanup_exc:
+            # Swallowed so it cannot replace the real error -- but NOT silently.
+            # The receipt calls the surviving `.tmp` a "disclosed residual";
+            # that was only true in a document until this log made it true at
+            # the surface an operator actually sees.
+            _LOG.warning(
+                "obsidian projection: staging file could not be removed",
+                extra={"path": str(tmp), "error": type(cleanup_exc).__name__},
+            )
 
 
 def _safe_project_id(project_id: str) -> str:
