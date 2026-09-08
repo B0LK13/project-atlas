@@ -12,6 +12,7 @@ from . import emitter as emitter_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
 from . import evidence_graph as evidence_graph_mod
+from . import frontier_matrix as frontier_matrix_mod
 from . import handoff as handoff_mod
 from . import receipts as receipts_mod
 from . import router as router_mod
@@ -64,7 +65,7 @@ def cmd_snapshot(args) -> int:
 
 
 def cmd_frontier(args) -> int:
-    """Frontier listing; with --agent, authorization-then-score ranking (FEATURE_10)."""
+    """Frontier listing; with --agent, FEATURE_12 matrix → FEATURE_10 compat view."""
     client = _client(args)
     snapshot = build_snapshot(client, pool_path=_pool_path(args))
     if getattr(args, "agent", None):
@@ -73,9 +74,11 @@ def cmd_frontier(args) -> int:
             snapshot["nodes"], client, snapshot.get("main_branch") or "main")
         weights, source = score_mod.load_weights(
             getattr(args, "weights", None))
-        packet = score_mod.rank_frontier(
+        pool = _resolve_pool(args, client)
+        matrix = frontier_matrix_mod.build_frontier_matrix(
             snapshot, agent_id=args.agent, registry=registry, stacks=stacks,
-            weights=weights, weights_source=source)
+            weights=weights, weights_source=source, client=client, pool=pool)
+        packet = frontier_matrix_mod.score_compat_projection(matrix, snapshot)
         errors = score_mod.validate_score(packet)
         if errors:
             print("frontier: FAIL ATLAS_FRONTIER_SCORE_V1 schema:", file=sys.stderr)
@@ -88,7 +91,8 @@ def cmd_frontier(args) -> int:
         print(f"frontier-score agent={packet['agent']} "
               f"status={packet['agent_status']} "
               f"weights={packet['weights_id']}@v{packet['weights_version']} "
-              f"source={packet.get('weights_source')}")
+              f"source={packet.get('weights_source')} "
+              f"(derived-from={frontier_matrix_mod.SCHEMA_CONST})")
         print(f"{'RANK':<5} {'CLASS':<18} {'TOTAL':>8} {'LANE':<12} HEAD")
         for idx, entry in enumerate(packet["ranked"], start=1):
             node = next((n for n in snapshot["nodes"] if n["pr"] == entry["pr"]), {})
@@ -107,6 +111,103 @@ def cmd_frontier(args) -> int:
         print(f"{node['lane']:<10} {node['state']:<18} "
               f"{','.join(node['waiting_on']) or '-':<28} {node['head'] or 'UNKNOWN'}")
     print(f"SAFE_RUNNABLE_COUNT={snapshot['safe_runnable_count']}")
+    return 0
+
+
+def _build_live_matrix(args):
+    client = _client(args)
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    registry = agents_mod.load_registry(args.registry)
+    stacks = stack_mod.build_stacks(
+        snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+    weights, source = score_mod.load_weights(getattr(args, "weights", None))
+    pool = _resolve_pool(args, client)
+    return frontier_matrix_mod.build_frontier_matrix(
+        snapshot, agent_id=getattr(args, "agent", None), registry=registry,
+        stacks=stacks, weights=weights, weights_source=source,
+        client=client, pool=pool), snapshot
+
+
+def cmd_frontier_matrix(args) -> int:
+    """Full ATLAS_MULTIDIMENSIONAL_FRONTIER_V1 packet (FEATURE_12)."""
+    packet, _snapshot = _build_live_matrix(args)
+    errors = frontier_matrix_mod.validate_matrix(packet)
+    if errors:
+        print("frontier-matrix: FAIL schema:", file=sys.stderr)
+        for error in errors:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+        return 0
+    print(f"frontier-matrix agent={packet.get('agent')} "
+          f"status={packet.get('agent_status')} "
+          f"actions={len(packet['actions'])} "
+          f"eligible={len(packet['eligible_actions'])}")
+    print(f"{'STATE':<14} {'CLASS':<12} {'TYPE':<20} {'LANE':<12} REASONS")
+    for action in packet["actions"]:
+        if action["runnable_state"] == frontier_matrix_mod.NOT_APPLICABLE:
+            continue
+        print(f"{action['runnable_state']:<14} {action['action_class']:<12} "
+              f"{action['action_type']:<20} {action['lane']:<12} "
+              f"{','.join(action['blocking_reasons'][:2]) or '-'}")
+    for group in packet.get("parallel_runnable_set") or []:
+        print(f"PARALLEL_SET={' '.join(group)}")
+    print(f"FRONTIER_FINGERPRINT={packet['frontier_fingerprint']}")
+    return 0
+
+
+def cmd_frontier_actions(args) -> int:
+    """Agent-specific eligible/ineligible/blocked action lists (FEATURE_12)."""
+    if not args.agent:
+        print("frontier-actions: --agent required", file=sys.stderr)
+        return 2
+    packet, _ = _build_live_matrix(args)
+    view = {
+        "schema": frontier_matrix_mod.SCHEMA_CONST,
+        "agent": packet.get("agent"),
+        "agent_status": packet.get("agent_status"),
+        "eligible_actions": packet.get("eligible_actions"),
+        "ineligible_actions": packet.get("ineligible_actions"),
+        "blocked_actions": packet.get("blocked_actions"),
+        "by_action_class": packet.get("by_action_class"),
+        "typed_rankings": packet.get("typed_rankings"),
+        "parallel_runnable_set": packet.get("parallel_runnable_set"),
+        "frontier_fingerprint": packet.get("frontier_fingerprint"),
+    }
+    if args.json:
+        print(json.dumps(view, indent=2, sort_keys=True))
+        return 0
+    print(f"frontier-actions agent={view['agent']} status={view['agent_status']}")
+    print(f"ELIGIBLE={len(view['eligible_actions'])} "
+          f"INELIGIBLE={len(view['ineligible_actions'])} "
+          f"BLOCKED={len(view['blocked_actions'])}")
+    for aid in view["eligible_actions"][:20]:
+        print(f"  ELIGIBLE {aid}")
+    for aid in (view.get("typed_rankings") or {}).get("best_write", [])[:5]:
+        print(f"  BEST_WRITE {aid}")
+    return 0 if view["agent_status"] == "REGISTERED_ACTIVE" else 1
+
+
+def cmd_explain_action(args) -> int:
+    """Explain one action_id from the live multidimensional frontier."""
+    packet, _ = _build_live_matrix(args)
+    explained = frontier_matrix_mod.explain_action(packet, args.action_id)
+    if args.json:
+        print(json.dumps(explained, indent=2, sort_keys=True))
+        return 0 if explained.get("found") else 2
+    if not explained.get("found"):
+        print(f"explain-action: FAIL {explained.get('reason')}", file=sys.stderr)
+        return 2
+    action = explained["action"]
+    print(f"{action['action_id']} class={action['action_class']} "
+          f"state={action['runnable_state']} eligible={action['agent_eligible']}")
+    for reason in action.get("blocking_reasons") or []:
+        print(f"  BLOCKER: {reason}")
+    if action.get("score_total") is not None:
+        print(f"  score_total={action['score_total']}")
+    print(f"  concurrency_group={action.get('concurrency_group')}")
+    print(f"  truth_fingerprint={action.get('truth_fingerprint')}")
     return 0
 
 
@@ -1125,12 +1226,32 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("snapshot", help="rebuild DAG snapshot into runtime state")
     p_frontier = sub.add_parser(
         "frontier",
-        help="list frontier states; with --agent, authorization-then-score (FEATURE_10)")
+        help="compat FEATURE_10 view derived from FEATURE_12 multidimensional frontier")
     p_frontier.add_argument("--agent", default=None,
                             help="registered agent_id for prioritized frontier")
     p_frontier.add_argument("--weights", default=None,
                             help="ATLAS_FRONTIER_WEIGHTS_V1 JSON (default: registry/frontier_weights.json)")
     p_frontier.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_fmatrix = sub.add_parser(
+        "frontier-matrix",
+        help="multidimensional action frontier (FEATURE_12)")
+    p_fmatrix.add_argument("--agent", default=None)
+    p_fmatrix.add_argument("--weights", default=None)
+    p_fmatrix.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_factions = sub.add_parser(
+        "frontier-actions",
+        help="agent-specific eligible/ineligible/blocked actions (FEATURE_12)")
+    p_factions.add_argument("--agent", required=True)
+    p_factions.add_argument("--weights", default=None)
+    p_factions.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_explain_action = sub.add_parser(
+        "explain-action",
+        help="explain one action_id from the multidimensional frontier (FEATURE_12)")
+    p_explain_action.add_argument("--action-id", required=True,
+                                  help="e.g. pr/720:IMPLEMENT")
+    p_explain_action.add_argument("--agent", default=None)
+    p_explain_action.add_argument("--weights", default=None)
+    p_explain_action.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     p_score = sub.add_parser(
         "score", help="score one PR after authorization (FEATURE_10)")
     p_score.add_argument("--pr", type=int, required=True)
@@ -1256,6 +1377,9 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "snapshot": cmd_snapshot,
     "frontier": cmd_frontier,
+    "frontier-matrix": cmd_frontier_matrix,
+    "frontier-actions": cmd_frontier_actions,
+    "explain-action": cmd_explain_action,
     "score": cmd_score,
     "explain-priority": cmd_explain_priority,
     "steal-status": cmd_steal_status,

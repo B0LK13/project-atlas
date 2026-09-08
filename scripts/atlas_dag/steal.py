@@ -21,7 +21,6 @@ lane is out of scope.
 """
 from __future__ import annotations
 
-import copy
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -29,6 +28,7 @@ from typing import Any
 from . import agents as agents_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
+from . import frontier_matrix as frontier_matrix_mod
 from . import model as model_mod
 from . import router as router_mod
 from . import score as score_mod
@@ -64,13 +64,8 @@ def utcnow() -> str:
 
 
 def _hypothesize_owned(node: dict, agent_id: str) -> dict:
-    """Project the node as it would appear after this agent claims it."""
-    projected = copy.deepcopy(node)
-    projected["state"] = router_mod.ROUTE_WRITE
-    projected["ownership"] = "OWNED"
-    projected["owner"] = agent_id
-    projected["claimants"] = [agent_id]
-    return projected
+    """Delegate to FEATURE_12 canonical projection helper."""
+    return frontier_matrix_mod.hypothesize_owned(node, agent_id)
 
 
 def _is_unowned(node: dict) -> bool:
@@ -79,29 +74,8 @@ def _is_unowned(node: dict) -> bool:
 
 def write_eligible_after_claim(profile: dict, node: dict,
                                stack: dict | None) -> tuple[bool, list[str]]:
-    """True when the lane would route WRITE after a successful claim.
-
-    Uses router.evaluate_lane on a hypothesized owned node so we do not
-    duplicate WRITE authorization. READONLY never becomes WRITE here without
-    the ownership projection.
-    """
-    if not _is_unowned(node):
-        return False, ["LANE_NOT_UNOWNED"]
-    if node.get("frozen"):
-        return False, ["LANE_FROZEN_BY_REPOSITORY_TRUTH"]
-    # Pre-check live evaluate for non-ownership blockers while unowned.
-    live = router_mod.evaluate_lane(profile, node, stack)
-    residual = [b for b in live.get("blockers") or [] if b not in _CLAIM_CLEARED]
-    # Platform/capability/stack/frozen must already be clean aside from claim.
-    hypo = _hypothesize_owned(node, str(profile.get("agent_id")))
-    auth = router_mod.evaluate_lane(profile, hypo, stack)
-    if auth["action_class"] != router_mod.ROUTE_WRITE or not auth["routable"]:
-        return False, sorted(set(residual) | set(auth.get("blockers") or []))
-    if residual:
-        # Hypo succeeded but live had non-claim blockers that hypo somehow
-        # cleared — fail closed; claim must not paper over them.
-        return False, sorted(residual)
-    return True, []
+    """True when FEATURE_12 OWNERSHIP_CLAIM would be RUNNABLE after claim."""
+    return frontier_matrix_mod.write_eligible_after_claim(profile, node, stack)
 
 
 def _utilization(agent_status: str, profile: dict | None,
@@ -169,74 +143,62 @@ def plan_steal(
     source = weights_source
     if cfg is None:
         cfg, source = score_mod.load_weights()
-    score_packet = score_mod.rank_frontier(
+
+    # FEATURE_12 canonical multidimensional frontier → WRITE/OWNERSHIP_CLAIM
+    # projection. Steal must not independently reconstruct eligibility.
+    matrix = frontier_matrix_mod.build_frontier_matrix(
         snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
         weights=cfg, weights_source=source, clock=clock)
+    stealable = frontier_matrix_mod.write_steal_candidates(matrix)
 
-    score_by_pr = {e["pr"]: e for e in score_packet.get("ranked", [])}
-    # Also score unowned nodes that may only appear with low totals.
-    stealable: list[dict] = []
+    # Utilization diagnostics still require owned-compatible / skip counts.
     skipped: list[dict] = []
     owned_compatible = 0
     platform_blocked = 0
     capability_blocked = 0
-
-    for node in snapshot.get("nodes") or []:
-        pr = int(node["pr"])
-        lane = str(node.get("lane") or f"pr/{pr}")
-        stack = (stacks or {}).get(lane)
-        scored = score_by_pr.get(pr)
-        # Count owned-but-otherwise-compatible for utilization.
-        if node.get("ownership") == "OWNED" and node.get("owner") != agent_id:
-            hypo = _hypothesize_owned(node, agent_id)
-            # Would this agent write if it owned it? (ignore foreign mutex)
-            hypo_auth = router_mod.evaluate_lane(profile, hypo, stack)
-            foreign_only = [
-                b for b in (router_mod.evaluate_lane(profile, node, stack)
-                            .get("blockers") or [])
-                if not b.startswith("OWNERSHIP_MUTEX_HELD_BY:")
-                and b not in _CLAIM_CLEARED
-            ]
-            if hypo_auth["action_class"] == router_mod.ROUTE_WRITE and not foreign_only:
-                owned_compatible += 1
+    for action in matrix.get("actions") or []:
+        if action.get("action_type") != frontier_matrix_mod.OWNERSHIP_CLAIM:
             continue
-
-        if node.get("ownership") == "AMBIGUOUS":
-            skipped.append({"pr": pr, "lane": lane, "reasons": ["OWNERSHIP_AMBIGUOUS"]})
-            continue
-
-        ok, reasons = write_eligible_after_claim(profile, node, stack)
-        if not ok:
-            if any(r.startswith("PLATFORM_REQUIRED:") for r in reasons):
-                platform_blocked += 1
+        reasons = action.get("blocking_reasons") or []
+        if action.get("runnable_state") == frontier_matrix_mod.BLOCKED:
+            if any(r.startswith("OWNERSHIP_MUTEX_HELD_BY:") for r in reasons):
+                # Foreign-owned but otherwise claim-shaped → owned_compatible.
+                node = next(
+                    (n for n in snapshot.get("nodes") or []
+                     if int(n["pr"]) == int(action["pr"])), None)
+                if node is not None:
+                    stack = (stacks or {}).get(action["lane"])
+                    hypo = _hypothesize_owned(node, agent_id)
+                    hypo_auth = router_mod.evaluate_lane(profile, hypo, stack)
+                    foreign_only = [
+                        b for b in reasons
+                        if not b.startswith("OWNERSHIP_MUTEX_HELD_BY:")
+                    ]
+                    if (hypo_auth["action_class"] == router_mod.ROUTE_WRITE
+                            and not foreign_only):
+                        owned_compatible += 1
+            else:
+                skipped.append({
+                    "pr": action["pr"], "lane": action["lane"],
+                    "reasons": reasons,
+                })
+                if any(r.startswith("PLATFORM_REQUIRED:") for r in reasons):
+                    platform_blocked += 1
+                if "NO_WRITE_CAPABILITY" in reasons:
+                    capability_blocked += 1
+        elif action.get("runnable_state") == frontier_matrix_mod.INELIGIBLE:
             if "NO_WRITE_CAPABILITY" in reasons:
                 capability_blocked += 1
-            if _is_unowned(node):
-                skipped.append({"pr": pr, "lane": lane, "reasons": reasons})
-            continue
+            if any(r.startswith("PLATFORM_REQUIRED:") for r in reasons):
+                platform_blocked += 1
 
-        # Prefer FEATURE_10 total when present; otherwise compute factors.
-        if scored is not None:
-            total = float(scored["total"])
-            factors = scored["factors"]
-        else:
-            factors = score_mod.compute_factors(node, stack, profile, cfg)
-            total = score_mod.factor_total(factors)
-        entry = {
-            "pr": pr,
-            "lane": lane,
-            "head": node.get("head"),
-            "tree": node.get("tree"),
-            "total": total,
-            "factors": factors,
-            "action_class_after_claim": router_mod.ROUTE_WRITE,
-            "ownership": "UNOWNED",
-            "tiebreak_key": score_mod.tiebreak_key(
-                router_mod.ROUTE_WRITE, total, pr, lane, list(cfg["tiebreak"])),
-        }
-        stealable.append(entry)
-
+    # Apply FEATURE_10 tiebreak weights from loaded config.
+    for entry in stealable:
+        entry["tiebreak_key"] = score_mod.tiebreak_key(
+            router_mod.ROUTE_WRITE, float(entry["total"]),
+            int(entry["pr"]), entry["lane"], list(cfg["tiebreak"]))
     stealable.sort(key=lambda e: tuple(e["tiebreak_key"]))
+
     utilization = _utilization(
         "REGISTERED_ACTIVE", profile, stealable, owned_compatible,
         platform_blocked, capability_blocked)
@@ -250,21 +212,23 @@ def plan_steal(
         "candidate": candidate,
         "candidates": stealable,
         "skipped": sorted(skipped, key=lambda s: (s["pr"], s["lane"])),
-        "ranking_fingerprint": score_packet.get("ranking_fingerprint"),
-        "weights_id": score_packet.get("weights_id"),
-        "weights_version": score_packet.get("weights_version"),
+        "ranking_fingerprint": matrix.get("frontier_fingerprint"),
+        "weights_id": matrix.get("weights_id"),
+        "weights_version": matrix.get("weights_version"),
         "owned_compatible_count": owned_compatible,
         "reasons": [] if candidate else [utilization],
+        "multidim_frontier_fingerprint": matrix.get("frontier_fingerprint"),
         "provenance": {
-            "generator": "atlas-dag steal (FEATURE_11)",
+            "generator": "atlas-dag steal (FEATURE_11 via FEATURE_12 projection)",
             "work_stealing_is_not_ownership_bypass": True,
             "authorization_before_claim": True,
             "truth_sources": [
+                "FEATURE_12 multidimensional frontier WRITE/OWNERSHIP_CLAIM",
                 "FEATURE_01 agent registry",
                 "FEATURE_02 router (hypothesized WRITE-after-claim)",
                 "FEATURE_03 stack topology",
                 "FEATURE_04 event emitter (claim path)",
-                "FEATURE_10 ranked frontier",
+                "FEATURE_10 ranked scoring dimension",
             ],
         },
     }
