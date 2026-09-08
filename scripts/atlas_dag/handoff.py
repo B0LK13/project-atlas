@@ -306,7 +306,8 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
                   matrix_info: dict | None = None,
                   residual_info: dict | None = None,
                   telemetry_info: dict | None = None,
-                  control_view_info: dict | None = None) -> dict:
+                  control_view_info: dict | None = None,
+                  e2e_hardening_info: dict | None = None) -> dict:
     """Mode-specific emphasis block. Presentation ONLY: every value here is
     derived from material truth already in the packet, never contradictory
     with it, and always excluded from the truth fingerprint."""
@@ -355,8 +356,31 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
             out["coordination_telemetry"] = telemetry_info
         if control_view_info is not None:
             out["control_view"] = control_view_info
+        if e2e_hardening_info is not None:
+            out["e2e_hardening_status"] = e2e_hardening_info
         return out
     return {"audience": "general"}
+
+
+def _resume_e2e_hardening(mode: str) -> dict | None:
+    """FEATURE_16 e2e hardening status for resume presentation only.
+
+    Fixture suite is deterministic and side-effect free; presentation never
+    grants authority from the packet.
+    """
+    if mode != "resume":
+        return None
+    try:
+        from . import e2e_harden as e2e_harden_mod
+        packet = e2e_harden_mod.run_e2e_hardening(live=False)
+        return e2e_harden_mod.e2e_hardening_status(packet)
+    except Exception:
+        return {
+            "overall_status": "UNKNOWN",
+            "failed_scenario_ids": [],
+            "reason": "E2E_HARDENING_UNRESOLVABLE",
+            "e2e_ne_authority": True,
+        }
 
 
 def _resume_control_view(mode: str, snapshot: dict, stacks: dict,
@@ -893,6 +917,7 @@ def build_handoff(
                 "FEATURE_13 residual registry (presentation only)",
                 "FEATURE_14 coordination telemetry (presentation only)",
                 "FEATURE_15 global control view (presentation only)",
+                "FEATURE_16 e2e hardening status (presentation only)",
             ],
         },
         "presentation": _presentation(
@@ -910,7 +935,8 @@ def build_handoff(
                 mode, snapshot, stacks, registry, agent_id, client, clock),
             control_view_info=_resume_control_view(
                 mode, snapshot, stacks, registry, agent_id, client, clock,
-                verifier_pool=pool_path)),
+                verifier_pool=pool_path),
+            e2e_hardening_info=_resume_e2e_hardening(mode)),
     }
 
     # TOCTOU guard: re-resolve the candidate HEAD from live truth before any

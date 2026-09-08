@@ -9,6 +9,7 @@ from pathlib import Path
 from . import agents as agents_mod
 from . import control_view as control_view_mod
 from . import dispatch as dispatch_mod
+from . import e2e_harden as e2e_harden_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
@@ -24,7 +25,7 @@ from . import stack as stack_mod
 from . import steal as steal_mod
 from . import telemetry as telemetry_mod
 from . import verifiers as verifiers_mod
-from .gh import GhClient
+from .gh import GhClient, GhError
 from .model import build_snapshot, ownership
 
 RUNTIME_DIR = ".atlas-runtime"
@@ -658,6 +659,68 @@ def cmd_control_view(args) -> int:
     print(f"SEAL_SCAN={packet['provenance'].get('seal_scan')}")
     print("HONESTY: CONTROL_VIEW!=AUTHORITY / UI!=CANONICAL_TRUTH")
     return 0
+
+
+def cmd_e2e_harden(args) -> int:
+    """Final e2e integration hardening (FEATURE_16). Fixture by default.
+
+    ``--live`` adds read-only soft probes against snapshot/telemetry/control
+    view; live failures never mutate and never override fixture FAIL/PASS
+    authority (E2E != AUTHORITY).
+    """
+    live = bool(getattr(args, "live", False))
+    snapshot = None
+    stacks = None
+    events: list[dict] = []
+    registry = None
+    agent_id = getattr(args, "agent", None)
+    if live:
+        try:
+            client = _client(args)
+            snapshot = build_snapshot(client, pool_path=_pool_path(args))
+            registry = agents_mod.load_registry(args.registry)
+            stacks = stack_mod.build_stacks(
+                snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+            events = _live_events(client)
+        except (GhError, OSError, RuntimeError, ValueError) as exc:
+            # Soft: fixture suite still runs; live scenarios SKIP.
+            print(f"e2e-harden: live probe soft-fail: {exc}", file=sys.stderr)
+            snapshot = None
+    try:
+        packet = e2e_harden_mod.run_e2e_hardening(
+            live=live,
+            repository=getattr(args, "repo", None) or e2e_harden_mod.REPO_DEFAULT,
+            snapshot=snapshot,
+            stacks=stacks,
+            events=events,
+            registry=registry,
+            agent_id=agent_id,
+        )
+    except e2e_harden_mod.E2EHardenError as exc:
+        print(f"e2e-harden: FAIL {exc}", file=sys.stderr)
+        return 1
+    errors = e2e_harden_mod.validate_packet(packet)
+    if errors:
+        print("e2e-harden: FAIL schema:", file=sys.stderr)
+        for error in errors[:20]:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        inv = packet.get("invariants") or {}
+        print(f"e2e-harden overall={packet['overall_status']} "
+              f"fp={packet['hardening_fingerprint'][:12]}… "
+              f"scenarios={len(packet.get('scenarios') or [])}")
+        print(f"  END_TO_E2E_HARDENING={inv.get('END_TO_E2E_HARDENING')} "
+              f"STACK_FULLY_INTEGRATED="
+              f"{inv.get('ATLAS_AUTONOMOUS_COORDINATION_STACK')}")
+        for sc in packet.get("scenarios") or []:
+            print(f"  {sc['id']:<40} {sc['status']}")
+        print("HONESTY: E2E!=AUTHORITY / NO_SELF_IV / NO_FABRICATED_EVIDENCE")
+    if packet.get("overall_status") == e2e_harden_mod.PASS:
+        return 0
+    return 1
 
 
 def cmd_steal_status(args) -> int:
@@ -1758,6 +1821,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_dash.add_argument("--agent", default=None)
     p_dash.add_argument("--weights", default=None)
     p_dash.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_e2e = sub.add_parser(
+        "e2e-harden",
+        help="final e2e coordination hardening (FEATURE_16, fixture default)")
+    p_e2e.add_argument("--live", action="store_true",
+                       help="also run read-only live probes (fail soft)")
+    p_e2e.add_argument("--agent", default=None)
+    p_e2e.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
     p_next = sub.add_parser("next", help="agent-aware next safe action (FEATURE_02, read-only)")
     p_next.add_argument("--agent", required=True, help="registered agent_id")
@@ -1871,6 +1941,7 @@ COMMANDS = {
     "metrics": cmd_metrics,
     "control-view": cmd_control_view,
     "dashboard": cmd_control_view,
+    "e2e-harden": cmd_e2e_harden,
     "agents": cmd_agents,
     "agent": cmd_agent,
     "next": cmd_next,
