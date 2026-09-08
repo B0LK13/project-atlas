@@ -553,6 +553,52 @@ def test_own002_unowned_node_is_claimable():
     assert node_for(snapshot, 10)["state"] == "RUNNABLE_READONLY"
 
 
+def test_ownership_survives_owner_head_move():
+    # Lane-scoped defect reproduced in live dogfood 2026-09-08: an OWNER_CLAIMED
+    # event carried the then-current head; after the owner's own push moved the
+    # head, the claim was filtered as stale and the lane silently showed UNOWNED
+    # — every push released the mutex. Ownership must survive head moves.
+    env = base_env()
+    env.comments = comments_with(
+        make_event("evt-claim", "OWNER_CLAIMED", pr=10, actor="agent-x", head=H1),
+    )
+    env.data["prs"][0]["headRefOid"] = H3  # owner pushes a new head
+    env.commits[H3] = {"sha": H3, "commit": {"tree": {"sha": T3}}}
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["head"] == H3
+    assert node["owner"] == "agent-x"
+    assert node["state"] == "RUNNABLE_WRITE"
+
+
+def test_ownership_release_survives_head_move():
+    env = base_env()
+    env.comments = comments_with(
+        make_event("evt-claim", "OWNER_CLAIMED", pr=10, actor="agent-x", head=H1),
+        make_event("evt-release", "OWNER_RELEASED", pr=10, actor="agent-x"),
+    )
+    env.data["prs"][0]["headRefOid"] = H3
+    env.commits[H3] = {"sha": H3, "commit": {"tree": {"sha": T3}}}
+    snapshot = build_snapshot(make_client(env))
+    assert node_for(snapshot, 10)["owner"] is None
+    assert node_for(snapshot, 10)["state"] == "RUNNABLE_READONLY"
+
+
+def test_ownership_ambiguity_still_fails_closed_across_head_moves():
+    env = base_env()
+    env.comments = comments_with(
+        make_event("evt-claim-a", "OWNER_CLAIMED", pr=10, actor="agent-x", head=H1),
+        make_event("evt-claim-b", "OWNER_CLAIMED", pr=10, actor="agent-y", head=H2),
+    )
+    env.data["prs"][0]["headRefOid"] = H3
+    env.commits[H3] = {"sha": H3, "commit": {"tree": {"sha": T3}}}
+    snapshot = build_snapshot(make_client(env))
+    node = node_for(snapshot, 10)
+    assert node["owner"] is None
+    assert node["ownership"] == "AMBIGUOUS"
+    assert node["state"] == "RUNNABLE_READONLY"  # ambiguity never write auth
+
+
 # -- determinism -----------------------------------------------------------------
 
 def test_snapshot_deterministic_for_fixed_clock():
