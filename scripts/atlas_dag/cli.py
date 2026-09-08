@@ -16,6 +16,7 @@ from . import handoff as handoff_mod
 from . import receipts as receipts_mod
 from . import router as router_mod
 from . import seal_plan as seal_plan_mod
+from . import score as score_mod
 from . import stack as stack_mod
 from . import verifiers as verifiers_mod
 from .gh import GhClient
@@ -62,7 +63,41 @@ def cmd_snapshot(args) -> int:
 
 
 def cmd_frontier(args) -> int:
-    snapshot = build_snapshot(_client(args))
+    """Frontier listing; with --agent, authorization-then-score ranking (FEATURE_10)."""
+    client = _client(args)
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    if getattr(args, "agent", None):
+        registry = agents_mod.load_registry(args.registry)
+        stacks = stack_mod.build_stacks(
+            snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+        weights, source = score_mod.load_weights(
+            getattr(args, "weights", None))
+        packet = score_mod.rank_frontier(
+            snapshot, agent_id=args.agent, registry=registry, stacks=stacks,
+            weights=weights, weights_source=source)
+        errors = score_mod.validate_score(packet)
+        if errors:
+            print("frontier: FAIL ATLAS_FRONTIER_SCORE_V1 schema:", file=sys.stderr)
+            for error in errors:
+                print(f"  SCHEMA: {error}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps(packet, indent=2, sort_keys=True))
+            return 0
+        print(f"frontier-score agent={packet['agent']} "
+              f"status={packet['agent_status']} "
+              f"weights={packet['weights_id']}@v{packet['weights_version']} "
+              f"source={packet.get('weights_source')}")
+        print(f"{'RANK':<5} {'CLASS':<18} {'TOTAL':>8} {'LANE':<12} HEAD")
+        for idx, entry in enumerate(packet["ranked"], start=1):
+            node = next((n for n in snapshot["nodes"] if n["pr"] == entry["pr"]), {})
+            print(f"{idx:<5} {entry['action_class']:<18} {entry['total']:>8.3f} "
+                  f"{entry['lane']:<12} {str(node.get('head') or 'UNKNOWN')[:12]}")
+        for entry in packet["blocked"]:
+            print(f"{'-':<5} {'BLOCKED':<18} {entry['nominal_total']:>8.3f} "
+                  f"{entry['lane']:<12} blockers={','.join(entry['authorization']['blockers'][:3])}")
+        print(f"RANKING_FINGERPRINT={packet['ranking_fingerprint']}")
+        return 0 if packet["ranked"] or packet["agent_status"] == "REGISTERED_ACTIVE" else 1
     if args.json:
         print(json.dumps(snapshot["nodes"], indent=2, sort_keys=True))
         return 0
@@ -72,6 +107,48 @@ def cmd_frontier(args) -> int:
               f"{','.join(node['waiting_on']) or '-':<28} {node['head'] or 'UNKNOWN'}")
     print(f"SAFE_RUNNABLE_COUNT={snapshot['safe_runnable_count']}")
     return 0
+
+
+def cmd_score(args) -> int:
+    """Score one PR after authorization (FEATURE_10)."""
+    client = _client(args)
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    node = _find_node(snapshot, args.pr)
+    if node is None:
+        print(f"score: FAIL UNKNOWN_PR:{args.pr}", file=sys.stderr)
+        return 2
+    registry = agents_mod.load_registry(args.registry) if args.agent else None
+    stacks = stack_mod.build_stacks(
+        snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+    weights, source = score_mod.load_weights(getattr(args, "weights", None))
+    explained = score_mod.explain_priority(
+        snapshot, args.pr, agent_id=args.agent, registry=registry,
+        stacks=stacks, weights=weights, weights_source=source)
+    if args.json:
+        print(json.dumps(explained, indent=2, sort_keys=True))
+        return 0 if explained.get("found") else 2
+    if not explained.get("found"):
+        print(f"score: FAIL {explained.get('reason')}", file=sys.stderr)
+        return 2
+    entry = explained["entry"]
+    print(f"score pr/{entry['pr']} class={entry['action_class']} "
+          f"executable={entry['executable']}")
+    if entry["executable"]:
+        print(f"  total={entry['total']}")
+    else:
+        print(f"  nominal_total={entry['nominal_total']} (NOT executable)")
+        for blocker in entry["authorization"]["blockers"]:
+            print(f"  BLOCKER: {blocker}")
+    for name, contrib in entry["factors"].items():
+        print(f"  {name}: raw={contrib['raw']} weight={contrib['weight']} "
+              f"weighted={contrib['weighted']} ({contrib['rationale']})")
+    return 0
+
+
+def cmd_explain_priority(args) -> int:
+    """Alias surface for score --json factor dump (FEATURE_10)."""
+    args.json = True
+    return cmd_score(args)
 
 
 def _find_node(snapshot, pr: int) -> dict | None:
@@ -991,7 +1068,27 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("snapshot", help="rebuild DAG snapshot into runtime state")
-    sub.add_parser("frontier", help="list nodes with frontier states")
+    p_frontier = sub.add_parser(
+        "frontier",
+        help="list frontier states; with --agent, authorization-then-score (FEATURE_10)")
+    p_frontier.add_argument("--agent", default=None,
+                            help="registered agent_id for prioritized frontier")
+    p_frontier.add_argument("--weights", default=None,
+                            help="ATLAS_FRONTIER_WEIGHTS_V1 JSON (default: registry/frontier_weights.json)")
+    p_frontier.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_score = sub.add_parser(
+        "score", help="score one PR after authorization (FEATURE_10)")
+    p_score.add_argument("--pr", type=int, required=True)
+    p_score.add_argument("--agent", default=None)
+    p_score.add_argument("--weights", default=None)
+    p_score.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_explain = sub.add_parser(
+        "explain-priority",
+        help="explain score factor contributions for one PR (FEATURE_10)")
+    p_explain.add_argument("--pr", type=int, required=True)
+    p_explain.add_argument("--agent", default=None)
+    p_explain.add_argument("--weights", default=None)
+    p_explain.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
     p_next = sub.add_parser("next", help="agent-aware next safe action (FEATURE_02, read-only)")
     p_next.add_argument("--agent", required=True, help="registered agent_id")
@@ -1089,6 +1186,8 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "snapshot": cmd_snapshot,
     "frontier": cmd_frontier,
+    "score": cmd_score,
+    "explain-priority": cmd_explain_priority,
     "agents": cmd_agents,
     "agent": cmd_agent,
     "next": cmd_next,

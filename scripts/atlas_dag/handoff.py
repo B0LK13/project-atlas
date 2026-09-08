@@ -42,11 +42,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from . import agents as agents_mod
 from . import dispatch as dispatch_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
 from . import evidence_graph as evidence_graph_mod
 from . import model as model_mod
+from . import score as score_mod
 from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
 from . import verifiers as verifiers_mod
@@ -292,7 +294,8 @@ def _pool_prohibitions(pool_path: Path) -> list[str]:
 
 def _presentation(mode: str, node: dict, stack_record: dict | None,
                   evidence_section: dict, gate_reasons: list[str],
-                  prohibitions: list[str]) -> dict:
+                  prohibitions: list[str],
+                  priority: dict | None = None) -> dict:
     """Mode-specific emphasis block. Presentation ONLY: every value here is
     derived from material truth already in the packet, never contradictory
     with it, and always excluded from the truth fingerprint."""
@@ -315,7 +318,7 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
         }
     if mode == "resume":
         next_actions = list(node.get("next_actions") or [])
-        return {
+        out = {
             "audience": "resuming-agent",
             "next_safe_action": next_actions[0] if next_actions else "UNKNOWN",
             "topology": {
@@ -328,7 +331,41 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
                 evidence_section["states"][evidence_graph_mod.INVALIDATED]),
             "reusable_evidence": list(evidence_section["reusable"]),
         }
+        if priority is not None:
+            # Ranked authorized actions only — scoring never grants write.
+            out["ranked_next_safe_actions"] = priority
+        return out
     return {"audience": "general"}
+
+
+def _resume_priority(mode: str, snapshot: dict, stacks: dict,
+                     registry: Any, agent_id: str | None,
+                     clock: Callable[[], str]) -> dict | None:
+    """FEATURE_10 ranked authorized actions for resume presentation only."""
+    if mode != "resume" or agent_id is None:
+        return None
+    try:
+        if registry is None:
+            registry = agents_mod.load_registry()
+        elif not hasattr(registry, "status"):
+            registry = agents_mod.load_registry(registry)
+        weights, source = score_mod.load_weights()
+        packet = score_mod.rank_frontier(
+            snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
+            weights=weights, weights_source=source, clock=clock)
+        return {
+            "ranking_fingerprint": packet["ranking_fingerprint"],
+            "weights_id": packet["weights_id"],
+            "weights_version": packet["weights_version"],
+            "ranked": [
+                {"lane": e["lane"], "action_class": e["action_class"],
+                 "total": e["total"], "pr": e["pr"]}
+                for e in packet["ranked"][:10]
+            ],
+        }
+    except Exception:
+        return {"ranking_fingerprint": None, "ranked": [],
+                "reason": "PRIORITY_UNRESOLVABLE"}
 
 
 def build_handoff(
@@ -338,6 +375,7 @@ def build_handoff(
     *,
     evidence_store: evidence_mod.EvidenceStore | None = None,
     registry: Any = None,
+    agent_id: str | None = None,
     verifier_pool: str | Path | None = None,
     clock: Callable[[], str] = utcnow,
 ) -> dict:
@@ -346,10 +384,10 @@ def build_handoff(
     Raises HandoffUnavailable when the lane is not truthfully resolvable and
     HandoffStale (HANDOFF_STALE_DURING_BUILD) when the candidate HEAD moves
     between the initial resolution and the final TOCTOU re-resolution; in
-    both cases NO packet is emitted. `registry` is accepted for call-site
-    symmetry with the dispatcher; handoff truth never depends on it.
+    both cases NO packet is emitted. `registry`/`agent_id` optionally enrich
+    resume presentation with FEATURE_10 ranked authorized actions; they never
+    grant write authority inside the handoff.
     """
-    del registry  # handoff is a pure truth projection; no registry authority
     if mode not in MODES:
         raise HandoffError(f"UNKNOWN_MODE:{mode}")
 
@@ -573,11 +611,14 @@ def build_handoff(
                 "FEATURE_06 dispatch plan",
                 "FEATURE_07 evidence graph",
                 "FEATURE_09 post-merge seal plan",
+                "FEATURE_10 frontier prioritization (presentation only)",
             ],
         },
         "presentation": _presentation(
             mode, node, stack_record, evidence_section, gate_reasons,
-            _pool_prohibitions(pool_path)),
+            _pool_prohibitions(pool_path),
+            priority=_resume_priority(
+                mode, snapshot, stacks, registry, agent_id, clock)),
     }
 
     # TOCTOU guard: re-resolve the candidate HEAD from live truth before any

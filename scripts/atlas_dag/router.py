@@ -14,9 +14,11 @@ Routing != authorization. This module RECOMMENDS only:
   never enlarge it, and it never converts an OWNER/IV/POLICY-gated node
   into writable work.
 
-Selection semantics (no scoring yet): permitted RUNNABLE_WRITE first, then
-permitted RUNNABLE_READONLY, otherwise NO_SAFE_ROUTE; ties break by
-canonical lane identity. Output is deterministic for equivalent snapshots.
+Selection semantics: authorization first (FEATURE_02), then FEATURE_10
+deterministic scoring orders already-authorized routes. PRIORITY != AUTHORITY:
+scoring never converts blocked/frozen/foreign/capability-mismatched work into
+writable work. Within an action class, higher explainable score wins; ties
+break by stable material fields (pr, lane).
 
 Platform/scope honesty: the live snapshot currently carries no per-lane
 platform-requirement or required-scope field (no open PR carries such
@@ -32,6 +34,7 @@ authentication is a later feature).
 from __future__ import annotations
 
 from . import agents as agents_mod
+from . import score as score_mod
 from . import stack as stack_mod
 
 ROUTE_WRITE = "RUNNABLE_WRITE"
@@ -138,13 +141,17 @@ def evaluate_lane(profile: dict, node: dict,
 
 
 def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult,
-          stacks: dict | None = None) -> dict:
+          stacks: dict | None = None, weights: dict | None = None,
+          weights_source: str = "explicit") -> dict:
     """Deterministic recommendation for one agent over the whole frontier.
 
     stacks: optional lane -> stack record (FEATURE_03). When supplied, a
     lane with a non-current stack relation can never route as write; when
     absent, stack filtering is skipped (callers with live GitHub access
     should always supply it).
+
+    FEATURE_10: after authorization, routes are ordered by the frontier
+    scorer. Scoring never enlarges the authorized set.
     """
     resolved = agents_mod.resolve_agent(registry, agent_id)
     if resolved.status != "REGISTERED":
@@ -159,6 +166,7 @@ def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult,
             "blockers": sorted(set(resolved.errors)
                                or {resolved.status, "NO_SAFE_ROUTE"}),
             "routes": [],
+            "priority": None,
         }
     profile = resolved.profile or {}
     if not profile.get("active", False):
@@ -172,12 +180,20 @@ def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult,
             "reasons": [],
             "blockers": sorted({"AGENT_INACTIVE", "NO_CURRENT_SESSION"}),
             "routes": [],
+            "priority": None,
         }
 
     nodes = sorted(snapshot.get("nodes", []), key=lambda n: str(n.get("lane", "")))
     routes = [evaluate_lane(profile, n, (stacks or {}).get(str(n.get("lane"))))
               for n in nodes]
-    routes.sort(key=lambda r: (_CLASS_RANK[r["action_class"]], r["lane"]))
+    cfg = weights
+    source = weights_source
+    if cfg is None:
+        cfg, source = score_mod.load_weights()
+    score_packet = score_mod.rank_frontier(
+        snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
+        weights=cfg, weights_source=source)
+    routes = score_mod.apply_ranking_to_routes(routes, score_packet)
 
     if not routes or all(not r["routable"] for r in routes):
         return {
@@ -190,8 +206,13 @@ def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult,
             "reasons": [],
             "blockers": sorted({"NO_SAFE_ROUTE"}),
             "routes": routes,
+            "priority": {
+                "ranking_fingerprint": score_packet["ranking_fingerprint"],
+                "weights_id": score_packet["weights_id"],
+                "weights_version": score_packet["weights_version"],
+            },
         }
-    best = routes[0]
+    best = next(r for r in routes if r["routable"])
     return {
         "schema": "ATLAS_DAG_ROUTE_V1",
         "agent": agent_id,
@@ -201,8 +222,19 @@ def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult,
         "lane": best["lane"],
         "reasons": best["reasons"],
         "blockers": [f"{r['lane']}: {reason}"
-                     for r in routes[1:] for reason in r["blockers"]][:10],
+                     for r in routes if r is not best
+                     for reason in r["blockers"]][:10],
         "routes": routes,
+        "priority": {
+            "ranking_fingerprint": score_packet["ranking_fingerprint"],
+            "weights_id": score_packet["weights_id"],
+            "weights_version": score_packet["weights_version"],
+            "top": [
+                {"lane": e["lane"], "action_class": e["action_class"],
+                 "total": e["total"]}
+                for e in score_packet["ranked"][:5]
+            ],
+        },
     }
 
 
