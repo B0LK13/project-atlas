@@ -1,10 +1,10 @@
 # AS-OBSIDIAN-CAPTURE-001-F8 — the split-token near miss is pinned
 
 **Status:** integrated on `main` and **SEALED** (PR #740). See the post-merge
-seal at the end of this file. This header was absent from the first revision of
-this receipt, where F6's and F7's both carry one -- noted because a missing
-lifecycle label is the same class of defect as a stale one, and F6/F7's seals
-were blocked on exactly that.
+seal at the end of this file. The first revision of this receipt had no status
+header at all, though the F6 and F7 receipts both carry one. That is worth
+recording: a missing lifecycle label is the same class of defect as a stale
+one, and the F6 and F7 seals were blocked on precisely that.
 
 ## What this package is
 
