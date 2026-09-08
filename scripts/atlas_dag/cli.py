@@ -9,6 +9,7 @@ from pathlib import Path
 from . import agents as agents_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
+from . import router as router_mod
 from .gh import GhClient
 from .model import build_snapshot
 
@@ -225,6 +226,25 @@ def cmd_agent(args) -> int:
     return 0 if resolved.status == "REGISTERED" else 1
 
 
+def cmd_next(args) -> int:
+    """Read-only agent-aware routing (FEATURE_02). Recommends only."""
+    snapshot = build_snapshot(_client(args))
+    registry = agents_mod.load_registry(args.registry)
+    result = router_mod.route(args.agent, snapshot, registry)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(router_mod.route_summary(result))
+        if result["routable"]:
+            print(f"  blockers on lower-preference lanes: "
+                  f"{len(result['blockers'])} (see --json)")
+        for alt in result["routes"][:5]:
+            if alt["lane"] != result.get("lane"):
+                print(f"  alt: {alt['lane']} {alt['action_class']} "
+                      f"({', '.join(alt['reasons']) or 'not routable'})")
+    return 0 if result["routable"] else 1
+
+
 def cmd_gate(args) -> int:
     snapshot = build_snapshot(_client(args))
     node = _find_node(snapshot, args.pr)
@@ -332,6 +352,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("snapshot", help="rebuild DAG snapshot into runtime state")
     sub.add_parser("frontier", help="list nodes with frontier states")
     sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
+    p_next = sub.add_parser("next", help="agent-aware next safe action (FEATURE_02, read-only)")
+    p_next.add_argument("--agent", required=True, help="registered agent_id")
     p_agent = sub.add_parser("agent", help="inspect/evaluate one agent profile (fail closed)")
     p_agent.add_argument("agent_id")
     p_agent.add_argument("--eval", default=None,
@@ -364,6 +386,7 @@ COMMANDS = {
     "frontier": cmd_frontier,
     "agents": cmd_agents,
     "agent": cmd_agent,
+    "next": cmd_next,
     "inspect": cmd_inspect,
     "events": cmd_events,
     "owners": cmd_owners,

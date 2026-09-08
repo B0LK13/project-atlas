@@ -192,6 +192,11 @@ def _scope_allowed(profile: dict, scope: str | None) -> bool:
     return False
 
 
+def scope_covers(profile: dict, scope: str) -> bool:
+    """Public wrapper: does the profile's write_scopes cover this scope?"""
+    return _scope_allowed(profile, scope)
+
+
 def evaluate(profile: dict | None, request: AgentRequest) -> tuple[bool, list[str]]:
     """Fail-closed authorization: (allowed, sorted reasons).
 
