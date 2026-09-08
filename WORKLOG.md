@@ -13234,3 +13234,29 @@ boundary and deserves its own work package.
 This entry is implementation evidence, not certification: independent exact-head
 verification and CI are required before merge, and merge authority is not this
 lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F3 — postmerge seal record (2026-09-08, on main)
+
+F3 merged as PR #717 (merge commit 48a51875 onto main 15c9a6d6; candidate head
+c6b0ecb8 carried only docs/evidence corrections over the independently
+verified behavioural predecessor 8d19932c, src/tests byte-identical). PR #716
+was retired as the superseded parallel F3 candidate, and PR #718 landed the
+backlog truth correction for F1/F2/F4 tails on main (merge commit 0414e8d5).
+
+Postmerge seal on actual main (48a51875, pre-#718-docs, behaviour-identical):
+F3 suite + capture + F1/F2 + F4 canonical-semantics + graph projections +
+graph adversarial = 246 passed; full suite 5616 passed / 8 skipped. Seal
+matrix per `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`:
+exact reserved START/END and balanced forged pairs inside HUMAN fail closed
+with the note byte-identical; near misses are accepted per grammar; nested
+HUMAN structure is preserved; the diagnostic reports observable facts only
+(`count`, `end-before-begin`, begin/end/expected counts, `no-write`) and makes
+no authorship claim. F2 and F4 regression suites pass; transactionality holds.
+
+Known residual, unchanged by this package: CRLF byte-fidelity holds at the
+`protected_regions` module level but not end to end (`Path.read_text`
+universal-newline translation at the writers); pre-existing, identical on base
+main, tracked as its own future work package.
+
+This entry is a merge/verification record, not new certification: exact-head
+CI and bounded independent IV were consumed from their own lanes before merge.
