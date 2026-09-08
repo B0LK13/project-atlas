@@ -149,7 +149,10 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         "--attestations",
         type=Path,
         default=None,
-        help="AT3-103 proof v2: JSON file with a list of sealed evidence attestations.",
+        help=(
+            "AT3-103 proof v2: JSON file with a list of sealed evidence attestations "
+            "(or an object with an 'attestations' list)."
+        ),
     )
     proof.add_argument("--json", action="store_true")
 
@@ -598,14 +601,27 @@ def _read_json_list(path: Path) -> list[Any]:
     return raw
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        result[key] = value
+    return result
+
+
 def _read_bounded(path: Path) -> Any:
     if not path.is_file() or path.is_symlink():
         raise Atlas3Error("PROOF_INPUT_INVALID", f"{path} is not a regular file")
     if path.stat().st_size > _MAX_PROOF_INPUT_BYTES:
         raise Atlas3Error("PROOF_INPUT_INVALID", f"{path} exceeds the input size cap")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys
+        )
+    except (OSError, UnicodeError, ValueError, RecursionError) as exc:
+        # ValueError covers json.JSONDecodeError and the duplicate-key refusal;
+        # RecursionError covers deeply nested input under the size cap.
         raise Atlas3Error("PROOF_INPUT_INVALID", f"{path}: unreadable JSON") from exc
 
 
@@ -758,6 +774,11 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     raise Atlas3Error(
                         "PROOF_V2_INPUTS_INCOMPLETE",
                         "--identity and --attestations must be given together",
+                    )
+                if getattr(args, "evidence", None):
+                    raise Atlas3Error(
+                        "PROOF_V2_INPUTS_CONFLICT",
+                        "--evidence is proof v1 input; it cannot be combined with v2 flags",
                     )
                 return _dump(
                     evaluate_proof_v2(

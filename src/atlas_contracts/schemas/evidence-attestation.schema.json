@@ -2,59 +2,197 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://project-atlas.local/schemas/evidence-attestation.schema.json",
   "title": "AtlasEvidenceAttestationV1",
-  "description": "AT3-103 typed evidence attestation. Stage/type compatibility, independence declaration, authority-field refusal and content_hash self-verification are enforced by atlas_contracts.attestation; this schema pins the shape.",
+  "description": "AT3-103 typed evidence attestation. STRUCTURAL interchange validation only: stage/type compatibility, independence declaration, digest self-verification and strict scalar typing are enforced by atlas_contracts.attestation (semantic validation); a JSON Schema validator alone does not prove a valid attestation.",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema", "schema_version", "project_id", "execution_identity_digest", "stage",
-    "evidence_type", "producer", "object", "command_ref", "result", "dependencies",
-    "content_hash", "attestation_id"
+    "schema",
+    "schema_version",
+    "project_id",
+    "execution_identity_digest",
+    "stage",
+    "evidence_type",
+    "producer",
+    "object",
+    "command_ref",
+    "result",
+    "dependencies",
+    "content_hash",
+    "attestation_id"
   ],
   "$defs": {
-    "sha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
   },
   "properties": {
-    "schema": {"const": "atlas.evidence-attestation.v1"},
-    "schema_version": {"const": 1},
-    "project_id": {"type": "string", "minLength": 1, "maxLength": 128},
-    "execution_identity_digest": {"$ref": "#/$defs/sha256"},
-    "stage": {
-      "enum": ["TASK", "IMPLEMENTATION", "TESTS", "CI", "INDEPENDENT_VERIFICATION", "ADV", "INTEGRATION", "POST_MERGE"]
+    "schema": {
+      "const": "atlas.evidence-attestation.v1"
     },
-    "evidence_type": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$"},
+    "schema_version": {
+      "const": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "execution_identity_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "stage": {
+      "enum": [
+        "TASK",
+        "IMPLEMENTATION",
+        "TESTS",
+        "CI",
+        "INDEPENDENT_VERIFICATION",
+        "ADV",
+        "INTEGRATION",
+        "POST_MERGE"
+      ]
+    },
+    "evidence_type": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+    },
     "producer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "name", "version", "independent_of_implementer"],
+      "required": [
+        "kind",
+        "name",
+        "version",
+        "independent_of_implementer"
+      ],
       "properties": {
-        "kind": {"enum": ["tool", "ci", "human", "agent"]},
-        "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 128},
-        "version": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^\\S+$"},
-        "independent_of_implementer": {"type": "boolean"}
+        "kind": {
+          "enum": [
+            "tool",
+            "ci",
+            "human",
+            "agent"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 128
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"
+        },
+        "independent_of_implementer": {
+          "type": "boolean"
+        }
       }
     },
     "object": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["head", "tree"],
+      "required": [
+        "head",
+        "tree"
+      ],
       "properties": {
-        "head": {"$ref": "#/$defs/sha1"},
-        "tree": {"$ref": "#/$defs/sha1"}
+        "head": {
+          "$ref": "#/$defs/sha1"
+        },
+        "tree": {
+          "$ref": "#/$defs/sha1"
+        }
       }
     },
-    "command_ref": {"anyOf": [{"type": "string", "minLength": 1, "maxLength": 512}, {"type": "null"}]},
+    "command_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "exit_code", "artifact_digest", "summary"],
+      "required": [
+        "status",
+        "exit_code",
+        "artifact_digest",
+        "summary"
+      ],
       "properties": {
-        "status": {"enum": ["PASS", "FAIL", "UNKNOWN"]},
-        "exit_code": {"anyOf": [{"type": "integer", "minimum": -255, "maximum": 255}, {"type": "null"}]},
-        "artifact_digest": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN"
+          ]
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -255,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_digest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "summary": {
           "type": "object",
-          "additionalProperties": {"type": "integer", "minimum": 0}
+          "propertyNames": {
+            "enum": [
+              "checks",
+              "collected",
+              "commits",
+              "controls",
+              "controls_killed",
+              "controls_survived",
+              "deselected",
+              "errors",
+              "failed",
+              "files",
+              "findings",
+              "jobs",
+              "p0",
+              "p1",
+              "p2",
+              "p3",
+              "passed",
+              "skipped",
+              "strategies_broken",
+              "strategies_held",
+              "warnings",
+              "xfailed",
+              "xpassed"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       }
     },
@@ -63,13 +201,26 @@
       "uniqueItems": true,
       "items": {
         "enum": [
-          "DEP_HEAD", "DEP_TREE", "DEP_PARENT_HEAD", "DEP_MAIN_HEAD", "DEP_PATH_SET",
-          "DEP_SUBSYSTEM", "DEP_PLATFORM", "DEP_TEST_SET", "DEP_TOOLCHAIN",
-          "DEP_VERIFIER_PRINCIPAL", "DEP_VERIFIER_SESSION"
+          "DEP_HEAD",
+          "DEP_TREE",
+          "DEP_PARENT_HEAD",
+          "DEP_MAIN_HEAD",
+          "DEP_PATH_SET",
+          "DEP_SUBSYSTEM",
+          "DEP_PLATFORM",
+          "DEP_TEST_SET",
+          "DEP_TOOLCHAIN",
+          "DEP_VERIFIER_PRINCIPAL",
+          "DEP_VERIFIER_SESSION"
         ]
       }
     },
-    "content_hash": {"$ref": "#/$defs/sha256"},
-    "attestation_id": {"type": "string", "pattern": "^att-[0-9a-f]{16}$"}
+    "content_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "attestation_id": {
+      "type": "string",
+      "pattern": "^att-[0-9a-f]{16}$"
+    }
   }
 }

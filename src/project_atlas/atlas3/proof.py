@@ -7,6 +7,7 @@ Evidence chain: TASK → IMPLEMENTATION → TESTS → CI → IV → ADV → INTE
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any, Final
 
 from pydantic import ValidationError
@@ -22,12 +23,14 @@ from atlas_contracts.execution_identity import (
     ExecutionIdentityError,
     load_execution_identity,
 )
+from atlas_contracts.identity import safe_relative_component
 from project_atlas.atlas3.contracts import (
     GENERATOR_ID,
     OPS_RELATIVE,
     TRUTH_BOUNDARY,
     Atlas3Error,
     honesty_block,
+    read_json,
     require_vault,
     safe_project_id,
     write_json_atomic,
@@ -46,6 +49,8 @@ PROOF_STAGES: Final[tuple[str, ...]] = (
 )
 PROOF_V2_SCHEMA: Final[str] = "atlas3.agent-proof.v2"
 PROOF_V2_PACKAGE_ID: Final[str] = "AT3-103"
+PROOF_V2_RELATIVE: Final[Path] = OPS_RELATIVE / "proof" / "v2"
+MAX_TASK_ID_LENGTH: Final[int] = 128
 
 
 def evaluate_proof(
@@ -113,15 +118,29 @@ def evaluate_proof(
 
 
 def _safe_task_id(task_id: str) -> str:
+    """v2 task ids name a directory: reuse the shared path-component guard.
+
+    Stricter than v1's check on purpose (controls, ``:``, reserved Windows
+    names, trailing dot/space, NUL and unbounded length are refused). v1's own
+    check is untouched.
+    """
+    if not isinstance(task_id, str) or len(task_id) > MAX_TASK_ID_LENGTH:
+        raise Atlas3Error("UNSAFE_TASK_ID", "task id must be a string of at most 128 chars")
     tid = task_id.strip()
-    if not tid or "/" in tid or "\\" in tid or tid in {".", ".."}:
-        raise Atlas3Error("UNSAFE_TASK_ID", f"unsafe task id: {task_id!r}")
-    return tid
+    if tid != task_id or not tid.isascii() or not tid.isprintable():
+        raise Atlas3Error("UNSAFE_TASK_ID", "task id must be printable ASCII without padding")
+    try:
+        return safe_relative_component(tid, label="task id")
+    except ValueError as exc:
+        raise Atlas3Error("UNSAFE_TASK_ID", str(exc)) from exc
 
 
 def _load_identity(identity: ExecutionIdentity | Mapping[str, Any]) -> ExecutionIdentity:
+    # An instance is re-validated from its record: a draft built in seal
+    # context, a model_copy, or model_construct must not carry an unverified
+    # digest into a report (ADV S2).
     if isinstance(identity, ExecutionIdentity):
-        return identity
+        identity = identity.to_record()
     if not isinstance(identity, Mapping):
         raise Atlas3Error("EXECUTION_IDENTITY_MALFORMED", "identity must be a JSON object")
     try:
@@ -137,7 +156,7 @@ def _load_attestation(
     attestation: EvidenceAttestation | Mapping[str, Any],
 ) -> EvidenceAttestation:
     if isinstance(attestation, EvidenceAttestation):
-        return attestation
+        attestation = attestation.to_record()
     if not isinstance(attestation, Mapping):
         raise Atlas3Error("ATTESTATION_MALFORMED", "attestation must be a JSON object")
     try:
@@ -170,15 +189,32 @@ def _pydantic_detail(exc: ValidationError) -> str:
     return "; ".join(parts)
 
 
+def _string_values(payload: object) -> list[str]:
+    found: list[str] = []
+    if isinstance(payload, str):
+        found.append(payload)
+    elif isinstance(payload, Mapping):
+        for key, value in payload.items():
+            found.append(str(key))
+            found.extend(_string_values(value))
+    elif isinstance(payload, (list, tuple)):
+        for item in payload:
+            found.extend(_string_values(item))
+    return found
+
+
 def _scan_for_secrets(payload: object) -> None:
+    """Scan raw string values AND the canonical text (ADV S7: escaping defeats
+    whitespace-adjacent patterns, so the raw values are scanned too)."""
     from project_atlas.secrets import scan_text
 
-    findings = scan_text(canonical_json(payload))
-    if findings:
-        names = sorted({finding.pattern for finding in findings})
+    names: set[str] = set()
+    for text in [canonical_json(payload), *_string_values(payload)]:
+        names.update(finding.pattern for finding in scan_text(text))
+    if names:
         raise Atlas3Error(
             "PROOF_SECRET_FORBIDDEN",
-            f"secret-shaped content in proof inputs: {', '.join(names)}",
+            f"secret-shaped content in proof inputs: {', '.join(sorted(names))}",
         )
 
 
@@ -197,6 +233,12 @@ def evaluate_proof_v2(
     when at least one valid attestation for that stage carries ``PASS``, and
     every attestation is bound to the identity's candidate object. Any mismatch
     fails closed before anything is written. v1 (``evaluate_proof``) is untouched.
+
+    Storage: ``generated/ops/atlas3/proof/v2/<task_id>/<digest16>.json`` — a
+    namespace separate from v1's ``proof/<task_id>.json`` so the two versions
+    cannot collide. ``<digest16>`` is a locator only; the full
+    ``identity_digest`` inside the file is the identity, and a locator that
+    already holds a different full digest fails closed instead of overwriting.
     """
     root = require_vault(vault)
     tid = _safe_task_id(task_id)
@@ -212,6 +254,7 @@ def evaluate_proof_v2(
             "CANDIDATE_OBJECT_REQUIRED", "proof v2 requires candidate_head and candidate_tree"
         )
     head, tree = candidate
+    _scan_for_secrets({"task_id": tid})
     _scan_for_secrets(ident.to_record())
 
     loaded: list[EvidenceAttestation] = []
@@ -310,6 +353,8 @@ def evaluate_proof_v2(
         "model_claims_complete": model_claims_complete,
         "model_claim_is_proof": False,
         "attestation_is_owner_authority": False,
+        "independence_declared_only": True,
+        "independence_verified": False,
         "merge_authorization": "NOT_GRANTED",
         "live_observation_wired": False,
         "authority": "derived",
@@ -317,9 +362,18 @@ def evaluate_proof_v2(
         "honesty": honesty_block(),
         "generated": {"by": GENERATOR_ID},
     }
-    write_json_atomic(
-        root / OPS_RELATIVE / "proof" / tid / f"{ident.identity_digest[:16]}.json",
-        report,
-    )
+    proof_root = (root / PROOF_V2_RELATIVE).resolve()
+    target = (proof_root / tid / f"{ident.identity_digest[:16]}.json").resolve()
+    if not target.is_relative_to(proof_root):
+        raise Atlas3Error("UNSAFE_TASK_ID", "proof path escaped the proof root")
+    if target.is_symlink() or (target.exists() and not target.is_file()):
+        raise Atlas3Error("PROOF_LOCATOR_UNSAFE", "proof locator is not a regular file")
+    if target.is_file():
+        existing = read_json(target)
+        if existing is None or existing.get("identity_digest") != ident.identity_digest:
+            raise Atlas3Error(
+                "PROOF_LOCATOR_COLLISION",
+                "proof locator already holds a different or unreadable proof; not overwritten",
+            )
+    write_json_atomic(target, report)
     return report
-

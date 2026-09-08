@@ -12,12 +12,32 @@ Honesty rules made structural rather than left to a flag:
   independence from the implementer (``independent_of_implementer: true``);
   a declaration is not an observation, and a later package binds it to a
   principal registry;
-- ``result.summary`` accepts only identifier keys with integer counts, and
-  refuses authority-shaped keys, so an attestation cannot smuggle
-  ``merge_authorization`` or ``trust_score`` into a proof;
+- ``result.summary`` accepts only the known counter names in
+  ``SUMMARY_COUNTERS`` with strict non-negative integer values (``true``,
+  ``1.0`` and ``"1"`` are refused), so an attestation cannot smuggle
+  ``merge_authorization``, ``trust_score`` or any look-alike into a proof;
 - every attestation is object-bound (``DEP_HEAD`` and ``DEP_TREE`` are always
   among its dependencies) — an attestation for another object is a different
-  attestation.
+  attestation;
+- scalar fields that enter the digest are strict (no ``"0"`` → ``0`` or
+  ``1.0`` → ``1`` coercion), so the digest binds the bytes a reader sees.
+
+What is hashed (``content_hash``): the canonical JSON (``atlas_contracts.
+canonical``) of the *validated* record — ``to_record()`` minus ``content_hash``
+and ``attestation_id`` — i.e. field names by alias, ``Literal`` values as
+given, strict ints/bools, and ``dependencies`` as a JSON array. The only
+structural normalization is list ↔ tuple for ``dependencies``; no scalar
+coercion is part of the contract. A record whose raw JSON differs only by key
+order therefore hashes identically; one that differs in any value does not.
+
+``independent_of_implementer`` is a *declaration* by the producer. Nothing in
+v1 verifies it against a principal registry; readers must treat it as
+``INDEPENDENCE_DECLARED``, never ``INDEPENDENCE_VERIFIED``.
+
+The shipped JSON schema pins the shape only. Cross-field rules (status/value
+consistency, stage/type table, dependency set, digest self-verification) are
+enforced by this module; a non-Python consumer gets no digest guarantee from
+the schema alone.
 
 The stage vocabulary is duplicated from ``project_atlas.atlas3.proof`` on
 purpose: ``atlas_contracts`` is the lower layer and must not import Core. A
@@ -34,7 +54,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    ValidationInfo,
+    model_validator,
+)
 
 from atlas_contracts.canonical import content_digest, short_id
 from atlas_contracts.execution_identity import GIT_SHA_PATTERN
@@ -108,6 +136,41 @@ AUTHORITY_FIELD_NAMES: Final[frozenset[str]] = frozenset(
 
 _SEAL_CONTEXT_KEY: Final[str] = "atlas_contracts.seal"
 _DIGEST_FIELDS: Final[frozenset[str]] = frozenset({"content_hash", "attestation_id"})
+# Positive vocabulary for count-only result summaries (owner decision
+# D-ATLAS-ULT-01A-AT3-103-ADV-REMEDIATION-001 §9): allow known counters
+# instead of blocking infinite authority spellings. Extending this set is a
+# schema change, not a runtime decision.
+SUMMARY_COUNTERS: Final[frozenset[str]] = frozenset(
+    {
+        # test / lint / typecheck / CI
+        "collected",
+        "passed",
+        "failed",
+        "errors",
+        "skipped",
+        "xfailed",
+        "xpassed",
+        "deselected",
+        "warnings",
+        "findings",
+        "files",
+        "jobs",
+        # verification / adversarial
+        "controls",
+        "controls_killed",
+        "controls_survived",
+        "strategies_held",
+        "strategies_broken",
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+        # integration / post-merge
+        "checks",
+        "commits",
+    }
+)
+VERSION_PATTERN: Final[str] = r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"
 
 
 class AttestationError(ValueError):
@@ -130,8 +193,8 @@ class _Contract(BaseModel):
 class Producer(_Contract):
     kind: Literal["tool", "ci", "human", "agent", "model"]
     name: str = Field(pattern=ID_PATTERN, max_length=128)
-    version: str = Field(min_length=1, max_length=128, pattern=r"^\S+$")
-    independent_of_implementer: bool = False
+    version: str = Field(pattern=VERSION_PATTERN)
+    independent_of_implementer: StrictBool = False
 
     @model_validator(mode="after")
     def _model_is_not_evidence(self) -> Producer:
@@ -149,20 +212,21 @@ class ObjectBinding(_Contract):
 
 class AttestationResult(_Contract):
     status: Literal["PASS", "FAIL", "UNKNOWN"]
-    exit_code: int | None = Field(default=None, ge=-255, le=255)
+    exit_code: StrictInt | None = Field(default=None, ge=-255, le=255)
     artifact_digest: str | None = Field(default=None, pattern=HASH_PATTERN)
-    summary: dict[str, int] = Field(default_factory=dict)
+    summary: dict[str, StrictInt] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _summary_keys(self) -> AttestationResult:
         for key, value in self.summary.items():
-            if key in AUTHORITY_FIELD_NAMES or key.lower() in AUTHORITY_FIELD_NAMES:
+            # Positive vocabulary: an unknown key is refused whatever it spells,
+            # so no authority-shaped key (in any casing, separator or
+            # look-alike form) can exist in a summary.
+            if key not in SUMMARY_COUNTERS:
                 raise AttestationError(
-                    "AUTHORITY_FIELD_FORBIDDEN", f"summary key {key!r} is an authority field"
+                    "SUMMARY_KEY_UNKNOWN", f"summary key {key!r} is not a known counter"
                 )
-            if not key or not key[0].isalnum() or any(c.isspace() for c in key):
-                raise AttestationError("SUMMARY_KEY_INVALID", f"summary key {key!r} is not an id")
-            if isinstance(value, bool) or value < 0:
+            if value < 0:
                 raise AttestationError(
                     "SUMMARY_VALUE_INVALID", f"summary value for {key!r} must be a count"
                 )
@@ -293,6 +357,8 @@ __all__ = [
     "PRODUCER_KINDS",
     "RESULT_STATUSES",
     "STAGE_EVIDENCE_TYPES",
+    "SUMMARY_COUNTERS",
+    "VERSION_PATTERN",
     "AttestationError",
     "AttestationResult",
     "EvidenceAttestation",

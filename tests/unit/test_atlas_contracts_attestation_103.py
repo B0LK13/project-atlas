@@ -165,8 +165,80 @@ def test_dependency_classes_are_validated(deps: list[str], code: str) -> None:
     ],
 )
 def test_authority_shaped_summary_keys_are_refused(summary: dict[str, int]) -> None:
-    with pytest.raises(ValidationError, match="AUTHORITY_FIELD_FORBIDDEN"):
+    with pytest.raises(ValidationError, match="SUMMARY_KEY_UNKNOWN"):
         seal_evidence_attestation(body(result={"status": "PASS", "summary": summary}))
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        {"merge-authorization": 1},
+        {"mergeAuthorization": 1},
+        {"MERGE_AUTHORIZATION_": 1},
+        {"trust__score": 1},
+        {"merge_authorization\u200b": 1},
+        {"merge_authorizati\u043en": 1},
+        {"a b": 1},
+        {"a\x01b": 1},
+        {"1abc": 1},
+    ],
+)
+def test_lookalike_and_non_identifier_summary_keys_are_refused(summary: dict[str, int]) -> None:
+    with pytest.raises(ValidationError, match="SUMMARY_KEY_UNKNOWN"):
+        seal_evidence_attestation(body(result={"status": "PASS", "summary": summary}))
+
+
+def test_summary_vocabulary_is_positive_and_bounded() -> None:
+    from atlas_contracts.attestation import SUMMARY_COUNTERS
+
+    assert {"passed", "failed", "errors", "skipped", "findings", "p2"} <= SUMMARY_COUNTERS
+    assert not any("merge" in k or "trust" in k or "owner" in k for k in SUMMARY_COUNTERS)
+    ok = seal_evidence_attestation(
+        body(result={"status": "PASS", "summary": {k: 0 for k in sorted(SUMMARY_COUNTERS)}})
+    )
+    assert ok.result.summary["passed"] == 0
+    with pytest.raises(ValidationError, match="SUMMARY_KEY_UNKNOWN"):
+        seal_evidence_attestation(body(result={"status": "PASS", "summary": {"total": 1}}))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("exit_code", "0"),
+        ("exit_code", 1.0),
+        ("summary", {"passed": 1.0}),
+        ("summary", {"passed": True}),
+        ("summary", {"passed": "1"}),
+    ],
+)
+def test_digest_bound_scalars_are_strict_not_coerced(field: str, value: Any) -> None:
+    result: dict[str, Any] = {"status": "PASS", "summary": {"passed": 1}}
+    result[field] = value
+    with pytest.raises(ValidationError):
+        seal_evidence_attestation(body(result=result))
+    with pytest.raises(ValidationError):
+        seal_evidence_attestation(
+            body(
+                producer={
+                    "kind": "tool",
+                    "name": "x",
+                    "version": "1",
+                    "independent_of_implementer": "false",
+                }
+            )
+        )
+    with pytest.raises(ValidationError):
+        seal_evidence_attestation(
+            body(producer={"kind": "tool", "name": "x", "version": "1\u200b"})
+        )
+
+
+@pytest.mark.parametrize("version", ["1 .0", "1\t", "\u00e9", "-1", ".1", "v" * 129, ""])
+def test_version_identifier_is_conservative_ascii(version: str) -> None:
+    with pytest.raises(ValidationError):
+        seal_evidence_attestation(body(producer={"kind": "tool", "name": "x", "version": version}))
+    for ok in ("8.3.2", "1.0.0-rc1", "0.6.0+local", "UNKNOWN", "v2"):
+        seal_evidence_attestation(body(producer={"kind": "tool", "name": "x", "version": ok}))
 
 
 def test_summary_values_must_be_counts() -> None:
@@ -174,6 +246,10 @@ def test_summary_values_must_be_counts() -> None:
         seal_evidence_attestation(body(result={"status": "PASS", "summary": {"passed": -1}}))
     with pytest.raises(ValidationError):
         seal_evidence_attestation(body(result={"status": "PASS", "summary": {"passed": "many"}}))
+    record = seal_evidence_attestation(body()).to_record()
+    record["attestation_id"] = "att-" + "f" * 16
+    with pytest.raises(ValidationError, match="ATTESTATION_ID_MISMATCH"):
+        load_evidence_attestation(record)
 
 
 @pytest.mark.parametrize(
@@ -210,4 +286,22 @@ def test_shipped_json_schema_accepts_sealed_record_and_rejects_extra_key() -> No
 
 
 def test_error_type_carries_a_stable_code() -> None:
-    assert AttestationError("X_CODE", "detail").code == "X_CODE"
+    exc = AttestationError("X_CODE", "detail")
+    assert exc.code == "X_CODE" and str(exc) == "X_CODE: detail"
+    with pytest.raises(ValidationError) as excinfo:
+        seal_evidence_attestation(body(stage="ADV", evidence_type="ADVERSARIAL_RESULT"))
+    # The stable code must surface in the pydantic message so callers can map it.
+    assert "INDEPENDENCE_NOT_DECLARED" in str(excinfo.value)
+
+
+def test_json_schema_summary_and_version_constraints_are_declarative() -> None:
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    assert "STRUCTURAL" in schema["description"]
+    record = seal_evidence_attestation(body()).to_record()
+    record["result"]["summary"] = {"merge_authorization": 1}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(record, schema)
+    record["result"]["summary"] = {"passed": 1}
+    record["producer"]["version"] = "1 .0"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(record, schema)

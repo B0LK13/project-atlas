@@ -234,4 +234,31 @@ def test_shipped_json_schema_accepts_sealed_record_and_rejects_extra_key() -> No
 def test_error_type_carries_a_stable_code() -> None:
     exc = ExecutionIdentityError("SOME_CODE", "detail")
     assert exc.code == "SOME_CODE"
-    assert isinstance(ExecutionIdentity.model_fields, dict)
+    assert str(exc).startswith("SOME_CODE: ")
+    assert set(ExecutionIdentity.model_fields) == {
+        "schema_id",
+        "schema_version",
+        "project_id",
+        "source",
+        "environment",
+        "toolchain",
+        "agent",
+        "context",
+        "capabilities",
+        "identity_digest",
+        "run_id",
+    }
+
+
+@pytest.mark.parametrize(
+    ("block", "value"),
+    [
+        ("environment", {"status": "OBSERVED", "os": "lin ux", "arch": "x", "python": "3"}),
+        ("environment", {"status": "OBSERVED", "os": "linux\u200b", "arch": "x", "python": "3"}),
+        ("toolchain", {"status": "OBSERVED", "tools": [{"name": "a", "version": "1\t"}]}),
+        ("toolchain", {"status": "OBSERVED", "tools": [{"name": "a", "version": "\u00e9"}]}),
+    ],
+)
+def test_digest_bound_tokens_must_be_printable_ascii(block: str, value: Any) -> None:
+    with pytest.raises(ValidationError):
+        seal_execution_identity(body(**{block: value}))

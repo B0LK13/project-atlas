@@ -216,7 +216,7 @@
     },
     "at3-103-execution-identity-proof-v2": {
       "maturity": "implementation-unlocked",
-      "prep_tree": "docs/atlas-3/ultimate/",
+      "prep_tree": "docs/atlas-3/",
       "production_surface": [
         "src/atlas_contracts/canonical.py",
         "src/atlas_contracts/execution_identity.py",

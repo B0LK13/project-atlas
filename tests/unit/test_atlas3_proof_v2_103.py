@@ -95,7 +95,51 @@ def full_chain(identity_digest: str) -> list[dict[str, Any]]:
 
 
 def _proof_dir(vault: Path, task: str) -> Path:
-    return vault / "generated" / "ops" / "atlas3" / "proof" / task
+    return vault / "generated" / "ops" / "atlas3" / "proof" / "v2" / task
+
+
+V1_GOLDEN_EXTENDED = {
+    "NUMERIC-REF": (
+        {"TESTS": {"evidence_ref": 42}},
+        False,
+        "e73ac795a14dc36e6fb52335e4afb60c8c7dac5deba729961135d5173b1a671f",
+    ),
+    "LIST-REF": (
+        {"CI": {"evidence_ref": ["a", "b"]}},
+        True,
+        "a46d674a78de992833e756338a12ad667dde742c0c7df640facc8e0f1612d876",
+    ),
+    "NONE-REF": (
+        {"ADV": {"evidence_ref": None}, "TASK": {"evidence_ref": "t"}},
+        False,
+        "ee7a90fe4fe9c08ef89f5e16d2d31e9e67ca974dd6986d652d375f9f99403ca5",
+    ),
+    "UNICODE-REF": (
+        {n: {"evidence_ref": "Zo\u00eb \u2014 \u6771\u4eac"} for n in PROOF_STAGES},
+        True,
+        "26e5c408c7857e179243e2b72e5ae8abe599a235b8c163bbf7320f25bed28fc0",
+    ),
+    "UNKNOWN-STAGE-KEY": (
+        {"NOT_A_STAGE": {"evidence_ref": "x"}, "merge_authorization": "GRANTED"},
+        True,
+        "9327e977f280cf3e2fb80417b8d354c7e8f143f6f588ca101fa35cd97c9c8bce",
+    ),
+    "EXTRA-FIELDS": (
+        {n: {"evidence_ref": "r", "extra": {"nested": [1, 2]}} for n in PROOF_STAGES},
+        False,
+        "715900ccefafe420af0f775654c6058f1d730be00107a44d3ca59b457ff1efbf",
+    ),
+    "WHITESPACE-REF": (
+        {"TESTS": {"evidence_ref": "  "}, "CI": {"evidence_ref": "\t"}},
+        True,
+        "adc10740cbe944261caf0a6247017b8cd2c975545a7b197126ba0192c84993cc",
+    ),
+    "EMPTY-DICT": (
+        {},
+        False,
+        "49a1b35bedcb642e9bf9055f6f9f359add018c9a18f0afbdc29a214532b458f0",
+    ),
+}
 
 
 # ---------------------------------------------------------------- v1 unchanged
@@ -123,6 +167,67 @@ def test_proof_v1_output_bytes_are_unchanged(tmp_path: Path) -> None:
     for name, expected in V1_GOLDEN.items():
         data = (base / f"AT3-103-GOLDEN-{name}.json").read_bytes()
         assert hashlib.sha256(data).hexdigest() == expected, name
+
+
+@pytest.mark.parametrize("name", sorted(V1_GOLDEN_EXTENDED))
+def test_proof_v1_extended_golden_matrix_is_unchanged(tmp_path: Path, name: str) -> None:
+    """Digests regenerated from `git show 9972d164:src/project_atlas/atlas3/proof.py`."""
+    vault = _vault(tmp_path)
+    evidence, claim, expected = V1_GOLDEN_EXTENDED[name]
+    evaluate_proof(
+        vault,
+        f"AT3-103-GOLDEN-{name}",
+        project_id="harbor-api",
+        evidence=evidence,
+        model_claims_complete=claim,
+    )
+    path = vault / "generated" / "ops" / "atlas3" / "proof" / f"AT3-103-GOLDEN-{name}.json"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == expected
+
+
+def test_v1_and_v2_namespaces_do_not_collide(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    evaluate_proof(vault, "X", project_id="harbor-api")
+    evaluate_proof(vault, "v2", project_id="harbor-api")
+    report = evaluate_proof_v2(
+        vault,
+        "X",
+        project_id="harbor-api",
+        identity=ident,
+        attestations=full_chain(ident.identity_digest),
+    )
+    assert report["chain_status"] == "PROVEN"
+    assert (vault / "generated" / "ops" / "atlas3" / "proof" / "X.json").is_file()
+    assert (vault / "generated" / "ops" / "atlas3" / "proof" / "v2.json").is_file()
+    assert (_proof_dir(vault, "X") / f"{ident.identity_digest[:16]}.json").is_file()
+    evaluate_proof(vault, "X", project_id="harbor-api")  # v1 again, still fine
+    again = evaluate_proof_v2(
+        vault,
+        "X",
+        project_id="harbor-api",
+        identity=ident,
+        attestations=full_chain(ident.identity_digest),
+    )
+    assert again == report
+
+
+def test_locator_collision_with_a_different_digest_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    target = _proof_dir(vault, "L") / f"{ident.identity_digest[:16]}.json"
+    target.parent.mkdir(parents=True)
+    target.write_text(json.dumps({"identity_digest": "f" * 64}), encoding="utf-8")
+    before = target.read_bytes()
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "L", project_id="harbor-api", identity=ident, attestations=[])
+    assert excinfo.value.code == "PROOF_LOCATOR_COLLISION"
+    assert target.read_bytes() == before
+    assert not target.with_suffix(".json.tmp").exists()
+    target.write_text("not json", encoding="utf-8")
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "L", project_id="harbor-api", identity=ident, attestations=[])
+    assert excinfo.value.code == "PROOF_LOCATOR_COLLISION"
 
 
 def test_proof_v1_still_accepts_presence_only_evidence_and_says_so(tmp_path: Path) -> None:
@@ -337,7 +442,7 @@ def test_attestation_with_authority_summary_is_refused(tmp_path: Path) -> None:
     ident = seal_execution_identity(identity_body())
     record = seal_evidence_attestation(attestation_body(ident.identity_digest, "TESTS")).to_record()
     record["result"]["summary"] = {"merge_authorization": 1}
-    _refused(tmp_path, "AUTHORITY_FIELD_FORBIDDEN", identity=ident, attestations=[record])
+    _refused(tmp_path, "SUMMARY_KEY_UNKNOWN", identity=ident, attestations=[record])
 
 
 def test_model_producer_attestation_is_refused(tmp_path: Path) -> None:
@@ -374,12 +479,299 @@ def test_secret_shaped_identity_content_is_refused(tmp_path: Path) -> None:
     _refused(tmp_path, "PROOF_SECRET_FORBIDDEN", identity=ident, attestations=[])
 
 
-def test_unsafe_task_id_is_refused(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "task_id",
+    [
+        "../x",
+        "a/b",
+        "a\\b",
+        "D:evil",
+        "a:b",
+        "CON",
+        "PRN",
+        "con.txt",
+        "x.",
+        "x ",
+        " x",
+        "a\tb",
+        "a\x00b",
+        "a\x01b",
+        "\u202eabc",
+        "\u00e9",
+        "x" * 129,
+        "",
+        ".",
+        "..",
+    ],
+)
+def test_unsafe_task_ids_are_refused_before_any_write(tmp_path: Path, task_id: str) -> None:
     vault = _vault(tmp_path)
     ident = seal_execution_identity(identity_body())
     with pytest.raises(Atlas3Error) as excinfo:
-        evaluate_proof_v2(vault, "../x", project_id="harbor-api", identity=ident, attestations=[])
+        evaluate_proof_v2(vault, task_id, project_id="harbor-api", identity=ident, attestations=[])
     assert excinfo.value.code == "UNSAFE_TASK_ID"
+    assert not (vault / "generated").exists()
+
+
+def test_seal_mode_draft_instance_cannot_carry_placeholder_digest(tmp_path: Path) -> None:
+    """ADV S2: an instance is re-validated from its record, never trusted."""
+    from atlas_contracts.attestation import EvidenceAttestation
+    from atlas_contracts.execution_identity import ExecutionIdentity
+
+    vault = _vault(tmp_path)
+    draft = ExecutionIdentity.model_validate(
+        identity_body(), context={"atlas_contracts.seal": True}
+    )
+    assert draft.identity_digest == "0" * 64
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "S2", project_id="harbor-api", identity=draft, attestations=[])
+    assert excinfo.value.code == "IDENTITY_DIGEST_MISMATCH"
+    ident = seal_execution_identity(identity_body())
+    sealed = seal_evidence_attestation(
+        attestation_body(ident.identity_digest, "TESTS", result={"status": "FAIL"})
+    )
+    flipped = sealed.model_copy(
+        update={"result": sealed.result.model_copy(update={"status": "PASS"})}
+    )
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault, "S2", project_id="harbor-api", identity=ident, attestations=[flipped]
+        )
+    assert excinfo.value.code == "ATTESTATION_HASH_MISMATCH"
+    constructed = EvidenceAttestation.model_construct(**sealed.model_dump())
+    constructed = constructed.model_copy(update={"content_hash": "f" * 64})
+    with pytest.raises(Atlas3Error):
+        evaluate_proof_v2(
+            vault, "S2", project_id="harbor-api", identity=ident, attestations=[constructed]
+        )
+    assert not _proof_dir(vault, "S2").exists()
+
+
+def _constructed_attestation(ident_digest: str, stage: str, **over: Any) -> Any:
+    """Build an attestation instance that never passed validation."""
+    from atlas_contracts.attestation import (
+        AttestationResult,
+        EvidenceAttestation,
+        ObjectBinding,
+        Producer,
+    )
+
+    base = attestation_body(ident_digest, stage)
+    producer = dict(base["producer"])
+    producer.update(over.pop("producer", {}))
+    result = dict(base["result"])
+    result.update(over.pop("result", {}))
+    return EvidenceAttestation.model_construct(
+        schema_id="atlas.evidence-attestation.v1",
+        schema_version=1,
+        project_id="harbor-api",
+        execution_identity_digest=ident_digest,
+        stage=stage,
+        evidence_type=base["evidence_type"],
+        producer=Producer.model_construct(**producer),
+        object_binding=ObjectBinding.model_construct(head=HEAD, tree=TREE),
+        command_ref=None,
+        result=AttestationResult.model_construct(**result),
+        dependencies=("DEP_HEAD", "DEP_TREE"),
+        content_hash="0" * 64,
+        attestation_id="att-" + "0" * 16,
+    )
+
+
+@pytest.mark.parametrize(
+    ("stage", "over", "codes"),
+    [
+        ("TESTS", {}, {"ATTESTATION_HASH_MISMATCH"}),
+        (
+            "TESTS",
+            {"producer": {"kind": "model", "name": "claude"}},
+            {"MODEL_PRODUCER_NOT_EVIDENCE", "ATTESTATION_MALFORMED"},
+        ),
+        (
+            "INDEPENDENT_VERIFICATION",
+            {"producer": {"independent_of_implementer": False}},
+            {"INDEPENDENCE_NOT_DECLARED", "ATTESTATION_MALFORMED"},
+        ),
+        (
+            "ADV",
+            {"producer": {"independent_of_implementer": False}},
+            {"INDEPENDENCE_NOT_DECLARED", "ATTESTATION_MALFORMED"},
+        ),
+        (
+            "TESTS",
+            {"result": {"summary": {"merge_authorization": 1}}},
+            {"SUMMARY_KEY_UNKNOWN", "ATTESTATION_MALFORMED"},
+        ),
+    ],
+)
+def test_model_construct_instances_are_revalidated_and_refused(
+    tmp_path: Path, stage: str, over: dict[str, Any], codes: set[str]
+) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    instance = _constructed_attestation(ident.identity_digest, stage, **over)
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault, "MC", project_id="harbor-api", identity=ident, attestations=[instance]
+        )
+    assert excinfo.value.code in codes, str(excinfo.value)
+    assert not (vault / "generated").exists()
+
+
+def test_seal_mode_draft_attestation_instance_is_refused(tmp_path: Path) -> None:
+    from atlas_contracts.attestation import EvidenceAttestation
+
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    draft = EvidenceAttestation.model_validate(
+        attestation_body(ident.identity_digest, "TESTS"), context={"atlas_contracts.seal": True}
+    )
+    assert draft.content_hash == "0" * 64
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault, "SD", project_id="harbor-api", identity=ident, attestations=[draft]
+        )
+    assert excinfo.value.code == "ATTESTATION_HASH_MISMATCH"
+    sealed = seal_evidence_attestation(attestation_body(ident.identity_digest, "TESTS"))
+    moved = sealed.model_copy(
+        update={"object_binding": sealed.object_binding.model_copy(update={"tree": "d" * 40})}
+    )
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault, "SD", project_id="harbor-api", identity=ident, attestations=[moved]
+        )
+    assert excinfo.value.code == "ATTESTATION_HASH_MISMATCH"
+    assert not (vault / "generated").exists()
+
+
+@pytest.mark.parametrize(
+    "command_ref",
+    [
+        "curl -H 'Authorization: Bearer AKIAIOSFODNN7EXAMPLE'",
+        "curl -H 'Authorization: Bearer\tAKIAIOSFODNN7EXAMPLE'",
+        "curl -H 'Authorization: Bearer\nAKIAIOSFODNN7EXAMPLE'",
+        "run --api_key=AKIAIOSFODNN7EXAMPLE",
+        "run --api_key = AKIAIOSFODNN7EXAMPLE",
+        'run api_key="AKIAIOSFODNN7EXAMPLE"',
+        "run api_key='AKIAIOSFODNN7EXAMPLE'",
+        "run api_key=\nAKIAIOSFODNN7EXAMPLE",
+        "password = AKIAIOSFODNN7EXAMPLE",
+        "password\t=\tAKIAIOSFODNN7EXAMPLE",
+    ],
+)
+def test_secret_shaped_command_refs_are_refused_in_every_adjacency_form(
+    tmp_path: Path, command_ref: str
+) -> None:
+    ident = seal_execution_identity(identity_body())
+    record = seal_evidence_attestation(
+        attestation_body(ident.identity_digest, "TESTS", command_ref=command_ref)
+    ).to_record()
+    _refused(tmp_path, "PROOF_SECRET_FORBIDDEN", identity=ident, attestations=[record])
+
+
+def test_benign_values_are_not_falsely_refused_and_secret_names_are_not_echoed(
+    tmp_path: Path,
+) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    benign = seal_evidence_attestation(
+        attestation_body(
+            ident.identity_digest,
+            "TESTS",
+            command_ref="python -m pytest tests/unit --junitxml=out.xml -k 'not slow'",
+        )
+    ).to_record()
+    report = evaluate_proof_v2(
+        vault, "B", project_id="harbor-api", identity=ident, attestations=[benign]
+    )
+    assert report["stages"]["TESTS"]["status"] == "PRESENT"
+    ident2 = seal_execution_identity(identity_body())
+    bad = seal_evidence_attestation(
+        attestation_body(
+            ident2.identity_digest, "TESTS", command_ref="x --api_key=AKIAIOSFODNN7EXAMPLE"
+        )
+    ).to_record()
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(vault, "B2", project_id="harbor-api", identity=ident2, attestations=[bad])
+    assert "AKIAIOSFODNN7EXAMPLE" not in str(excinfo.value)
+
+
+def test_report_does_not_persist_free_form_input_values(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(
+        identity_body(
+            toolchain={
+                "status": "OBSERVED",
+                "tools": [{"name": "pytest", "version": "8.3.2+sentinelv"}],
+            },
+        )
+    )
+    atts = [
+        seal_evidence_attestation(
+            attestation_body(
+                ident.identity_digest,
+                stage,
+                command_ref="SENTINEL-COMMAND-REF",
+                result={"status": "PASS", "summary": {"passed": 4242}},
+            )
+        ).to_record()
+        for stage in PROOF_STAGES
+    ]
+    evaluate_proof_v2(vault, "RC", project_id="harbor-api", identity=ident, attestations=atts)
+    text = (_proof_dir(vault, "RC") / f"{ident.identity_digest[:16]}.json").read_text(
+        encoding="utf-8"
+    )
+    assert "SENTINEL-COMMAND-REF" not in text
+    assert "sentinelv" not in text
+    assert "4242" not in text
+    assert "b0lk13" not in text
+
+
+def test_unknown_status_attestation_alone_is_not_present(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    unknown = seal_evidence_attestation(
+        attestation_body(ident.identity_digest, "TESTS", result={"status": "UNKNOWN"})
+    ).to_record()
+    report = evaluate_proof_v2(
+        vault, "UNK", project_id="harbor-api", identity=ident, attestations=[unknown]
+    )
+    assert report["stages"]["TESTS"]["status"] == "UNKNOWN"
+    assert report["present_count"] == 0
+    assert report["independence_verified"] is False
+    assert report["independence_declared_only"] is True
+
+
+def test_tampered_attestation_id_is_refused(tmp_path: Path) -> None:
+    ident = seal_execution_identity(identity_body())
+    record = seal_evidence_attestation(attestation_body(ident.identity_digest, "TESTS")).to_record()
+    record["attestation_id"] = "att-" + "f" * 16
+    _refused(tmp_path, "ATTESTATION_ID_MISMATCH", identity=ident, attestations=[record])
+
+
+def test_secret_shaped_attestation_content_is_refused_even_when_whitespace_adjacent(
+    tmp_path: Path,
+) -> None:
+    ident = seal_execution_identity(identity_body())
+    record = seal_evidence_attestation(
+        attestation_body(
+            ident.identity_digest,
+            "TESTS",
+            command_ref="curl -H 'Authorization: Bearer\tAKIAIOSFODNN7EXAMPLE' https://x",
+        )
+    ).to_record()
+    _refused(tmp_path, "PROOF_SECRET_FORBIDDEN", identity=ident, attestations=[record])
+    ident_secret_task = seal_execution_identity(identity_body())
+    vault = _vault(tmp_path)
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault,
+            "AKIAIOSFODNN7EXAMPLE",
+            project_id="harbor-api",
+            identity=ident_secret_task,
+            attestations=[],
+        )
+    assert excinfo.value.code == "PROOF_SECRET_FORBIDDEN"
 
 
 # ---------------------------------------------------------------- CLI
@@ -445,6 +837,94 @@ def test_cli_proof_v1_path_is_unchanged(tmp_path: Path, capsys: pytest.CaptureFi
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema"] == "atlas3.agent-proof.v1"
     assert "proof_version" not in payload
+
+
+def test_cli_refuses_symlink_oversize_and_nested_inputs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    vault = _vault(tmp_path)
+    ident = seal_execution_identity(identity_body())
+    real_identity = tmp_path / "identity.json"
+    real_identity.write_text(json.dumps(ident.to_record()), encoding="utf-8")
+    atts_ok = tmp_path / "atts.json"
+    atts_ok.write_text(json.dumps(full_chain(ident.identity_digest)), encoding="utf-8")
+
+    def run(identity: Path, atts: Path) -> str:
+        code = main(
+            [
+                "proof",
+                "X",
+                "--vault",
+                str(vault),
+                "--project",
+                "harbor-api",
+                "--identity",
+                str(identity),
+                "--attestations",
+                str(atts),
+            ]
+        )
+        assert code == EXIT_ERROR
+        return str(json.loads(capsys.readouterr().out)["error"])
+
+    link = tmp_path / "identity-link.json"
+    try:
+        link.symlink_to(real_identity)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+    assert run(link, atts_ok) == "PROOF_INPUT_INVALID"
+    big = tmp_path / "big.json"
+    big.write_bytes(b"[" + b" " * 1_048_576 + b"]")
+    assert run(real_identity, big) == "PROOF_INPUT_INVALID"
+    nested = tmp_path / "nested.json"
+    nested.write_text("[" * 200_000 + "]" * 200_000, encoding="utf-8")
+    assert run(real_identity, nested) == "PROOF_INPUT_INVALID"
+    wrapped = tmp_path / "wrapped.json"
+    wrapped.write_text(
+        json.dumps({"attestations": full_chain(ident.identity_digest)}), encoding="utf-8"
+    )
+    assert (
+        main(
+            [
+                "proof",
+                "W",
+                "--vault",
+                str(vault),
+                "--project",
+                "harbor-api",
+                "--identity",
+                str(real_identity),
+                "--attestations",
+                str(wrapped),
+            ]
+        )
+        == EXIT_OK
+    )
+    assert json.loads(capsys.readouterr().out)["chain_status"] == "PROVEN"
+    assert (
+        main(
+            [
+                "proof",
+                "C",
+                "--vault",
+                str(vault),
+                "--project",
+                "harbor-api",
+                "--identity",
+                str(real_identity),
+                "--attestations",
+                str(atts_ok),
+                "--evidence",
+                "{}",
+            ]
+        )
+        == EXIT_ERROR
+    )
+    assert json.loads(capsys.readouterr().out)["error"] == "PROOF_V2_INPUTS_CONFLICT"
+    dup = tmp_path / "dup.json"
+    text = json.dumps(ident.to_record())
+    dup.write_text(text[:-1] + ',"project_id":"harbor-api"}', encoding="utf-8")
+    assert run(dup, atts_ok) == "PROOF_INPUT_INVALID"
 
 
 def test_cli_rejects_unreadable_or_wrong_shape_inputs(

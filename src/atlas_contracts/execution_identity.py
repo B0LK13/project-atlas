@@ -14,6 +14,15 @@ reuse the same envelope later without a second identity system.
 Authority: an identity is a reference, not a grant. It carries no merge,
 owner, or verification field, and ``extra="forbid"`` refuses any attempt to
 smuggle one in.
+
+The shipped JSON schema pins the shape only; the OBSERVED/UNKNOWN consistency
+rules and the digest self-verification live in this module.
+
+What is hashed (``identity_digest``): the canonical JSON of the validated
+record (``to_record()`` minus ``identity_digest`` and ``run_id``) — field
+names by alias, ``Literal`` values as given, tokens as ASCII identifiers,
+``tools`` as a JSON array sorted by name (order is validated, not
+normalized). No scalar coercion is part of the contract.
 """
 
 from __future__ import annotations
@@ -33,6 +42,8 @@ EXECUTION_IDENTITY_SCHEMA_VERSION: Final[int] = 1
 GIT_SHA_PATTERN: Final[str] = r"^[0-9a-f]{40}$"
 REPOSITORY_PATTERN: Final[str] = r"^[A-Za-z0-9][A-Za-z0-9._@:/-]{0,255}$"
 RUN_ID_PREFIX: Final[str] = "run"
+VERSION_PATTERN: Final[str] = r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"
+_TOKEN_PATTERN: Final[str] = r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
 
 ObservationStatus = Literal["OBSERVED", "UNKNOWN"]
 
@@ -80,16 +91,16 @@ class GitSource(_Contract):
 
 class ToolVersion(_Contract):
     name: str = Field(pattern=ID_PATTERN, max_length=128)
-    version: str = Field(min_length=1, max_length=128, pattern=r"^\S+$")
+    version: str = Field(pattern=VERSION_PATTERN)
 
 
 class EnvironmentIdentity(_Contract):
     """Observable host facts only. No container digest, egress, or limits."""
 
     status: ObservationStatus
-    os: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^\S+$")
-    arch: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^\S+$")
-    python: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^\S+$")
+    os: str | None = Field(default=None, pattern=_TOKEN_PATTERN)
+    arch: str | None = Field(default=None, pattern=_TOKEN_PATTERN)
+    python: str | None = Field(default=None, pattern=_TOKEN_PATTERN)
 
     @model_validator(mode="after")
     def _consistent(self) -> EnvironmentIdentity:
@@ -288,6 +299,7 @@ __all__ = [
     "GIT_SHA_PATTERN",
     "REPOSITORY_PATTERN",
     "RUN_ID_PREFIX",
+    "VERSION_PATTERN",
     "AgentIdentity",
     "CapabilitiesIdentity",
     "ContextIdentity",

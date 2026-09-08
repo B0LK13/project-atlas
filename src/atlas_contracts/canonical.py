@@ -19,9 +19,11 @@ Canonical form (deliberately minimal; NOT a claim of RFC 8785 compliance):
   ``int``, ``float``, ``bool``, ``None``. No ``default=`` hook — an unknown
   type is refused instead of being stringified.
 
-This helper exists because the same idiom was re-implemented in more than ten
-modules with one ``ensure_ascii`` fork between them (ULT-00 CURRENT-STATE
-row 3). New contracts use this one; existing call sites are unchanged here.
+This helper exists because the same idiom is re-implemented in more than ten
+modules of this repository with one ``ensure_ascii`` fork between them
+(``atlas_contracts.event_package._canonical_hash`` vs the control plane's
+``authority._canonical``). New contracts use this one; existing call sites are
+unchanged here.
 """
 
 from __future__ import annotations
