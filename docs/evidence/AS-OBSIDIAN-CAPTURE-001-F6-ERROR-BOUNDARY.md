@@ -94,7 +94,7 @@ removes", contradicting that residual eighty lines later.
 
 ## Evidence
 
-**Positive: 12 tests.** Both writers × both read-failure modes, plus the write
+**Positive: 13 tests.** Both writers × both read-failure modes, plus the write
 path, asserting the **exact domain type** rather than "raises something", that
 the message names the note, and that `__cause__` is the original exception.
 Plus two adversarial no-partial-write tests for the graph writer (a sibling
@@ -122,12 +122,18 @@ very error E proves is not masked:**
 
 | control | reverted | result |
 |---|---|---|
-| baseline | — | **12 passed** |
+| baseline | — | **13 passed** |
 | A | `graph_projections` read guard removed | **5 failed** |
 | B | `obsidian_projection` read guard removed | **2 failed** |
-| C | `obsidian_projection` write guard removed | **3 failed** |
+| C | `obsidian_projection` write guard removed | **4 failed** |
 | D | read guard widened over the merge (body **and** clause) | **1 failed** |
-| E | the `finally` cleanup guard removed | **1 failed** |
+| E | the `finally` cleanup guard removed | **2 failed** |
+| F | the warning's payload un-nested from `context` | **1 failed** |
+
+Re-derived in full at this head. Every earlier revision of this table was
+patched rather than re-derived, and every one of them ended up carrying a
+figure from its predecessor — which is why the whole set is now re-measured
+whenever any test is added.
 
 **Control D is the one that matters, and it took two attempts to describe
 correctly.** The first candidate recorded the mutation as "widen the clause to
@@ -141,8 +147,8 @@ Measured directly, at this head:
 
 | mutation | result |
 |---|---|
-| body widened over the merge, clause unchanged | **12 passed** |
-| clause widened to `except Exception`, body unchanged | **12 passed** |
+| body widened over the merge, clause unchanged | **13 passed** |
+| clause widened to `except Exception`, body unchanged | **13 passed** |
 | **body widened AND clause widened** | **1 failed** |
 
 The mechanism is the exception hierarchy: `ProtectedRegionError` and
@@ -153,12 +159,23 @@ before `malformed-generated-markers` gets relabelled `unreadable-existing-note`.
 The test is genuinely load-bearing; two successive receipts described the wrong
 mutation.
 
-**Suites:** the group figure with its file set named, because an unenumerated
-one is not checkable — `test_as_obsidian_capture_001.py`, `_f3.py`,
-`_f5_newline_fidelity.py`, `_f6_error_boundary.py`,
-`test_as_graph_005_projections.py`, `_adversarial.py`,
-`_f4_canonical_semantics.py`, `test_as_coder_alpha_obsidian_001.py`,
-`_r1_001.py` = **276 passed, 4 xfailed**. Full suite **5,655 passed, 8 skipped, 4 xfailed**. Freeze guard 78
+**Suites:** the group set, every path written out in full — an earlier revision
+abbreviated six of the nine, and two of those abbreviations expand to filenames
+that do not exist (`test_as_graph_005_projections_adversarial.py`,
+`test_as_coder_alpha_obsidian_001_r1_001.py`), so the list was not runnable as
+written:
+
+    tests/unit/test_as_obsidian_capture_001.py
+    tests/unit/test_as_obsidian_capture_001_f3.py
+    tests/unit/test_as_obsidian_capture_001_f5_newline_fidelity.py
+    tests/unit/test_as_obsidian_capture_001_f6_error_boundary.py
+    tests/unit/test_as_graph_005_projections.py
+    tests/unit/test_as_graph_005_adversarial.py
+    tests/unit/test_as_graph_005_f4_canonical_semantics.py
+    tests/unit/test_as_coder_alpha_obsidian_001.py
+    tests/unit/test_as_coder_alpha_obsidian_r1_001.py
+
+= **277 passed, 4 xfailed**. Full suite **5,656 passed, 8 skipped, 4 xfailed**. Freeze guard 78
 (neither changed file is a certified surface). `ruff check .` clean; `mypy src`
 clean (405 files).
 
@@ -205,7 +222,7 @@ chain. For **`graph_projections`** the failure path additionally writes nothing.
 earlier note that merged cleanly has already been rewritten when a later one
 fails. Pre-existing, proven on base, and disclosed above. An earlier revision of
 this paragraph said "either projection writer … writes nothing", contradicting
-this document's own Blast-radius section three paragraphs earlier.
+this document's own Blast-radius section far earlier in the same file.
 
 Also **not claimed:** that this fixes any data-loss defect — it does not; that every raw exception everywhere in these modules
 is now wrapped; that `ingestion.py`'s parallel raise sites are addressed (they

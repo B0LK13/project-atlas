@@ -31,7 +31,7 @@ GENERATOR_ID = "atlas-coder-alpha-obsidian-001"
 OBS_ROOT = Path("generated") / "obsidian" / "projects"
 
 
-_LOG = get_logger(__name__)
+_LOG = get_logger("obsidian_projection")
 
 
 class ObsidianProjectionError(ValueError):
@@ -85,7 +85,18 @@ def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
             # the surface an operator actually sees.
             _LOG.warning(
                 "obsidian projection: staging file could not be removed",
-                extra={"path": str(tmp), "error": type(cleanup_exc).__name__},
+                # `extra` MUST nest under "context": both formatters render
+                # `record.context` and silently drop anything else. An earlier
+                # revision passed the keys at top level, so this warning emitted
+                # neither the path nor the error class -- the log existed but
+                # carried nothing, which is worse than no log because the
+                # receipt claimed the residual was now operator-visible.
+                extra={
+                    "context": {
+                        "path": str(tmp),
+                        "error": type(cleanup_exc).__name__,
+                    }
+                },
             )
 
 

@@ -349,3 +349,47 @@ def test_f6_cleanup_failure_does_not_mask_the_domain_error(
         f"__cause__ is the cleanup failure (errno {cause.errno}), not the "
         "replace failure it should be chained from"
     )
+
+
+def test_f6_cleanup_failure_is_logged_with_the_path_and_cause(
+    projection_vault, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The swallowed cleanup must leave an operator-usable record.
+
+    Pinned because the first attempt did not. It passed `extra={"path": ...,
+    "error": ...}` at top level, and both formatters render `record.context`
+    only — so the warning was emitted carrying neither the filename nor the
+    error class. The log existed and said nothing, which is worse than no log,
+    because the receipt claimed the residual was now operator-visible.
+
+    Independent verification caught it. Asserting the payload, not merely that
+    something was logged, is what makes that impossible to reintroduce.
+    """
+    vault, note, project_id = projection_vault
+    real_replace = os.replace
+
+    def deny_replace(src, dst, *a, **k):  # type: ignore[no-untyped-def]
+        if str(dst).endswith(note.name):
+            raise PermissionError(5, "Access is denied", str(dst))
+        return real_replace(src, dst, *a, **k)
+
+    def deny_unlink(self: Path, *a, **k):  # type: ignore[no-untyped-def]
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr("project_atlas.obsidian_projection.os.replace", deny_replace)
+    monkeypatch.setattr(Path, "unlink", deny_unlink)
+
+    with (
+        caplog.at_level("WARNING", logger="project_atlas.obsidian_projection"),
+        pytest.raises(ObsidianProjectionError),
+    ):
+        materialize_obsidian_projection(vault, project_id=project_id, refresh_brief=False)
+
+    records = [r for r in caplog.records if "staging file" in r.getMessage()]
+    assert records, "the swallowed cleanup failure was not logged at all"
+    context = getattr(records[0], "context", None)
+    assert isinstance(context, dict), (
+        "payload must nest under 'context' or both formatters discard it"
+    )
+    assert context.get("error") == "PermissionError"
+    assert str(context.get("path", "")).endswith(".tmp"), context

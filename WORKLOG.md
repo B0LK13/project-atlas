@@ -13751,15 +13751,16 @@ Controls, re-derived in full at this head rather than patched line by line --
 which is how the previous revision came to have a correct suite figure sitting
 eight rows below a stale control table:
 
-    baseline                              12 passed
+    baseline                              13 passed
     A graph read guard removed             5 failed
     B obsidian read guard removed          2 failed
-    C obsidian WRITE guard removed         3 failed
+    C obsidian WRITE guard removed         4 failed
     D read guard widened, body AND clause  1 failed
-    E finally cleanup guard removed        1 failed
+    E finally cleanup guard removed        2 failed
+    F warning payload un-nested            1 failed
 
-    body widened only                     12 passed
-    clause widened only                   12 passed
+    body widened only                     13 passed
+    clause widened only                   13 passed
 
 A-D fail pairwise disjoint sets. **E does not**: its single failing test
 (`cleanup_failure_does_not_mask_the_domain_error`) is also in C's set, because
@@ -13775,8 +13776,8 @@ Both wrong -- and the second was written without re-running it, which is exactly
 the discipline this lane enforces, applied to itself and missed. Measured
 directly:
 
-    body widened, clause unchanged      11 passed
-    clause widened, body unchanged      11 passed
+    body widened, clause unchanged      13 passed
+    clause widened, body unchanged      13 passed
     body AND clause both widened         1 failed
 
 The mechanism is the exception hierarchy: `ProtectedRegionError` and
@@ -13789,7 +13790,8 @@ two successive receipts described the wrong mutation.
 Suites (file set named, because an unenumerated figure is not checkable):
 test_as_obsidian_capture_001, _f3, _f5_newline_fidelity, _f6_error_boundary,
 test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
-test_as_coder_alpha_obsidian_001, _r1_001 = 276 passed, 4 xfailed; full suite 5,655 passed, 8 skipped, 4 xfailed; freeze guard 78
+test_as_coder_alpha_obsidian_001, test_as_coder_alpha_obsidian_r1_001
+= 277 passed, 4 xfailed; full suite 5,656 passed, 8 skipped, 4 xfailed; freeze guard 78
 (neither changed file is a certified surface); ruff and mypy clean (405 files).
 
 ### The first candidate FAILED verification, and why
