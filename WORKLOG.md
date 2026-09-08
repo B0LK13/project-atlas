@@ -13551,16 +13551,25 @@ the fix has not frozen derived output.
 
 Negative controls, each load-bearing and per-site:
 
-    baseline                                   24 passed, 4 xfailed
-    A  helper -> read_text (3 live sites)      17 failed,  7 passed
+    baseline                                   27 passed, 4 xfailed (31 collected)
+    A  helper -> read_text (3 live sites)      19 failed,  8 passed
     B  graph_projections site only              5 failed
-    C  obsidian_capture_note site only          4 failed
+    C  obsidian_capture_note site only          6 failed
     D  obsidian_projection site only            4 failed
+    E  ownership probe made LF-naive            3 failed
 
-B-D each fail a *different* test, so no site is covered only by another site's
-test. The 7 surviving control A are the ones that must: the four
-`read_text`-is-the-defect controls, the LF-only guard and identity hashing. The
-4 xfails are the gated `ingestion.py` reproductions and stay strict.
+Each fails a distinct, appropriate set (verified by test name), so no site is
+covered only by another site's test. The EIGHT surviving control A are the ones
+that must, enumerated rather than counted: the four `read_text`-is-the-defect
+controls; the LF-only guard; the two ownership tests (reverting the helper
+restores the translating read, which masks the ownership issue by
+construction); and identity hashing. The 4 xfails are the gated `ingestion.py`
+reproductions and stay strict.
+
+These figures were re-measured at this head after the erosion test was
+strengthened. An earlier revision carried round-1 numbers (24/17/5/4/4) that no
+longer reproduced -- the same stale-evidence defect this lane exists to catch,
+found by verification round 2.
 
 (The pre-split candidate, which also fixed `ingestion.py`, measured 28 passed
 and 21/4/5/4/4 under the same controls. Recorded so the earlier figures are

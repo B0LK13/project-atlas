@@ -154,17 +154,26 @@ def test_f5_capture_retry_preserves_human_line_endings(
 def test_f5_capture_retry_is_stable_across_repeated_refresh(
     vault: Path
 ) -> None:
-    """Erosion check: a second refresh must not finish what the first started."""
+    """Erosion check: a second refresh must not finish what the first started.
+
+    Both halves are asserted deliberately. Idempotence alone is *not* a useful
+    guard here -- destruction is idempotent too, so an earlier revision of this
+    test passed even with the defect fully present, which independent
+    verification demonstrated by running it under the negative control. The
+    surviving-bytes assertion is what makes it load-bearing.
+    """
+    body = LINE_ENDING_CASES["crlf"]
     result = capture(vault, build_capture_request(content="f5 repeat"))
     outputs = result["outputs"]
     note = Path(str(outputs[0]["vault_root"])) / str(outputs[0]["relative_path"])
-    note.write_bytes(_humanize(read_note_text(note), LINE_ENDING_CASES["crlf"]).encode("utf-8"))
+    note.write_bytes(_humanize(read_note_text(note), body).encode("utf-8"))
 
     retry(vault, result["capture_id"])
     once = note.read_bytes()
     retry(vault, result["capture_id"])
 
-    assert note.read_bytes() == once
+    assert note.read_bytes() == once, "the second refresh changed the note"
+    assert body.encode("utf-8") in once, "the first refresh already destroyed the bytes"
 
 
 # ---------------------------------------------------------------------------

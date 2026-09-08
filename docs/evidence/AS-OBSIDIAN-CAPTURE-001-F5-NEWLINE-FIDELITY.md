@@ -38,6 +38,9 @@ Each was driven through its **real** entry point, comparing bytes on disk:
 | 3 | `graph_projections.py:644` | `write_projection_outputs()` | 2 → 0 | no |
 | 4 | `ingestion.py:99` | `_generated_content()` | 2 → 0 | no — **owner-gated, see below** |
 
+(CR counts are per-fixture: 2 for a two-line HUMAN body, 3 for the whole-note
+CRLF fixture verification used. Same direction, different probe.)
+
 Entry point 3 is the sharpest: `write_projection_outputs`'s own docstring says
 *"Preserves HUMAN protected regions byte-for-byte (AT-011 fail-closed)"*.
 
@@ -174,7 +177,7 @@ concerns. This package changes only what is written back; a test pins that
 
 ## Evidence
 
-**Positive:** 28 tests. Four line-ending shapes × four entry points, asserting
+**Positive:** 27 tests (31 collected, incl. 4 strict-xfail tripwires). Four line-ending shapes × four entry points, asserting
 **bytes and digests**, never substring presence — plus repeat-refresh stability
 (erosion check), an LF-only regression guard that also asserts no line endings
 are *invented*, and a check that the generated span still refreshes beside
@@ -185,20 +188,20 @@ frozen derived content.
 
 | control | reverted | result |
 |---|---|---|
-| baseline | — | **24 passed, 4 xfailed** |
-| A | helper → `read_text` (all three live sites) | **17 failed**, 7 passed |
-| B | `graph_projections.py` site only | **5 failed** |
-| C | `obsidian_capture_note.py` site only | **4 failed** |
-| D | `obsidian_projection.py` site only | **4 failed** |
+| baseline | — | **27 passed, 4 xfailed** (31 collected) |
+| A | helper → `read_text` (all three live sites) | **19 failed**, 8 passed |
+| B | `graph_projections.py` only | **5 failed** |
+| C | `obsidian_capture_note.py` only | **6 failed** |
+| D | `obsidian_projection.py` only | **4 failed** |
+| E | ownership probe made LF-naive | **3 failed** |
 
-B–D each fail a *different* test, so no site is protected only by another
-site's coverage. The 7 that survive control A are the ones that must: the four
-`read_text`-is-the-defect controls, the LF-only guard, and identity hashing.
-The 4 xfails are the gated `ingestion.py` reproductions, which stay strict.
+Each control fails a distinct, appropriate set, verified by test name, so no
+site is protected only by another's coverage.
 
-(The pre-split candidate, which also fixed `ingestion.py`, measured 28 passed
-and 21/4/5/4/4 under the same controls. Recorded because the earlier figure
-appears in the first revision of this receipt and is otherwise unexplained.)
+The **8** tests surviving control A are the ones that must, enumerated rather
+than counted: the four `read_text`-is-the-defect controls; the LF-only guard;
+the two ownership tests (reverting the helper restores the translating read,
+which masks the ownership issue by construction); and identity hashing.
 
 A further control pins that `Path.read_text` still translates. If it ever stops
 failing, the helper has become redundant — worth learning deliberately rather
