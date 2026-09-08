@@ -7,12 +7,13 @@ import sys
 from pathlib import Path
 
 from . import agents as agents_mod
+from . import emitter as emitter_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
 from . import router as router_mod
 from . import stack as stack_mod
 from .gh import GhClient
-from .model import build_snapshot
+from .model import build_snapshot, ownership
 
 RUNTIME_DIR = ".atlas-runtime"
 
@@ -302,6 +303,78 @@ def cmd_stacks(args) -> int:
     return 0
 
 
+def _resolve_profile(args) -> agents_mod.ProfileResult:
+    registry = agents_mod.load_registry(args.registry)
+    return agents_mod.resolve_agent(registry, args.agent)
+
+
+def _lane_owner(client, pr: int) -> str | None:
+    issue = client.dag_issue()
+    if not issue:
+        return None
+    ingested = events_mod.ingest_comments(client.issue_comments(issue["number"]))
+    status, claimants = ownership(ingested.events, pr)
+    return claimants[0] if status == "OWNED" else None
+
+
+def _build_event_from_args(args, client, profile) -> dict:
+    ctx = emitter_mod.resolve_context(client, args.pr, profile or {},
+                                      expected_repo=args.expect_repo)
+    return emitter_mod.build_event(
+        ctx, event=args.event, state=args.state, note=args.note,
+        dependencies=args.dependency or [], evidence=args.evidence or [],
+        invalidates=args.invalidates or [], next_actions=args.next_action or [],
+        expect_head=args.expect_head)
+
+
+def cmd_event_build(args) -> int:
+    """Read-only canonical event construction (FEATURE_04)."""
+    resolved = _resolve_profile(args)
+    if resolved.status != "REGISTERED":
+        print(f"agent {args.agent}: {resolved.status}", file=sys.stderr)
+        return 1
+    client = _client(args)
+    try:
+        payload = _build_event_from_args(args, client, resolved.profile)
+    except emitter_mod.EmitError as exc:
+        print(f"event-build: FAIL {exc}", file=sys.stderr)
+        return 1
+    print(emitter_mod.fenced(payload), end="")
+    return 0
+
+
+def cmd_emit(args) -> int:
+    """Emit a canonical event to the #719 bus (FEATURE_04)."""
+    registry = agents_mod.load_registry(args.registry)
+    resolved = agents_mod.resolve_agent(registry, args.agent)
+    if resolved.status != "REGISTERED":
+        print(f"agent {args.agent}: {resolved.status}", file=sys.stderr)
+        return 1
+    profile = resolved.profile or {}
+    if not profile.get("active", False):
+        print("emit: FAIL AGENT_INACTIVE", file=sys.stderr)
+        return 1
+    client = _client(args)
+    owner = _lane_owner(client, args.pr)
+    checks = emitter_mod.check_emit_permission(
+        registry, args.agent, args.event, owner)
+    if not checks.ok:
+        for reason in checks.reasons:
+            print(f"emit: DENY {reason}", file=sys.stderr)
+        return 1
+    try:
+        payload = _build_event_from_args(args, client, profile)
+        status = emitter_mod.emit_event(client, registry, payload,
+                                        dry_run=args.dry_run)
+    except emitter_mod.EmitError as exc:
+        print(f"emit: FAIL {exc}", file=sys.stderr)
+        return 1
+    print(f"{status}: {payload['event_id']} pr={payload['pr']} "
+          f"head={payload['head'][:12]} tree={payload['tree'][:12]} "
+          f"parent={payload['parent_pr']}")
+    return 0
+
+
 def cmd_gate(args) -> int:
     snapshot = build_snapshot(_client(args))
     node = _find_node(snapshot, args.pr)
@@ -414,6 +487,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_stack = sub.add_parser("stack", help="stack chain for one PR (FEATURE_03, read-only)")
     p_stack.add_argument("pr", type=int)
     sub.add_parser("stacks", help="all stack chains grouped by root (FEATURE_03)")
+    for name, help_text in (("event-build", "canonical resolved event (FEATURE_04, read-only)"),
+                            ("emit", "emit canonical event to #719 (FEATURE_04)")):
+        p_ev = sub.add_parser(name, help=help_text)
+        p_ev.add_argument("--agent", required=True, help="registered agent_id")
+        p_ev.add_argument("--pr", type=int, required=True)
+        p_ev.add_argument("--event", required=True, help="ATLAS_EVENT_V1 event type")
+        p_ev.add_argument("--state", required=True)
+        p_ev.add_argument("--note", default="")
+        p_ev.add_argument("--expect-head", default=None,
+                          help="assertion only: FAIL on mismatch, never authority")
+        p_ev.add_argument("--expect-repo", default=None,
+                          help="assert the resolved repository identity")
+        p_ev.add_argument("--dependency", action="append")
+        p_ev.add_argument("--evidence", action="append")
+        p_ev.add_argument("--invalidates", action="append")
+        p_ev.add_argument("--next-action", action="append")
+        if name == "emit":
+            p_ev.add_argument("--dry-run", action="store_true",
+                              help="zero GitHub mutation")
     p_agent = sub.add_parser("agent", help="inspect/evaluate one agent profile (fail closed)")
     p_agent.add_argument("agent_id")
     p_agent.add_argument("--eval", default=None,
@@ -449,6 +541,8 @@ COMMANDS = {
     "next": cmd_next,
     "stack": cmd_stack,
     "stacks": cmd_stacks,
+    "event-build": cmd_event_build,
+    "emit": cmd_emit,
     "inspect": cmd_inspect,
     "events": cmd_events,
     "owners": cmd_owners,
