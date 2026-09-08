@@ -25,6 +25,8 @@ from __future__ import annotations
 from . import agents as agents_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
+from . import evidence as evidence_mod
+from . import evidence_graph as evidence_graph_mod
 from . import verifiers as verifiers_mod
 
 # Default CI workflow dispatched for a runnable frozen lane. Resolves in
@@ -133,9 +135,56 @@ def _plan_iv(client, pr: int, head: str, pr_author: str | None,
     return {"lane_state": RUNNABLE, "reasons": [], "verifiers": eligible}
 
 
+def _plan_evidence(client, pr: int, head: str, tree: str | None,
+                   store: evidence_mod.EvidenceStore | None) -> dict:
+    """Additive FEATURE_07 evidence view: ingested artifacts for this PR
+    resolved against the same live (head, tree) snapshot. Purely
+    informational — it NEVER feeds the CI/IV lane states: lane truth comes
+    only from exact-head runs and authenticated IV requests. A stale
+    equivalence proof (REUSABLE_BY_PROVEN_EQUIVALENCE) therefore can never
+    suppress required validation."""
+    empty = {"records": [], "current_exact_head_complete": False,
+             "predecessor_only": [], "reusable_by_proof": []}
+    if store is None or not head:
+        return empty
+    try:
+        records = store.for_pr(pr)
+    except Exception:
+        return empty  # unreadable cache must not disturb the lane plan
+    evaluated = []
+    for record in records:
+        outcome = evidence_graph_mod.evaluate(record, {
+            "pr": pr,
+            "current_head": head,
+            "current_tree": tree,
+            "changed_files": None,  # unavailable: path reuse stays UNKNOWN
+        })
+        evaluated.append({
+            "evidence_id": outcome["evidence_id"],
+            "evidence_class": outcome["evidence_class"],
+            "state": outcome["state"],
+            "reasons": outcome["reasons"],
+        })
+    current_exact = [
+        row["evidence_id"] for row in evaluated
+        if row["state"] == evidence_graph_mod.EXACT_CURRENT
+    ]
+    return {
+        "records": sorted(evaluated, key=lambda r: str(r["evidence_id"])),
+        "current_exact_head_complete": bool(current_exact),
+        "predecessor_only": sorted(
+            row["evidence_id"] for row in evaluated
+            if row["state"] == evidence_graph_mod.PREDECESSOR_ONLY),
+        "reusable_by_proof": sorted(
+            row["evidence_id"] for row in evaluated
+            if row["state"] == evidence_graph_mod.REUSABLE_BY_PROVEN_EQUIVALENCE),
+    }
+
+
 def plan_dispatch(node: dict, client, agent_id: str | None,
                   agent_profile: dict | None,
-                  pool_views_result: verifiers_mod.PoolResolution | None) -> dict:
+                  pool_views_result: verifiers_mod.PoolResolution | None,
+                  evidence_store: evidence_mod.EvidenceStore | None = None) -> dict:
     """Pure/read-only sibling-lane plan for one frozen-candidate node.
 
     agent_id / agent_profile are accepted for call-site symmetry with
@@ -174,6 +223,12 @@ def plan_dispatch(node: dict, client, agent_id: str | None,
     author_info = live.get("author") or {}
     plan["iv"] = _plan_iv(client, pr, head, author_info.get("login"),
                           pool_views_result)
+    # FEATURE_07: additive informational evidence view. It never feeds the
+    # lane states above: predecessor-only evidence leaves the successor
+    # runnable (CI-lane semantics unchanged), and REUSABLE_BY_PROVEN_
+    # EQUIVALENCE is never a substitute for exact-head validation.
+    plan["evidence"] = _plan_evidence(client, pr, head, plan["tree"],
+                                      evidence_store)
     return plan
 
 

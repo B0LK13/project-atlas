@@ -11,6 +11,7 @@ from . import agents as agents_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
+from . import evidence_graph as evidence_graph_mod
 from . import receipts as receipts_mod
 from . import router as router_mod
 from . import stack as stack_mod
@@ -580,7 +581,8 @@ def cmd_dispatch_status(args) -> int:
         print(f"PR #{args.pr} not in open-PR frontier", file=sys.stderr)
         return 2
     resolution = _resolve_pool(args, client)
-    plan = dispatch_mod.plan_dispatch(node, client, None, None, resolution)
+    plan = dispatch_mod.plan_dispatch(node, client, None, None, resolution,
+                                      evidence_store=_evidence_store(args))
     if args.json:
         print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
@@ -591,6 +593,13 @@ def cmd_dispatch_status(args) -> int:
         print(f"  {lane}: {info['lane_state']}")
         for reason in info["reasons"]:
             print(f"    - {reason}")
+    evidence_view = plan.get("evidence") or {}
+    print(f"  evidence: current_exact_head_complete="
+          f"{evidence_view.get('current_exact_head_complete')}")
+    for evidence_id in evidence_view.get("predecessor_only") or []:
+        print(f"    predecessor_only: {evidence_id}")
+    for evidence_id in evidence_view.get("reusable_by_proof") or []:
+        print(f"    reusable_by_proof: {evidence_id}")
     return 0
 
 
@@ -614,7 +623,8 @@ def cmd_dispatch(args) -> int:
         return 2
     resolution = _resolve_pool(args, client)
     plan = dispatch_mod.plan_dispatch(node, client, args.agent,
-                                      resolved.profile, resolution)
+                                      resolved.profile, resolution,
+                                      evidence_store=_evidence_store(args))
     result = dispatch_mod.execute_dispatch(
         plan, client, args.agent, resolved.profile, dry_run=args.dry_run)
     if args.json:
@@ -684,43 +694,192 @@ def _live_head_tree(client: GhClient, pr: int) -> tuple[str | None, str | None, 
     return head, commit.get("tree"), None
 
 
+def _default_main_head(client: GhClient) -> str | None:
+    """Live default-branch head; None when unverifiable (fail closed)."""
+    try:
+        main = client.branch_head("main")
+    except Exception:
+        return None
+    return main.get("sha") if main else None
+
+
+def _live_evidence_context(client: GhClient, pr: int,
+                           head: str | None, tree: str | None,
+                           parent_head: str | None) -> dict:
+    """Live truth for FEATURE_07 graph evaluation. Everything the record did
+    not explicitly bind itself to stays None (no invented dependencies).
+    `changed_files` stays None: live diff truth is only resolved on demand by
+    `evidence-impact`, never guessed here."""
+    return {
+        "pr": pr,
+        "current_head": head,
+        "current_tree": tree,
+        "current_parent_head": parent_head,
+        "current_main_head": _default_main_head(client),
+        "changed_files": None,
+        "current_platform": None,
+        "current_test_set": None,
+        "current_toolchain": None,
+        "current_verifier_principal": None,
+        "current_verifier_session": None,
+        "equivalence_proofs": [],
+    }
+
+
+def _stack_parent_head(snapshot: dict, pr: int) -> str | None:
+    """Parent PR head from FEATURE_03 stack truth (None for root/missing)."""
+    try:
+        stacks = stack_mod.build_stacks(
+            snapshot["nodes"], None, snapshot.get("main_branch") or "main")
+    except Exception:
+        return None
+    record = stacks.get(f"pr/{pr}")
+    if record is None:
+        return None
+    parent_pr = record.get("parent_pr")
+    if parent_pr is None:
+        return None
+    node = _find_node(snapshot, parent_pr)
+    return node.get("head") if node else None
+
+
+def _safe_parent_head(client: GhClient, pr: int) -> str | None:
+    """Parent PR head from FEATURE_03 stack truth; None when unresolvable.
+    Snapshot construction needs a full client surface — degrade to None
+    rather than crash on reduced/offline clients."""
+    try:
+        snapshot = build_snapshot(client)
+    except Exception:
+        return None
+    return _stack_parent_head(snapshot, pr)
+
+
 def cmd_evidence(args) -> int:
+    """List stored artifacts for a PR, resolved against live truth via the
+    FEATURE_07 dependency/invalidation graph (read-only). The D-009
+    reuse_class classification is reported alongside the graph state; both
+    agree by construction and neither weakens exact-head rules."""
     store = _evidence_store(args)
     records = store.for_pr(args.pr)
-    if not records:
-        if args.json:
-            head, tree, _unavailable = _live_head_tree(_client(args), args.pr)
-            print(json.dumps({"pr": args.pr, "current_head": head, "current_tree": tree,
-                              "records": []}, indent=2, sort_keys=True))
-        else:
-            print(f"no stored evidence for PR #{args.pr}")
-        return 0
-    head, tree, unavailable = _live_head_tree(_client(args), args.pr)
+    client = _client(args)
+    head, tree, unavailable = _live_head_tree(client, args.pr)
+    parent_head = _safe_parent_head(client, args.pr)
+    context = _live_evidence_context(client, args.pr, head, tree, parent_head)
     rows = []
     for record in records:
         if unavailable:
             reuse_class, reasons = evidence_mod.UNKNOWN, [unavailable]
+            graph_row = {
+                "evidence_id": record.get("evidence_id"),
+                "evidence_class": record.get("evidence_class"),
+                "state": evidence_graph_mod.UNKNOWN,
+                "reasons": sorted([unavailable]),
+                "dependencies": evidence_graph_mod.derive_dependencies(record),
+                "reuse_proof": None,
+                "uncertainty": [unavailable],
+            }
         else:
             reuse_class, reasons = evidence_mod.classify(record, head, tree)
+            graph_row = evidence_graph_mod.evaluate(record, context)
         rows.append({
-            "evidence_id": record["evidence_id"],
-            "producer": record["producer"],
-            "scope": record["scope"],
-            "result": record["result"],
-            "head": record["head"],
-            "tree": record["tree"],
+            "evidence_id": record.get("evidence_id"),
+            "producer": record.get("producer"),
+            "scope": record.get("scope"),
+            "result": record.get("result"),
+            "head": record.get("head"),
+            "tree": record.get("tree"),
             "reuse_class": reuse_class,
-            "reasons": reasons,
+            "reasons": sorted(set(reasons)),
+            "state": graph_row["state"],
+            "evidence_class": graph_row["evidence_class"],
+            "dependencies": graph_row["dependencies"],
+            "reuse_proof": graph_row["reuse_proof"],
+            "uncertainty": graph_row["uncertainty"],
         })
     if args.json:
-        print(json.dumps({"pr": args.pr, "current_head": head, "current_tree": tree,
+        print(json.dumps({"pr": args.pr, "current_head": head,
+                          "current_tree": tree, "parent_head": parent_head,
                           "records": rows}, indent=2, sort_keys=True))
         return 0
-    print(f"pr/{args.pr} current_head={head or 'UNKNOWN'} current_tree={tree or 'UNKNOWN'}")
+    print(f"pr/{args.pr} current_head={head or 'UNKNOWN'} "
+          f"current_tree={tree or 'UNKNOWN'} "
+          f"parent_head={str(parent_head)[:12] if parent_head else 'UNKNOWN'}")
     for row in rows:
-        print(f"  {row['evidence_id']} {row['scope']:<14} {row['result']:<4} "
-              f"{row['reuse_class']}")
+        print(f"  {row['evidence_id']} "
+              f"{row.get('evidence_class') or row.get('scope') or '-':<16} "
+              f"{row['state']}")
+        for dep in row["dependencies"]:
+            print(f"    dep {dep['class']}: {dep['value']}")
         for reason in row["reasons"]:
+            print(f"    - {reason}")
+        proof = row.get("reuse_proof")
+        if proof and proof.get("provenance"):
+            prov = proof["provenance"]
+            print(f"    reuse-proof by {prov['author']} at "
+                  f"{prov['issued_at_utc']} via {prov['evidence_ref']}")
+        for unc in row.get("uncertainty") or []:
+            print(f"    ? {unc}")
+    if not rows:
+        print(f"  no stored evidence for PR #{args.pr}")
+    return 0
+
+
+def cmd_evidence_graph(args) -> int:
+    """Full dependency/invalidation graph for one PR (FEATURE_07, read-only)."""
+    store = _evidence_store(args)
+    records = store.for_pr(args.pr)
+    client = _client(args)
+    head, tree, unavailable = _live_head_tree(client, args.pr)
+    parent_head = _safe_parent_head(client, args.pr)
+    context = _live_evidence_context(client, args.pr, head, tree, parent_head)
+    graph = evidence_graph_mod.build_graph(records, context)
+    payload = {
+        "pr": args.pr,
+        "current_head": head,
+        "current_tree": tree,
+        "parent_head": parent_head,
+        "github_unavailable": unavailable,
+        **graph,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    print(f"evidence-graph pr/{args.pr} "
+          f"current_head={head or 'UNKNOWN'} nodes={len(graph['nodes'])}")
+    for node in graph["nodes"]:
+        print(f"  {node['evidence_id']} [{node['state']}]")
+        for dep in node["dependencies"]:
+            print(f"    dep {dep['class']}: {dep['value']}")
+        for reason in node["reasons"]:
+            print(f"    - {reason}")
+    for edge in graph["edges"]:
+        print(f"  edge {edge['from']} -> {edge['to']} ({edge['value']})")
+    for unc in graph["uncertainty"]:
+        print(f"  UNRESOLVED: {unc}")
+    return 0
+
+
+def cmd_evidence_impact(args) -> int:
+    """Hypothetical A->B impact: per-artifact state after the transition.
+    Changed files come from `git diff` (subprocess, fail-closed on error);
+    nothing is mutated. Read-only."""
+    store = _evidence_store(args)
+    records = store.for_pr(args.pr)
+    repo_dir = Path(args.repo_dir).resolve()
+    changed = evidence_graph_mod.changed_files_between(
+        repo_dir, args.from_sha, args.to_sha)
+    impact = evidence_graph_mod.evidence_impact(
+        records, args.from_sha, args.to_sha, changed)
+    impact["pr"] = args.pr
+    impact["repo_dir"] = str(repo_dir)
+    if args.json:
+        print(json.dumps(impact, indent=2, sort_keys=True))
+        return 0
+    print(f"evidence-impact pr/{args.pr} {args.from_sha[:12]}..{args.to_sha[:12]} "
+          f"changed_files={'UNKNOWN (fail closed)' if changed is None else len(changed)}")
+    for artifact in impact["artifacts"]:
+        print(f"  {artifact['evidence_id']} [{artifact['state']}]")
+        for reason in artifact["reasons"]:
             print(f"    - {reason}")
     return 0
 
@@ -810,6 +969,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_ingest = sub.add_parser("evidence-ingest",
                               help="validate + store one ATLAS_EVIDENCE_V1 record (D-009)")
     p_ingest.add_argument("file")
+    p_graph = sub.add_parser("evidence-graph",
+                             help="dependency/invalidation graph for a PR (FEATURE_07, read-only)")
+    p_graph.add_argument("pr", type=int)
+    p_impact = sub.add_parser(
+        "evidence-impact",
+        help="hypothetical A->B impact on stored evidence (FEATURE_07, read-only)")
+    p_impact.add_argument("--pr", type=int, required=True)
+    p_impact.add_argument("--from", dest="from_sha", required=True)
+    p_impact.add_argument("--to", dest="to_sha", required=True)
+    p_impact.add_argument("--repo-dir", default=".",
+                          help="git work tree for the diff (default: cwd)")
     return parser
 
 
@@ -834,6 +1004,8 @@ COMMANDS = {
     "gate": cmd_gate,
     "evidence": cmd_evidence,
     "evidence-ingest": cmd_evidence_ingest,
+    "evidence-graph": cmd_evidence_graph,
+    "evidence-impact": cmd_evidence_impact,
 }
 
 
