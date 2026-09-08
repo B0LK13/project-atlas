@@ -1,10 +1,16 @@
 # AS-OBSIDIAN-CAPTURE-001-F5 — HUMAN line endings are bytes, not formatting
 
 **Status:** **SEALED 2026-09-08 on main** — merged as PR #724, merge commit
-`91f40368`, second parent `2b472b91`. The merged object is byte-identical to the
-object four independent verification rounds ran against (`git diff 2b472b91
-91f40368` empty; `src` `0f909c49`, `tests` `8c3b9dfc`), so the verdicts transfer
-without an inference step.
+`91f40368`, second parent `2b472b91`. **What was verified, stated precisely.** The four IV rounds ran against four
+*different* objects — `6788f3bc`, `7e632070`, `78b48d93`, `bf8799ee` — each
+superseded by the next, so no single object carries all four verdicts. The
+merged object equals the final branch head (`git diff 2b472b91 91f40368` is
+empty), and its `src` (`0f909c49`) and `tests` (`8c3b9dfc`) trees are
+hash-identical to round 4's object `bf8799ee`, so **round 4's runtime and test
+certification transfers**. The docs-only delta `bf8799ee`→`2b472b91` — WORKLOG
+and evidence prose, no code or test change — was **not** independently verified.
+An earlier revision of this line claimed the merged object was the object all
+four rounds ran against, which conflated the chain with its final link.
 
 **Owner policy this serves (F3, unchanged):** raw HUMAN bytes are immutable —
 no auto-escaping, no normalisation, no zero-width rewriting.
@@ -252,8 +258,10 @@ previous refresh are recoverable (they are not — this stops further loss, it
 does not undo it); that non-newline normalisation elsewhere is absent; or that
 Obsidian note corruption in general is solved.
 
-Implementation evidence, not certification. Independent exact-head verification
-and CI are required before merge, and merge authority is not this lane's.
+*(Superseded by the post-merge seal below.)* This began as implementation
+evidence, not certification: independent exact-head verification and CI **were**
+required before merge, and merge authority was not this lane's. All three were
+satisfied — see **Post-merge seal** at the end of this document.
 
 ## Post-merge seal (2026-09-08)
 

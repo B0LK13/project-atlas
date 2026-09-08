@@ -13617,9 +13617,22 @@ is not this lane's.
 ## AS-OBSIDIAN-CAPTURE-001-F5 — post-merge seal (2026-09-08)
 
 Merged as `91f40368` (PR #724), first parent `7a9eeb76`, second parent
-`2b472b91`. **The merged object is the verified object**, checked rather than
-assumed: `src` `0f909c49` and `tests` `8c3b9dfc` identical, and
-`git diff 2b472b91 91f40368` empty. Merged unrebased for exactly that reason.
+`2b472b91`. **What was verified, stated precisely** -- because an earlier
+revision of this entry said "the merged object is the verified object", which
+conflated the verification chain with its final link.
+
+The four IV rounds ran against four DIFFERENT objects -- `6788f3bc`,
+`7e632070`, `78b48d93`, `bf8799ee` -- each superseded by the next, so no single
+object carries all four verdicts. What holds:
+
+  - the merged object equals the final branch head: `git diff 2b472b91
+    91f40368` is empty, and it was merged unrebased for exactly that reason;
+  - its `src` (`0f909c49`) and `tests` (`8c3b9dfc`) trees are hash-identical to
+    round 4's object `bf8799ee`, so round 4's runtime and test certification
+    transfers;
+  - the docs-only delta `bf8799ee` -> `2b472b91` (WORKLOG and evidence prose,
+    no code or test change) was NOT independently verified. It had fresh
+    exact-head CI, green on all four jobs, but no IV round of its own.
 
 Seal re-run on the merge commit, in a venv built inside a worktree at that
 commit with subprocess resolution proved to reach it first:
@@ -13647,7 +13660,7 @@ byte-identical to its pre-F5 state, so the certified surface was never touched.
 Round 1 found a **regression this fix introduced**. The faithful read exposed
 `_existing_capture_id`'s `startswith("---\n")` gate, so a note whose first line
 ended CRLF -- a Windows editor, or `core.autocrlf=true` -- was judged unmanaged
-and refused with OBSIDIAN_NOTE_CONFLICT on every refresh. It failed closed and
+and refused with `OBSIDIAN_NOTE_CONFLICT` on every refresh. It failed closed and
 lost no bytes, but the note never refreshed again and the error named the wrong
 cause. The lesson: *reading faithfully is not enough if a consumer of that text
 was silently relying on the translation.*
