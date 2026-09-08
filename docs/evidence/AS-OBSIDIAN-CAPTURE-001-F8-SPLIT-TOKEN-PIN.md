@@ -152,7 +152,7 @@ patterns** and changed only the mechanism, so it corroborates the
 implementation, not the fault model. One derivation tested two ways. Provenance stated exactly, because an earlier revision was loose about
 it: the round that verified PR #740 measured the pre-byte-test object (41
 baseline, 5/3/1), and the **9/6/2** corroboration comes from this seal's own
-verification round, which built a third instrument and reproduced 1/0/0 and
+verification round, which built the second instrument and reproduced 1/0/0 and
 9/6/2. Both results are real; only the attribution was imprecise.
 
 **Three findings, all in the claim record, all corrected before merge:** the

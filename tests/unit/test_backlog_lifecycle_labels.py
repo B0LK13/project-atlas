@@ -34,12 +34,12 @@ DONE = re.compile(rb"^\s*[-*] \[[xX]\] ")
 
 #: Text asserting the work is NOT yet integrated.
 PRE_MERGE = re.compile(
-    rb"AWAITING\s+(IV|INDEPENDENT\s+VERIFICATION)"
-    rb"|awaiting\s+independent\s+verification"
-    rb"|merge\s+NOT\s+pre-authori[sz]ed"
-    rb"|PENDING\s+IV"
-    rb"|NOT\s+YET\s+(VERIFIED|SEALED)"
-    rb"|\*\*Not\s+sealed\.\*\*",
+    r"AWAITING\s+(IV|INDEPENDENT\s+VERIFICATION)"
+    r"|awaiting\s+independent\s+verification"
+    r"|merge\s+NOT\s+pre-authori[sz]ed"
+    r"|PENDING\s+IV"
+    r"|NOT\s+YET\s+(VERIFIED|SEALED)"
+    r"|\*\*Not\s+sealed\.\*\*",
     re.I,
 )
 
@@ -55,15 +55,19 @@ def _done_lines() -> list[tuple[str, int, bytes]]:
 #: A quoted span. A sealed header may legitimately QUOTE the wording it retracts
 #: -- F6's and F7's both do -- and a quotation is not a live claim. Every sweep in
 #: this lane has had to learn this distinction; it is cheaper to encode it.
-#: ``\u`` escapes are invalid in a bytes pattern, so the curly quotes are their
-#: literal UTF-8 encodings.
-_Q = rb'["\xe2\x80\x9c\xe2\x80\x9d]'
-QUOTED = re.compile(_Q + rb"(?:(?!" + _Q + rb").)*" + _Q, re.S)
+#: A quoted span, matched on CHARACTERS. An earlier revision matched on BYTES --
+#: ``rb'["\xe2\x80\x9c\xe2\x80\x9d]'`` -- which makes every individual byte a
+#: delimiter. ``\u2192`` (an arrow) encodes as ``e2 86 92`` and so contributes a
+#: lone ``0xe2``, letting a live lifecycle label hide between two arrows. This
+#: ledger already contains twenty arrows, so the escape was reachable in the
+#: idiom the file actually uses. Verification demonstrated it; decoding first
+#: removes the whole class.
+QUOTED = re.compile('["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', re.S)
 
 
-def _live_text(line: bytes) -> bytes:
+def _live_text(line: bytes) -> str:
     """The line with quoted spans removed, so retractions do not read as claims."""
-    return QUOTED.sub(b" ", line)
+    return QUOTED.sub(" ", line.decode("utf-8", "replace"))
 
 
 def _sealed_receipts() -> list[tuple[str, int, bytes]]:
