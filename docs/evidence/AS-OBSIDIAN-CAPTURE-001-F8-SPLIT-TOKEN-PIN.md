@@ -144,9 +144,12 @@ left as the base corpus with F8's pins stripped from the tree.
 B and C at zero against the base corpus is the whole argument for this package,
 and it holds on the integrated result.
 
-Verification reconstructed the controls independently, using a matcher-relaxing
-model where this tool canonicalises the input document, and obtained the same
-cells. Provenance stated exactly, because an earlier revision was loose about
+Verification built a matcher-relaxing model -- patching
+`_validate_protected_markers` to count via regex, leaving the document untouched
+-- where this tool canonicalises the input, and obtained the same cells. The
+credit needs bounding: that instrument **reused this tool's three regex
+patterns** and changed only the mechanism, so it corroborates the
+implementation, not the fault model. One derivation tested two ways. Provenance stated exactly, because an earlier revision was loose about
 it: the round that verified PR #740 measured the pre-byte-test object (41
 baseline, 5/3/1), and the **9/6/2** corroboration comes from this seal's own
 verification round, which built a third instrument and reproduced 1/0/0 and
@@ -162,7 +165,9 @@ re-derived everywhere rather than carried.
 
 **Residual:** this tool is linted only by explicit invocation, since
 `docs/scripts` sits outside ruff's configured `include` and CI runs a bare
-`ruff check .`. The sealed blob is clean (longest line 95, limit 100), but the
+`ruff check .`. The blob merged at `8aaf7b63` is clean at longest line 95; the
+successor this seal ships is at exactly 100, the limit, because the two-file
+restore assertion added here is that long. Ruff passes either way. But the
 gap is real and it bit during development — an E501 was committed into this file
 after the explicit check had reported it, and fixed in `bb033a68` before merge.
 History, not a live defect in the sealed object.

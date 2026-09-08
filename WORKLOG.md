@@ -14262,10 +14262,17 @@ relaxations of marker matching that `main`'s existing corpus does not detect at
 all — and it holds on the integrated result, not only on the branch.
 
 **Confirmed by independent fault models, with the provenance stated exactly.**
-Two verifiers reconstructed the three controls from the receipt's prose using a
-*matcher-relaxing* model, where the committed tool canonicalises the input
-document inside `merge_protected_regions` — a different mechanism reaching the
-same cells and the same failing test names.
+Verification built a *matcher-relaxing* model -- patching
+`_validate_protected_markers` to count via regex, leaving the document untouched
+-- where the committed tool canonicalises the input inside
+`merge_protected_regions`. Different mechanism, same cells, same failing test
+names.
+
+The credit needs bounding, and an earlier revision of this paragraph overstated
+it. The second instrument was **not** derived from prose: it reused the three
+regex patterns from the committed tool and changed only the mechanism. So this
+is one derivation tested two ways, which is real corroboration of the
+*implementation*, not two independent derivations of the *fault model*.
 
 The precision matters, and an earlier revision of this paragraph lacked it. The
 round that verified PR #740 measured the **pre-byte-test** object, whose figures
@@ -14300,7 +14307,10 @@ results are real; only the attribution was loose.
 **Residual, recorded not fixed:** `docs/scripts/f8_near_miss_controls.py` is
 linted only by explicit invocation. `pyproject.toml` scopes ruff to `src/**` and
 `tests/**`, and CI runs a bare `ruff check .`, so CI cannot catch a defect in it.
-The sealed blob is clean — longest line 95 against a limit of 100 — but the gap
+The blob merged at `8aaf7b63` is clean at longest line 95; the successor this
+seal ships is clean at exactly 100, the limit, because the two-file restore
+assertion added here is that long -- a figure moved by this very commit, which
+is why it now names which blob it describes. Ruff passes either way. The gap
 is real, and it bit during development: I committed an E501 into this file after
 the explicit check had reported the error, and it was fixed in `bb033a68` before
 merge. That is history, not a live defect in the sealed object.
