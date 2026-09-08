@@ -1,5 +1,11 @@
 # AS-OBSIDIAN-CAPTURE-001-F8 — the split-token near miss is pinned
 
+**Status:** integrated on `main` and **SEALED** (PR #740). See the post-merge
+seal at the end of this file. The first revision of this receipt had no status
+header at all, though the F6 and F7 receipts both carry one. That is worth
+recording: a missing lifecycle label is the same class of defect as a stale
+one, and the F6 and F7 seals were blocked on precisely that.
+
 ## What this package is
 
 It is a **pin**, not a fix. The behaviour it asserts is already correct on
@@ -101,3 +107,72 @@ been weak evidence that these pins add anything.
 - **Not that the marker matcher is correct in general** — only that these four
   shapes are preserved, and that two specific plausible relaxations are now
   detected where they previously were not.
+
+---
+
+## Post-merge seal
+
+Integrated as PR #740: merge commit `8aaf7b63`, second parent `bb033a68`, base
+`9972d164`. Merged **unrebased at the verified object** — `git diff bb033a68
+8aaf7b63` is empty and the merge trees are hash-identical to the certified one.
+
+**`src` is byte-identical to pre-merge `main`**, which is this package's central
+claim and the reason it is a pin rather than a fix.
+
+Measured on the merge object, in an isolated worktree whose parent process and
+spawned children were both proven to resolve `project_atlas` there:
+
+    F3 suite       45 passed
+    full suite     5,690 passed, 8 skipped, 4 xfailed
+    freeze guard   78 passed
+    ruff / mypy    clean, 405 files
+
+The controls reproduce **on main**, run from the committed tool:
+
+    control                              base corpus (37)     pinned (45)
+    A  broadly whitespace-tolerant        1 caught             9 caught
+    B  break inside the token only        0 caught, 37 clean   6 caught
+    C  whitespace around the colons       0 caught, 37 clean   2 caught
+
+Both sources restored byte-identical — the tool now asserts the test file too,
+not only the source. Honest limit: on the happy path that assertion is trivially
+true, since the last loop iteration already writes the pinned corpus; it is
+load-bearing only on a mid-loop abort, which is what the `finally` exists for.
+Controlled: with that restore disabled and an abort injected, the test file is
+left as the base corpus with F8's pins stripped from the tree.
+
+B and C at zero against the base corpus is the whole argument for this package,
+and it holds on the integrated result.
+
+Verification built a matcher-relaxing model -- patching the public
+`validate_protected_markers` in `protected_regions.py` to count via regex, leaving the document untouched
+-- where this tool canonicalises the input, and obtained the same cells. The
+credit needs bounding: that instrument **reused this tool's three regex
+patterns** and changed only the mechanism, so it corroborates the
+implementation, not the fault model. One derivation tested two ways. Provenance stated exactly, because an earlier revision was loose about
+it: the round that verified PR #740 measured the pre-byte-test object (41
+baseline, 5/3/1), and the **9/6/2** corroboration comes from this seal's own
+verification round, which built the second instrument and reproduced 1/0/0 and
+9/6/2. Both results are real; only the attribution was imprecise.
+
+**Three findings, all in the claim record, all corrected before merge:** the
+false #716 provenance for three of four shapes; a corpus assertion too weak for
+the "human bytes intact" claim, now pinned by four byte-level tests whose
+non-redundancy was shown by a discriminating control (a mutation keeping the
+substring true but changing the bytes is caught by all four byte tests and by
+zero corpus tests); and the control figures those tests moved (5/3/1 → 9/6/2),
+re-derived everywhere rather than carried.
+
+**Residual:** this tool is linted only by explicit invocation, since
+`docs/scripts` sits outside ruff's configured `include` and CI runs a bare
+`ruff check .`. The blob merged at `8aaf7b63` is clean at longest line 95; the
+successor this seal ships is at exactly 100, the limit, because the two-file
+restore assertion added here is that long. Ruff passes either way. But the
+gap is real and it bit during development — an E501 was committed into this file
+after the explicit check had reported it, and fixed in `bb033a68` before merge.
+History, not a live defect in the sealed object.
+
+**Citation boundary:** where this seal refers to IV rounds and their verdicts,
+those reports are session artifacts and are **not in the repository or on the
+PRs**. Every measurement here is re-runnable and every git fact checkable; a
+verdict is not. The same limit applies to the F5, F6 and F7 seals.

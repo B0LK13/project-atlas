@@ -14214,3 +14214,122 @@ reproducible from a clean checkout rather than only from this prose.
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F8 — post-merge seal (2026-09-08)
+
+Integrated as PR #740. Merge commit `8aaf7b63`, second parent `bb033a68`, base
+`9972d164`. Merged **unrebased at the verified object** — `git diff bb033a68
+8aaf7b63` is empty and the merge trees (`src 8086e6f9`, `tests 00bbde18`,
+`docs 01fe760d`) are hash-identical to the certified object.
+
+**`src` is byte-identical to pre-merge `main`.** That is the seal's central
+fact: F8 changed no behaviour. It is a pin.
+
+**Measured on the merge object**, in an isolated worktree with its own venv,
+after proving both the parent process and a spawned child resolve
+`project_atlas` there:
+
+    F3 suite            45 passed
+    full suite          5,690 passed, 8 skipped, 4 xfailed
+    freeze guard        78 passed
+    ruff / mypy         clean, 405 files
+
+`ruff` was run twice: over the configured scope, and explicitly over
+`docs/scripts/f8_near_miss_controls.py`, because `docs/scripts` sits outside
+ruff's `include` and CI never lints it. That gap is real and is recorded as a
+residual below.
+
+**The controls reproduce on main**, via the committed tool rather than from
+prose:
+
+    control                                  base corpus (37)   pinned (45)
+    A  broadly whitespace-tolerant            1 caught           9 caught
+    B  break inside the token only            0 caught, 37 clean 6 caught
+    C  whitespace around the colons only      0 caught, 37 clean 2 caught
+
+Sources restored byte-identical after every mutation — both files, now that the
+tool asserts the test file too rather than only the source. One honest limit: on
+the happy path that second assertion is trivially true, because the loop's last
+iteration already writes the pinned corpus. It is load-bearing only when a run
+aborts mid-loop, which is what the `finally` exists for. Controlled: with the
+`finally` restore disabled and an abort injected during the base-corpus phase,
+the test file is left as the BASE corpus with F8's pins stripped from the working
+tree; with the restore in place, the tree comes back clean.
+
+**B and C at zero against the base corpus is the whole argument for this
+package** — two plausible
+relaxations of marker matching that `main`'s existing corpus does not detect at
+all — and it holds on the integrated result, not only on the branch.
+
+**Confirmed by independent fault models, with the provenance stated exactly.**
+Verification built a *matcher-relaxing* model -- patching the public
+`validate_protected_markers` in `protected_regions.py` to count via regex, leaving the document untouched
+-- where the committed tool canonicalises the input inside
+`merge_protected_regions`. Different mechanism, same cells, same failing test
+names.
+
+An earlier revision named `_validate_protected_markers` here. That is a real
+function but the wrong one -- it is the private copy in `graph_projections.py`,
+not the public `validate_protected_markers` in `protected_regions.py` that was
+actually patched. A reader reproducing the corroboration this seal rests on
+would have patched a different function in a different module.
+
+The credit needs bounding, and an earlier revision of this paragraph overstated
+it. The second instrument was **not** derived from prose: it reused the three
+regex patterns from the committed tool and changed only the mechanism. So this
+is one derivation tested two ways, which is real corroboration of the
+*implementation*, not two independent derivations of the *fault model*.
+
+The precision matters, and an earlier revision of this paragraph lacked it. The
+round that verified PR #740 measured the **pre-byte-test** object, whose figures
+are 41 baseline and 5/3/1; the **9/6/2** corroboration comes from this seal's
+own verification round, which built the second instrument and reproduced 1/0/0 and
+9/6/2. Placing the sentence under the 9/6/2 table without saying which round
+produced which figures attributed corroboration to numbers it predated. Both
+results are real; only the attribution was loose.
+
+**Findings corrected before merge, all in the claim record:**
+
+  - The receipt, WORKLOG and PR body said the four shapes "are the ones #716
+    raised". #716 raised exactly **one**; the residual register — quoted two
+    lines above the false sentence in the same receipt — attributes only
+    `<!-- atlas:generated:sta rt -->` to it. The other three are locally
+    derived. Raised independently by review and by verification, and it sat
+    inside the section whose job is bounding claims.
+  - The corpus assertion `body.strip() in merged` was weaker than the receipt's
+    "human bytes intact". Four byte-level tests now pin the stronger property.
+    A discriminating control proved them non-redundant: a mutation that keeps
+    the substring true but changes the bytes is caught by all four byte tests
+    and by **zero** corpus tests.
+  - **Adding those tests moved the control figures** from 5/3/1 to 9/6/2 and the
+    pinned baseline from 41 to 45 — a figure invalidated by this package's own
+    remediation, which is the defect that failed F6's round 8. Re-derived in all
+    four copies including the tool's own expected block.
+  - A stale WORKLOG numstat (`62 0`, actually `82 0`) survived in the PR body
+    after being re-derived in four places and missed in the fifth. The lesson,
+    recorded in the body: **a figure being derived once does not keep it
+    derived.**
+
+**Residual, recorded not fixed:** `docs/scripts/f8_near_miss_controls.py` is
+linted only by explicit invocation. `pyproject.toml` scopes ruff to `src/**` and
+`tests/**`, and CI runs a bare `ruff check .`, so CI cannot catch a defect in it.
+The blob merged at `8aaf7b63` is clean at longest line 95; the successor this
+seal ships is clean at exactly 100, the limit, because the two-file restore
+assertion added here is that long -- a figure moved by this very commit, which
+is why it now names which blob it describes. Ruff passes either way. The gap
+is real, and it bit during development: I committed an E501 into this file after
+the explicit check had reported the error, and it was fixed in `bb033a68` before
+merge. That is history, not a live defect in the sealed object.
+
+**A boundary on this seal's own citations.** Where it refers to IV rounds and
+their verdicts, those reports are **session artifacts and are not in the
+repository or on the PRs**. A reader can re-run the committed tool and the
+suites, and can verify the merge object and the ledger invariants from git; they
+cannot verify that a round returned a particular verdict. The same limit applies
+to the F5, F6 and F7 seals, and verification has flagged it on each. What is
+checkable is cited; what is not is named as such.
+
+**Not claimed:** that the near-miss corpus is complete, that all four shapes
+come from #716, or that the matcher is correct in general. Only that these four
+shapes are preserved, and that two specific plausible relaxations are now
+detected where they previously were not.

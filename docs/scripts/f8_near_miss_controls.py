@@ -107,11 +107,14 @@ def main(root: pathlib.Path, base_ref: str) -> int:
         src.write_bytes(src_orig)
         test.write_bytes(test_pinned)
 
+    # BOTH files, not just the source: the test file is restored in ``finally``
+    # but an earlier revision never asserted it, so "sources restored" (plural)
+    # claimed more than the exit code covered.
     restored = (
-        hashlib.sha256(src.read_bytes()).hexdigest()
-        == hashlib.sha256(src_orig).hexdigest()
+        hashlib.sha256(src.read_bytes()).hexdigest() == hashlib.sha256(src_orig).hexdigest()
+        and hashlib.sha256(test.read_bytes()).hexdigest() == hashlib.sha256(test_pinned).hexdigest()
     )
-    print(f"\n  sources restored byte-identical: {restored}")
+    print(f"\n  both sources restored byte-identical: {restored}")
     return 0 if restored else 1
 
 
