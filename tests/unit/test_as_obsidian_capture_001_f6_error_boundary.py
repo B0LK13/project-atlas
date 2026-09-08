@@ -3,8 +3,10 @@
 Both projection writers read the prior note in order to splice a fresh
 generated span into it. When that read fails -- the file is not valid UTF-8, or
 cannot be opened -- the raw ``UnicodeDecodeError`` or ``PermissionError``
-escaped the module's own error boundary, so the operator got a traceback
-instead of a message naming the note.
+escaped the module's own error boundary, so a caller catching
+``GraphProjectionError`` or ``ObsidianProjectionError`` did not catch these at
+all. (The two ``PermissionError`` cases already carried the path via
+``OSError.filename``; the escape is what was wrong in all four.)
 
 This is a *consistency* defect rather than a design question, because one writer
 in the same lane already does it correctly: ``obsidian_capture_note.write_note``
@@ -17,11 +19,15 @@ leaks**. That is not contradicted here -- its corpus was *valid UTF-8* with
 malformed markers, so invalid bytes and unreadable files were never in the
 space. The boundary had a hole the instrument could not reach.
 
-Truth boundary: this is availability and diagnostics, **not** data loss. The
-read happens while building the write plan, before ``_promote``, so a failure
-aborts before anything is written and the "failed promote leaves prior bytes
-intact" contract already held. F6 does not change what is written; it changes
-what the operator is told when nothing can be.
+Truth boundary: this is availability and diagnostics, **not** data loss. For
+``graph_projections`` the read happens while building the write plan, before
+``_promote``, so a failure aborts before anything is written and the "failed
+promote leaves prior bytes intact" contract already held. That is **not** true
+of ``obsidian_projection``, which calls ``_write_atomic`` inside its per-project
+loop: in a multi-project vault an earlier note that merged cleanly has already
+been rewritten when a later one fails. Pre-existing, proven on base, and
+disclosed in the evidence receipt. F6 does not change what is written; it
+changes what the operator is told when nothing can be.
 """
 
 from __future__ import annotations
@@ -287,4 +293,44 @@ def test_f6_graph_real_unreadable_file_raises_domain_error(graph_vault) -> None:
     finally:
         os.chmod(note, 0o644)
     assert "relationships.md" in str(caught.value)
+    assert isinstance(caught.value.__cause__, PermissionError)
+
+
+def test_f6_cleanup_failure_does_not_mask_the_domain_error(
+    projection_vault, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failing staging cleanup must not replace the error it is cleaning up after.
+
+    Found by independent verification: `_write_atomic`'s `finally` removed the
+    staging file unguarded, so if that unlink itself raised -- a concurrent
+    permission change on the directory, say -- its raw `OSError` propagated out
+    of the `finally` and **replaced** the `ObsidianProjectionError` raised just
+    above. The caller got a raw exception on the very path this guard exists to
+    cover, and the `.tmp` residue survived, contradicting the property
+    `test_f6_failed_write_leaves_no_tmp_residue` pins.
+
+    Cleanup is now best-effort. The residue in that case is a disclosed
+    residual rather than a silent one, which is the right trade: masking the
+    real error is strictly worse than leaving a file behind.
+    """
+    vault, note, project_id = projection_vault
+    real_replace = os.replace
+
+    def deny_replace(src, dst, *a, **k):  # type: ignore[no-untyped-def]
+        if str(dst).endswith(note.name):
+            raise PermissionError(5, "Access is denied", str(dst))
+        return real_replace(src, dst, *a, **k)
+
+    def deny_unlink(self: Path, *a, **k):  # type: ignore[no-untyped-def]
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr("project_atlas.obsidian_projection.os.replace", deny_replace)
+    monkeypatch.setattr(Path, "unlink", deny_unlink)
+
+    with pytest.raises(ObsidianProjectionError) as caught:
+        materialize_obsidian_projection(vault, project_id=project_id, refresh_brief=False)
+
+    assert "unwritable-note" in str(caught.value), (
+        "the cleanup failure masked the real error"
+    )
     assert isinstance(caught.value.__cause__, PermissionError)

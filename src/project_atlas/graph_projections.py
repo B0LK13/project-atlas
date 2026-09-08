@@ -647,9 +647,8 @@ def write_projection_outputs(
         except (OSError, UnicodeError) as exc:
             # Same boundary as above: the read happens while building `plan`,
             # before `_promote`, so nothing has been written yet -- but a raw
-            # exception here still escaped `GraphProjectionError` and gave the
-            # escaped `GraphProjectionError`, so a caller catching that did not
-            # catch this at all.
+            # exception here escaped `GraphProjectionError`, so a caller
+            # catching that did not catch this at all.
             raise GraphProjectionError(
                 f"unreadable-existing-note:{type(exc).__name__}:{relative}"
             ) from exc

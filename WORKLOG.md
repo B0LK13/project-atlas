@@ -13773,8 +13773,10 @@ nothing extra unless the merge is inside the `try`. Both changes are required
 before `malformed-generated-markers` is relabelled. The test is load-bearing;
 two successive receipts described the wrong mutation.
 
-Suites: F1-F5 + capture + graph projections + Obsidian + F6 = 275 passed,
-4 xfailed; full suite 5,654 passed, 8 skipped, 4 xfailed; freeze guard 78
+Suites (file set named, because an unenumerated figure is not checkable):
+test_as_obsidian_capture_001, _f3, _f5_newline_fidelity, _f6_error_boundary,
+test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
+test_as_coder_alpha_obsidian_001, _r1_001 = 276 passed, 4 xfailed; full suite 5,655 passed, 8 skipped, 4 xfailed; freeze guard 78
 (neither changed file is a certified surface); ruff and mypy clean (405 files).
 
 ### The first candidate FAILED verification, and why

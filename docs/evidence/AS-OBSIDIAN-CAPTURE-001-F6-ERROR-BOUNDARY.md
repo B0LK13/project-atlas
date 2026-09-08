@@ -91,7 +91,7 @@ existing `finally` still removes the staging file, and a test pins that no
 
 ## Evidence
 
-**Positive: 11 tests.** Both writers × both read-failure modes, plus the write
+**Positive: 12 tests.** Both writers × both read-failure modes, plus the write
 path, asserting the **exact domain type** rather than "raises something", that
 the message names the note, and that `__cause__` is the original exception.
 Plus two adversarial no-partial-write tests for the graph writer (a sibling
@@ -117,11 +117,12 @@ as root.
 
 | control | reverted | result |
 |---|---|---|
-| baseline | — | **11 passed** |
+| baseline | — | **12 passed** |
 | A | `graph_projections` read guard removed | **5 failed** |
 | B | `obsidian_projection` read guard removed | **2 failed** |
-| C | `obsidian_projection` write guard removed | **2 failed** |
-| D | read guard widened to enclose the merge | **1 failed** |
+| C | `obsidian_projection` write guard removed | **3 failed** |
+| D | read guard widened over the merge (body **and** clause) | **1 failed** |
+| E | the `finally` cleanup guard removed | **1 failed** |
 
 **Control D is the one that matters, and it took two attempts to describe
 correctly.** The first candidate recorded the mutation as "widen the clause to
@@ -135,8 +136,8 @@ Measured directly, at this head:
 
 | mutation | result |
 |---|---|
-| body widened over the merge, clause unchanged | **11 passed** |
-| clause widened to `except Exception`, body unchanged | **11 passed** |
+| body widened over the merge, clause unchanged | **12 passed** |
+| clause widened to `except Exception`, body unchanged | **12 passed** |
 | **body widened AND clause widened** | **1 failed** |
 
 The mechanism is the exception hierarchy: `ProtectedRegionError` and
@@ -152,7 +153,7 @@ one is not checkable — `test_as_obsidian_capture_001.py`, `_f3.py`,
 `_f5_newline_fidelity.py`, `_f6_error_boundary.py`,
 `test_as_graph_005_projections.py`, `_adversarial.py`,
 `_f4_canonical_semantics.py`, `test_as_coder_alpha_obsidian_001.py`,
-`_r1_001.py` = **275 passed, 4 xfailed**. Full suite **5,654 passed, 8 skipped, 4 xfailed**. Freeze guard 78
+`_r1_001.py` = **276 passed, 4 xfailed**. Full suite **5,655 passed, 8 skipped, 4 xfailed**. Freeze guard 78
 (neither changed file is a certified surface). `ruff check .` clean; `mypy src`
 clean (405 files).
 
@@ -168,6 +169,15 @@ clean (405 files).
   unguarded `_promote`: an ancestor directory replaced by a file, a read-only
   output directory, and a file becoming unreadable between the plan read and
   `_promote`'s own read. Pre-existing and outside this package's two read sites.
+- **A cleanup failure could mask the real error — found by verification, now
+  fixed.** `_write_atomic`'s `finally` removed the staging file unguarded, so a
+  failing `unlink` propagated *out of the finally* and **replaced** the
+  `ObsidianProjectionError` raised just above — handing the caller a raw
+  exception on the very path this guard covers, and leaving the `.tmp` residue
+  that `test_f6_failed_write_leaves_no_tmp_residue` pins as absent. Cleanup is
+  now best-effort, with control E pinning it. The residue in that narrow case
+  is now a *disclosed* residual rather than a silent one: masking the real error
+  is strictly worse than leaving a file behind.
 - **`_write_atomic`'s `mkdir` is outside the new guard.** `path.parent.mkdir(
   parents=True, exist_ok=True)` runs before the `try`, so an unwritable parent
   chain still escapes as a raw `PermissionError` — reproduced at this head and

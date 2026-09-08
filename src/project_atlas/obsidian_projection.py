@@ -54,7 +54,8 @@ def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
         # On Windows a note that "cannot be opened" surfaces HERE rather than
         # at the read: a read-only target still reads fine, and it is
         # ``os.replace`` that fails with WinError 5. Without this the raw
-        # OSError escapes and the operator gets a traceback naming a .tmp file
+        # OSError escapes `ObsidianProjectionError` entirely, so a caller
+        # catching that does not catch this at all
         # -- the same defect this module's read guard fixes, one step later.
         # Found by independent verification of the read-side fix against the
         # Windows CI job, which the Linux-only reproduction could not see.
@@ -62,8 +63,19 @@ def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
             f"unwritable-note:{type(exc).__name__}:{path}"
         ) from exc
     finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
+        # Best-effort: if the staging file cannot be removed -- a concurrent
+        # permission change on the directory, say -- that OSError would
+        # otherwise propagate *out of the finally* and REPLACE the
+        # ObsidianProjectionError raised just above, handing the caller a raw
+        # exception on the very path this guard exists to cover, and leaving
+        # the residue `test_f6_failed_write_leaves_no_tmp_residue` pins as
+        # absent. Cleanup failure must not mask the real error; the residue is
+        # then a disclosed residual rather than a silent one.
+        try:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _safe_project_id(project_id: str) -> str:
