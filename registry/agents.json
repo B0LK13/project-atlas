@@ -7,8 +7,15 @@
       "agent_id": "independent-verifier",
       "role": "independent verifier lane (formal IV)",
       "active": false,
-      "platforms": ["any"],
-      "capabilities": ["READ_REPO", "READ_GITHUB", "RUN_TESTS", "RUN_SNAPSHOT"],
+      "platforms": [
+        "any"
+      ],
+      "capabilities": [
+        "READ_REPO",
+        "READ_GITHUB",
+        "RUN_TESTS",
+        "RUN_SNAPSHOT"
+      ],
       "prohibitions": [
         "AUTO_MERGE",
         "HISTORY_REWRITE",
@@ -22,8 +29,13 @@
         "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
         "TRUST_PROSPECTIVE_MERGE_SHA"
       ],
-      "write_scopes": ["github:issue-comment:719"],
-      "event_permissions": ["IV_COMPLETED", "CLAIM_INTEGRITY_CHANGED"],
+      "write_scopes": [
+        "github:issue-comment:719"
+      ],
+      "event_permissions": [
+        "IV_COMPLETED",
+        "CLAIM_INTEGRITY_CHANGED"
+      ],
       "verification_class": "INDEPENDENT_VERIFIER",
       "principal": null,
       "metadata": {
@@ -34,7 +46,9 @@
       "agent_id": "obsidian-agent",
       "role": "Obsidian vault generation and OKF note stewardship",
       "active": false,
-      "platforms": ["linux"],
+      "platforms": [
+        "linux"
+      ],
       "capabilities": [
         "READ_REPO",
         "READ_GITHUB",
@@ -71,6 +85,11 @@
         "CI_COMPLETED",
         "NEW_FINDING",
         "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
         "CLAIM_INTEGRITY_CHANGED",
         "OWNER_CLAIMED",
         "OWNER_RELEASED",
@@ -91,7 +110,9 @@
       "agent_id": "runtime-specialist",
       "role": "runtime, orchestration, and process-lifecycle specialist",
       "active": false,
-      "platforms": ["linux"],
+      "platforms": [
+        "linux"
+      ],
       "capabilities": [
         "READ_REPO",
         "READ_GITHUB",
@@ -128,6 +149,11 @@
         "CI_COMPLETED",
         "NEW_FINDING",
         "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
         "CLAIM_INTEGRITY_CHANGED",
         "OWNER_CLAIMED",
         "OWNER_RELEASED",
@@ -148,7 +174,9 @@
       "agent_id": "tooling-specialist",
       "role": "developer tooling, CI, and repository infrastructure",
       "active": false,
-      "platforms": ["linux"],
+      "platforms": [
+        "linux"
+      ],
       "capabilities": [
         "READ_REPO",
         "READ_GITHUB",
@@ -186,6 +214,11 @@
         "CI_COMPLETED",
         "NEW_FINDING",
         "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
         "CLAIM_INTEGRITY_CHANGED",
         "OWNER_CLAIMED",
         "OWNER_RELEASED",
@@ -206,7 +239,9 @@
       "agent_id": "ubuntu-main",
       "role": "primary coordinator / implementation agent (Ubuntu main)",
       "active": true,
-      "platforms": ["linux"],
+      "platforms": [
+        "linux"
+      ],
       "capabilities": [
         "READ_REPO",
         "READ_GITHUB",
@@ -247,6 +282,11 @@
         "CI_COMPLETED",
         "NEW_FINDING",
         "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
         "CLAIM_INTEGRITY_CHANGED",
         "OWNER_CLAIMED",
         "OWNER_RELEASED",
@@ -268,7 +308,9 @@
       "agent_id": "windows-main",
       "role": "Windows-native validation and Windows-lane coordination",
       "active": false,
-      "platforms": ["windows"],
+      "platforms": [
+        "windows"
+      ],
       "capabilities": [
         "READ_REPO",
         "READ_GITHUB",
@@ -304,6 +346,11 @@
         "CI_COMPLETED",
         "NEW_FINDING",
         "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
         "CLAIM_INTEGRITY_CHANGED",
         "OWNER_CLAIMED",
         "OWNER_RELEASED",

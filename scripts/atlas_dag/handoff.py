@@ -50,6 +50,7 @@ from . import evidence as evidence_mod
 from . import evidence_graph as evidence_graph_mod
 from . import frontier_matrix as frontier_matrix_mod
 from . import model as model_mod
+from . import residuals as residuals_mod
 from . import score as score_mod
 from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
@@ -300,7 +301,8 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
                   prohibitions: list[str],
                   priority: dict | None = None,
                   steal_info: dict | None = None,
-                  matrix_info: dict | None = None) -> dict:
+                  matrix_info: dict | None = None,
+                  residual_info: dict | None = None) -> dict:
     """Mode-specific emphasis block. Presentation ONLY: every value here is
     derived from material truth already in the packet, never contradictory
     with it, and always excluded from the truth fingerprint."""
@@ -343,8 +345,75 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
             out["steal_candidate"] = steal_info
         if matrix_info is not None:
             out["multidim_frontier"] = matrix_info
+        if residual_info is not None:
+            out["residuals"] = residual_info
         return out
     return {"audience": "general"}
+
+
+def _resume_residuals(mode: str, snapshot: dict, stacks: dict,
+                      registry: Any, agent_id: str | None,
+                      client: Any, clock: Callable[[], str]) -> dict | None:
+    """FEATURE_13 residual summary for resume presentation."""
+    if mode != "resume":
+        return None
+    try:
+        if registry is None:
+            registry = agents_mod.load_registry()
+        elif not hasattr(registry, "status"):
+            registry = agents_mod.load_registry(registry)
+        issue = client.dag_issue() if client is not None else None
+        events = []
+        if issue is not None:
+            from . import events as events_mod
+            events = events_mod.ingest_comments(
+                client.issue_comments(issue["number"])).events
+        seal_by_pr: dict[int, dict] = {}
+        for node in sorted(snapshot.get("nodes") or [],
+                           key=lambda n: int(n["pr"])):
+            pr = int(node["pr"])
+            try:
+                if clock is None:
+                    seal_by_pr[pr] = seal_plan_mod.build_seal_plan(pr, client)
+                else:
+                    seal_by_pr[pr] = seal_plan_mod.build_seal_plan(
+                        pr, client, clock=clock)
+            except Exception:
+                continue
+        packet = residuals_mod.build_residual_registry(
+            repository=getattr(client, "repo", "UNKNOWN"),
+            events=events, snapshot=snapshot, stacks=stacks,
+            seal_by_pr=seal_by_pr, agent_id=agent_id, registry=registry,
+            clock=clock)
+        open_rows = [r for r in packet["residuals"] if r["disposition"] == "OPEN"]
+        runnable = [r for r in open_rows
+                    if r["derived_execution_state"] == residuals_mod.RUNNABLE]
+        blocked = [r for r in open_rows
+                   if r["derived_execution_state"] == residuals_mod.BLOCKED]
+        # Highest priority unresolved: sort by severity then id.
+        sev_rank = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+        top = sorted(
+            open_rows,
+            key=lambda r: (sev_rank.get(str(r.get("severity")), 9),
+                           r["residual_id"]))[:10]
+        return {
+            "open_count": packet["open_count"],
+            "runnable_count": len(runnable),
+            "blocked_count": len(blocked),
+            "highest_priority": [
+                {"residual_id": r["residual_id"], "severity": r.get("severity"),
+                 "type": r["residual_type"],
+                 "derived": r["derived_execution_state"]}
+                for r in top
+            ],
+            "blocked_gates": sorted({
+                reason for r in blocked
+                for reason in (r.get("blocking_reasons") or [])
+            })[:20],
+            "registry_fingerprint": packet["registry_fingerprint"],
+        }
+    except Exception:
+        return {"open_count": None, "reason": "RESIDUAL_REGISTRY_UNRESOLVABLE"}
 
 
 def _resume_matrix(mode: str, snapshot: dict, stacks: dict,
@@ -691,6 +760,7 @@ def build_handoff(
                 "FEATURE_10 frontier prioritization (presentation only)",
                 "FEATURE_11 safe work stealing (presentation only)",
                 "FEATURE_12 multidimensional frontier (presentation only)",
+                "FEATURE_13 residual registry (presentation only)",
             ],
         },
         "presentation": _presentation(
@@ -701,7 +771,9 @@ def build_handoff(
             steal_info=_resume_steal(
                 mode, snapshot, stacks, registry, agent_id, clock),
             matrix_info=_resume_matrix(
-                mode, snapshot, stacks, registry, agent_id, clock)),
+                mode, snapshot, stacks, registry, agent_id, clock),
+            residual_info=_resume_residuals(
+                mode, snapshot, stacks, registry, agent_id, client, clock)),
     }
 
     # TOCTOU guard: re-resolve the candidate HEAD from live truth before any
