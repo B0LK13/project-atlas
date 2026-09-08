@@ -55,6 +55,7 @@ from . import score as score_mod
 from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
 from . import steal as steal_mod
+from . import telemetry as telemetry_mod
 from . import verifiers as verifiers_mod
 
 SCHEMA_CONST = "ATLAS_HANDOFF_V1"
@@ -302,7 +303,8 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
                   priority: dict | None = None,
                   steal_info: dict | None = None,
                   matrix_info: dict | None = None,
-                  residual_info: dict | None = None) -> dict:
+                  residual_info: dict | None = None,
+                  telemetry_info: dict | None = None) -> dict:
     """Mode-specific emphasis block. Presentation ONLY: every value here is
     derived from material truth already in the packet, never contradictory
     with it, and always excluded from the truth fingerprint."""
@@ -347,8 +349,76 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
             out["multidim_frontier"] = matrix_info
         if residual_info is not None:
             out["residuals"] = residual_info
+        if telemetry_info is not None:
+            out["coordination_telemetry"] = telemetry_info
         return out
     return {"audience": "general"}
+
+
+def _resume_telemetry(mode: str, snapshot: dict, stacks: dict,
+                      registry: Any, agent_id: str | None,
+                      client: Any, clock: Callable[[], str]) -> dict | None:
+    """FEATURE_14 coordination telemetry summary for resume presentation."""
+    if mode != "resume":
+        return None
+    try:
+        if registry is None:
+            registry = agents_mod.load_registry()
+        elif not hasattr(registry, "status"):
+            registry = agents_mod.load_registry(registry)
+        issue = client.dag_issue() if client is not None else None
+        events: list[dict] = []
+        if issue is not None:
+            events = events_mod.ingest_comments(
+                client.issue_comments(issue["number"])).events
+        # Speed path: events+stacks only — no full seal scan.
+        residual_registry = residuals_mod.build_residual_registry(
+            repository=getattr(client, "repo", "UNKNOWN"),
+            events=events, snapshot=snapshot, stacks=stacks,
+            seal_by_pr=None, agent_id=agent_id, registry=registry,
+            clock=clock)
+        matrix = None
+        steal_plan = None
+        if agent_id is not None:
+            weights, source = score_mod.load_weights()
+            matrix = frontier_matrix_mod.build_frontier_matrix(
+                snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
+                weights=weights, weights_source=source,
+                residual_registry=residual_registry, events=events,
+                seal_by_pr=None, clock=clock)
+            steal_plan = steal_mod.plan_steal(
+                snapshot, agent_id, registry, stacks=stacks,
+                weights=weights, weights_source=source, clock=clock)
+        packet = telemetry_mod.build_coordination_telemetry(
+            repository=getattr(client, "repo", "UNKNOWN"),
+            snapshot=snapshot, stacks=stacks, events=events,
+            matrix=matrix, residual_registry=residual_registry,
+            steal_plan=steal_plan, agent_id=agent_id, registry=registry,
+            clock=clock, seal_projection="deferred_or_skipped")
+        cats = packet.get("categories") or {}
+        return {
+            "telemetry_fingerprint": packet.get("telemetry_fingerprint"),
+            "agent_status": packet.get("agent_status"),
+            "category_status": {
+                name: (cats.get(name) or {}).get("status")
+                for name in sorted(cats)
+            },
+            "summary_slice": {
+                "residual_open": ((cats.get("residual_backlog") or {})
+                                  .get("metrics") or {}).get("open_count"),
+                "utilization": ((cats.get("utilization") or {})
+                                .get("metrics") or {}).get("utilization"),
+                "ambiguous_count": ((cats.get("ownership_contention") or {})
+                                    .get("metrics") or {}).get("ambiguous_count"),
+                "event_count": ((cats.get("event_bus_health") or {})
+                                .get("metrics") or {}).get("event_count"),
+            },
+            "honesty": packet.get("honesty"),
+            "seal_projection": (packet.get("provenance") or {}).get(
+                "seal_projection"),
+        }
+    except Exception:
+        return {"telemetry_fingerprint": None, "reason": "TELEMETRY_UNRESOLVABLE"}
 
 
 def _resume_residuals(mode: str, snapshot: dict, stacks: dict,
@@ -761,6 +831,7 @@ def build_handoff(
                 "FEATURE_11 safe work stealing (presentation only)",
                 "FEATURE_12 multidimensional frontier (presentation only)",
                 "FEATURE_13 residual registry (presentation only)",
+                "FEATURE_14 coordination telemetry (presentation only)",
             ],
         },
         "presentation": _presentation(
@@ -773,6 +844,8 @@ def build_handoff(
             matrix_info=_resume_matrix(
                 mode, snapshot, stacks, registry, agent_id, clock),
             residual_info=_resume_residuals(
+                mode, snapshot, stacks, registry, agent_id, client, clock),
+            telemetry_info=_resume_telemetry(
                 mode, snapshot, stacks, registry, agent_id, client, clock)),
     }
 
