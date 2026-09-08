@@ -1,4 +1,13 @@
-"""AT3-103 negative controls: each mutation must fail a distinct, named test set; source restored byte-identical."""
+"""AT3-103 negative controls.
+
+Each mutation must fail at least one of the four AT3-103 suites; the source is
+restored byte-identical (sha256-asserted) after every control. The failing test
+names are recorded per control and the `pairwise_distinct` flag is REPORTED,
+not asserted: several CLI-reader controls legitimately fail the same single
+bundled CLI guard test (see docs/evidence/AT3-103-EXECUTION-IDENTITY-PROOF-V2.md).
+Run from the repository root with the project venv:
+    python docs/scripts/at3_103_negative_controls.py
+"""
 import hashlib, json, subprocess, sys, tempfile
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]

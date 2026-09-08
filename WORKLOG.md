@@ -14132,3 +14132,56 @@ control that passes is not evidence; it is usually a broken control.
 **Not claimed:** that Windows runtime behaviour was observed directly. It is
 evidenced only by the green Windows CI job at the exact head; the tests inject
 the failure, which is why they pass on Linux.
+
+## AT3-103 — execution identity + evidence attestation + proof v2 foundation (2026-09-09)
+
+Ultimate Atlas planning alias ULT-01a, authorized by
+`D-PROJECT-ATLAS-ULTIMATE-KNOWLEDGE-DEVELOPMENT-CONVERGENCE-001` after the
+owner accepted the ULT-00 reconciliation (PR #742, docs only, separate).
+Remediated under `D-ATLAS-ULT-01A-AT3-103-ADV-REMEDIATION-001`. PR #743.
+Base (merge-base) `9972d164` / tree `2067f125`; unrebased while `origin/main`
+moved to `8aaf7b63` (docs-only #740).
+
+**Plan.** One shared canonical-JSON/SHA-256 helper; `atlas.execution-identity.v1`
+(Git/software profile, `OBSERVED | UNKNOWN` blocks, self-verifying digest);
+`atlas.evidence-attestation.v1` (typed, content-addressed, `model` producer
+refused, IV/ADV independence declared-only); additive `evaluate_proof_v2`
+binding every attestation to one exact HEAD/TREE and failing closed before any
+write; `atlas proof --identity/--attestations`. Proof v1 byte-identical.
+Contract only: no git/environment/tool observation wired (that is the next
+package, planning alias ULT-01b, not started).
+
+**Three verified objects, one certified.** Round 1 `5b33e039`: IV
+PASS_WITH_NONBLOCKING_FINDINGS, ADV PASS_WITH_FINDINGS, P2 = 5 classes
+(instances trusted without re-validation; secret scan on escaped text; weak
+task-id check naming a directory; RecursionError outside the envelope; guards
+without falsifying tests) — superseded. Round 2 `dcb3041c`: both verifiers
+converged on one new P2 introduced by the remediation itself (locator symlink
+guard ran after `resolve()`; a planted symlink could redirect a report) —
+superseded. Round 3 `58a473e7` / tree `ab682de1`: IV and ADV both
+**P0 = P1 = P2 = 0**; the `lstat` walk on the unresolved path could not be
+defeated with symlinks at any level, chains, hardlinks, FIFOs or file-typed
+task dirs. Every round's predecessor evidence is retained and none transfers.
+
+**Commands (at `58a473e7`, own worktree venv, junit counts).** ruff clean;
+mypy 408 files clean; targeted 223 passed; affected 171 passed; full suite
+5917 collected / 5905 passed / 8 skipped / 4 xfailed / 0 failed / 0 serializer
+warnings. `docs/scripts/at3_103_negative_controls.py`: 28 controls, each kills
+>= 1 test (24 distinct failing sets; five CLI-reader controls share the one
+bundled CLI guard test — reported, not asserted). ADV round-3 harness: 88
+mutants, 82 killed, 6 survivors all test gaps for guards that hold on probe.
+v1: 3 + 8 golden digests regenerated from `git show 9972d164:...proof.py`,
+plus the ADV's 90/90 byte-identical matrix. Exact-head CI run 34281801544: all four jobs success (ubuntu 3.12 full `5913 passed, 8 skipped, 4 xfailed`; ubuntu 3.13 compat same; Windows `5857 passed, 61 skipped, 3 deselected, 4 xfailed`; control-plane).
+
+**This entry's commit is docs-only**; `src` (`f6fa53af`) and `tests`
+(`3ff79b23`) are hash-identical to the certified object, so certification
+transfers by hash. Receipt:
+`docs/evidence/AT3-103-EXECUTION-IDENTITY-PROOF-V2.md` (residual register of
+thirteen items incl. TOCTOU, Windows junctions, six test gaps, a dead
+constant; eight failure-pattern candidates).
+
+**Not claimed:** live observation; IV/ADV attestation ingestion; proof DAG;
+SLSA; Windows execution beyond CI's test run; protection against a writer
+already inside the vault; principal verification of independence; ULT-01b
+readiness beyond the owner's gate. `MERGE_AUTHORIZATION = NOT_GRANTED`;
+`AT3-052` `adv_result=PASS` is not self-bound by the implementer.

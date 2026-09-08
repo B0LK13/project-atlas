@@ -1,0 +1,293 @@
+{
+ "object": {
+  "head": "58a473e75aa3fc00ac0ba8bd6aeb4e246532f318",
+  "tree": "ab682de1bc42e25c1e40b3a55b6567bfe89c6b7d",
+  "note": "run on the working tree that became 58a473e7 (src/tests byte-identical); re-run by IV and ADV round 3 on the committed object with identical results"
+ },
+ "script": "docs/scripts/at3_103_negative_controls.py",
+ "results": {
+  "baseline": {
+   "tests": 223,
+   "failures": 0
+  },
+  "NC-A object==candidate check removed": {
+   "tests": 223,
+   "failures": 2,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_attestation_for_another_object_is_refused",
+    "tests.unit.test_atlas3_proof_v2_103::test_mixed_object_chain_is_refused_even_when_all_stages_present"
+   ]
+  },
+  "NC-B content_hash recomputation skipped": {
+   "tests": 223,
+   "failures": 9,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[TESTS-over0-codes0]",
+    "tests.unit.test_atlas3_proof_v2_103::test_seal_mode_draft_attestation_instance_is_refused",
+    "tests.unit.test_atlas3_proof_v2_103::test_seal_mode_draft_instance_cannot_carry_placeholder_digest",
+    "tests.unit.test_atlas3_proof_v2_103::test_tampered_attestation_is_refused",
+    "tests.unit.test_atlas_contracts_attestation_103::test_tampering_after_seal_is_detected[path0-FAIL]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_tampering_after_seal_is_detected[path1-cccccccccccccccccccccccccccccccccccccccc]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_tampering_after_seal_is_detected[path2-other]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_tampering_after_seal_is_detected[path3-4444444444444444444444444444444444444444444444444444444444444444]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_tampering_after_seal_is_detected[path4-CI]"
+   ]
+  },
+  "NC-C model/agent producer denylist dropped": {
+   "tests": 223,
+   "failures": 3,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[TESTS-over1-codes1]",
+    "tests.unit.test_atlas3_proof_v2_103::test_model_producer_attestation_is_refused",
+    "tests.unit.test_atlas_contracts_attestation_103::test_model_producer_is_never_evidence"
+   ]
+  },
+  "NC-D ensure_ascii=False in canonical helper": {
+   "tests": 223,
+   "failures": 2,
+   "failing": [
+    "tests.unit.test_atlas_contracts_canonical_103::test_ascii_digest_differs_from_the_ensure_ascii_false_fork",
+    "tests.unit.test_atlas_contracts_canonical_103::test_non_ascii_is_escaped_so_bytes_are_platform_stable"
+   ]
+  },
+  "NC-E report written before validation": {
+   "tests": 223,
+   "failures": 7,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_containment_recheck_is_load_bearing",
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[ADV-over3-codes3]",
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[INDEPENDENT_VERIFICATION-over2-codes2]",
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[TESTS-over0-codes0]",
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[TESTS-over1-codes1]",
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[TESTS-over4-codes4]",
+    "tests.unit.test_atlas3_proof_v2_103::test_seal_mode_draft_attestation_instance_is_refused"
+   ]
+  },
+  "NC-F attestation secret scan dropped (ADV M05)": {
+   "tests": 223,
+   "failures": 12,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_benign_values_are_not_falsely_refused_and_secret_names_are_not_echoed",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_attestation_content_is_refused_even_when_whitespace_adjacent",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[curl -H 'Authorization: Bearer AKIAIOSFODNN7EXAMPLE']",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[curl -H 'Authorization: Bearer\\nAKIAIOSFODNN7EXAMPLE']",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[curl -H 'Authorization: Bearer\\tAKIAIOSFODNN7EXAMPLE']",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[password = AKIAIOSFODNN7EXAMPLE]",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[password\\t=\\tAKIAIOSFODNN7EXAMPLE]",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[run --api_key = AKIAIOSFODNN7EXAMPLE]",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[run --api_key=AKIAIOSFODNN7EXAMPLE]",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[run api_key=\"AKIAIOSFODNN7EXAMPLE\"]",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[run api_key='AKIAIOSFODNN7EXAMPLE']",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[run api_key=\\nAKIAIOSFODNN7EXAMPLE]"
+   ]
+  },
+  "NC-G PRESENT without PASS (ADV M09)": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_unknown_status_attestation_alone_is_not_present"
+   ]
+  },
+  "NC-H attestation_id derivation unchecked (ADV M22)": {
+   "tests": 223,
+   "failures": 2,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_tampered_attestation_id_is_refused",
+    "tests.unit.test_atlas_contracts_attestation_103::test_summary_values_must_be_counts"
+   ]
+  },
+  "NC-I symlink accepted (ADV M38)": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_cli_refuses_symlink_oversize_and_nested_inputs"
+   ]
+  },
+  "NC-J size cap dropped (ADV M39)": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_cli_refuses_symlink_oversize_and_nested_inputs"
+   ]
+  },
+  "NC-K instance trusted without re-validation (ADV M42)": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_seal_mode_draft_instance_cannot_carry_placeholder_digest"
+   ]
+  },
+  "NC-L task id guard weakened to v1 check": {
+   "tests": 223,
+   "failures": 4,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[CON]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[PRN]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[con.txt]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[x.]"
+   ]
+  },
+  "NC-M RecursionError not wrapped": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_cli_refuses_symlink_oversize_and_nested_inputs"
+   ]
+  },
+  "NC-N locator collision check dropped": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_locator_collision_with_a_different_digest_fails_closed"
+   ]
+  },
+  "NC-O duplicate JSON keys accepted": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_cli_refuses_symlink_oversize_and_nested_inputs"
+   ]
+  },
+  "NC-P summary positive vocabulary dropped": {
+   "tests": 223,
+   "failures": 17,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_attestation_with_authority_summary_is_refused",
+    "tests.unit.test_atlas3_proof_v2_103::test_model_construct_instances_are_revalidated_and_refused[TESTS-over4-codes4]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_authority_shaped_summary_keys_are_refused[summary0]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_authority_shaped_summary_keys_are_refused[summary1]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_authority_shaped_summary_keys_are_refused[summary2]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_authority_shaped_summary_keys_are_refused[summary3]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_authority_shaped_summary_keys_are_refused[summary4]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary0]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary1]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary2]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary3]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary4]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary5]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary6]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary7]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_lookalike_and_non_identifier_summary_keys_are_refused[summary8]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_summary_vocabulary_is_positive_and_bounded"
+   ]
+  },
+  "NC-Q task-id secret scan dropped": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_attestation_content_is_refused_even_when_whitespace_adjacent"
+   ]
+  },
+  "NC-R raw-value secret scan dropped (canonical text only)": {
+   "tests": 223,
+   "failures": 5,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_attestation_content_is_refused_even_when_whitespace_adjacent",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[curl -H 'Authorization: Bearer\\nAKIAIOSFODNN7EXAMPLE']",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[curl -H 'Authorization: Bearer\\tAKIAIOSFODNN7EXAMPLE']",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[password\\t=\\tAKIAIOSFODNN7EXAMPLE]",
+    "tests.unit.test_atlas3_proof_v2_103::test_secret_shaped_command_refs_are_refused_in_every_adjacency_form[run api_key=\\nAKIAIOSFODNN7EXAMPLE]"
+   ]
+  },
+  "NC-S v2 namespace collapsed onto v1": {
+   "tests": 223,
+   "failures": 8,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_accepted_task_ids_are_a_bounded_ascii_identifier",
+    "tests.unit.test_atlas3_proof_v2_103::test_full_typed_chain_on_one_object_is_proven",
+    "tests.unit.test_atlas3_proof_v2_103::test_locator_collision_with_a_different_digest_fails_closed",
+    "tests.unit.test_atlas3_proof_v2_103::test_report_does_not_persist_free_form_input_values",
+    "tests.unit.test_atlas3_proof_v2_103::test_symlinked_locator_task_dir_or_namespace_is_refused_not_followed",
+    "tests.unit.test_atlas3_proof_v2_103::test_symlinked_v2_namespace_pointing_outside_the_vault_is_refused",
+    "tests.unit.test_atlas3_proof_v2_103::test_v1_and_v2_namespaces_do_not_collide",
+    "tests.unit.test_atlas3_proof_v2_103::test_v2_writes_per_object_and_never_overwrites_another_object"
+   ]
+  },
+  "NC-T strict summary ints relaxed": {
+   "tests": 223,
+   "failures": 3,
+   "failing": [
+    "tests.unit.test_atlas_contracts_attestation_103::test_digest_bound_scalars_are_strict_not_coerced[summary-value2]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_digest_bound_scalars_are_strict_not_coerced[summary-value3]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_digest_bound_scalars_are_strict_not_coerced[summary-value4]"
+   ]
+  },
+  "NC-U symlink component walk dropped": {
+   "tests": 223,
+   "failures": 2,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_symlinked_locator_task_dir_or_namespace_is_refused_not_followed",
+    "tests.unit.test_atlas3_proof_v2_103::test_symlinked_v2_namespace_pointing_outside_the_vault_is_refused"
+   ]
+  },
+  "NC-V resolved containment re-check dropped": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_containment_recheck_is_load_bearing"
+   ]
+  },
+  "NC-W attestations sequence check dropped": {
+   "tests": 223,
+   "failures": 5,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_attestations_must_be_a_sequence[3]",
+    "tests.unit.test_atlas3_proof_v2_103::test_attestations_must_be_a_sequence[None]",
+    "tests.unit.test_atlas3_proof_v2_103::test_attestations_must_be_a_sequence[attestations3]",
+    "tests.unit.test_atlas3_proof_v2_103::test_attestations_must_be_a_sequence[x0]",
+    "tests.unit.test_atlas3_proof_v2_103::test_attestations_must_be_a_sequence[x1]"
+   ]
+  },
+  "NC-X --evidence empty string conflict dropped": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_cli_refuses_symlink_oversize_and_nested_inputs"
+   ]
+  },
+  "NC-Y task-id identifier pattern dropped": {
+   "tests": 223,
+   "failures": 13,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[ x]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[-x]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[.hidden]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[\\u202eabc]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[\\xe9]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[a b]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[a\"b]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[a*b]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[a<b]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[a?b]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[a\\x7fb]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[a|b]",
+    "tests.unit.test_atlas3_proof_v2_103::test_unsafe_task_ids_are_refused_before_any_write[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]"
+   ]
+  },
+  "NC-Z schema_version strictness relaxed (attestation)": {
+   "tests": 223,
+   "failures": 3,
+   "failing": [
+    "tests.unit.test_atlas_contracts_attestation_103::test_schema_version_is_strictly_the_integer_one[1.0]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_schema_version_is_strictly_the_integer_one[1]",
+    "tests.unit.test_atlas_contracts_attestation_103::test_schema_version_is_strictly_the_integer_one[True]"
+   ]
+  },
+  "NC-AA summary count upper bound dropped": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas_contracts_attestation_103::test_summary_values_must_be_counts"
+   ]
+  },
+  "NC-AB task-dir-is-file check dropped": {
+   "tests": 223,
+   "failures": 1,
+   "failing": [
+    "tests.unit.test_atlas3_proof_v2_103::test_symlinked_locator_task_dir_or_namespace_is_refused_not_followed"
+   ]
+  },
+  "pairwise_distinct": false,
+  "each_nonempty": true
+ }
+}
