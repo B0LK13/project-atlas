@@ -14214,3 +14214,80 @@ reproducible from a clean checkout rather than only from this prose.
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F8 — post-merge seal (2026-09-08)
+
+Integrated as PR #740. Merge commit `8aaf7b63`, second parent `bb033a68`, base
+`9972d164`. Merged **unrebased at the verified object** — `git diff bb033a68
+8aaf7b63` is empty and the merge trees (`src 8086e6f9`, `tests 00bbde18`,
+`docs 01fe760d`) are hash-identical to the certified object.
+
+**`src` is byte-identical to pre-merge `main`.** That is the seal's central
+fact: F8 changed no behaviour. It is a pin.
+
+**Measured on the merge object**, in an isolated worktree with its own venv,
+after proving both the parent process and a spawned child resolve
+`project_atlas` there:
+
+    F3 suite            45 passed
+    full suite          5,690 passed, 8 skipped, 4 xfailed
+    freeze guard        78 passed
+    ruff / mypy         clean, 405 files
+
+`ruff` was run twice: over the configured scope, and explicitly over
+`docs/scripts/f8_near_miss_controls.py`, because `docs/scripts` sits outside
+ruff's `include` and CI never lints it. That gap is real and is recorded as a
+residual below.
+
+**The controls reproduce on main**, via the committed tool rather than from
+prose:
+
+    control                                  base corpus (37)   pinned (45)
+    A  broadly whitespace-tolerant            1 caught           9 caught
+    B  break inside the token only            0 caught, 37 clean 6 caught
+    C  whitespace around the colons only      0 caught, 37 clean 2 caught
+
+Sources restored byte-identical after every mutation. **B and C at zero against
+the base corpus is the whole argument for this package** — two plausible
+relaxations of marker matching that `main`'s existing corpus does not detect at
+all — and it holds on the integrated result, not only on the branch.
+
+**Confirmed by two independent fault models.** Verification reconstructed all
+three controls from the receipt's prose using a *matcher-relaxing* model, where
+the committed tool canonicalises the input document inside
+`merge_protected_regions`. Different mechanism, same six cells, same failing
+test names. That is stronger evidence than a single instrument agreeing with
+itself.
+
+**Findings corrected before merge, all in the claim record:**
+
+  - The receipt, WORKLOG and PR body said the four shapes "are the ones #716
+    raised". #716 raised exactly **one**; the residual register — quoted two
+    lines above the false sentence in the same receipt — attributes only
+    `<!-- atlas:generated:sta rt -->` to it. The other three are locally
+    derived. Raised independently by review and by verification, and it sat
+    inside the section whose job is bounding claims.
+  - The corpus assertion `body.strip() in merged` was weaker than the receipt's
+    "human bytes intact". Four byte-level tests now pin the stronger property.
+    A discriminating control proved them non-redundant: a mutation that keeps
+    the substring true but changes the bytes is caught by all four byte tests
+    and by **zero** corpus tests.
+  - **Adding those tests moved the control figures** from 5/3/1 to 9/6/2 and the
+    pinned baseline from 41 to 45 — a figure invalidated by this package's own
+    remediation, which is the defect that failed F6's round 8. Re-derived in all
+    four copies including the tool's own expected block.
+  - A stale WORKLOG numstat (`62 0`, actually `82 0`) survived in the PR body
+    after being re-derived in four places and missed in the fifth. The lesson,
+    recorded in the body: **a figure being derived once does not keep it
+    derived.**
+
+**Residual, recorded not fixed:** `docs/scripts/f8_near_miss_controls.py` is
+linted only by explicit invocation. `pyproject.toml` scopes ruff to
+`src/**` and `tests/**`, so CI cannot catch a defect in it — and I committed an
+E501 into it after seeing the explicit check report the error, which is exactly
+how that gap bites.
+
+**Not claimed:** that the near-miss corpus is complete, that all four shapes
+come from #716, or that the matcher is correct in general. Only that these four
+shapes are preserved, and that two specific plausible relaxations are now
+detected where they previously were not.
