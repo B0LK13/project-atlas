@@ -14247,17 +14247,33 @@ prose:
     B  break inside the token only            0 caught, 37 clean 6 caught
     C  whitespace around the colons only      0 caught, 37 clean 2 caught
 
-Sources restored byte-identical after every mutation. **B and C at zero against
-the base corpus is the whole argument for this package** — two plausible
+Sources restored byte-identical after every mutation — both files, now that the
+tool asserts the test file too rather than only the source. One honest limit: on
+the happy path that second assertion is trivially true, because the loop's last
+iteration already writes the pinned corpus. It is load-bearing only when a run
+aborts mid-loop, which is what the `finally` exists for. Controlled: with the
+`finally` restore disabled and an abort injected during the base-corpus phase,
+the test file is left as the BASE corpus with F8's pins stripped from the working
+tree; with the restore in place, the tree comes back clean.
+
+**B and C at zero against the base corpus is the whole argument for this
+package** — two plausible
 relaxations of marker matching that `main`'s existing corpus does not detect at
 all — and it holds on the integrated result, not only on the branch.
 
-**Confirmed by two independent fault models.** Verification reconstructed all
-three controls from the receipt's prose using a *matcher-relaxing* model, where
-the committed tool canonicalises the input document inside
-`merge_protected_regions`. Different mechanism, same six cells, same failing
-test names. That is stronger evidence than a single instrument agreeing with
-itself.
+**Confirmed by independent fault models, with the provenance stated exactly.**
+Two verifiers reconstructed the three controls from the receipt's prose using a
+*matcher-relaxing* model, where the committed tool canonicalises the input
+document inside `merge_protected_regions` — a different mechanism reaching the
+same cells and the same failing test names.
+
+The precision matters, and an earlier revision of this paragraph lacked it. The
+round that verified PR #740 measured the **pre-byte-test** object, whose figures
+are 41 baseline and 5/3/1; the **9/6/2** corroboration comes from this seal's
+own verification round, which built a third instrument and reproduced 1/0/0 and
+9/6/2. Placing the sentence under the 9/6/2 table without saying which round
+produced which figures attributed corroboration to numbers it predated. Both
+results are real; only the attribution was loose.
 
 **Findings corrected before merge, all in the claim record:**
 
@@ -14282,10 +14298,20 @@ itself.
     derived.**
 
 **Residual, recorded not fixed:** `docs/scripts/f8_near_miss_controls.py` is
-linted only by explicit invocation. `pyproject.toml` scopes ruff to
-`src/**` and `tests/**`, so CI cannot catch a defect in it — and I committed an
-E501 into it after seeing the explicit check report the error, which is exactly
-how that gap bites.
+linted only by explicit invocation. `pyproject.toml` scopes ruff to `src/**` and
+`tests/**`, and CI runs a bare `ruff check .`, so CI cannot catch a defect in it.
+The sealed blob is clean — longest line 95 against a limit of 100 — but the gap
+is real, and it bit during development: I committed an E501 into this file after
+the explicit check had reported the error, and it was fixed in `bb033a68` before
+merge. That is history, not a live defect in the sealed object.
+
+**A boundary on this seal's own citations.** Where it refers to IV rounds and
+their verdicts, those reports are **session artifacts and are not in the
+repository or on the PRs**. A reader can re-run the committed tool and the
+suites, and can verify the merge object and the ledger invariants from git; they
+cannot verify that a round returned a particular verdict. The same limit applies
+to the F5, F6 and F7 seals, and verification has flagged it on each. What is
+checkable is cited; what is not is named as such.
 
 **Not claimed:** that the near-miss corpus is complete, that all four shapes
 come from #716, or that the matcher is correct in general. Only that these four

@@ -134,12 +134,23 @@ The controls reproduce **on main**, run from the committed tool:
     B  break inside the token only        0 caught, 37 clean   6 caught
     C  whitespace around the colons       0 caught, 37 clean   2 caught
 
-Sources restored byte-identical. B and C at zero against the base corpus is the
-whole argument for this package, and it holds on the integrated result.
+Both sources restored byte-identical — the tool now asserts the test file too,
+not only the source. Honest limit: on the happy path that assertion is trivially
+true, since the last loop iteration already writes the pinned corpus; it is
+load-bearing only on a mid-loop abort, which is what the `finally` exists for.
+Controlled: with that restore disabled and an abort injected, the test file is
+left as the base corpus with F8's pins stripped from the tree.
 
-Verification reconstructed all three controls independently, using a
-matcher-relaxing model where this tool canonicalises the input document, and
-obtained the same six cells — two fault models, one result.
+B and C at zero against the base corpus is the whole argument for this package,
+and it holds on the integrated result.
+
+Verification reconstructed the controls independently, using a matcher-relaxing
+model where this tool canonicalises the input document, and obtained the same
+cells. Provenance stated exactly, because an earlier revision was loose about
+it: the round that verified PR #740 measured the pre-byte-test object (41
+baseline, 5/3/1), and the **9/6/2** corroboration comes from this seal's own
+verification round, which built a third instrument and reproduced 1/0/0 and
+9/6/2. Both results are real; only the attribution was imprecise.
 
 **Three findings, all in the claim record, all corrected before merge:** the
 false #716 provenance for three of four shapes; a corpus assertion too weak for
@@ -150,6 +161,13 @@ zero corpus tests); and the control figures those tests moved (5/3/1 → 9/6/2),
 re-derived everywhere rather than carried.
 
 **Residual:** this tool is linted only by explicit invocation, since
-`docs/scripts` sits outside ruff's configured `include`. An E501 was committed
-into it after the explicit check reported the error, which is precisely how that
-gap bites.
+`docs/scripts` sits outside ruff's configured `include` and CI runs a bare
+`ruff check .`. The sealed blob is clean (longest line 95, limit 100), but the
+gap is real and it bit during development — an E501 was committed into this file
+after the explicit check had reported it, and fixed in `bb033a68` before merge.
+History, not a live defect in the sealed object.
+
+**Citation boundary:** where this seal refers to IV rounds and their verdicts,
+those reports are session artifacts and are **not in the repository or on the
+PRs**. Every measurement here is re-runnable and every git fact checkable; a
+verdict is not. The same limit applies to the F5, F6 and F7 seals.
