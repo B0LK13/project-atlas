@@ -200,7 +200,10 @@ site is protected only by another's coverage.
 
 The **8** tests surviving control A are the ones that must, enumerated rather
 than counted: the four `read_text`-is-the-defect controls; the LF-only guard;
-the two ownership tests (reverting the helper restores the translating read,
+both parametrisations of
+`test_f5_note_ownership_survives_non_lf_frontmatter` (named, because the file
+holds a third ownership test -- `test_f5_ownership_probe_does_not_rewrite_human_bytes`
+-- which correctly FAILS under this control; reverting the helper restores the translating read,
 which masks the ownership issue by construction); and identity hashing.
 
 A further control pins that `Path.read_text` still translates. If it ever stops
@@ -213,7 +216,12 @@ figure was previously unreproducible as stated:
 `test_as_graph_005_projections.py`, `test_as_graph_005_adversarial.py`,
 `test_as_graph_005_f4_canonical_semantics.py`,
 `test_as_coder_alpha_obsidian_001.py`, `test_as_coder_alpha_obsidian_r1_001.py`
-and this package's own file — **264 passed, 4 xfailed**. The certified-surface freeze guard
+and this package's own file — **264 passed, 4 xfailed**.
+
+**Full suite: 5,643 passed, 8 skipped, 4 xfailed, `EXIT=0`** — recorded here
+because it is the strongest single gate and was previously only in the PR body.
+The seven F1–F4 files are byte-identical to base, so 237/237 there is a clean
+no-regression result against the sealed baseline. The certified-surface freeze guard
 (`test_atlas3_demo_isolation_001`, 78 tests) passes, confirming this candidate
 touches no frozen surface. `ruff check .` clean; `mypy src` clean (405 files).
 

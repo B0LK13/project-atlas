@@ -13479,6 +13479,10 @@ Driven through the real entry points, comparing bytes on disk:
     3  graph_projections.py:644       write_projection_outputs()         CR 2 -> 0
     4  ingestion.py:99                _generated_content()               CR 2 -> 0  [owner-gated]
 
+CR counts are per-fixture: 2 for the two-line HUMAN body used here, 3 for the
+whole-note CRLF fixture an independent verifier used. Same direction, different
+probe -- noted because the two figures otherwise read as contradictory.
+
 Entry point 3 is the sharpest: its own docstring claims "Preserves HUMAN
 protected regions byte-for-byte (AT-011 fail-closed)". Entry point 4 does not
 route through `protected_regions` at all, which is why a search for
@@ -13543,7 +13547,8 @@ that `content_hash("a\r\nb\r\n") == content_hash("a\nb\n")` still holds.
 
 ### Evidence
 
-28 tests asserting **bytes and digests**, never substring presence: four
+27 tests (31 collected, including the 4 strict-xfail tripwires) asserting
+**bytes and digests**, never substring presence: four
 line-ending shapes across four entry points, plus repeat-refresh erosion,
 an LF-only regression guard that also asserts no endings are *invented*, and a
 check that the generated span still refreshes beside preserved CRLF content so
@@ -13561,7 +13566,10 @@ Negative controls, each load-bearing and per-site:
 Each fails a distinct, appropriate set (verified by test name), so no site is
 covered only by another site's test. The EIGHT surviving control A are the ones
 that must, enumerated rather than counted: the four `read_text`-is-the-defect
-controls; the LF-only guard; the two ownership tests (reverting the helper
+controls; the LF-only guard; both parametrisations of
+`test_f5_note_ownership_survives_non_lf_frontmatter` (named, because the file
+holds a third ownership test -- `test_f5_ownership_probe_does_not_rewrite_human_bytes`
+-- which correctly FAILS under this control; reverting the helper
 restores the translating read, which masks the ownership issue by
 construction); and identity hashing. The 4 xfails are the gated `ingestion.py`
 reproductions and stay strict.
@@ -13571,15 +13579,15 @@ strengthened. An earlier revision carried round-1 numbers (24/17/5/4/4) that no
 longer reproduced -- the same stale-evidence defect this lane exists to catch,
 found by verification round 2.
 
-(The pre-split candidate, which also fixed `ingestion.py`, measured 28 passed
-and 21/4/5/4/4 under the same controls. Recorded so the earlier figures are
-explained rather than merely superseded.)
-
 Suites (file set enumerated, because the figure was previously not
 reproducible as stated): test_as_obsidian_capture_001, _f3,
 test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
 test_as_coder_alpha_obsidian_001, _r1_001, and this package's own file =
-264 passed, 4 xfailed. The freeze guard `test_atlas3_demo_isolation_001` passes (78 tests),
+264 passed, 4 xfailed. Full suite: 5,643 passed, 8 skipped, 4 xfailed,
+EXIT=0 -- recorded here because it is the strongest single gate and was
+previously only in the PR body. The seven F1-F4 files are byte-identical to
+base, so 237/237 there is a clean no-regression result against the sealed
+baseline. The freeze guard `test_atlas3_demo_isolation_001` passes (78 tests),
 confirming this candidate touches no certified surface. `ruff check .` clean;
 `mypy src` clean (405 files).
 
