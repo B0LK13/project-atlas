@@ -12,6 +12,7 @@ from . import emitter as emitter_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
 from . import evidence_graph as evidence_graph_mod
+from . import handoff as handoff_mod
 from . import receipts as receipts_mod
 from . import router as router_mod
 from . import stack as stack_mod
@@ -644,6 +645,48 @@ def cmd_dispatch(args) -> int:
     return 1 if denied else 0
 
 
+def cmd_handoff(args) -> int:
+    """Read-only handoff packet for one PR (FEATURE_08, generation only)."""
+    client = _client(args)
+    try:
+        packet = handoff_mod.build_handoff(
+            args.pr, args.mode, client,
+            evidence_store=_evidence_store(args),
+            verifier_pool=_pool_path(args))
+    except handoff_mod.HandoffStale as exc:
+        print(f"handoff: FAIL {exc}", file=sys.stderr)
+        return 2
+    except handoff_mod.HandoffError as exc:
+        print(f"handoff: FAIL {exc}", file=sys.stderr)
+        return 2
+    # Fail closed: a schema-invalid packet is never printed.
+    errors = handoff_mod.validate_packet(packet)
+    if errors:
+        print("handoff: FAIL packet failed ATLAS_HANDOFF_V1 schema validation:",
+              file=sys.stderr)
+        for error in errors:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+        return 0
+    print(f"handoff {packet['handoff_id']} pr/{packet['pr']} mode={packet['mode']} "
+          f"gate={packet['merge_guardian']['merge_gate']} "
+          f"head={str(packet['head'])[:12]} fp={packet['truth_fingerprint'][:12]}")
+    print(f"  owner: {packet['ownership']} "
+          f"ci: {packet['ci']['status']} "
+          f"iv: {packet['formal_iv']['state']} "
+          f"stack: {packet['stack']['stack_state']} "
+          f"frozen: {packet['frozen']}")
+    for reason in packet["merge_guardian"]["reasons"]:
+        print(f"  REASON: {reason}")
+    for action in packet["next_actions"]:
+        print(f"  NEXT: {action}")
+    for unc in packet["uncertainty"]:
+        print(f"  UNCERTAIN: {unc}")
+    return 0
+
+
 def cmd_gate(args) -> int:
     snapshot = build_snapshot(_client(args))
     node = _find_node(snapshot, args.pr)
@@ -980,6 +1023,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_impact.add_argument("--to", dest="to_sha", required=True)
     p_impact.add_argument("--repo-dir", default=".",
                           help="git work tree for the diff (default: cwd)")
+    p_handoff = sub.add_parser(
+        "handoff", help="read-only handoff packet for one PR (FEATURE_08, generation only)")
+    p_handoff.add_argument("--pr", type=int, required=True)
+    p_handoff.add_argument("--mode", choices=list(handoff_mod.MODES), default="general",
+                           help="audience emphasis; material truth is identical across modes")
     return parser
 
 
@@ -1006,6 +1054,7 @@ COMMANDS = {
     "evidence-ingest": cmd_evidence_ingest,
     "evidence-graph": cmd_evidence_graph,
     "evidence-impact": cmd_evidence_impact,
+    "handoff": cmd_handoff,
 }
 
 
