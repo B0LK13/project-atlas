@@ -642,7 +642,16 @@ def write_projection_outputs(
     plan: dict[Path, bytes] = {}
     for relative, rendered in sorted(mapping.items()):
         path = _safe_vault_relative(vault, relative)
-        existing = read_note_text(path) if path.is_file() else None
+        try:
+            existing = read_note_text(path) if path.is_file() else None
+        except (OSError, UnicodeError) as exc:
+            # Same boundary as above: the read happens while building `plan`,
+            # before `_promote`, so nothing has been written yet -- but a raw
+            # exception here escaped `GraphProjectionError`, so a caller
+            # catching that did not catch this at all.
+            raise GraphProjectionError(
+                f"unreadable-existing-note:{type(exc).__name__}:{relative}"
+            ) from exc
         merged = _merge_protected_regions(existing=existing, rendered=rendered, path=relative)
         plan[path] = merged.encode("utf-8")
 
