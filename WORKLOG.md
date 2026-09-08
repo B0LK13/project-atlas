@@ -14021,3 +14021,96 @@ base and head, so F7 neither introduced nor worsened it.
 **Not claimed:** that the BOM is preserved. It sits in Atlas-owned generated
 territory and is dropped on re-render, pinned by test; HUMAN bytes survive
 verbatim.
+
+## AS-OBSIDIAN-CAPTURE-001-F6 — post-merge seal (2026-09-08)
+
+Integrated as PR #729. Merge commit `e264d599`, second parent `c5d85fe7`, base
+`7b0989a7`.
+
+**Merged unrebased at the verified object.** `git diff c5d85fe7 e264d599` is
+empty; merge trees `src 8086e6f9`, `tests e6157e27`, `docs aa0b3336` are
+hash-identical to the certified object.
+
+**Nine verification rounds against ten objects** — the most-corrected package in
+this lane. Round 1 found a real defect in the fix: it was platform-incomplete,
+because on Windows an unopenable note fails at `os.replace`, not at the read,
+and that site was unguarded. A Linux-only reproduction could not see it. Every
+finding after that was in the claim record rather than the code, and the record
+of them is the substance of this entry:
+
+    R2  a negative control corrected without re-running it
+    R3  a `finally` that could REPLACE the error it was cleaning up after
+    R4  one WORKLOG figure updated, its neighbours left stale
+    R5  `_LOG.warning` with `extra` passed at top level -- both formatters read
+        `record.context` and discard anything else, so the warning emitted
+        neither path nor error class. The log existed and carried nothing, while
+        the receipt claimed the residual was now operator-visible.
+    R6  tables re-derived, the prose describing them not
+    R7  four prose distance figures, two of them repeats of round 6
+    R8  a byte-identity premise contradicting a measurement taken one step
+        earlier, plus a full-suite figure the base refresh had moved
+    R9  a ledger figure hardcoded in the body generator, so "regenerated from
+        the receipt" could never catch it
+
+The recurring defect was a correction applied to some copies and not all, and
+each round narrowed where it could hide: figures, then neighbouring figures,
+then the prose describing them, then the body quoting them, then the distances
+between them, and finally the two things a base refresh invalidates — a premise
+about what a merge changed, and a figure the merge moved. Three of the nine
+(R4, R8, R9) are addressed by deriving rather than typing. **The other six are
+not**, and it would be an overclaim to say automation closed this class: R1, R2,
+R3 and R5 were engineering defects closed by re-running things, and R6 by
+reading carefully.
+
+**Post-merge seal, measured on `e264d599`** in an isolated worktree with its own
+venv, both parent and a spawned child proven to resolve `project_atlas` there
+first:
+
+    F6 suite                              13 passed
+    nine-file group set                   277 passed, 4 xfailed
+    full suite                            5,682 passed, 8 skipped, 4 xfailed
+    freeze guard                          78 passed
+    ruff / mypy                           clean, 405 files
+
+**All six negative controls reproduce on main, not only on the branch:**
+
+    baseline                              13 passed
+    A  graph read guard removed            5 failed
+    B  obsidian read guard removed         2 failed
+    C  obsidian WRITE guard removed        4 failed
+    D  read guard widened, clause AND body 1 failed
+    E  finally cleanup guard removed       2 failed
+    F  warning payload un-nested           1 failed
+
+Each mutation was applied under a sha256 assertion that it actually changed the
+file, and both sources were confirmed restored byte-identical afterwards.
+A–D fail **pairwise disjoint** sets; `F ⊊ E ⊊ C`, both strict. These relations
+were computed on the failing test-name sets, not on counts — equal cardinalities
+prove nothing about containment.
+
+**Control D is the one worth recording.** It reproduces only when the merge call
+is moved *inside* the `try` **and** the except clause is widened to `ValueError`;
+each half alone is a no-op at 13 passed. An earlier reconstruction of D during
+this seal returned 13 passed, which meant it was not the documented mutation at
+all — it was discarded and rebuilt rather than reported as reproducing. A
+control that passes is not evidence; it is usually a broken control.
+
+**Residuals recorded, not fixed:**
+
+  - `graph_projections` still emits the bare `malformed-generated-markers:<path>`
+    at five sites; `ingestion.py:103`, `:107` and `:484` raise a plain
+    `ValueError` with no diagnostic at all. The `ingestion.py` half is
+    owner-gated (frozen surface); the `graph_projections` half is not, and is
+    the next runnable candidate in this lane.
+  - `_write_atomic`'s `mkdir` sits outside the new guard.
+  - F5's SEALED WORKLOG section still carries the abbreviated suite list whose
+    expansions do not exist. It lies in the byte-identical prefix, so editing it
+    would destroy the pure-insertion property that proves no sealed record was
+    rewritten. For a future package.
+  - The receipt's headline figures and control tables are typed, not derived.
+    That is exactly where the round-8 blocker lived, and it is the highest-value
+    remaining hardening of this lane's evidence process.
+
+**Not claimed:** that Windows runtime behaviour was observed directly. It is
+evidenced only by the green Windows CI job at the exact head; the tests inject
+the failure, which is why they pass on Linux.

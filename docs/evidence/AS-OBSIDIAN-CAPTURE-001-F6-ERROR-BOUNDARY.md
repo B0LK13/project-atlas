@@ -244,3 +244,52 @@ residual); or that the diagnostic is now uniform across all surfaces.
 
 Implementation evidence, not certification. Independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+---
+
+## Post-merge seal
+
+Integrated as PR #729: merge commit `e264d599`, second parent `c5d85fe7`, base
+`7b0989a7`. Merged **unrebased at the verified object** — `git diff c5d85fe7
+e264d599` is empty and the merge trees (`src 8086e6f9`, `tests e6157e27`,
+`docs aa0b3336`) are hash-identical to the certified object.
+
+Nine verification rounds against ten objects. Round 1 found the fix itself
+platform-incomplete; every finding after it was in the claim record, not the
+code. The final round returned P0/P1/P2 = 0.
+
+Measured on the merge object, in an isolated worktree with its own venv, after
+proving both the parent process and a spawned child resolve `project_atlas`
+there — the repository's primary checkout sits on another branch and would
+otherwise capture subprocess tests through the editable install:
+
+    F6 suite               13 passed
+    nine-file group set    277 passed, 4 xfailed
+    full suite             5,682 passed, 8 skipped, 4 xfailed
+    freeze guard           78 passed
+    ruff / mypy            clean, 405 files
+
+All six negative controls reproduce **on main**, each mutation under a sha256
+assertion that it changed the file, both sources restored byte-identical after:
+
+    baseline 13 · A 5 · B 2 · C 4 · D 1 · E 2 · F 1
+
+A–D fail pairwise disjoint sets; `F ⊊ E ⊊ C`, both strict — computed on failing
+test-name sets, not counts, since equal cardinalities prove nothing about
+containment.
+
+Control D reproduces only with the merge call moved *inside* the `try` **and**
+the clause widened; each half alone is a no-op at 13 passed. An earlier
+reconstruction of D during this seal returned 13 passed, meaning it was not the
+documented mutation — it was discarded and rebuilt rather than reported. A
+control that passes is not evidence.
+
+Two limits on this package's evidence process, both raised in verification and
+neither closed here. The body generator that produces the PR description is not
+in the repository, so "derived at generation time" is consistent with the
+artifact but not established by it. And the figures it derives are the ledger
+deltas only: the headline block and the control tables above are reproduced
+faithfully from this receipt, which is typed — a generator reproduces a wrong
+receipt figure just as faithfully, which is what `5,656` did in round 8. Both
+are recorded in the residual register rather than fixed, being outside this
+package's defect class.
