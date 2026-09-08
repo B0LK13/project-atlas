@@ -702,3 +702,251 @@ def test_competing_owner_claims_fail_closed_and_commands_agree():
     assert node["owner"] is None
     assert node["state"] != "RUNNABLE_WRITE"
     assert node["state"] == "RUNNABLE_READONLY"
+
+
+# -- conservative evidence cache (D-009) ------------------------------------------
+
+from atlas_dag import evidence as evidence_mod  # noqa: E402
+
+
+def make_evidence(evidence_id, *, pr=10, head=H1, tree=T1, scope="CANDIDATE_WIDE",
+                  producer="ci", result="PASS", negative_control="NONE",
+                  covered_files=None, covered_contract="contract:api",
+                  ts="2026-09-01T00:00:00Z"):
+    return {
+        "schema": "ATLAS_EVIDENCE_V1",
+        "evidence_id": evidence_id,
+        "producer": producer,
+        "pr": pr,
+        "head": head,
+        "tree": tree,
+        "environment": "linux-python3.12",
+        "covered_files": covered_files if covered_files is not None else ["src/a.py"],
+        "covered_contract": covered_contract,
+        "result": result,
+        "negative_control": negative_control,
+        "scope": scope,
+        "created_at_utc": ts,
+    }
+
+
+def store_at(tmp_path):
+    return evidence_mod.EvidenceStore(tmp_path / ".atlas-runtime" / "evidence"
+                                      / "evidence.json")
+
+
+def test_d009_exact_head_tree_match_is_exact_head_only():
+    record = make_evidence("ev-ci-exact01")
+    reuse_class, reasons = evidence_mod.classify(record, H1, T1)
+    assert reuse_class == "EXACT_HEAD_ONLY"
+    assert reasons == ["HEAD_AND_TREE_MATCH"]
+
+
+def test_d009_head_move_demotes_candidate_wide_to_predecessor():
+    # Candidate-wide exact-head CI at H1; the candidate moved to H3/T3.
+    record = make_evidence("ev-ci-stale01", producer="ci")
+    reuse_class, reasons = evidence_mod.classify(record, H3, T3)
+    assert reuse_class == "PREDECESSOR_SUPPORTING"  # history, never certification
+    assert reuse_class != "EXACT_HEAD_ONLY"
+    assert "HEAD_MISMATCH" in reasons
+
+
+def test_d009_stale_exact_head_ci_cannot_satisfy_gate_equivalent_check():
+    # Classification-only guard: a stale PASS-shaped CI record classifies as
+    # predecessor supporting, so it can never stand in for the D-008 gate's
+    # exact-head CI requirement (gate.py itself is untouched by D-009).
+    record = make_evidence("ev-ci-pass-old", producer="ci", result="PASS")
+    reuse_class, _reasons = evidence_mod.classify(record, H3, T3)
+    assert reuse_class != "EXACT_HEAD_ONLY"
+    import inspect as _inspect
+
+    from atlas_dag import gate as gate_mod
+    assert "ci_status" in _inspect.signature(gate_mod.evaluate).parameters
+
+
+def test_d009_subsystem_reuse_after_head_move_requires_equivalence_proof():
+    record = make_evidence("ev-sub-01", scope="SUBSYSTEM",
+                           covered_files=["src/sub/a.py"])
+    reuse_class, reasons = evidence_mod.classify(record, H3, T3)
+    assert reuse_class == "PREDECESSOR_SUPPORTING"
+    assert "SUBSYSTEM_REUSE_REQUIRES_EQUIVALENCE_PROOF" in reasons
+    # Absence of file overlap is NOT proof: a no-op proof must not qualify.
+    reuse_class, _ = evidence_mod.classify(record, H3, T3, equivalence_proof=None)
+    assert reuse_class == "PREDECESSOR_SUPPORTING"
+
+
+def test_d009_subsystem_with_valid_equivalence_proof_is_reusable():
+    record = make_evidence("ev-sub-02", scope="SUBSYSTEM",
+                           covered_files=["src/sub/a.py"])
+    proof = {"covered_contract": "contract:api", "result": "PROVEN",
+             "old_head": H1, "new_head": H3}
+    reuse_class, reasons = evidence_mod.classify(record, H3, T3,
+                                                 equivalence_proof=proof)
+    assert reuse_class == "REUSABLE_SUBSYSTEM"
+    assert "EQUIVALENCE_PROOF_ACCEPTED" in reasons
+
+
+def test_d009_subsystem_with_callable_proof_and_wrong_contract_proof():
+    record = make_evidence("ev-sub-03", scope="SUBSYSTEM")
+    callable_proof = lambda _r, _h, _t: True  # noqa: E731
+    assert evidence_mod.classify(record, H3, T3,
+                                 equivalence_proof=callable_proof)[0] == "REUSABLE_SUBSYSTEM"
+    crashing = lambda *_a: 1 / 0  # noqa: E731
+    assert evidence_mod.classify(record, H3, T3,
+                                 equivalence_proof=crashing)[0] == "PREDECESSOR_SUPPORTING"
+    wrong_contract = {"covered_contract": "contract:OTHER", "result": "PROVEN"}
+    assert evidence_mod.classify(record, H3, T3,
+                                 equivalence_proof=wrong_contract)[0] == "PREDECESSOR_SUPPORTING"
+    unproven = {"covered_contract": "contract:api", "result": "UNKNOWN"}
+    assert evidence_mod.classify(record, H3, T3,
+                                 equivalence_proof=unproven)[0] == "PREDECESSOR_SUPPORTING"
+
+
+def test_d009_negative_control_failed_is_invalid():
+    record = make_evidence("ev-nc-fail01", negative_control="FAIL")
+    reuse_class, reasons = evidence_mod.classify(record, H1, T1)  # even at exact head
+    assert reuse_class == "INVALID"
+    assert reasons == ["NEGATIVE_CONTROL_FAILED"]
+
+
+def test_d009_malformed_record_is_invalid_fail_closed():
+    for field in ("head", "tree", "producer"):
+        record = make_evidence("ev-bad-0001")
+        del record[field]
+        reuse_class, reasons = evidence_mod.classify(record, H1, T1)
+        assert reuse_class == "INVALID"
+        assert any(r == f"MISSING_FIELD:{field}" for r in reasons)
+    reuse_class, reasons = evidence_mod.classify(["not", "a record"], H1, T1)
+    assert reuse_class == "INVALID"
+    assert reasons == ["MALFORMED_RECORD:not-an-object"]
+
+
+def test_d009_unknown_scope_and_unknown_current_head_fail_closed():
+    record = make_evidence("ev-scope-bad", scope="REPO_WIDE")
+    reuse_class, reasons = evidence_mod.classify(record, H1, T1)
+    assert reuse_class == "INVALID"
+    assert any(r.startswith("UNKNOWN_SCOPE") for r in reasons)
+    record = make_evidence("ev-good-0001")
+    reuse_class, reasons = evidence_mod.classify(record, None, None)
+    assert reuse_class == "UNKNOWN"
+    assert reasons == ["CURRENT_HEAD_TREE_UNKNOWN"]
+
+
+def test_d009_schema_validation_rejects_malformed_records():
+    errors = evidence_mod.validate_record(make_evidence("ev-schema-ok"))
+    assert errors == []
+    missing_head = make_evidence("ev-schema-bad")
+    del missing_head["head"]
+    assert evidence_mod.validate_record(missing_head)
+    bad_scope = make_evidence("ev-scope-bad2", scope="REPO_WIDE")
+    assert evidence_mod.validate_record(bad_scope)
+
+
+def test_d009_duplicate_evidence_id_ingestion_is_idempotent(tmp_path):
+    store = store_at(tmp_path)
+    first = dict(make_evidence("ev-dup-00001"), covered_files=["b.py", "a.py", "a.py"])
+    added, records = store.ingest(first)
+    assert added and len(records) == 1
+    assert records[0]["covered_files"] == ["a.py", "b.py"]  # normalized
+    again, records = store.ingest(make_evidence("ev-dup-00001", result="FAIL"))
+    assert not again and len(records) == 1  # first record wins
+    assert records[0]["result"] == "PASS"
+
+
+def test_d009_store_output_is_deterministic_and_byte_identical(tmp_path):
+    store_a, store_b = store_at(tmp_path / "a"), store_at(tmp_path / "b")
+    rec_a = make_evidence("ev-det-a001", ts="2026-09-01T00:00:00Z")
+    rec_b = make_evidence("ev-det-b001", ts="2026-09-02T00:00:00Z")
+    for rec in (rec_a, rec_b):
+        store_a.ingest(rec)
+    for rec in (rec_b, rec_a):  # reversed order must not change bytes
+        store_b.ingest(rec)
+    assert store_a.path.read_bytes() == store_b.path.read_bytes()
+    first = evidence_mod.classify(rec_a, H3, T3)
+    second = evidence_mod.classify(dict(rec_a), H3, T3)
+    assert first == second
+
+
+class _FakeLiveClient:
+    """Stand-in for GhClient in CLI evidence tests (no network)."""
+
+    def __init__(self, env):
+        self._env = env
+
+    @property
+    def repo(self):
+        return REPO
+
+    def open_prs(self):
+        return self._env.data["prs"]
+
+    def commit(self, sha):
+        data = self._env.commits.get(sha)
+        if not data:
+            return None
+        return {"sha": data["sha"], "tree": data["commit"]["tree"]["sha"]}
+
+
+def test_d009_cli_evidence_classifies_against_live_head(tmp_path, monkeypatch, capsys):
+    from atlas_dag import cli as cli_mod
+
+    env = base_env()
+    env.data["prs"][0]["headRefOid"] = H3
+    env.commits[H3] = {"sha": H3, "commit": {"tree": {"sha": T3}}}
+    store_at(tmp_path).ingest(make_evidence("ev-cli-0001"))
+    monkeypatch.setattr(cli_mod, "GhClient", lambda repo=None: _FakeLiveClient(env))
+    rc = cli_mod.main(["--runtime-dir", str(tmp_path / ".atlas-runtime"),
+                       "--json", "evidence", "10"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["current_head"] == H3
+    assert out["records"][0]["reuse_class"] == "PREDECESSOR_SUPPORTING"
+    assert "HEAD_MISMATCH" in out["records"][0]["reasons"]
+
+
+def test_d009_cli_evidence_fails_closed_when_github_unavailable(tmp_path, monkeypatch,
+                                                              capsys):
+    from atlas_dag import cli as cli_mod
+
+    class _OfflineClient:
+        @property
+        def repo(self):
+            return None
+
+        def open_prs(self):
+            return []
+
+        def commit(self, _sha):
+            return None
+
+    store_at(tmp_path).ingest(make_evidence("ev-cli-0002"))
+    monkeypatch.setattr(cli_mod, "GhClient", lambda repo=None: _OfflineClient())
+    rc = cli_mod.main(["--runtime-dir", str(tmp_path / ".atlas-runtime"),
+                       "--json", "evidence", "10"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["current_head"] is None
+    assert out["records"][0]["reuse_class"] == "UNKNOWN"
+    assert out["records"][0]["reasons"] == ["GITHUB_UNAVAILABLE"]
+
+
+def test_d009_cli_evidence_ingest_validates_schema(tmp_path, capsys):
+    from atlas_dag import cli as cli_mod
+
+    good = tmp_path / "good.json"
+    good.write_text(json.dumps(make_evidence("ev-cli-good1")), encoding="utf-8")
+    rc = cli_mod.main(["--runtime-dir", str(tmp_path / ".atlas-runtime"),
+                       "evidence-ingest", str(good)])
+    assert rc == 0
+    assert "stored" in capsys.readouterr().out
+
+    bad = tmp_path / "bad.json"
+    malformed = make_evidence("ev-cli-bad01")
+    del malformed["head"]
+    bad.write_text(json.dumps(malformed), encoding="utf-8")
+    rc = cli_mod.main(["--runtime-dir", str(tmp_path / ".atlas-runtime"),
+                       "evidence-ingest", str(bad)])
+    assert rc == 1
+    assert "SCHEMA" in capsys.readouterr().err
+    store = store_at(tmp_path)
+    assert [r["evidence_id"] for r in store.load()] == ["ev-cli-good1"]
