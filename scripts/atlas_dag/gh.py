@@ -126,6 +126,30 @@ class GhClient:
         except GhError:
             return []
 
+    def is_ancestor(self, ancestor_sha: str, descendant_sha: str) -> bool | None:
+        """True/False via the compare API (Git ancestry, not prose).
+
+        Returns None when unverifiable: callers must fail closed and never
+        claim STACK_CURRENT on unknown ancestry.
+        """
+        repo = self.repo
+        if not repo:
+            return None
+        try:
+            data = self.gh_json(
+                ["api", f"repos/{repo}/compare/{ancestor_sha}...{descendant_sha}"]
+            )
+            status = data.get("status")
+        except GhError:
+            return None
+        if status == "identical":
+            return True
+        if status == "ahead":
+            return True
+        if status in ("behind", "diverged"):
+            return False
+        return None
+
     def review_comments(self, pr: int) -> list[dict]:
         repo = self.repo
         if not repo:

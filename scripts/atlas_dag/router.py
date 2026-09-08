@@ -32,6 +32,7 @@ authentication is a later feature).
 from __future__ import annotations
 
 from . import agents as agents_mod
+from . import stack as stack_mod
 
 ROUTE_WRITE = "RUNNABLE_WRITE"
 ROUTE_READONLY = "RUNNABLE_READONLY"
@@ -69,14 +70,17 @@ def _scopes_covered(profile: dict, node: dict) -> tuple[bool, list[str]]:
     return True, []
 
 
-def evaluate_lane(profile: dict, node: dict) -> dict:
+def evaluate_lane(profile: dict, node: dict,
+                  stack: dict | None = None) -> dict:
     """One lane vs one agent: the maximal permitted action class.
 
     Read-only diagnosis is safe for any lane the snapshot exposes (even
     foreign-platform, frozen, or ambiguously-owned: reading changes
     nothing), so READONLY is the floor; WRITE additionally requires the
     snapshot's own RUNNABLE_WRITE state, the ownership mutex, platform and
-    scope fit, and a write capability.
+    scope fit, a write capability, and — when stack truth is supplied — a
+    current stack relation. Stack membership never grants write authority;
+    a stacked child is never independent mergeable-to-main work.
     """
     agent_id = str(profile.get("agent_id", "?"))
     lane = str(node.get("lane", "?"))
@@ -111,11 +115,21 @@ def evaluate_lane(profile: dict, node: dict) -> dict:
     scopes_ok, scope_reasons = _scopes_covered(profile, node)
     if not scopes_ok:
         write_blockers.extend(scope_reasons)
+    if stack is not None:
+        stack_state = stack.get("stack_state")
+        if stack_state in stack_mod.NOT_CURRENT_STATES or \
+                stack.get("restack_required"):
+            write_blockers.append(f"STACK_NOT_CURRENT:{stack_state}")
 
     if not write_blockers:
+        reasons = {"OWNED_BY_AGENT" if owner == agent_id else "LANE_WRITABLE",
+                   "WRITE_CAPABILITY_PRESENT"}
+        if stack is not None and stack.get("parent_pr") is not None:
+            # Stacked child: writable, but never independent
+            # mergeable-to-main work — annotate for consumers.
+            reasons.add(f"STACK_CHILD_OF:pr/{stack['parent_pr']}")
         return {"lane": lane, "action_class": ROUTE_WRITE, "routable": True,
-                "reasons": sorted({"OWNED_BY_AGENT" if owner == agent_id else "LANE_WRITABLE",
-                                   "WRITE_CAPABILITY_PRESENT"}),
+                "reasons": sorted(reasons),
                 "blockers": []}
     blockers.extend(write_blockers)
     return {"lane": lane, "action_class": ROUTE_READONLY, "routable": True,
@@ -123,8 +137,15 @@ def evaluate_lane(profile: dict, node: dict) -> dict:
             "blockers": sorted(blockers)}
 
 
-def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult) -> dict:
-    """Deterministic recommendation for one agent over the whole frontier."""
+def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult,
+          stacks: dict | None = None) -> dict:
+    """Deterministic recommendation for one agent over the whole frontier.
+
+    stacks: optional lane -> stack record (FEATURE_03). When supplied, a
+    lane with a non-current stack relation can never route as write; when
+    absent, stack filtering is skipped (callers with live GitHub access
+    should always supply it).
+    """
     resolved = agents_mod.resolve_agent(registry, agent_id)
     if resolved.status != "REGISTERED":
         return {
@@ -154,7 +175,8 @@ def route(agent_id: str, snapshot: dict, registry: agents_mod.RegistryResult) ->
         }
 
     nodes = sorted(snapshot.get("nodes", []), key=lambda n: str(n.get("lane", "")))
-    routes = [evaluate_lane(profile, n) for n in nodes]
+    routes = [evaluate_lane(profile, n, (stacks or {}).get(str(n.get("lane"))))
+              for n in nodes]
     routes.sort(key=lambda r: (_CLASS_RANK[r["action_class"]], r["lane"]))
 
     if not routes or all(not r["routable"] for r in routes):

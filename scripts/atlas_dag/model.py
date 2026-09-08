@@ -161,6 +161,7 @@ def build_pr_node(
         "pr": number,
         "title": pr.get("title"),
         "head": head,
+        "head_branch": pr.get("headRefName"),
         "tree": tree,
         "base": pr.get("baseRefName"),
         "owner": owner,
