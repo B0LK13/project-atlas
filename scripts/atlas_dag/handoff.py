@@ -21,7 +21,12 @@ Core rules:
 - One canonical packet: mode (general / verifier / resume) only adds a
   `presentation` emphasis block; material fields are identical across modes.
 - A prospective merge SHA never appears as a merge receipt: an open PR has
-  merge_receipt.receipt = null with reason "PR_OPEN".
+  merge_receipt.receipt = null with reason "PR_OPEN"; a MERGED lane keeps
+  receipt null (schema) with reason "PR_MERGED" and projects actual merge
+  identity only via the FEATURE_09 `post_merge` seal-plan summary.
+- Post-merge seal state (FEATURE_09) is a `post_merge` summary projected from
+  seal_plan.build_seal_plan on the same client — never a second truth model,
+  never seal execution.
 - CI state is exact-head only (model.ci_status_for_head semantics):
   predecessor-head runs can never surface as current CI.
 - Invalidated / stale-proof evidence never appears in the reusable list;
@@ -42,6 +47,7 @@ from . import events as events_mod
 from . import evidence as evidence_mod
 from . import evidence_graph as evidence_graph_mod
 from . import model as model_mod
+from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
 from . import verifiers as verifiers_mod
 
@@ -102,8 +108,69 @@ def _canonical_sha256(payload: Any) -> str:
     ).hexdigest()
 
 
+def _closed_pr(client: Any, pr: int) -> dict | None:
+    """Merged/closed PR view when the open frontier no longer carries the lane."""
+    closed_fn = getattr(client, "closed_pr", None)
+    if not callable(closed_fn):
+        return None
+    try:
+        data = closed_fn(pr)
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def _live_pr(client: Any, pr: int) -> dict | None:
-    return next((p for p in client.open_prs() if p.get("number") == pr), None)
+    """Live PR identity for TOCTOU: open frontier first, else closed/merged view.
+
+    Merged lanes leave the open frontier; FEATURE_09 handoff must still
+    re-resolve headRefOid from repository truth, never invent stability."""
+    open_hit = next((p for p in client.open_prs() if p.get("number") == pr), None)
+    if open_hit is not None:
+        return open_hit
+    return _closed_pr(client, pr)
+
+
+def _merged_frontier_node(pr_data: dict, client: Any) -> dict:
+    """Sparse honest node for a MERGED PR absent from the open frontier.
+
+    Open-frontier fields (CI / formal IV / mergeability / ownership gates) are
+    not inventable after merge — they stay UNKNOWN. Material post-merge truth
+    is projected only via the canonical seal planner (`post_merge`)."""
+    number = int(pr_data["number"])
+    head = pr_data.get("headRefOid")
+    tree = None
+    if isinstance(head, str) and head:
+        try:
+            commit = client.commit(head)
+        except Exception:
+            commit = None
+        if isinstance(commit, dict):
+            tree = commit.get("tree")
+    return {
+        "pr": number,
+        "lane": f"pr/{number}",
+        "head": head,
+        "tree": tree,
+        "base": pr_data.get("baseRefName"),
+        "head_branch": pr_data.get("headRefName"),
+        "owner": None,
+        "ownership": "UNKNOWN",
+        "claimants": [],
+        "frozen": False,
+        "ci_status": "UNKNOWN",
+        "ci_run_id": None,
+        "formal_iv": None,
+        "claim_integrity": "UNKNOWN",
+        "mergeable": "UNKNOWN",
+        "gate": {
+            "merge_gate": "MERGED",
+            "reasons": ["PR_NOT_IN_OPEN_FRONTIER"],
+        },
+        "blockers": [],
+        "next_actions": [],
+        "dispatch": None,
+    }
 
 
 def _base_head(client: Any, base_branch: str | None) -> str | None:
@@ -182,6 +249,32 @@ def _safe_main_head(client: Any) -> str | None:
     except Exception:
         return None
     return main.get("sha") if main else None
+
+
+def _post_merge_summary(client: Any, pr: int, clock: Callable[[], str],
+                        evidence_store: evidence_mod.EvidenceStore | None = None) -> dict:
+    """FEATURE_09 seal-plan state summary (never a duplicated truth model).
+
+    Built by reusing seal_plan.build_seal_plan on the same client; any
+    failure degrades to an explicit UNKNOWN marker — post-merge truth is
+    never invented inside a handoff packet."""
+    try:
+        plan = seal_plan_mod.build_seal_plan(
+            pr, client, clock=clock, evidence_store=evidence_store)
+    except Exception:
+        return {"state": "UNKNOWN", "seal_state": "UNKNOWN",
+                "reason": "POST_MERGE_TRUTH_UNRESOLVABLE"}
+    return {
+        "state": plan["state"],
+        "seal_state": plan["seal_state"],
+        "plan_id": plan["plan_id"],
+        "merged": {
+            "is_merged": plan["merged"]["is_merged"],
+            "method": plan["merged"]["method"],
+            "merge_commit": plan["merged"]["merge_commit"],
+            "verified": plan["merged"]["verified"],
+        },
+    }
 
 
 def _pool_prohibitions(pool_path: Path) -> list[str]:
@@ -264,8 +357,31 @@ def build_handoff(
         else verifiers_mod.default_pool_path()
     snapshot = model_mod.build_snapshot(client, pool_path=pool_path)
     node = next((n for n in snapshot["nodes"] if n["pr"] == pr_number), None)
+    merged_lane = False
     if node is None:
-        raise HandoffUnavailable(f"UNKNOWN_PR:{pr_number}")
+        # FEATURE_09: a genuinely MERGED lane leaves the open frontier. Resolve
+        # via closed_pr and project a sparse node; never invent open-frontier
+        # CI/IV/ownership. Non-merged absence remains UNKNOWN_PR.
+        closed = _closed_pr(client, pr_number)
+        if closed and str(closed.get("state") or "").upper() == "MERGED":
+            node = _merged_frontier_node(closed, client)
+            merged_lane = True
+            if not snapshot.get("main_head"):
+                try:
+                    main_branch = (
+                        snapshot.get("main_branch")
+                        or client.default_branch()
+                        or "main"
+                    )
+                except Exception:
+                    main_branch = snapshot.get("main_branch") or "main"
+                snapshot = {
+                    **snapshot,
+                    "main_head": _safe_main_head(client),
+                    "main_branch": main_branch,
+                }
+        else:
+            raise HandoffUnavailable(f"UNKNOWN_PR:{pr_number}")
     head = node.get("head")
     if not head:
         raise HandoffUnavailable(f"PR_HEAD_UNRESOLVED:{pr_number}")
@@ -274,16 +390,26 @@ def build_handoff(
         snapshot["nodes"], client, snapshot.get("main_branch") or "main")
     stack_record = stacks.get(node["lane"]) or None
 
-    issue = client.dag_issue()
+    issue = None
+    try:
+        issue = client.dag_issue()
+    except Exception:
+        issue = None
+    issue_body = None
+    if issue is not None:
+        try:
+            issue_body = client.issue_body(issue["number"])
+        except Exception:
+            issue_body = None
     pool = verifiers_mod.resolve_pool(
-        client.issue_body(issue["number"]) if issue else None,
-        path=pool_path, repo=client.repo)
+        issue_body, path=pool_path, repo=client.repo)
 
     gate = node["gate"]
     gate_reasons = list(gate.get("reasons") or [])
 
     # Formal IV: satisfied only by the snapshot's eligible receipt; the
     # verifier binding comes from the authenticated pool, never inferred.
+    # Merged sparse nodes carry no inventable formal_iv.
     receipt_id = node.get("formal_iv")
     verifier_id: str | None = None
     verifier_binding: str | None = None
@@ -305,8 +431,12 @@ def build_handoff(
     }
     mergeable = node.get("mergeable") or "UNKNOWN"
     merge_guardian = {"merge_gate": gate["merge_gate"], "reasons": gate_reasons}
-    # A prospective merge SHA is never a merge receipt: the PR is open.
-    merge_receipt = {"receipt": None, "reason": "PR_OPEN"}
+    # A prospective merge SHA is never a merge receipt. Open PRs stay PR_OPEN;
+    # merged lanes keep receipt=null (schema) and point at post_merge truth.
+    merge_receipt = (
+        {"receipt": None, "reason": "PR_MERGED"} if merged_lane
+        else {"receipt": None, "reason": "PR_OPEN"}
+    )
 
     dispatch_plan: dict | None
     if node.get("frozen"):
@@ -368,6 +498,11 @@ def build_handoff(
     if mergeable == "UNKNOWN":
         uncertainty.add("MERGEABILITY_UNKNOWN")
 
+    # FEATURE_09: post-merge seal-plan state summary (projection only; built
+    # by reusing seal_plan truth, never a second truth model). For an open
+    # PR this is the honest NOT_MERGED marker.
+    post_merge = _post_merge_summary(client, pr_number, clock, evidence_store)
+
     material = {
         "pr": pr_number,
         "head": head,
@@ -391,6 +526,7 @@ def build_handoff(
         "evidence": evidence_section,
         "next_actions": next_actions,
         "gates": gates,
+        "post_merge": post_merge,
     }
     fingerprint = _canonical_sha256(material)
     handoff_id = "handoff-" + hashlib.sha256(
@@ -425,6 +561,7 @@ def build_handoff(
         "evidence": evidence_section,
         "next_actions": next_actions,
         "gates": gates,
+        "post_merge": post_merge,
         "uncertainty": sorted(uncertainty),
         "provenance": {
             "generator": "atlas-dag handoff (FEATURE_08)",
@@ -435,6 +572,7 @@ def build_handoff(
                 "FEATURE_03 stack topology",
                 "FEATURE_06 dispatch plan",
                 "FEATURE_07 evidence graph",
+                "FEATURE_09 post-merge seal plan",
             ],
         },
         "presentation": _presentation(

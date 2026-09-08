@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from pathlib import Path
 from typing import Any, Callable
 
 DAG_ISSUE_TITLE = "Atlas Autonomous DAG Control"
@@ -95,7 +96,8 @@ class GhClient:
             return None
         try:
             data = self.gh_json(["api", f"repos/{repo}/commits/{sha}"])
-            return {"sha": data["sha"], "tree": data["commit"]["tree"]["sha"]}
+            return {"sha": data["sha"], "tree": data["commit"]["tree"]["sha"],
+                    "parents": [p["sha"] for p in data.get("parents", [])]}
         except (GhError, KeyError, TypeError):
             return None
 
@@ -113,6 +115,55 @@ class GhClient:
             ) or []
         except GhError:
             return []
+
+    def seal_open_prs(self) -> list[dict] | None:
+        """Complete open topology for closure; unavailable/truncated is unknown."""
+        try:
+            prs = self.gh_json([
+                "pr", "list", "--repo", self.repo or "", "--state", "open",
+                "--limit", "1000", "--json", "number,headRefOid,baseRefName"])
+            return prs if isinstance(prs, list) and len(prs) < 1000 else None
+        except GhError:
+            return None
+
+    def closed_pr(self, number: int) -> dict | None:
+        """PR view including CLOSED/MERGED state (FEATURE_09).
+
+        Unlike open_prs(), this sees merged and closed-unmerged PRs, exposing
+        mergedAt/mergeCommit live truth. None when unresolvable (callers treat
+        as UNKNOWN, never as "not merged").
+        """
+        repo = self.repo
+        if not repo:
+            return None
+        try:
+            data = self.gh_json(
+                [
+                    "pr", "view", str(number), "--repo", repo,
+                    "--json", "number,state,mergedAt,mergeCommit,headRefOid,headRefName,"
+                    "baseRefName,author",
+                ]
+            )
+        except GhError:
+            return None
+        return data if isinstance(data, dict) else None
+
+    def merge_commit_exists(self, sha: str) -> bool | None:
+        """Repository-truth existence check for one commit (FEATURE_09).
+
+        True when the commits API returns it, False on a definitive 404,
+        None on any other error — None means UNKNOWN, never guessed.
+        """
+        repo = self.repo
+        if not repo:
+            return None
+        try:
+            self.gh_json(["api", f"repos/{repo}/commits/{sha}"])
+            return True
+        except GhError as exc:
+            if "404" in str(exc):
+                return False
+            return None
 
     def runs_for_head(self, sha: str) -> list[dict]:
         repo = self.repo
@@ -220,3 +271,28 @@ class GhClient:
             ) or []
         except GhError:
             return []
+
+
+def is_ancestor(ancestor_sha: str, descendant_sha: str,
+                repo_dir: str | Path, runner: Runner | None = None) -> bool | None:
+    """Repo-local ancestry via `git merge-base --is-ancestor` (FEATURE_09).
+
+    Works on merged/closed lanes where the GitHub compare API has nothing
+    open to compare, and needs no network. `runner` mirrors the test-seam
+    style of evidence_graph.changed_files_between. Exit 0 => True, exit 1 =>
+    False, ANY other outcome (error, missing repo, unknown SHAs) => None —
+    UNKNOWN is never guessed into ancestry.
+    """
+    run = runner if runner is not None else subprocess.run
+    try:
+        proc = run(
+            ["git", "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
+            cwd=str(repo_dir), capture_output=True, text=True, timeout=60,
+            encoding="utf-8", errors="replace")
+        if proc.returncode == 0:
+            return True
+        if proc.returncode == 1:
+            return False
+        return None
+    except Exception:
+        return None

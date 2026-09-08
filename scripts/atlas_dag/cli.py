@@ -15,6 +15,7 @@ from . import evidence_graph as evidence_graph_mod
 from . import handoff as handoff_mod
 from . import receipts as receipts_mod
 from . import router as router_mod
+from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
 from . import verifiers as verifiers_mod
 from .gh import GhClient
@@ -687,6 +688,53 @@ def cmd_handoff(args) -> int:
     return 0
 
 
+def cmd_seal_plan(args) -> int:
+    """Read-only post-merge seal plan for one PR (FEATURE_09, planning only).
+
+    Determines from live repository truth what was merged, what evidence
+    remains valid, what must be rerun/reconciled, and when the lane can
+    truthfully become SEALED. Never merges, seals, or restacks."""
+    client = _client(args)
+    try:
+        plan = seal_plan_mod.build_seal_plan(
+            args.pr, client,
+            evidence_store=_evidence_store(args),
+            repo_dir=Path(args.repo_dir))
+    except Exception as exc:
+        print(f"seal-plan: FAIL {exc}", file=sys.stderr)
+        return 2
+    # Fail closed: a schema-invalid plan is never printed.
+    errors = seal_plan_mod.validate_plan(plan)
+    if errors:
+        print("seal-plan: FAIL plan failed ATLAS_POSTMERGE_PLAN_V1 "
+              "schema validation:", file=sys.stderr)
+        for error in errors:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(plan, indent=2, sort_keys=True))
+        return 0
+    merged = plan["merged"]
+    print(f"seal-plan {plan['plan_id']} pr/{plan['pr']} "
+          f"state={plan['state']} seal_state={plan['seal_state']}")
+    print(f"  merged: is_merged={merged['is_merged']} method={merged['method']} "
+          f"commit={str(merged['merge_commit'])[:12] if merged['merge_commit'] else 'NONE'} "
+          f"verified={merged['verified']}")
+    print(f"  ancestry: candidate_in_main={plan['ancestry']['candidate_in_main']} "
+          f"via={plan['ancestry']['via']}")
+    main_head = plan["main"]["head_current"]
+    print(f"  main: head_current="
+          f"{str(main_head)[:12] if main_head else 'UNKNOWN'} "
+          f"advanced_since_merge={plan['main']['advanced_since_merge']}")
+    for reason in plan["blockers"]:
+        print(f"  BLOCKER: {reason}")
+    for action in plan["required_actions"]:
+        print(f"  ACTION: {action}")
+    for unc in plan["uncertainty"]:
+        print(f"  UNCERTAIN: {unc}")
+    return 0
+
+
 def cmd_gate(args) -> int:
     snapshot = build_snapshot(_client(args))
     node = _find_node(snapshot, args.pr)
@@ -711,7 +759,7 @@ def cmd_evidence_ingest(args) -> int:
         return 1
     errors = evidence_mod.validate_record(payload)
     if errors:
-        print(f"evidence-ingest: invalid ATLAS_EVIDENCE_V1 record:", file=sys.stderr)
+        print("evidence-ingest: invalid ATLAS_EVIDENCE_V1 record:", file=sys.stderr)
         for error in errors:
             print(f"  SCHEMA: {error}", file=sys.stderr)
         return 1
@@ -1028,6 +1076,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_handoff.add_argument("--pr", type=int, required=True)
     p_handoff.add_argument("--mode", choices=list(handoff_mod.MODES), default="general",
                            help="audience emphasis; material truth is identical across modes")
+    p_seal = sub.add_parser(
+        "seal-plan",
+        help="read-only post-merge seal plan for one PR (FEATURE_09, planning only)")
+    p_seal.add_argument("--pr", type=int, required=True)
+    p_seal.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_seal.add_argument("--repo-dir", default=".",
+                        help="git work tree for local ancestry/diff truth (default: cwd)")
     return parser
 
 
@@ -1055,6 +1110,7 @@ COMMANDS = {
     "evidence-graph": cmd_evidence_graph,
     "evidence-impact": cmd_evidence_impact,
     "handoff": cmd_handoff,
+    "seal-plan": cmd_seal_plan,
 }
 
 
