@@ -79,7 +79,8 @@
                 "POST_EVENTS",
                 "INGEST_EVIDENCE",
                 "CLAIM_OWNERSHIP",
-                "MANAGE_WORKTREE"
+                "MANAGE_WORKTREE",
+                "ci_dispatch"
               ]
             }
           },
@@ -123,6 +124,7 @@
                 "OWNER_CLAIMED",
                 "OWNER_RELEASED",
                 "HUMAN_GATE_REQUIRED",
+                "IV_REQUEST",
                 "CURRENT_MAIN_COMPATIBILITY_CHANGED",
                 "MERGE_ELIGIBLE",
                 "MERGED",

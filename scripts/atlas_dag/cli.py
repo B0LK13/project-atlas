@@ -6,6 +6,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import dispatch as dispatch_mod
 from . import agents as agents_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
@@ -570,6 +571,69 @@ def cmd_emit(args) -> int:
     return 0
 
 
+def cmd_dispatch_status(args) -> int:
+    """Read-only sibling-lane dispatch plan (FEATURE_06, zero mutation)."""
+    client = _client(args)
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    node = _find_node(snapshot, args.pr)
+    if node is None:
+        print(f"PR #{args.pr} not in open-PR frontier", file=sys.stderr)
+        return 2
+    resolution = _resolve_pool(args, client)
+    plan = dispatch_mod.plan_dispatch(node, client, None, None, resolution)
+    if args.json:
+        print(json.dumps(plan, indent=2, sort_keys=True))
+        return 0
+    print(f"dispatch-status pr/{plan['pr']} @ {str(plan['head'])[:12]} "
+          f"frozen={plan['frozen']}")
+    for lane in ("ci", "iv"):
+        info = plan[lane]
+        print(f"  {lane}: {info['lane_state']}")
+        for reason in info["reasons"]:
+            print(f"    - {reason}")
+    return 0
+
+
+def cmd_dispatch(args) -> int:
+    """Plan + execute CI/IV lane dispatch (FEATURE_06). Denials are explicit;
+    --dry-run performs zero GitHub mutation."""
+    registry = agents_mod.load_registry(args.registry)
+    resolved = agents_mod.resolve_agent(registry, args.agent)
+    if resolved.status != "REGISTERED":
+        print(f"agent {args.agent}: {resolved.status}", file=sys.stderr)
+        return 1
+    client = _client(args)
+    if args.expect_repo is not None and client.repo != args.expect_repo:
+        print(f"dispatch: FAIL WRONG_REPOSITORY_IDENTITY:{client.repo}"
+              f"!={args.expect_repo}", file=sys.stderr)
+        return 1
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    node = _find_node(snapshot, args.pr)
+    if node is None:
+        print(f"PR #{args.pr} not in open-PR frontier", file=sys.stderr)
+        return 2
+    resolution = _resolve_pool(args, client)
+    plan = dispatch_mod.plan_dispatch(node, client, args.agent,
+                                      resolved.profile, resolution)
+    result = dispatch_mod.execute_dispatch(
+        plan, client, args.agent, resolved.profile, dry_run=args.dry_run)
+    if args.json:
+        print(json.dumps({"plan": plan, "result": result}, indent=2,
+                         sort_keys=True))
+    else:
+        print(f"dispatch pr/{result['pr']} @ {str(result['head'])[:12]} "
+              f"dry_run={result['dry_run']}")
+        for lane in ("ci", "iv"):
+            info = result[lane]
+            print(f"  {lane}: {info['outcome']}")
+            for reason in info["reasons"]:
+                print(f"    - {reason}")
+    denied = any(result[l]["outcome"] in (
+        dispatch_mod.PERMISSION_DENIED, dispatch_mod.HEAD_MOVED,
+        dispatch_mod.FAILED, dispatch_mod.BLOCKED) for l in ("ci", "iv"))
+    return 1 if denied else 0
+
+
 def cmd_gate(args) -> int:
     snapshot = build_snapshot(_client(args))
     node = _find_node(snapshot, args.pr)
@@ -730,6 +794,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_iv.add_argument("--verifier", required=True, help="verifier_id from the pool")
     p_gate = sub.add_parser("gate", help="read-only merge guardian evaluation (D-008)")
     p_gate.add_argument("pr", type=int)
+    p_disp_status = sub.add_parser(
+        "dispatch-status", help="read-only CI/IV lane dispatch plan (FEATURE_06)")
+    p_disp_status.add_argument("--pr", type=int, required=True)
+    p_disp = sub.add_parser(
+        "dispatch", help="plan + execute CI/IV lane dispatch (FEATURE_06)")
+    p_disp.add_argument("--pr", type=int, required=True)
+    p_disp.add_argument("--agent", required=True, help="registered agent_id")
+    p_disp.add_argument("--dry-run", action="store_true",
+                        help="zero GitHub mutation (report WOULD_* outcomes)")
+    p_disp.add_argument("--expect-repo", default=None,
+                        help="assert the resolved repository identity")
     p_evidence = sub.add_parser("evidence", help="stored evidence reuse classification (D-009)")
     p_evidence.add_argument("pr", type=int)
     p_ingest = sub.add_parser("evidence-ingest",
@@ -754,6 +829,8 @@ COMMANDS = {
     "verifiers": cmd_verifiers,
     "verifier": cmd_verifier,
     "iv-eligibility": cmd_iv_eligibility,
+    "dispatch-status": cmd_dispatch_status,
+    "dispatch": cmd_dispatch,
     "gate": cmd_gate,
     "evidence": cmd_evidence,
     "evidence-ingest": cmd_evidence_ingest,

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from . import dispatch as dispatch_mod
 from . import events as events_mod
 from . import gate as gate_mod
 from . import verifiers as verifiers_mod
@@ -198,6 +199,14 @@ def build_pr_node(
         "next_actions": [],
         "review_comment_count": len(client.review_comments(number)),
     }
+    node["dispatch"] = dispatch_mod.plan_dispatch(
+        node, client, None, None,
+        verifiers_mod.PoolResolution(
+            bindings=bindings, declared=declared, present=pool_present,
+            source="registry" if status_map is not None
+            else ("issue_body" if pool_present else "none"),
+            status_map=status_map, pool_invalid=pool_invalid),
+    ) if frozen else None
     node["state"] = classify(node)
     node["waiting_on"] = waiting_on(node)
     node["next_actions"] = _next_actions(node)

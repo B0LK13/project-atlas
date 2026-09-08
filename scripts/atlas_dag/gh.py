@@ -126,6 +126,21 @@ class GhClient:
         except GhError:
             return []
 
+    def dispatch_workflow(self, workflow_id: str, ref: str) -> dict:
+        """POST a workflow_dispatch event for `ref` (FEATURE_06).
+
+        Raises GhError on failure; a successful dispatch returns the (usually
+        empty) response body decoded as JSON.
+        """
+        repo = self.repo
+        if not repo:
+            raise GhError("REPOSITORY_IDENTITY_UNKNOWN")
+        data = self.gh_json(
+            ["api", f"repos/{repo}/actions/workflows/{workflow_id}/dispatches",
+             "-X", "POST", "-F", f"ref={ref}"]
+        )
+        return data if isinstance(data, dict) else {}
+
     def is_ancestor(self, ancestor_sha: str, descendant_sha: str) -> bool | None:
         """True/False via the compare API (Git ancestry, not prose).
 
