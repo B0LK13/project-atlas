@@ -5,7 +5,13 @@ including inside a HUMAN protected region. HUMAN payload is *not* opaque. Raw
 HUMAN bytes are immutable — no auto-escaping, no normalisation, no zero-width
 rewriting.
 
-**Status:** implemented, awaiting independent verification. Not sealed.
+**Status:** **SEALED 2026-09-08 on main** — merged as PR #717 (merge commit
+`48a51875` onto main `15c9a6d6`; candidate head `c6b0ecb8` carried only
+docs/evidence corrections over the independently verified behavioural
+predecessor `8d19932c`, src/tests byte-identical). Postmerge seal on actual
+main: F3 suite + F1/F2 + F4 regression = 246 passed; full suite 5,616 passed /
+8 skipped. The pre-merge "awaiting independent verification" status below is
+historical record.
 
 ## Base and candidate
 
