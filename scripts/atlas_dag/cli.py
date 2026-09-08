@@ -189,7 +189,12 @@ def cmd_evidence(args) -> int:
     store = _evidence_store(args)
     records = store.for_pr(args.pr)
     if not records:
-        print(f"no stored evidence for PR #{args.pr}")
+        if args.json:
+            head, tree, _unavailable = _live_head_tree(_client(args), args.pr)
+            print(json.dumps({"pr": args.pr, "current_head": head, "current_tree": tree,
+                              "records": []}, indent=2, sort_keys=True))
+        else:
+            print(f"no stored evidence for PR #{args.pr}")
         return 0
     head, tree, unavailable = _live_head_tree(_client(args), args.pr)
     rows = []

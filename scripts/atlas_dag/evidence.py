@@ -16,14 +16,21 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
 from .events import validator_for
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
+
 EVIDENCE_SCHEMA = "atlas_evidence_v1.schema.json"
 STORE_SCHEMA = "ATLAS_EVIDENCE_STORE_V1"
+RECORD_SCHEMA = "ATLAS_EVIDENCE_V1"
 
 EXACT_HEAD_ONLY = "EXACT_HEAD_ONLY"
 REUSABLE_SUBSYSTEM = "REUSABLE_SUBSYSTEM"
@@ -48,7 +55,27 @@ REQUIRED_FIELDS = (
 
 PROOF_RESULTS = frozenset({"PROVEN", "PASS", "VERIFIED"})
 
+NEGATIVE_CONTROL_VALUES = ("PASS", "FAIL", "NONE")
+
+_HEX40 = re.compile(r"[0-9a-f]{40}")
+
 EquivalenceProof = Callable[[dict, str | None, str | None], bool] | dict | None
+
+
+def _lock_exclusive(handle: Any) -> None:
+    if os.name == "nt":
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+    else:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+
+
+def _unlock(handle: Any) -> None:
+    if os.name == "nt":
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def normalize(record: dict) -> dict:
@@ -67,30 +94,56 @@ def _malformed_reasons(record: Any) -> list[str]:
         or (field == "covered_files" and not record.get(field))
     ]
     reasons = [f"MISSING_FIELD:{field}" for field in missing]
+    if record.get("schema") is not None and record.get("schema") != RECORD_SCHEMA:
+        reasons.append(f"SCHEMA_MISMATCH:{record['schema']}")
     scope = str(record.get("scope", "")).upper()
     if record.get("scope") is not None and scope not in ("CANDIDATE_WIDE", "SUBSYSTEM"):
         reasons.append(f"UNKNOWN_SCOPE:{record['scope']}")
+    negative_control = record.get("negative_control")
+    if negative_control is not None and \
+            str(negative_control).upper() not in NEGATIVE_CONTROL_VALUES:
+        reasons.append(f"UNKNOWN_NEGATIVE_CONTROL:{negative_control}")
+    for field in ("head", "tree"):
+        value = record.get(field)
+        if value is not None and value != "" and not _HEX40.fullmatch(str(value)):
+            reasons.append(f"MALFORMED_{field.upper()}:{value}")
+    pr = record.get("pr")
+    if pr is not None and not isinstance(pr, int):
+        reasons.append(f"PR_NOT_INTEGER:{pr}")
     return reasons
 
 
-def _proof_accepts(proof: EquivalenceProof, record: dict,
-                   current_head: str | None, current_tree: str | None) -> bool:
-    """An equivalence proof must attest THIS record's covered contract."""
+def _proof_rejection_reason(proof: EquivalenceProof, record: dict,
+                            current_head: str | None,
+                            current_tree: str | None) -> str | None:
+    """Return None if the proof attests THIS record's transition, else a reason.
+
+    A dict proof must be bound to the candidate transition it claims to
+    bridge: it has to name the record's covered contract and pin both the
+    record's stored head (old_head) and the current candidate head
+    (new_head). An unbound or mismatched proof proves nothing.
+    """
     if proof is None:
-        return False
+        return "SUBSYSTEM_REUSE_REQUIRES_EQUIVALENCE_PROOF"
     if callable(proof):
         try:
-            return bool(proof(record, current_head, current_tree))
+            if proof(record, current_head, current_tree):
+                return None
         except Exception:
-            return False  # a crashing proof proves nothing
+            pass  # a crashing proof proves nothing
+        return "EQUIVALENCE_PROOF_REJECTED"
     if isinstance(proof, dict):
-        if str(proof.get("result", "")).upper() not in PROOF_RESULTS:
-            return False
-        declared = proof.get("covered_contract")
-        if declared is not None and declared != record.get("covered_contract"):
-            return False
-        return True
-    return False
+        bound = (
+            str(proof.get("result", "")).upper() in PROOF_RESULTS
+            and proof.get("covered_contract") is not None
+            and proof.get("covered_contract") == record.get("covered_contract")
+            and proof.get("old_head") is not None
+            and proof.get("new_head") is not None
+            and proof.get("old_head") == record.get("head")
+            and proof.get("new_head") == current_head
+        )
+        return None if bound else "EQUIVALENCE_PROOF_NOT_BOUND"
+    return "SUBSYSTEM_REUSE_REQUIRES_EQUIVALENCE_PROOF"
 
 
 def classify(record: dict, current_head: str | None, current_tree: str | None,
@@ -119,9 +172,11 @@ def classify(record: dict, current_head: str | None, current_tree: str | None,
         reasons.append("TREE_MISMATCH")
 
     if str(record["scope"]).upper() == "SUBSYSTEM":
-        if _proof_accepts(equivalence_proof, record, current_head, current_tree):
+        rejection = _proof_rejection_reason(equivalence_proof, record,
+                                            current_head, current_tree)
+        if rejection is None:
             return REUSABLE_SUBSYSTEM, sorted(reasons + ["EQUIVALENCE_PROOF_ACCEPTED"])
-        reasons.append("SUBSYSTEM_REUSE_REQUIRES_EQUIVALENCE_PROOF")
+        reasons.append(rejection)
     return PREDECESSOR_SUPPORTING, sorted(reasons)
 
 
@@ -129,7 +184,9 @@ class EvidenceStore:
     """Small append-only evidence store; one JSON file, atomic rewrite.
 
     Ingestion is idempotent on evidence_id: the first record wins, re-ingesting
-    the same evidence_id changes nothing. Records are written in a
+    the same evidence_id changes nothing. Concurrent ingestion processes are
+    serialized with an exclusive lock file alongside evidence.json so the
+    read-modify-write cannot lose records. Records are written in a
     deterministic order with sorted keys, so equal logical content yields
     byte-identical files.
     """
@@ -153,13 +210,27 @@ class EvidenceStore:
 
     def ingest(self, record: dict) -> tuple[bool, list[dict]]:
         """Append one normalized record. Returns (added, all records)."""
-        records = self.load()
-        evidence_id = record.get("evidence_id")
-        if any(r.get("evidence_id") == evidence_id for r in records):
-            return False, records  # idempotent: first record wins
-        records.append(normalize(record))
-        self.save(records)
-        return True, records
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.with_name(self.path.name + ".lock")
+        with open(lock_path, "a+b") as lock_handle:
+            if lock_path.stat().st_size == 0:
+                lock_handle.write(b"\0")  # msvcrt.locking needs a byte to lock
+                lock_handle.flush()
+            # The exclusive flock bounds the whole read-modify-write
+            # (load + append + replace) so concurrent evidence-ingest
+            # processes cannot interleave and lose records; os.replace in
+            # save() stays as the torn-write guard for the rewrite itself.
+            _lock_exclusive(lock_handle)
+            try:
+                records = self.load()
+                evidence_id = record.get("evidence_id")
+                if any(r.get("evidence_id") == evidence_id for r in records):
+                    return False, records  # idempotent: first record wins
+                records.append(normalize(record))
+                self.save(records)
+                return True, records
+            finally:
+                _unlock(lock_handle)
 
     def save(self, records: list[dict]) -> None:
         ordered = sorted(

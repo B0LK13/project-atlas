@@ -950,3 +950,118 @@ def test_d009_cli_evidence_ingest_validates_schema(tmp_path, capsys):
     assert "SCHEMA" in capsys.readouterr().err
     store = store_at(tmp_path)
     assert [r["evidence_id"] for r in store.load()] == ["ev-cli-good1"]
+
+
+# -- D-009 review finding set: trust-boundary remediation (PR #723) ---------------
+
+def test_d009_dict_proof_must_be_bound_to_candidate_transition():
+    record = make_evidence("ev-sub-bound1", scope="SUBSYSTEM")
+    bound_proof = {"result": "PROVEN", "covered_contract": "contract:api",
+                   "old_head": H1, "new_head": H3}
+    # Missing old_head/new_head: accepted before the fix, must not be reusable.
+    unbound = {"result": "PROVEN", "covered_contract": "contract:api"}
+    reuse_class, reasons = evidence_mod.classify(record, H3, T3, equivalence_proof=unbound)
+    assert reuse_class == "PREDECESSOR_SUPPORTING"
+    assert "EQUIVALENCE_PROOF_NOT_BOUND" in reasons
+    # old_head must name the record's stored head, not any other head.
+    wrong_old = dict(bound_proof, old_head=H2)
+    reuse_class, reasons = evidence_mod.classify(record, H3, T3, equivalence_proof=wrong_old)
+    assert reuse_class == "PREDECESSOR_SUPPORTING"
+    assert "EQUIVALENCE_PROOF_NOT_BOUND" in reasons
+    # new_head must name the current candidate head being classified against.
+    wrong_new = dict(bound_proof, new_head=H2)
+    reuse_class, reasons = evidence_mod.classify(record, H3, T3, equivalence_proof=wrong_new)
+    assert reuse_class == "PREDECESSOR_SUPPORTING"
+    assert "EQUIVALENCE_PROOF_NOT_BOUND" in reasons
+    # A correctly bound proof bridges the record head -> current head.
+    reuse_class, reasons = evidence_mod.classify(record, H3, T3,
+                                                 equivalence_proof=bound_proof)
+    assert reuse_class == "REUSABLE_SUBSYSTEM"
+    assert "EQUIVALENCE_PROOF_ACCEPTED" in reasons
+    # Bound to the wrong covered contract is still not bound to THIS record.
+    wrong_contract = dict(bound_proof, covered_contract="contract:OTHER")
+    reuse_class, _reasons = evidence_mod.classify(record, H3, T3,
+                                                  equivalence_proof=wrong_contract)
+    assert reuse_class == "PREDECESSOR_SUPPORTING"
+
+
+def test_d009_classification_validates_schema_constant_and_field_shapes():
+    wrong_schema = make_evidence("ev-bad-schema1")
+    wrong_schema["schema"] = "ATLAS_EVIDENCE_V9"
+    reuse_class, reasons = evidence_mod.classify(wrong_schema, H1, T1)
+    assert reuse_class == "INVALID"
+    assert any(r.startswith("SCHEMA_MISMATCH") for r in reasons)
+
+    bad_control = make_evidence("ev-bad-ncctl1", negative_control="MAYBE")
+    reuse_class, reasons = evidence_mod.classify(bad_control, H1, T1)
+    assert reuse_class == "INVALID"
+    assert any(r.startswith("UNKNOWN_NEGATIVE_CONTROL") for r in reasons)
+
+    for field in ("head", "tree"):
+        malformed = make_evidence(f"ev-bad-{field}01")
+        malformed[field] = "not-a-40-hex-sha"
+        reuse_class, reasons = evidence_mod.classify(malformed, H1, T1)
+        assert reuse_class == "INVALID"
+        assert any(r == f"MALFORMED_{field.upper()}:not-a-40-hex-sha" for r in reasons)
+
+    string_pr = make_evidence("ev-bad-prnum1")
+    string_pr["pr"] = "10"  # schema requires an integer
+    reuse_class, reasons = evidence_mod.classify(string_pr, H1, T1)
+    assert reuse_class == "INVALID"
+    assert any(r.startswith("PR_NOT_INTEGER") for r in reasons)
+
+
+def test_d009_concurrent_ingest_serializes_read_modify_write(tmp_path):
+    import threading
+
+    store_path = tmp_path / ".atlas-runtime" / "evidence" / "evidence.json"
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(2)
+
+    def ingest_one(evidence_id: str) -> None:
+        try:
+            barrier.wait(timeout=10)
+            added, _records = evidence_mod.EvidenceStore(store_path).ingest(
+                make_evidence(evidence_id))
+            assert added
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=ingest_one, args=(f"ev-conc-{i:02d}",))
+               for i in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert not errors, errors
+    stored = evidence_mod.EvidenceStore(store_path).load()
+    assert len(stored) == 2  # no last-writer-wins record loss
+    assert sorted(r["evidence_id"] for r in stored) == ["ev-conc-00", "ev-conc-01"]
+
+
+def test_d009_cli_evidence_json_empty_store_returns_json(tmp_path, monkeypatch,
+                                                         capsys):
+    from atlas_dag import cli as cli_mod
+
+    class _OfflineClient:
+        @property
+        def repo(self):
+            return None
+
+        def open_prs(self):
+            return []
+
+        def commit(self, _sha):
+            return None
+
+    monkeypatch.setattr(cli_mod, "GhClient", lambda repo=None: _OfflineClient())
+    argv = ["--runtime-dir", str(tmp_path / ".atlas-runtime"), "--json", "evidence", "10"]
+    assert cli_mod.main(argv) == 0
+    out = json.loads(capsys.readouterr().out)  # must be parseable JSON
+    assert out["records"] == []
+    assert out["pr"] == 10
+    # Non-JSON mode output is unchanged: plain text, no JSON envelope.
+    assert cli_mod.main(["--runtime-dir", str(tmp_path / ".atlas-runtime"),
+                         "evidence", "10"]) == 0
+    captured = capsys.readouterr()
+    assert "no stored evidence for PR #10" in captured.out
