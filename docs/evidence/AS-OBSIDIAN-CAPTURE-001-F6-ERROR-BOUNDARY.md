@@ -254,7 +254,8 @@ Integrated as PR #729: merge commit `e264d599`, second parent `c5d85fe7`, base
 e264d599` is empty and the merge trees (`src 8086e6f9`, `tests e6157e27`,
 `docs aa0b3336`) are hash-identical to the certified object.
 
-Nine verification rounds against ten objects. Round 1 found the fix itself
+Nine verification rounds against nine objects (`ce771fb7` was pushed but
+superseded before a round ran on it). Round 1 found the fix itself
 platform-incomplete. An earlier revision of this paragraph added that "every
 finding after it was in the claim record, not the code" -- **false**, and raised
 by two independent reviewers: six of the nine objects changed `src`/`tests`, and

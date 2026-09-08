@@ -14035,7 +14035,7 @@ Integrated as PR #729. Merge commit `e264d599`, second parent `c5d85fe7`, base
 empty; merge trees `src 8086e6f9`, `tests e6157e27`, `docs aa0b3336` are
 hash-identical to the certified object.
 
-**Nine verification rounds against ten objects** — the most-corrected package in
+**Nine verification rounds against nine objects** — the most-corrected package in
 this lane. Round 1 found a real defect in the fix: it was platform-incomplete,
 because on Windows an unopenable note fails at `os.replace`, not at the read,
 and that site was unguarded. A Linux-only reproduction could not see it.

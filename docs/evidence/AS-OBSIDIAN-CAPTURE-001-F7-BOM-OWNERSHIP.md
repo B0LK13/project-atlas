@@ -211,8 +211,10 @@ An earlier revision put this as "every round after the first changed evidence
 prose only", which overstates it -- the `tests` tree moved in three of the six
 objects, and this receipt itself records control A going 5 -> 6 when a vacuous
 assertion was strengthened. The narrow claim is the true one. Rounds 1-4 are summarised
-above; each found a defect in the claim record rather than in the code, which is
-the pattern this receipt exists to document.
+above; each found a defect in the claim record rather than in `src`, which is the
+pattern this receipt exists to document. `src` is the precise word: the `tests`
+tree did move in three of the six objects, so "not the code" would be too broad
+-- the same overclaim corrected two paragraphs above.
 
 Measured on the merge object in an isolated worktree with its own venv — both
 the parent process and a spawned child were proven to resolve `project_atlas` to
