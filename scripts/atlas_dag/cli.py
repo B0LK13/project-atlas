@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import events as events_mod
+from . import evidence as evidence_mod
 from .gh import GhClient
 from .model import build_snapshot
 
@@ -19,6 +20,10 @@ def _client(args) -> GhClient:
 
 def _runtime_path(args) -> Path:
     return Path(args.runtime_dir) / "dag.json"
+
+
+def _evidence_store(args) -> evidence_mod.EvidenceStore:
+    return evidence_mod.EvidenceStore(Path(args.runtime_dir) / "evidence" / "evidence.json")
 
 
 def cmd_snapshot(args) -> int:
@@ -146,6 +151,81 @@ def cmd_gate(args) -> int:
     return 0 if gate["merge_gate"] == "PASS" else 1
 
 
+def cmd_evidence_ingest(args) -> int:
+    try:
+        payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"evidence-ingest: cannot read {args.file}: {exc}", file=sys.stderr)
+        return 1
+    errors = evidence_mod.validate_record(payload)
+    if errors:
+        print(f"evidence-ingest: invalid ATLAS_EVIDENCE_V1 record:", file=sys.stderr)
+        for error in errors:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    store = _evidence_store(args)
+    added, records = store.ingest(payload)
+    state = "stored" if added else "already-present"
+    print(f"{state}: evidence_id={payload['evidence_id']} "
+          f"total_records={len(records)}")
+    return 0
+
+
+def _live_head_tree(client: GhClient, pr: int) -> tuple[str | None, str | None, str | None]:
+    """Live (head, tree) for an open PR; (None, None, reason) when unverifiable."""
+    if not client.repo:
+        return None, None, "GITHUB_UNAVAILABLE"
+    match = next((p for p in client.open_prs() if p.get("number") == pr), None)
+    if match is None:
+        return None, None, "PR_NOT_IN_OPEN_FRONTIER"
+    head = match.get("headRefOid")
+    commit = client.commit(head) if head else None
+    if not commit:
+        return head, None, "CANDIDATE_TREE_UNKNOWN"
+    return head, commit.get("tree"), None
+
+
+def cmd_evidence(args) -> int:
+    store = _evidence_store(args)
+    records = store.for_pr(args.pr)
+    if not records:
+        if args.json:
+            head, tree, _unavailable = _live_head_tree(_client(args), args.pr)
+            print(json.dumps({"pr": args.pr, "current_head": head, "current_tree": tree,
+                              "records": []}, indent=2, sort_keys=True))
+        else:
+            print(f"no stored evidence for PR #{args.pr}")
+        return 0
+    head, tree, unavailable = _live_head_tree(_client(args), args.pr)
+    rows = []
+    for record in records:
+        if unavailable:
+            reuse_class, reasons = evidence_mod.UNKNOWN, [unavailable]
+        else:
+            reuse_class, reasons = evidence_mod.classify(record, head, tree)
+        rows.append({
+            "evidence_id": record["evidence_id"],
+            "producer": record["producer"],
+            "scope": record["scope"],
+            "result": record["result"],
+            "head": record["head"],
+            "tree": record["tree"],
+            "reuse_class": reuse_class,
+            "reasons": reasons,
+        })
+    if args.json:
+        print(json.dumps({"pr": args.pr, "current_head": head, "current_tree": tree,
+                          "records": rows}, indent=2, sort_keys=True))
+        return 0
+    print(f"pr/{args.pr} current_head={head or 'UNKNOWN'} current_tree={tree or 'UNKNOWN'}")
+    for row in rows:
+        print(f"  {row['evidence_id']} {row['scope']:<14} {row['result']:<4} "
+              f"{row['reuse_class']}")
+        for reason in row["reasons"]:
+            print(f"    - {reason}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="atlas-dag",
@@ -165,6 +245,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("owners", help="current ownership map (ambiguity => UNKNOWN)")
     p_gate = sub.add_parser("gate", help="read-only merge guardian evaluation (D-008)")
     p_gate.add_argument("pr", type=int)
+    p_evidence = sub.add_parser("evidence", help="stored evidence reuse classification (D-009)")
+    p_evidence.add_argument("pr", type=int)
+    p_ingest = sub.add_parser("evidence-ingest",
+                              help="validate + store one ATLAS_EVIDENCE_V1 record (D-009)")
+    p_ingest.add_argument("file")
     return parser
 
 
@@ -175,6 +260,8 @@ COMMANDS = {
     "events": cmd_events,
     "owners": cmd_owners,
     "gate": cmd_gate,
+    "evidence": cmd_evidence,
+    "evidence-ingest": cmd_evidence_ingest,
 }
 
 

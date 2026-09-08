@@ -64,10 +64,17 @@ def _latest_event(events: list[dict], name: str, pr: int | None = None,
 
 def ownership(events: list[dict], pr: int, live_head: str | None = None) -> tuple[str, list[str]]:
     """Return (status, claimants). LANE OWNERSHIP IS A MUTEX: more than one
-    active claimant => AMBIGUOUS, never last-writer-wins."""
+    active claimant => AMBIGUOUS, never last-writer-wins.
+
+    Ownership events are lane-scoped, NOT head-bound: a claim survives the
+    owner's own head moves (otherwise every push would silently release the
+    mutex). Head-bound filtering stays for CI/IV/freeze/claim events.
+    """
     active: list[str] = []
     for e in events:
-        if e.get("pr") != pr or not _is_live_event(e, live_head):
+        if e.get("pr") != pr:
+            continue
+        if e["event"] not in ("OWNER_CLAIMED", "OWNER_RELEASED") and not _is_live_event(e, live_head):
             continue
         if e["event"] == "OWNER_CLAIMED":
             actor = e.get("actor")
