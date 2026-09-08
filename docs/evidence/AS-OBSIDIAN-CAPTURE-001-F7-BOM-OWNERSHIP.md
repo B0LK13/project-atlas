@@ -62,6 +62,20 @@ YAML frontmatter.
 
 ## Evidence
 
+**Two tests were strengthened after verification, and the first is the more
+instructive.** `test_f7_bom_note_preserves_human_bytes` asserted only that the
+human line was still in the file after `retry()` — never that the retry
+*succeeded*. With the fix reverted the retry is refused, the file is left
+untouched, and the assertion passed **vacuously**: it survived control A while
+appearing to evidence the claim it was cited for. It now asserts
+`status == "ok"` first, and control A accordingly moved from 5 failures to 6.
+
+The hostile suite likewise asserted only `status != "ok"`, so a shape refused
+for an unrelated reason — a secret finding, a path escape — would have counted
+as ownership coverage. It now asserts the refusal **code** is
+`OBSIDIAN_NOTE_CONFLICT`; verification confirmed all 18 currently refuse for
+exactly that reason.
+
 **Recognition (8 tests):** five editor-realistic shapes still refresh (plain,
 CRLF, BOM+LF, BOM+CRLF, BOM+CR-only); a BOM'd note's HUMAN bytes survive the
 refresh; the probe is exercised directly at unit level.
@@ -78,7 +92,7 @@ BOM — each also in its BOM-prefixed variant where that differs.
 | control | reverted | result |
 |---|---|---|
 | baseline | — | **26 passed** |
-| A | the BOM strip (this fix) | **5 failed** |
+| A | the BOM strip (this fix) | **6 failed** |
 | B | F5's line-ending normalisation | **4 failed** |
 | C | the `managed is True` check | **3 failed** |
 | D | the `capture_id` match | **18 failed** |
@@ -104,7 +118,7 @@ literals while describing the escape.)
 `_f5_newline_fidelity.py`, `_f7_bom_ownership.py`,
 `test_as_graph_005_projections.py`, `_adversarial.py`,
 `_f4_canonical_semantics.py`, `test_as_coder_alpha_obsidian_001.py`,
-`_r1_001.py`) = **290 passed, 4 xfailed**. Full suite **5,669 passed, 8 skipped,
+`test_as_coder_alpha_obsidian_r1_001.py`) = **290 passed, 4 xfailed**. Full suite **5,669 passed, 8 skipped,
 4 xfailed**. Freeze guard 78. `ruff` clean; `mypy` clean (405 files).
 
 ## Claim boundary
@@ -120,6 +134,16 @@ content is derived" and is **not** a HUMAN-byte loss — a test pins that the
 human region survives verbatim alongside it. An editor that re-adds the BOM is
 simply recognised again next refresh. Recorded as behaviour rather than left for
 someone to discover.
+
+**Pre-existing looseness in ownership detection, recorded not fixed.** Identical
+at base and head, so not introduced here and outside F7's scope: `managed:`
+accepts YAML 1.1 truthies (`yes`, `on`, `TRUE`, `!!bool true`) as well as
+`true`; a YAML anchor/alias, merge key, duplicated `atlas:` key or flow mapping
+all satisfy the probe; and a BOM placed *after* the delimiter is tolerated
+mid-stream by PyYAML. In every one of these the note still carries Atlas's
+genuine `capture_id`, so they are alternate spellings of Atlas's own marker
+rather than foreign notes — which is why they are a residual-register line for
+the lane rather than a defect in this package.
 
 **Also not claimed:** that other encoding signatures (UTF-16 BOMs, which would
 fail the UTF-8 decode long before this probe) are handled; that ownership

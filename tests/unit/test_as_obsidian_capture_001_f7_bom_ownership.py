@@ -86,8 +86,13 @@ def test_f7_bom_note_preserves_human_bytes(vault: Path) -> None:
     )
     note.write_bytes((BOM + text).encode("utf-8"))
 
-    retry(vault, result["capture_id"])
+    outcome = retry(vault, result["capture_id"])
 
+    # Load-bearing, and it was not before: without this the test passed with
+    # the fix REVERTED -- the retry was refused, the file left untouched, and
+    # the human line was "still there" only because nothing had happened.
+    # Independent verification caught it by noting the test survived control A.
+    assert outcome["status"] == "ok", outcome.get("errors")
     assert b"keep this human line" in note.read_bytes()
 
 
@@ -141,6 +146,12 @@ def test_f7_unowned_note_is_still_refused(label: str, vault: Path) -> None:
     assert outcome["status"] != "ok", (
         f"{label}: Atlas ACCEPTED a note it does not own -- recognition became acceptance"
     )
+    # Assert the REASON, not just that something refused: without this the test
+    # would still pass if a shape were rejected for an unrelated cause (a secret
+    # finding, a path escape), quietly losing the ownership coverage it exists
+    # for. Verification confirmed all 18 currently refuse for this reason.
+    codes = {e.get("code") for e in (outcome.get("errors") or [])}
+    assert "OBSIDIAN_NOTE_CONFLICT" in codes, f"{label}: refused for the wrong reason: {codes}"
     assert note.read_bytes() == mutated, f"{label}: the refused note was modified"
 
 

@@ -13748,7 +13748,7 @@ copy. The note's bytes are untouched, and ownership still requires
 Controls, each load-bearing with a disjoint set:
 
     baseline                             26 passed
-    A  BOM strip removed (this fix)       5 failed
+    A  BOM strip removed (this fix)       6 failed
     B  F5 line-ending normalisation gone  4 failed
     C  `managed is True` check dropped    3 failed
     D  `capture_id` match dropped        18 failed
