@@ -102,6 +102,14 @@ NEAR_MISS = {
     "partial-token": "<!-- atlas:generated: -->\n",
     "ordinary-html-comment": "<!-- just an ordinary note -->\n",
     "human-marker-without-name": "<!-- BEGIN HUMAN: -->\n",
+    # #716's split-token near miss. Recorded as an open residual in the F1-F4
+    # register ("pinned by no assertion") and pinned here. A whitespace-tolerant
+    # marker matcher would start REFUSING these, turning ordinary prose into a
+    # permanent refresh failure, and nothing would have caught it.
+    "split-token-inside-start": "<!-- atlas:generated:sta rt -->\n",
+    "split-token-inside-end": "<!-- atlas:generated:e nd -->\n",
+    "split-token-before-colon": "<!-- atlas:generated :start -->\n",
+    "split-token-across-newline": "<!-- atlas:generated:sta\nrt -->\n",
 }
 
 
@@ -289,3 +297,28 @@ def test_f3_refusal_diagnostic_stays_linear_on_a_large_malformed_note() -> None:
 
     assert f"begin={count}" in str(caught.value)
     assert elapsed < 5.0, f"refusal diagnostic took {elapsed:.1f}s; quadratic scan is back"
+
+
+# --- F8: the split-token pins, asserted at byte level --------------------------
+#
+# The shared near-miss test above asserts `body.strip() in merged`, which is the
+# corpus convention and is what the other seven cases use. It is weaker than the
+# claim the F8 evidence record makes -- "human bytes intact" -- and verification
+# correctly noted the gap. These pin the stronger property for the four split
+# shapes: the HUMAN region survives byte-for-byte, not merely substring-present.
+
+_F8_SPLIT_TOKEN = {
+    "split-token-inside-start": NEAR_MISS["split-token-inside-start"],
+    "split-token-inside-end": NEAR_MISS["split-token-inside-end"],
+    "split-token-before-colon": NEAR_MISS["split-token-before-colon"],
+    "split-token-across-newline": NEAR_MISS["split-token-across-newline"],
+}
+
+
+@pytest.mark.parametrize("label", sorted(_F8_SPLIT_TOKEN))
+def test_f8_split_token_human_region_survives_byte_for_byte(label: str) -> None:
+    body = _F8_SPLIT_TOKEN[label]
+    merged = _merge(_note(body))
+    opened = merged.index("<!-- BEGIN HUMAN: notes -->\n") + len("<!-- BEGIN HUMAN: notes -->\n")
+    closed = merged.index("<!-- END HUMAN: notes -->", opened)
+    assert merged[opened:closed] == body

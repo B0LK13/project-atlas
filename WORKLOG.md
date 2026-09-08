@@ -14132,3 +14132,85 @@ control that passes is not evidence; it is usually a broken control.
 **Not claimed:** that Windows runtime behaviour was observed directly. It is
 evidenced only by the green Windows CI job at the exact head; the tests inject
 the failure, which is why they pass on Linux.
+
+## AS-OBSIDIAN-CAPTURE-001-F8 — the split-token near miss is pinned (2026-09-08)
+
+A **pin, not a fix.** `src/` is byte-identical to `main`; nothing about the
+behaviour changes. What was missing was the assertion.
+
+The F1-F4 residual register named it precisely: "#716's split-token near miss
+`<!-- atlas:generated:sta rt -->` behaves correctly but is pinned by no
+assertion in the F3 test file."
+
+**Reproduced before anything was written**, through `merge_protected_regions` --
+the canonical entry point the F3 suite uses -- first on `7b0989a7`, then again
+on `e264d599` after F6 merged and moved the base. `protected_regions.py` is
+hash-identical at both (`d3fe8615`), so the two runs are the same measurement;
+both were done rather than assumed, because a stale base reference in an
+evidence record is how the two preceding packages accumulated blocking findings.
+
+    <!-- atlas:generated:sta rt -->     PRESERVED, human bytes intact
+    <!-- atlas:generated:e nd -->       PRESERVED, human bytes intact
+    <!-- atlas:generated :start -->     PRESERVED, human bytes intact
+    <!-- atlas:generated:sta\nrt -->    PRESERVED, human bytes intact
+
+All four survive as ordinary prose, which is correct: only the exact spelling is
+reserved. So the package changes no behaviour and claims none. "We checked and
+it was already right" is a result, and the next person to widen marker matching
+needs the check to exist.
+
+**Why the direction matters.** The owner policy makes Atlas marker spellings
+reserved *everywhere*, including inside HUMAN content, which makes the matcher's
+exactness load-bearing in a direction that fails quietly. A matcher made **more
+tolerant** does not error -- it starts REFUSING ordinary human prose. A note
+whose HUMAN region happens to discuss Atlas syntax would be judged a structural
+collision and refused on every refresh: permanently unmanageable, with the error
+naming the wrong cause. That is the same consumer and the same consequence as
+the CRLF regression F5's verification caught and the BOM defect F7 fixed,
+reached from a third direction.
+
+**Negative controls.** Three mutations, each under a sha256 assertion that it
+changed the file, each reverted with the source confirmed byte-identical after.
+Each was run twice -- against the corpus as it exists on `main`, and against the
+corpus with the four pins added -- because a control that only demonstrates the
+new tests fail proves they are tests, not that they are needed:
+
+    control                                  main's corpus (37)   with F8 (45)
+    A  broadly whitespace-tolerant matching  1 caught             9 caught
+    B  tolerant only of a break in the token 0 caught, 37 passed  6 caught
+    C  tolerant only of colon whitespace     0 caught, 37 passed  2 caught
+
+The right column counts F8's four corpus entries and its four byte-level
+assertions. An earlier revision reported 5/3/1, measured before those assertions
+were added in response to verification -- a figure this package's own
+remediation moved, re-derived here rather than carried forward. The left column
+is the load-bearing one and is unaffected.
+
+**B and C are the load-bearing pair.** Both are plausible "helpful" relaxations
+of marker matching; both would turn ordinary human prose into a permanent
+refresh refusal; and both pass **entirely undetected** against the corpus as it
+stands on `main` -- a clean 37/37, no signal at all. The pre-existing
+`extra-inner-spacing` case catches A alone, which is why A on its own would have
+been weak evidence that these pins add anything.
+
+**Not claimed:** that all four shapes come from #716. **One** does --
+`<!-- atlas:generated:sta rt -->`, the only shape the residual register
+attributes to it. The other three (a break inside the *end* token, a space
+before a colon, a split across a newline) are **locally derived**, constructed
+to discriminate the three controls; B and C exist precisely because they isolate
+them. An earlier revision said all four were "the ones #716 raised", which gave
+three of them a provenance the register does not support. Raised independently
+by review and by verification.
+
+Nor is the corpus claimed complete: the near-miss space is not enumerated and no
+exhaustive sweep is committed, so no coverage fraction is asserted.
+
+The controls were measured on `e264d599` and the base has since moved to
+`9972d164`. Checked rather than assumed: `src` (`8086e6f9`) and `tests`
+(`e6157e27`) are identical at both, and the F3 corpus blob is `e07cbf16` at
+`7b0989a7`, `e264d599` and the current base alike. The mutation source is
+committed at `docs/scripts/f8_near_miss_controls.py`, so the six cells are
+reproducible from a clean checkout rather than only from this prose.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
