@@ -90,7 +90,7 @@ existing `finally` still removes the staging file on the ordinary refused-write
 path, and a test pins that no `.tmp` residue survives it. Cleanup is now
 best-effort, so if the removal *itself* fails the residue can survive — see the
 residual register below. An earlier revision of this paragraph said only "still
-removes", contradicting that residual eighty lines later.
+removes", contradicting that residual, which the register below records.
 
 ## Evidence
 

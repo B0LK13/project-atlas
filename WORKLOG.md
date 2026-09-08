@@ -13792,9 +13792,15 @@ before `malformed-generated-markers` is relabelled. The test is load-bearing;
 two successive receipts described the wrong mutation.
 
 Suites (file set named, because an unenumerated figure is not checkable):
-test_as_obsidian_capture_001, _f3, _f5_newline_fidelity, _f6_error_boundary,
-test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
-test_as_coder_alpha_obsidian_001, test_as_coder_alpha_obsidian_r1_001
+  tests/unit/test_as_obsidian_capture_001.py
+  tests/unit/test_as_obsidian_capture_001_f3.py
+  tests/unit/test_as_obsidian_capture_001_f5_newline_fidelity.py
+  tests/unit/test_as_obsidian_capture_001_f6_error_boundary.py
+  tests/unit/test_as_graph_005_projections.py
+  tests/unit/test_as_graph_005_adversarial.py
+  tests/unit/test_as_graph_005_f4_canonical_semantics.py
+  tests/unit/test_as_coder_alpha_obsidian_001.py
+  tests/unit/test_as_coder_alpha_obsidian_r1_001.py
 = 277 passed, 4 xfailed; full suite 5,656 passed, 8 skipped, 4 xfailed; freeze guard 78
 (neither changed file is a certified surface); ruff and mypy clean (405 files).
 
