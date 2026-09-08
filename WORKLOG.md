@@ -14175,10 +14175,16 @@ Each was run twice -- against the corpus as it exists on `main`, and against the
 corpus with the four pins added -- because a control that only demonstrates the
 new tests fail proves they are tests, not that they are needed:
 
-    control                                  main's corpus        with pins
-    A  broadly whitespace-tolerant matching  1 caught             5 caught (4 new)
-    B  tolerant only of a break in the token 0 caught, 37 passed  3 caught
-    C  tolerant only of colon whitespace     0 caught, 37 passed  1 caught
+    control                                  main's corpus (37)   with F8 (45)
+    A  broadly whitespace-tolerant matching  1 caught             9 caught
+    B  tolerant only of a break in the token 0 caught, 37 passed  6 caught
+    C  tolerant only of colon whitespace     0 caught, 37 passed  2 caught
+
+The right column counts F8's four corpus entries and its four byte-level
+assertions. An earlier revision reported 5/3/1, measured before those assertions
+were added in response to verification -- a figure this package's own
+remediation moved, re-derived here rather than carried forward. The left column
+is the load-bearing one and is unaffected.
 
 **B and C are the load-bearing pair.** Both are plausible "helpful" relaxations
 of marker matching; both would turn ordinary human prose into a permanent
@@ -14187,10 +14193,24 @@ stands on `main` -- a clean 37/37, no signal at all. The pre-existing
 `extra-inner-spacing` case catches A alone, which is why A on its own would have
 been weak evidence that these pins add anything.
 
-**Not claimed:** that the corpus is complete. Four shapes were chosen because
-they are the ones #716 raised and the ones the three controls discriminate. The
-near-miss space is not enumerated and no exhaustive sweep is committed, so no
-coverage fraction is asserted.
+**Not claimed:** that all four shapes come from #716. **One** does --
+`<!-- atlas:generated:sta rt -->`, the only shape the residual register
+attributes to it. The other three (a break inside the *end* token, a space
+before a colon, a split across a newline) are **locally derived**, constructed
+to discriminate the three controls; B and C exist precisely because they isolate
+them. An earlier revision said all four were "the ones #716 raised", which gave
+three of them a provenance the register does not support. Raised independently
+by review and by verification.
+
+Nor is the corpus claimed complete: the near-miss space is not enumerated and no
+exhaustive sweep is committed, so no coverage fraction is asserted.
+
+The controls were measured on `e264d599` and the base has since moved to
+`9972d164`. Checked rather than assumed: `src` (`8086e6f9`) and `tests`
+(`e6157e27`) are identical at both, and the F3 corpus blob is `e07cbf16` at
+`7b0989a7`, `e264d599` and the current base alike. The mutation source is
+committed at `docs/scripts/f8_near_miss_controls.py`, so the six cells are
+reproducible from a clean checkout rather than only from this prose.
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
