@@ -35,6 +35,7 @@ from project_atlas.graph_quarantine import GraphHealthSnapshot, HealthState
 from project_atlas.graph_relationships import LinkQuality, RelationshipRecord
 from project_atlas.protected_regions import (
     ProtectedRegionError,
+    read_note_text,
 )
 from project_atlas.protected_regions import (
     merge_protected_regions as _canonical_merge_protected_regions,
@@ -641,7 +642,7 @@ def write_projection_outputs(
     plan: dict[Path, bytes] = {}
     for relative, rendered in sorted(mapping.items()):
         path = _safe_vault_relative(vault, relative)
-        existing = path.read_text(encoding="utf-8") if path.is_file() else None
+        existing = read_note_text(path) if path.is_file() else None
         merged = _merge_protected_regions(existing=existing, rendered=rendered, path=relative)
         plan[path] = merged.encode("utf-8")
 

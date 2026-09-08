@@ -13451,3 +13451,165 @@ placement, not human-byte fidelity** -- it scores ten deliberately corrupt
 merges (prose truncation, whitespace/CRLF/encoding mutation, line reordering,
 generated-text injection) as clean, so its zeroed counters are not a
 no-corruption certificate.
+
+## AS-OBSIDIAN-CAPTURE-001-F5 — HUMAN line endings are bytes (2026-09-08)
+
+Work package: **AS-OBSIDIAN-CAPTURE-001-F5**, successor to the F1-F4 series
+(sealed at `7a9eeb76`). The F3/F4 seals recorded CRLF end-to-end loss as an
+open residual requiring its own work package. This is that package. Branch
+`fix/as-obsidian-capture-001-f5-newline-fidelity`, base `7a9eeb76`.
+
+**Selected by frontier scan, not by narrative.** The Obsidian/capture lane had
+zero open PRs after #722. A repository search found no branch, PR or issue
+claiming line-ending work, so the residual was unowned and runnable. The DAG
+lane (#719/#720/#723) is separately owned and was not touched.
+
+### The defect, reproduced on current main before anything changed
+
+All four generated-span-preserving writers read the prior note with
+`Path.read_text(encoding="utf-8")`. That is text mode with universal newlines,
+so `\r\n` and a lone `\r` become `\n` *before the merge sees the bytes*. The
+note is the file the human edits, so a translating read is a silent write-back
+mutation of HUMAN content on a refresh nobody asked for.
+
+Driven through the real entry points, comparing bytes on disk:
+
+    1  obsidian_capture_note.py:378   capture() + retry()                CR 2 -> 0
+    2  obsidian_projection.py:360     materialize_obsidian_projection()  CR 2 -> 0
+    3  graph_projections.py:644       write_projection_outputs()         CR 2 -> 0
+    4  ingestion.py:99                _generated_content()               CR 2 -> 0  [owner-gated]
+
+CR counts are per-fixture: 2 for the two-line HUMAN body used here, 3 for the
+whole-note CRLF fixture an independent verifier used. Same direction, different
+probe -- noted because the two figures otherwise read as contradictory.
+
+Entry point 3 is the sharpest: its own docstring claims "Preserves HUMAN
+protected regions byte-for-byte (AT-011 fail-closed)". Entry point 4 does not
+route through `protected_regions` at all, which is why a search for
+`merge_protected_regions` callers finds only three — the undercount the F3
+receipt carried.
+
+**Why nothing caught it.** The guards check marker presence, count and
+placement; translation changes none of those. The F1-F4 suites assert substring
+presence, and `"my note" in text` is true both before and after the line
+endings are destroyed. This is the corruption class those checks cannot see.
+
+**Corruption class, measured:** `\r\n`, lone `\r`, mixed endings and a CR
+mid-prose are all mutated; `U+2028` and form feed survive. So the class is
+CR-bearing line endings specifically, not whitespace generally.
+
+**Pre-existing, not introduced.** Reproduces identically on earlier bases;
+#717's verification already established byte-for-byte equivalence on
+`15c9a6d6`. F3 neither introduced nor changed it.
+
+**The write side needed no fix** — checked, because a mirrored defect there
+would have made this incomplete. All four writers emit via `write_bytes`, and
+`ingestion.py:296` already passes `newline="\n"` explicitly.
+
+### An owner gate split the package, and that is the guard working
+
+The first candidate fixed all four sites. The full suite then failed
+`test_atlas3_demo_isolation_001.test_certified_surfaces_unmodified`:
+`src/project_atlas/ingestion.py` is a **certified surface**, and editing it
+requires an owner-approved, sha256-pinned exception under
+`docs/atlas-3/ARCHITECTURE.md` SS9.1. That gate cannot be self-granted by this
+lane, and the mechanism is content-pinned so even a one-byte further edit
+invalidates it.
+
+The candidate was split rather than argued with:
+
+- **F5** fixes the three permitted sites plus the shared helper;
+  `ingestion.py` is restored byte-identical to `main`.
+- **F5-B** is the `ingestion.py` site, recorded as OWNER-GATED. The fix is one
+  line -- swapping the read for `read_note_text`, the helper F5 introduces,
+  which is NOT on `main` until F5 merges -- so what is missing is a decision, not
+  engineering.
+
+The gated defect is NOT downgraded to a paragraph. Its four reproductions stay
+in the suite as `xfail(strict=True)`: they execute on every CI run and flip to
+a visible XPASS failure the moment the gated fix lands. A residual that
+self-alerts survives a handoff; a residual in prose does not.
+
+### The fix
+
+One helper, `protected_regions.read_note_text(path)`, at the three permitted
+sites, and ready for the fourth when F5-B is granted.
+`newline=""` is the obvious spelling but `Path.read_text` accepts it only from
+3.13, and this package declares `requires-python >= 3.12`, so it decodes bytes
+directly. The exception surface is unchanged (`OSError`, `UnicodeDecodeError`),
+which is what the existing handlers already catch. A shared helper rather than
+three inline edits (one per live site), so the invariant has one name and one
+place to test -- and the fourth site can adopt it unchanged when F5-B is granted.
+
+**CORE3-014 is deliberately untouched.** Identity hashing still normalises
+CRLF to LF so content identity is stable across platforms; `canonical_content`
+already states that the stored raw evidence is the untouched original. Storage
+fidelity and identity normalisation are different concerns, and a test pins
+that `content_hash("a\r\nb\r\n") == content_hash("a\nb\n")` still holds.
+
+### Evidence
+
+27 tests (31 collected, including the 4 strict-xfail tripwires) asserting
+**bytes and digests**, never substring presence: four
+line-ending shapes across four entry points, plus repeat-refresh erosion,
+an LF-only regression guard that also asserts no endings are *invented*, and a
+check that the generated span still refreshes beside preserved CRLF content so
+the fix has not frozen derived output.
+
+Negative controls, each load-bearing and per-site:
+
+    baseline                                   27 passed, 4 xfailed (31 collected)
+    A  helper -> read_text (3 live sites)      19 failed,  8 passed
+    B  graph_projections site only              5 failed
+    C  obsidian_capture_note site only          6 failed
+    D  obsidian_projection site only            4 failed
+    E  ownership probe made LF-naive            3 failed
+
+Each fails a distinct, appropriate set (verified by test name), so no site is
+covered only by another site's test. The EIGHT surviving control A are the ones
+that must, enumerated rather than counted: the four `read_text`-is-the-defect
+controls; the LF-only guard; both parametrisations of
+`test_f5_note_ownership_survives_non_lf_frontmatter` (named, because the file
+holds a third ownership test -- `test_f5_ownership_probe_does_not_rewrite_human_bytes`
+-- which correctly FAILS under this control; reverting the helper
+restores the translating read, which masks the ownership issue by
+construction); and identity hashing. The 4 xfails are the gated `ingestion.py`
+reproductions and stay strict.
+
+These figures were re-measured at this head after the erosion test was
+strengthened. An earlier revision carried round-1 numbers (24/17/5/4/4) that no
+longer reproduced -- the same stale-evidence defect this lane exists to catch,
+found by verification round 2.
+
+Suites (file set enumerated, because the figure was previously not
+reproducible as stated): test_as_obsidian_capture_001, _f3,
+test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
+test_as_coder_alpha_obsidian_001, _r1_001, and this package's own file =
+264 passed, 4 xfailed. Full suite: 5,643 passed, 8 skipped, 4 xfailed,
+EXIT=0 -- recorded here because it is the strongest single gate and was
+previously only in the PR body. The seven F1-F4 files are byte-identical to
+base, so 237/237 there is a clean no-regression result against the sealed
+baseline. The freeze guard `test_atlas3_demo_isolation_001` passes (78 tests),
+confirming this candidate touches no certified surface. `ruff check .` clean;
+`mypy src` clean (405 files).
+
+### Claim boundary
+
+Claimed: CR-bearing line endings inside HUMAN regions survive a refresh
+byte-for-byte at the THREE LIVE writers fixed here; note ownership no longer
+depends on line endings; identity hashing is unchanged. (An earlier revision
+said "all four writers" -- contradicting the next paragraph, and false: the
+fourth still loses its CR bytes on this head -- CR 3 -> 0 on the verifier's
+whole-note fixture, per-fixture as noted above; the direction is the claim,
+the integer is fixture-dependent. Corrected, not softened.)
+
+**Not claimed:** that the fourth writer is fixed -- `ingestion.py` is
+unchanged here and its defect remains live on `main` under F5-B; general byte
+fidelity for every transformation; that notes
+already normalised by an earlier refresh are recoverable — they are not, this
+stops further loss rather than undoing it; that non-newline normalisation
+elsewhere is absent; or that Obsidian note corruption in general is solved.
+
+This entry is implementation evidence, not certification: independent
+exact-head verification and CI are required before merge, and merge authority
+is not this lane's.
