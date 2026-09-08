@@ -13613,3 +13613,77 @@ elsewhere is absent; or that Obsidian note corruption in general is solved.
 This entry is implementation evidence, not certification: independent
 exact-head verification and CI are required before merge, and merge authority
 is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F5 — post-merge seal (2026-09-08)
+
+Merged as `91f40368` (PR #724), first parent `7a9eeb76`, second parent
+`2b472b91`. **The merged object is the verified object**, checked rather than
+assumed: `src` `0f909c49` and `tests` `8c3b9dfc` identical, and
+`git diff 2b472b91 91f40368` empty. Merged unrebased for exactly that reason.
+
+Seal re-run on the merge commit, in a venv built inside a worktree at that
+commit with subprocess resolution proved to reach it first:
+
+    F5 suite      27 passed, 4 xfailed
+    full suite    5,643 passed, 8 skipped, 4 xfailed
+    freeze guard  78 passed
+    ruff / mypy   clean (405 source files)
+
+Negative controls, re-run on the merge commit -- the protections are
+load-bearing on `main`, not only on the branch:
+
+    baseline                          27 passed, 4 xfailed
+    helper -> read_text               19 failed
+    graph_projections only             5 failed
+    obsidian_capture_note only         6 failed
+    obsidian_projection only           4 failed
+    ownership probe LF-naive           3 failed
+
+Each fails a distinct set. The owner gate survived: `ingestion.py` on `main` is
+byte-identical to its pre-F5 state, so the certified surface was never touched.
+
+### What the four verification rounds actually caught
+
+Round 1 found a **regression this fix introduced**. The faithful read exposed
+`_existing_capture_id`'s `startswith("---\n")` gate, so a note whose first line
+ended CRLF -- a Windows editor, or `core.autocrlf=true` -- was judged unmanaged
+and refused with OBSIDIAN_NOTE_CONFLICT on every refresh. It failed closed and
+lost no bytes, but the note never refreshed again and the error named the wrong
+cause. The lesson: *reading faithfully is not enough if a consumer of that text
+was silently relying on the translation.*
+
+Round 2 attacked the obvious risk in the remedy -- that making ownership
+line-ending tolerant might start accepting notes Atlas does not own -- and
+disproved it: 18 hostile shapes still refused, and `HEAD_probe(faithful bytes)
+== BASE_probe(translated)` across 42 cases with 0 mismatches.
+
+Rounds 3 and 4 found only evidence-consistency defects, and round 4 returned
+P0/P1/P2 = none.
+
+Rounds 2-4 all found the same defect class in this lane's own bookkeeping: a
+correction applied in some copies and not others. The measured figures were
+never wrong; the record of them kept drifting. Worth stating because it is the
+third series in a row where that was the recurring failure, not the engineering.
+
+### Claim boundary
+
+Claimed: CR-bearing line endings inside HUMAN regions survive a refresh
+byte-for-byte at the three live generated-span-preserving writers; note
+ownership no longer depends on line endings; identity hashing (CORE3-014) is
+unchanged.
+
+**Not claimed:** that the fourth writer is fixed -- `ingestion.py:99` is
+untouched and its defect remains live on `main` under F5-B; that notes already
+normalised by an earlier refresh are recoverable (they are not -- this stops
+further loss, it does not undo it); that non-newline normalisation elsewhere is
+absent; or that Obsidian note corruption in general is solved.
+
+### Lane state after this seal
+
+Runnable and unowned: **F6** (raw `UnicodeDecodeError`/`PermissionError` escape
+the domain boundary in the projection writers, where `obsidian_capture_note`
+already handles both correctly) and **a UTF-8 BOM making a note permanently
+unmanageable** (pre-existing, not introduced by F5, deliberately not folded in).
+Owner-gated: **F5-B**. Transferred: **issue #726**, bridge-import
+`source_sha256` hashing translated text so it can never verify the file it
+names.
