@@ -13203,15 +13203,23 @@ every span — quadratic on precisely the input that reaches it, so a refusal
 could spend seconds formatting its own error (1.09s at 5,000 regions). Both
 sequences are ascending and non-overlapping, so they are now walked together:
 0.012s at 5,000 and 0.070s at 20,000. A test pins the linearity; restoring the
-pairwise scan takes 18.3s and fails it.
+pairwise scan takes 18.3s and fails it (that timing was measured at the
+pre-remediation candidate and has NOT been re-run at the exact head or at any
+seal; treat the number as unverified -- the linearity test itself is green).
 
 Tests: F3 suite 37 passed; F3 + capture + F1/F2 + F4 + graph projection +
-Obsidian suites 249 passed / 0 failed; `ruff check .` clean; `mypy src` clean
+Obsidian suites 249 passed / 0 failed (that aggregate is NOT reproducible as
+stated -- the file set is unspecified, nearest reconstruction 237/0, and it is
+subsumed by the green full suite); `ruff check .` clean; `mypy src` clean
 (405 files). F4 differential harness unchanged at this branch — graph converges
 on canonical exactly, 2178/1822 with zero on every corruption counter.
 
 Negative controls, run in scratch and reverted: removing the diagnostic
-classification fails exactly the four diagnostic tests; emulating an escaping
+classification fails exactly seven diagnostic and containment tests (an earlier
+revision of this paragraph said four -- that was the count at `56b1b0c2`, and it
+was carried forward uncorrected. Three further tests fail now because two more
+containment tests and the linearity test were added after that candidate; one
+containment test already existed there); emulating an escaping
 strategy on preserved HUMAN blocks fails six byte-preservation tests. Both are
 load-bearing.
 
@@ -13223,9 +13231,12 @@ recorded as machine-local rather than as a property of this candidate.
 
 Two claim corrections from verification, made rather than waived: the
 disable-the-diagnostic negative control fails **7** tests at this head, not the
-4 carried forward from the first candidate before the containment tests existed;
+4 carried forward from the first candidate (one containment test already existed
+there; the three further failures come from two more containment tests and the
+linearity test added after it, so "before the containment tests existed" was
+wrong);
 and the CRLF byte-fidelity claim holds at the `protected_regions` module level
-but **not** end to end, because all three writers read prior notes with
+but **not** end to end, because the writers read prior notes with
 `Path.read_text`, whose universal-newline translation converts CRLF to LF before
 the merge sees the bytes. That is pre-existing and identical on base main, but
 "no normalisation" is not currently honoured for line endings at the product
@@ -13260,3 +13271,168 @@ main, tracked as its own future work package.
 
 This entry is a merge/verification record, not new certification: exact-head
 CI and bounded independent IV were consumed from their own lanes before merge.
+
+## F4 post-merge seal (2026-09-08)
+
+Work package: **AS-OBSIDIAN-CAPTURE-001-F4**, merged as `15c9a6d6` (PR #707,
+first parent `691a70a9`, second parent `b23d9c18`). The entry above ends with
+"independent verification and exact-head CI are required before merge" — that
+was true when written and has been stale since the merge landed. This seal is
+the correction, and it is recorded here rather than only in `docs/backlog.md`,
+because the WORKLOG is where the merge history is supposed to be legible.
+
+- Consolidation confirmed on main. `graph_projections.py` at `15c9a6d6` imports
+  `merge_protected_regions as _canonical_merge_protected_regions` and calls it
+  at both merge sites. An exported pre-fix tree (`691a70a9`) contains zero
+  occurrences of that symbol, so the delegation is a real change and not a
+  rename.
+- Error-boundary seal. Both canonical call sites are wrapped, translating
+  `ProtectedRegionError` to `GraphProjectionError`. Independently fuzzed over
+  **60,000 malformed input pairs**: 2,592 accept / 57,408 `GraphProjectionError`,
+  **0 raw leaks**. The pre-fix control leaked **50 raw
+  `ValueError: substring not found`** over the same 60,000 trials. Note that
+  `GraphProjectionError` subclasses `ValueError`, so the claim is meaningful
+  only as "no *bare* ValueError", which is what was measured.
+- Divergence seal. A directed differential (canonical vs adapter, 11 shapes)
+  finds the one disclosed contract — a prior note with no HUMAN regions keeps
+  its text outside the generated span, where the canonical core returns the
+  fresh render. It also finds a second observable difference, recorded here
+  rather than left for a reader to discover: a no-HUMAN prior note carrying a
+  generated span, where the fresh render has none, is refused by graph and
+  accepted by canonical. That corner is commented in the code and is
+  **production-unreachable** — both `render_relationships_markdown` and
+  `render_graph_health_markdown` unconditionally emit exactly one generated
+  span. "Exactly one disclosed contract" is therefore precise about intentional
+  contracts, not about all observable differences.
+- Harness seal on the merged tree, from the committed
+  `docs/scripts/f4_protected_region_divergence_harness.py`: seed `20260907`
+  gives graph accept/refuse `2178/1822`, seed `99` gives `2175/1825`, both
+  **identical to canonical**, where pre-fix was `3051/949`. All six corruption
+  counters (`loss_cases`, `lost_payloads`, `xscope_cases`, `dup_cases`,
+  `duplicated_payloads`, `marker_growth_cases`) are zero on both seeds;
+  `malformed_output` and `error` are zero too. Two runs at the same seed are
+  byte-identical, so the determinism claim holds.
+- Pre-fix baseline reproduced, not cross-read, against the exported pre-fix
+  tree at seed `20260907` / 4,000 trials: 897 loss cases of 3,051 accepted, 194
+  duplication cases, 108 marker-growth cases, canonical zero on every counter.
+  These are three independent counters over one denominator, not a partition.
+- The self-nesting correction is reproduced at the real refresh surface:
+  pre-fix, `self nesting (x inside x) -> ACCEPT, drops ['PAY-OUT']`, where
+  `PAY-OUT` is the **outer** region's payload, while the helper level refused
+  it. The earlier claim that self-nesting was "refused only incidentally via
+  marker-count mismatch" described the helper level and understated the defect;
+  the production path is authoritative for impact.
+
+**Instrument boundary, stated because the counters read stronger than they
+are.** The harness measures marker token presence, count and placement — it
+does **not** measure human-byte fidelity, and the evidence document records
+that ten deliberately corrupt merges (prose truncation, whitespace/CRLF/
+encoding mutation, line reordering, generated-text injection) all score clean
+on it. "All six corruption counters zero" is therefore not a no-corruption
+certificate, and must not be cited as one.
+
+**Claim boundary.** This seal claims canonical reuse of HUMAN-region semantics
+on main, verified at token granularity, with the fail-closed boundary intact.
+It does **not** claim general equivalence between graph projections and the
+canonical core, does not claim human-byte fidelity was measured, and carries no
+release, GA, pilot or external-certification implication.
+
+## F1-F4 residual register and series close (2026-09-08, complements #721)
+
+#721 sealed F3 on main. This entry adds what that seal did not carry: the
+negative control, the merged-object identity proof, and the full residual list.
+It does not restate #721's seal matrix.
+
+**The merged object is the verified object.** #717 was merged unrebased at
+`c6b0ecb8`, and the merge commit's tree was checked against it rather than
+assumed:
+
+    src   0ccf2e1afc37c80670a81ea19c95412419b154a3   identical
+    tests a63fcebefddc79dc4725557c335518ba2076cc4c   identical
+    git diff c6b0ecb8 48a51875   ->   empty
+
+Those same two tree hashes hold at `8d19932c`, `48a51875` and current main, so
+the exact-head verification transfers without an inference step -- and the
+docs-only delta `8d19932c` -> `c6b0ecb8` inherited the earlier runtime coverage
+for the same reason.
+
+**Negative control on merged main**, not recorded elsewhere: reverting both
+enriched raises to the bare `malformed-generated-markers:{path}` form gives
+**7 failed, 30 passed** of 37. The diagnostic is load-bearing on main, not only
+on the branch. Reproduced three times independently (the receipt's own control,
+the exact-head verifier, and this seal); at `56b1b0c2` the same revert gives 4,
+because two further containment tests and the linearity test were added after
+that candidate.
+
+### Residual register
+
+Carried forward, not closed. Each is recorded because a reader of the sealed
+entries would otherwise have to rediscover it.
+
+- **CRLF is normalised LF-only end to end, at FOUR sites.** The three
+  `merge_protected_regions` callers (`obsidian_capture_note.py:378`,
+  `obsidian_projection.py:360`, `graph_projections.py:644`) plus
+  **`ingestion.py:99`** (`_generated_content`), which preserves a generated
+  span and normalises the same way without going through `protected_regions` --
+  so a grep for the merge function misses it. Pre-existing and byte-identical
+  on base main (`sha256 cc7007ce...17ecf2`), therefore not introduced by F3.
+  The receipt's "all three writers" undercounts. "No normalisation" is not
+  honoured for line endings at the product boundary; this needs its own work
+  package scoped to four sites.
+- **The diagnostic is not uniform across surfaces.** `graph_projections` still
+  emits the bare `malformed-generated-markers:<path>` at five sites -- three in
+  `_validate_protected_markers`, one in `_generated_span`, one in
+  `_merge_protected_regions`. Wider still: `ingestion.py:103`, `:107` and
+  `:484` raise a plain `ValueError(f"malformed generated markers: {path}")` --
+  different spelling, different exception type, no diagnostic at all.
+- **The containment helper pairs self-nested same-name markers** where the
+  canonical parser refuses them as `ambiguous-protected-region-nesting`. An
+  independent exhaustive sweep of 21,844 sequences found this is the *only*
+  divergence class (24 cases) and found zero cases where the helper withholds
+  containment on a canonically-accepted document.
+- **A second graph/canonical divergence, production-unreachable.** A no-HUMAN
+  prior note carrying a generated span, where the fresh render has none, is
+  refused by graph and accepted by canonical. Commented in the code; both
+  renderers unconditionally emit exactly one generated span, so it is not
+  reachable in production. "Exactly one disclosed contract" is precise about
+  *intentional contracts*, not about all observable differences.
+- **#716's split-token near miss** `<!-- atlas:generated:sta rt -->` behaves
+  correctly but is pinned by no assertion in the F3 test file.
+
+### Figures that must NOT be cited
+
+No instrument is committed for any of these. They are recorded so nobody
+rebuilds an argument on them:
+
+- **"52 of 66,430"** exhaustive-sequence figure -- enumeration space
+  unspecified, harness absent. The substance is corroborated by the 21,844
+  sweep above; the arithmetic is not reconstructible.
+- **The F4 error-boundary fuzz absolutes** (60,000 trials / 2,592 accept /
+  57,408 `GraphProjectionError` / 0 leaks, against 50 pre-fix). A second
+  independent 60,000-trial fuzz reproduced the direction and the exact
+  exception identity but different absolutes (0 post-fix, **84** pre-fix) --
+  they are corpus-bound. Cite the direction, never the numbers.
+- **"249 passed"** -- file set unspecified; nearest reconstruction 237/0.
+- **"18.3s pairwise scan"** -- measured at the pre-remediation candidate, never
+  re-run at any head or seal. The linearity test itself is green.
+- **"~50.5%"** F4 prevalence -- superseded and non-reconstructible, already
+  withdrawn.
+
+### Series claim boundary
+
+F1-F4 are integrated on main, each independently verified at an exact head,
+with CI green and seals re-run after merge. That is the whole claim. It does
+**not** establish `CODEX_VALIDATED`, does not discharge
+`EXTERNAL_SECURITY_REVALIDATION_REQUIRED`, and does not assert that Obsidian
+note corruption in general is solved.
+
+Two boundaries are worth stating rather than leaving implicit, because both
+read stronger than they are. **F3's runtime delta is diagnostic-only**
+(`+117/-2`; the only two removed lines are the two bare raises) -- the
+fail-closed safety behaviour predates the work package and was proved to by
+differential execution against base, so the seal is not a claim that F3 made
+notes safe. And **the F4 harness measures marker token presence, count and
+placement, not human-byte fidelity** -- it scores ten deliberately corrupt
+merges (prose truncation, whitespace/CRLF/encoding mutation, line reordering,
+generated-text injection) as clean, so its zeroed counters are not a
+no-corruption certificate.

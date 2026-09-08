@@ -96,10 +96,23 @@ Focused suites re-run against `eadc0f62`: `test_as_obsidian_capture_001.py`,
 This seals the F2 protected-region identity work only. It is **not** a claim
 that the Obsidian program is complete:
 
-- **F4 is open and is the materially worse defect.** `graph_projections.py`
-  still carries an independent HUMAN-region implementation that silently drops
-  human-authored bytes at the real refresh surface. Baseline evidence is in
-  PR #706. F2 did not touch it.
-- **F3 is open.** Literal marker-shaped text authored inside HUMAN content
-  currently fails closed and preserves bytes; extending the existing
-  `_neutralize_markers` convention is owner-gated and unstarted.
+(Status corrected 2026-09-08. The two bullets below were accurate when this
+receipt was written; a dated receipt that still calls sealed work "open"
+misleads anyone reading it as current, so they are updated in place with the
+original characterisations kept. The verification table above stays scoped to
+`eadc0f62`: its "F4 unreached" row remains true of that object, but F4 was
+reached by #707.)
+
+- **F4 was open and was the materially worse defect** when this receipt was
+  written, and is **closed as of 2026-09-07** (PR #707, merge commit
+  `15c9a6d6`). As it stood then: `graph_projections.py` still carried an
+  independent HUMAN-region implementation that silently dropped human-authored
+  bytes at the real refresh surface. Baseline evidence is in PR #706. F2 did
+  not touch it. It now delegates to the canonical `protected_regions` core.
+- **F3 was open** when this receipt was written, and is **closed as of
+  2026-09-08** (PR #717, merge commit `48a51875`, sealed by #721). As it stood
+  then: literal marker-shaped text authored inside HUMAN content failed closed
+  and preserved bytes, and extending the existing `_neutralize_markers`
+  convention was owner-gated and unstarted. The owner then decided marker
+  spellings are RESERVED EVERYWHERE, so no such extension was built -- F3's
+  landed change is the refusal diagnostic only.
