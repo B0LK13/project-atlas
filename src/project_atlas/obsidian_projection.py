@@ -50,6 +50,17 @@ def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
     try:
         tmp.write_bytes(content)
         os.replace(tmp, path)
+    except OSError as exc:
+        # On Windows a note that "cannot be opened" surfaces HERE rather than
+        # at the read: a read-only target still reads fine, and it is
+        # ``os.replace`` that fails with WinError 5. Without this the raw
+        # OSError escapes and the operator gets a traceback naming a .tmp file
+        # -- the same defect this module's read guard fixes, one step later.
+        # Found by independent verification of the read-side fix against the
+        # Windows CI job, which the Linux-only reproduction could not see.
+        raise ObsidianProjectionError(
+            f"unwritable-note:{type(exc).__name__}:{path}"
+        ) from exc
     finally:
         if tmp.exists():
             tmp.unlink(missing_ok=True)
@@ -357,7 +368,17 @@ def materialize_obsidian_projection(
             ensure_under_root(vault, path, label="obsidian projection note")
         except ValueError as exc:
             raise ObsidianProjectionError(str(exc)) from exc
-        existing = read_note_text(path) if path.is_file() else None
+        try:
+            existing = read_note_text(path) if path.is_file() else None
+        except (OSError, UnicodeError) as exc:
+            # An unreadable or non-UTF-8 prior note is an operator-facing
+            # condition, not an internal fault: it must name the note and stay
+            # inside this module's error boundary. `obsidian_capture_note`
+            # already does exactly this; the projection writers did not, so a
+            # raw UnicodeDecodeError or PermissionError escaped to the caller.
+            raise ObsidianProjectionError(
+                f"unreadable-existing-note:{type(exc).__name__}:{path}"
+            ) from exc
         try:
             merged = _merge_protected_regions(
                 existing=existing,
