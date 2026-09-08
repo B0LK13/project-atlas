@@ -4793,7 +4793,7 @@ authority/temporal CONSUME-ONLY.
 
 ### Commands / gates
 - Focused AS-CORE-008: 26 passed
-- AS-CORE-007: 22 passed; AS-CORE-005/006: 32 passed; AS-RET: 5 passed
+- AS-CORE-007: 22 passed; AS-CORE-005/006: 33 passed; AS-RET: 5 passed
 - Full Core: 611 passed, 1 skipped
 - Control Plane (WSL): 146 + 12 agent-control passed
 - ruff / mypy / compileall: PASS
@@ -9851,7 +9851,7 @@ recovery independently re-verified PASS and merged via PR #638.)
 
 - Owner explicitly granted a narrow certified-surface freeze exception for
   DOGFOOD-001 (`src/project_atlas/ingestion.py` only, pinned by exact
-  sha256, non-transferable -- see `docs/atlas-3/ARCHITECTURE.md` SS9.1 and
+  sha256, non-transferable -- see `docs/atlas-3/ARCHITECTURE.md` §9.1 and
   `tests/unit/test_atlas3_demo_isolation_001.py`'s
   `_OWNER_APPROVED_EXCEPTIONS`). Encoded per the prior entry.
 - Fixed one ordinary CI defect (F841 unused `result` in a regression test)
@@ -11495,7 +11495,7 @@ exact-head independent verification and CI run are required before merge.
 
 The Project Owner explicitly authorized two exact-content exceptions to the
 Atlas 3 certified-surface freeze (`tests/unit/test_atlas3_demo_isolation_001.py`,
-SS9.1 of `docs/atlas-3/ARCHITECTURE.md`):
+§9.1 of `docs/atlas-3/ARCHITECTURE.md`):
 
 | Path | Authorized sha256 |
 | --- | --- |
@@ -13512,7 +13512,7 @@ The first candidate fixed all four sites. The full suite then failed
 `test_atlas3_demo_isolation_001.test_certified_surfaces_unmodified`:
 `src/project_atlas/ingestion.py` is a **certified surface**, and editing it
 requires an owner-approved, sha256-pinned exception under
-`docs/atlas-3/ARCHITECTURE.md` SS9.1. That gate cannot be self-granted by this
+`docs/atlas-3/ARCHITECTURE.md` §9.1. That gate cannot be self-granted by this
 lane, and the mechanism is content-pinned so even a one-byte further edit
 invalidates it.
 
@@ -14368,7 +14368,7 @@ as `malformed-generated-markers` pointed the operator at the wrong artifact
 entirely. It now reads `rendered-has-no-generated-span`, and a test asserts the
 reason token is not `count`.
 
-**Negative controls** (32 passed baseline), each applied under a sha256
+**Negative controls** (33 passed baseline), each applied under a sha256
 assertion that it changed the file, each reverted with both sources confirmed
 byte-identical:
 
@@ -14397,7 +14397,7 @@ reports a third thing for the same condition, and it is the surface closest to
 the product boundary. `src/project_atlas/ingestion.py` is a certified surface
 frozen by `test_atlas3_demo_isolation_001`; the only sanctioned edit path is an
 owner-approved exception pinned to an exact sha256 under
-`docs/atlas-3/ARCHITECTURE.md` SS9.1, which this lane cannot self-grant. The fix
+`docs/atlas-3/ARCHITECTURE.md` §9.1, which this lane cannot self-grant. The fix
 is mechanical -- the same public helper this package exports -- and what is
 missing is the owner decision, not engineering.
 

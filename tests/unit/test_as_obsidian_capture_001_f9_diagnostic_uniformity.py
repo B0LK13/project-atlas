@@ -26,10 +26,17 @@ lane cannot self-grant. Those sites are recorded as a residual, not fixed here.
 
 from __future__ import annotations
 
+import hashlib
+import pathlib
+
 import pytest
 
 import project_atlas.graph_projections as gp
-from project_atlas.graph_projections import GraphProjectionError
+from project_atlas.graph_projections import (
+    GraphProjectionError,
+    materialize_projections,
+    write_projection_outputs,
+)
 from project_atlas.protected_regions import (
     GENERATED_END,
     GENERATED_START,
@@ -101,13 +108,51 @@ def test_f9_graph_states_that_nothing_was_written(label: str) -> None:
 
 
 @pytest.mark.parametrize("label", sorted(CORRUPT))
-def test_f9_refusal_still_leaves_the_note_byte_identical(label: str) -> None:
-    """A richer message must not come with a weaker fail-closed guarantee."""
-    existing, _ = CORRUPT[label]
-    before = existing
+def test_f9_refusal_leaves_the_note_on_disk_byte_identical(
+    label: str, tmp_path: pathlib.Path
+) -> None:
+    """A richer message must not come with a weaker fail-closed guarantee.
+
+    Driven through the real writer against a real vault, and asserted on the
+    file's sha256. An earlier revision of this test compared the ``existing``
+    *string* against itself before and after the call -- but a ``str`` is
+    immutable, so that assertion could not fail and pinned nothing at all,
+    while the evidence record cited it as proof the bytes were untouched.
+    Review caught it. A test that cannot fail is not evidence.
+    """
+    corrupt, _ = CORRUPT[label]
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    bundle = materialize_projections(project_id="demo", relationships=(), health=None)
+    write_projection_outputs(bundle, vault=vault)
+    note = vault / "generated/graph/projections/demo/relationships.md"
+    assert note.is_file()
+
+    # Put the corrupt document on disk, then refresh over it.
+    note.write_bytes(corrupt.encode("utf-8"))
+    before = hashlib.sha256(note.read_bytes()).hexdigest()
+
     with pytest.raises(GraphProjectionError):
-        gp._merge_protected_regions(existing=existing, rendered=_FRESH, path="n.md")
-    assert existing == before
+        write_projection_outputs(bundle, vault=vault)
+
+    assert hashlib.sha256(note.read_bytes()).hexdigest() == before
+    assert note.read_bytes() == corrupt.encode("utf-8")
+
+
+def test_f9_no_staging_residue_after_a_refused_refresh(tmp_path: pathlib.Path) -> None:
+    """Fail-closed must also mean nothing half-written is left behind."""
+    corrupt, _ = CORRUPT["duplicate-begin"]
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    bundle = materialize_projections(project_id="demo", relationships=(), health=None)
+    write_projection_outputs(bundle, vault=vault)
+    note = vault / "generated/graph/projections/demo/relationships.md"
+    note.write_bytes(corrupt.encode("utf-8"))
+
+    with pytest.raises(GraphProjectionError):
+        write_projection_outputs(bundle, vault=vault)
+
+    assert not list(vault.rglob("*.tmp")), sorted(p.name for p in vault.rglob("*.tmp"))
 
 
 @pytest.mark.parametrize("label", sorted(CORRUPT))

@@ -49,12 +49,21 @@ each reverted with both sources confirmed byte-identical afterwards.
 
 | control | reverted | result |
 |---|---|---|
-| baseline | — | **32 passed** |
+| baseline | — | **33 passed** |
 | A | count site → bare message | **12 failed** |
 | B | end-before-begin site → bare | **4 failed** |
 | C | `_generated_span` site → bare | **4 failed** |
 | D | rendered-no-span site → bare | **1 failed** |
 | E | `_generated_span` reason always `count` | **2 failed** |
+
+**A test that could not fail, found by review.** An earlier revision asserted
+the note was left byte-identical by comparing the `existing` *string* against
+itself before and after the call. A `str` is immutable, so that assertion could
+not fail and pinned nothing -- while this receipt cited it as proof the bytes
+were untouched. It now drives the real writer against a real vault and asserts
+the file's sha256, and a second test asserts no `.tmp` staging residue survives
+a refused refresh. Both are controlled: making the merge silently accept
+overwrites the note and fails 28 of 33; leaving residue behind fails 5.
 
 **Controls C and E earned their place by first failing to fail.** On the initial
 test set, reverting the `_generated_span` site left the suite at **27 passed** —
