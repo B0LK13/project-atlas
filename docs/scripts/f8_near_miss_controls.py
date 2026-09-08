@@ -1,9 +1,15 @@
 r"""AS-OBSIDIAN-CAPTURE-001-F8 negative controls, reproducible from a checkout.
 
-Each control makes marker matching MORE tolerant, which is the direction that
-fails quietly: a tolerant matcher does not error, it starts refusing ordinary
-human prose. Each is run twice -- against the F3 corpus as it exists on the
-merge base, and against the corpus with F8's four split-token pins -- because a
+Each control simulates marker matching becoming MORE tolerant -- the direction
+that fails quietly, since a tolerant matcher does not error, it starts refusing
+ordinary human prose. Mechanically it canonicalises the *input document* inside
+``merge_protected_regions`` rather than relaxing the matcher itself; the two are
+observationally identical on this suite, and verification confirmed that by
+running an independently constructed matcher-relaxing family and obtaining the
+same six cells. The distinction is recorded because "makes matching more
+tolerant" describes the modelled fault, not the edit.
+
+Each is run twice -- against the F3 corpus as it exists on the merge base, and against the corpus with F8's four split-token pins -- because a
 control that only shows the new tests failing proves they are tests, not that
 they are needed.
 
@@ -69,36 +75,40 @@ def _run(root: pathlib.Path) -> str:
 
 def main(root: pathlib.Path, base_ref: str) -> int:
     src, test = root / SRC, root / TEST
-    src_orig, test_pinned = src.read_text(), test.read_text()
+    # bytes, not text: ``write_text`` translates newlines, so on Windows a
+    # restore would rewrite both files with CRLF instead of returning them.
+    src_orig, test_pinned = src.read_bytes(), test.read_bytes()
     test_base = subprocess.run(
         ["git", "-C", str(root), "show", f"{base_ref}:{TEST}"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, check=True,
     ).stdout
 
     try:
         for corpus_name, corpus in (("base corpus", test_base), ("with pins", test_pinned)):
-            test.write_text(corpus)
+            test.write_bytes(corpus)
             print(f"\n--- {corpus_name} ---")
             print(f"    baseline                          {_run(root)}")
             for label, mutation in CONTROLS.items():
-                patched = src_orig.replace(ANCHOR, ANCHOR + "\n\n" + mutation + "\n")
+                patched = src_orig.replace(
+                    ANCHOR.encode(), (ANCHOR + "\n\n" + mutation + "\n").encode()
+                )
                 assert patched != src_orig, f"MUTATION NO-OP: {label}"
-                idx = patched.index("def merge_protected_regions(")
-                doc = patched.index('"""', patched.index(":\n", idx))
-                end = patched.index('"""', doc + 3) + 3
-                patched = patched[:end] + "\n    existing = _mut(existing)" + patched[end:]
-                before = hashlib.sha256(src_orig.encode()).hexdigest()
-                src.write_text(patched)
+                idx = patched.index(b"def merge_protected_regions(")
+                doc = patched.index(b'"""', patched.index(b":\n", idx))
+                end = patched.index(b'"""', doc + 3) + 3
+                patched = patched[:end] + b"\n    existing = _mut(existing)" + patched[end:]
+                before = hashlib.sha256(src_orig).hexdigest()
+                src.write_bytes(patched)
                 assert hashlib.sha256(src.read_bytes()).hexdigest() != before
                 print(f"    {label:33s} {_run(root)}")
-                src.write_text(src_orig)
+                src.write_bytes(src_orig)
     finally:
-        src.write_text(src_orig)
-        test.write_text(test_pinned)
+        src.write_bytes(src_orig)
+        test.write_bytes(test_pinned)
 
     restored = (
         hashlib.sha256(src.read_bytes()).hexdigest()
-        == hashlib.sha256(src_orig.encode()).hexdigest()
+        == hashlib.sha256(src_orig).hexdigest()
     )
     print(f"\n  sources restored byte-identical: {restored}")
     return 0 if restored else 1
