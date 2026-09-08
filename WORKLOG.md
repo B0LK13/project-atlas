@@ -13275,9 +13275,12 @@ CI and bounded independent IV were consumed from their own lanes before merge.
 ## F4 post-merge seal (2026-09-08)
 
 Work package: **AS-OBSIDIAN-CAPTURE-001-F4**, merged as `15c9a6d6` (PR #707,
-first parent `691a70a9`, second parent `b23d9c18`). The entry above ends with
-"independent verification and exact-head CI are required before merge" — that
-was true when written and has been stale since the merge landed. This seal is
+first parent `691a70a9`, second parent `b23d9c18`). The F4 implementation entry
+-- "F2 seal and F4 baseline + canonical-semantics implementation", further up,
+not the #721 F3 seal immediately above -- ends with "fresh independent
+verification and exact-head CI are required before merge (F4 merge is
+Owner-bound; not pre-authorized)". That was true when written and has been stale
+since the merge landed. This seal is
 the correction, and it is recorded here rather than only in `docs/backlog.md`,
 because the WORKLOG is where the merge history is supposed to be legible.
 
@@ -13361,8 +13364,8 @@ enriched raises to the bare `malformed-generated-markers:{path}` form gives
 **7 failed, 30 passed** of 37. The diagnostic is load-bearing on main, not only
 on the branch. Reproduced three times independently (the receipt's own control,
 the exact-head verifier, and this seal); at `56b1b0c2` the same revert gives 4,
-because two further containment tests and the linearity test were added after
-that candidate.
+because two of the five containment tests added after that candidate fail under
+the revert, as does the linearity test.
 
 ### Residual register
 
@@ -13375,7 +13378,11 @@ entries would otherwise have to rediscover it.
   **`ingestion.py:99`** (`_generated_content`), which preserves a generated
   span and normalises the same way without going through `protected_regions` --
   so a grep for the merge function misses it. Pre-existing and byte-identical
-  on base main (`sha256 cc7007ce...17ecf2`), therefore not introduced by F3.
+  on base main -- `sha256 ingestion.py` is `6911a99d...` at both head and
+  `15c9a6d6` -- therefore not introduced by F3. (An earlier revision cited a
+  digest `cc7007ce...17ecf2` here. That was the digest of a note produced by a
+  verification script, not of any file in this repository, and naming it as
+  evidence was wrong: it identifies nothing a reader can check.)
   The receipt's "all three writers" undercounts. "No normalisation" is not
   honoured for line endings at the product boundary; this needs its own work
   package scoped to four sites.
@@ -13386,10 +13393,13 @@ entries would otherwise have to rediscover it.
   `:484` raise a plain `ValueError(f"malformed generated markers: {path}")` --
   different spelling, different exception type, no diagnostic at all.
 - **The containment helper pairs self-nested same-name markers** where the
-  canonical parser refuses them as `ambiguous-protected-region-nesting`. An
-  independent exhaustive sweep of 21,844 sequences found this is the *only*
-  divergence class (24 cases) and found zero cases where the helper withholds
-  containment on a canonically-accepted document.
+  canonical parser refuses them as `ambiguous-protected-region-nesting`. The
+  divergence itself is directly reproducible and has been reproduced
+  independently more than once. The *cardinality* has not: an independent
+  exhaustive sweep was reported as 21,844 sequences / 24 cases / zero
+  withheld-containment cases, but **that harness is not committed either**, so
+  the counts belong in the non-citable list below and are recorded here only as
+  the reason to believe the class is narrow -- not as a measured bound.
 - **A second graph/canonical divergence, production-unreachable.** A no-HUMAN
   prior note carrying a generated span, where the fresh render has none, is
   refused by graph and accepted by canonical. Commented in the code; both
@@ -13405,8 +13415,11 @@ No instrument is committed for any of these. They are recorded so nobody
 rebuilds an argument on them:
 
 - **"52 of 66,430"** exhaustive-sequence figure -- enumeration space
-  unspecified, harness absent. The substance is corroborated by the 21,844
-  sweep above; the arithmetic is not reconstructible.
+  unspecified, harness absent. The divergence it describes is separately and
+  directly reproducible; the arithmetic is not reconstructible.
+- **The "21,844 sequences / 24 cases" containment sweep** -- same defect, and it
+  must not be used to corroborate the figure above, which would only launder one
+  uninstrumented number with another.
 - **The F4 error-boundary fuzz absolutes** (60,000 trials / 2,592 accept /
   57,408 `GraphProjectionError` / 0 leaks, against 50 pre-fix). A second
   independent 60,000-trial fuzz reproduced the direction and the exact
