@@ -36,6 +36,7 @@ from project_atlas.protected_regions import (
     GENERATED_START,
     ProtectedRegionError,
     extract_human_regions,
+    read_note_text,
 )
 from project_atlas.protected_regions import merge_protected_regions as _merge_protected_regions
 from project_atlas.secrets import redact_text, scan_text
@@ -375,7 +376,7 @@ def write_note(
     existing: str | None = None
     if target.is_file():
         try:
-            existing = target.read_text(encoding="utf-8")
+            existing = read_note_text(target)
         except (OSError, UnicodeError) as exc:
             raise ObsidianNoteError(
                 "OBSIDIAN_NOTE_CONFLICT",

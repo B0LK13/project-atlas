@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from pathlib import Path
 
 GENERATED_START = "<!-- atlas:generated:start -->"
 GENERATED_END = "<!-- atlas:generated:end -->"
@@ -288,6 +289,33 @@ def extract_human_regions(text: str) -> dict[RegionPath, str]:
             f"duplicate-protected-region-names:{','.join(duplicates)}:extract"
         )
     return {path: text[start:end] for path, start, end in spans}
+
+
+def read_note_text(path: Path) -> str:
+    """Read a note's text **without** translating its line endings.
+
+    ``Path.read_text`` opens in text mode with universal newlines, which
+    rewrites ``\r\n`` and a lone ``\r`` to ``\n`` *before any caller sees the
+    bytes*. Every generated-span-preserving writer reads the prior note in
+    order to splice a fresh generated span into it and write the result back,
+    so a translating read silently rewrites the operator's HUMAN bytes on a
+    refresh they did not ask for -- the note is stored, not merely parsed.
+
+    That directly contradicts the owner policy for F3 (raw HUMAN bytes are
+    immutable: no escaping, no normalisation, no zero-width rewriting) and the
+    byte-for-byte preservation contract these writers document.
+
+    ``newline=""`` would be the obvious spelling but ``Path.read_text`` only
+    accepts it from Python 3.13; this package supports 3.12, so decode the
+    bytes directly. The exception surface is unchanged: ``OSError`` from the
+    read and ``UnicodeDecodeError`` (a ``UnicodeError``) from the decode.
+
+    This is deliberately **not** the rule for hashing. CORE3-014 normalises
+    CRLF to LF before hashing text sources so identity is stable across
+    platforms; that normalisation is applied to a copy for the digest and must
+    not be confused with what is written back to disk.
+    """
+    return path.read_bytes().decode("utf-8")
 
 
 def merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:

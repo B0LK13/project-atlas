@@ -17,7 +17,7 @@ from atlas_contracts.identity import ensure_under_root, safe_relative_component
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.protected_regions import GENERATED_END as _GENERATED_END
 from project_atlas.protected_regions import GENERATED_START as _GENERATED_START
-from project_atlas.protected_regions import ProtectedRegionError
+from project_atlas.protected_regions import ProtectedRegionError, read_note_text
 from project_atlas.protected_regions import merge_protected_regions as _merge_protected_regions
 
 PACKAGE_ID = "AS-CODER-ALPHA-OBSIDIAN-001"
@@ -357,7 +357,7 @@ def materialize_obsidian_projection(
             ensure_under_root(vault, path, label="obsidian projection note")
         except ValueError as exc:
             raise ObsidianProjectionError(str(exc)) from exc
-        existing = path.read_text(encoding="utf-8") if path.is_file() else None
+        existing = read_note_text(path) if path.is_file() else None
         try:
             merged = _merge_protected_regions(
                 existing=existing,
