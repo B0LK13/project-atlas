@@ -6,8 +6,8 @@ import json
 import sys
 from pathlib import Path
 
-from . import dispatch as dispatch_mod
 from . import agents as agents_mod
+from . import dispatch as dispatch_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
@@ -15,9 +15,10 @@ from . import evidence_graph as evidence_graph_mod
 from . import handoff as handoff_mod
 from . import receipts as receipts_mod
 from . import router as router_mod
-from . import seal_plan as seal_plan_mod
 from . import score as score_mod
+from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
+from . import steal as steal_mod
 from . import verifiers as verifiers_mod
 from .gh import GhClient
 from .model import build_snapshot, ownership
@@ -149,6 +150,60 @@ def cmd_explain_priority(args) -> int:
     """Alias surface for score --json factor dump (FEATURE_10)."""
     args.json = True
     return cmd_score(args)
+
+
+def cmd_steal_status(args) -> int:
+    """Read-only steal plan for one agent (FEATURE_11)."""
+    client = _client(args)
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    registry = agents_mod.load_registry(args.registry)
+    stacks = stack_mod.build_stacks(
+        snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+    weights, source = score_mod.load_weights(getattr(args, "weights", None))
+    plan = steal_mod.plan_steal(
+        snapshot, args.agent, registry, stacks=stacks,
+        weights=weights, weights_source=source)
+    if args.json:
+        print(json.dumps(plan, indent=2, sort_keys=True))
+    else:
+        print(f"steal-status agent={plan['agent']} "
+              f"status={plan['agent_status']} utilization={plan['utilization']}")
+        if plan.get("candidate"):
+            c = plan["candidate"]
+            print(f"  candidate: {c['lane']} total={c['total']:.3f} "
+                  f"head={str(c.get('head') or '')[:12]}")
+        for skip in plan.get("skipped", [])[:10]:
+            print(f"  SKIP {skip['lane']}: {','.join(skip['reasons'][:3])}")
+        for reason in plan.get("reasons") or []:
+            print(f"  REASON: {reason}")
+    return 0 if plan["utilization"] == steal_mod.STEAL_AVAILABLE else 1
+
+
+def cmd_steal(args) -> int:
+    """Safe claim of highest-value compatible unowned lane (FEATURE_11)."""
+    client = _client(args)
+    registry = agents_mod.load_registry(args.registry)
+    weights, source = score_mod.load_weights(getattr(args, "weights", None))
+    result = steal_mod.execute_steal(
+        client, args.agent, registry,
+        weights=weights, weights_source=source,
+        dry_run=bool(getattr(args, "dry_run", False)),
+        expected_repo=getattr(args, "expect_repo", None))
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"steal agent={result.get('agent')} outcome={result.get('outcome')} "
+              f"mutated={result.get('mutated')} attempt={result.get('attempt')}")
+        cand = result.get("candidate")
+        if cand:
+            print(f"  candidate: {cand['lane']} total={cand['total']:.3f}")
+        if result.get("event_id"):
+            print(f"  event_id: {result['event_id']}")
+        for reason in result.get("reasons") or []:
+            print(f"  REASON: {reason}")
+    ok = result.get("outcome") in (
+        steal_mod.CLAIMED, steal_mod.WOULD_CLAIM, steal_mod.ALREADY_OWNED)
+    return 0 if ok else 1
 
 
 def _find_node(snapshot, pr: int) -> dict | None:
@@ -1089,6 +1144,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_explain.add_argument("--agent", default=None)
     p_explain.add_argument("--weights", default=None)
     p_explain.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_steal_status = sub.add_parser(
+        "steal-status",
+        help="read-only steal plan for one agent (FEATURE_11)")
+    p_steal_status.add_argument("--agent", required=True)
+    p_steal_status.add_argument("--weights", default=None)
+    p_steal_status.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_steal = sub.add_parser(
+        "steal",
+        help="claim highest-value compatible unowned lane (FEATURE_11)")
+    p_steal.add_argument("--agent", required=True)
+    p_steal.add_argument("--weights", default=None)
+    p_steal.add_argument("--dry-run", action="store_true",
+                         help="zero GitHub mutation; report WOULD_CLAIM candidate")
+    p_steal.add_argument("--expect-repo", default=None)
+    p_steal.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
     p_next = sub.add_parser("next", help="agent-aware next safe action (FEATURE_02, read-only)")
     p_next.add_argument("--agent", required=True, help="registered agent_id")
@@ -1188,6 +1258,8 @@ COMMANDS = {
     "frontier": cmd_frontier,
     "score": cmd_score,
     "explain-priority": cmd_explain_priority,
+    "steal-status": cmd_steal_status,
+    "steal": cmd_steal,
     "agents": cmd_agents,
     "agent": cmd_agent,
     "next": cmd_next,
