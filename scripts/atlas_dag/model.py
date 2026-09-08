@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from . import events as events_mod
 from . import gate as gate_mod
+from . import verifiers as verifiers_mod
 from .frontier import classify, waiting_on
 from .receipts import latest_eligible_receipt
 
@@ -124,15 +125,22 @@ def build_pr_node(
     declared: list[str],
     pool_present: bool,
     client,
+    *,
+    status_map: dict[str, str] | None = None,
+    pool_invalid: bool = False,
+    verifier_pool: dict | None = None,
 ) -> dict:
     number = pr["number"]
     head = pr.get("headRefOid")
     commit = client.commit(head) if head else None
     tree = commit["tree"] if commit else None
 
+    author_info = pr.get("author") or {}
     pr_receipts = [r for r in receipts if r.get("pr") == number]
     receipt, rejected_receipts = latest_eligible_receipt(
-        pr_receipts, head, tree, bindings, declared, pool_present
+        pr_receipts, head, tree, bindings, declared, pool_present,
+        status_map=status_map, pool_invalid=pool_invalid,
+        pr_author=author_info.get("login"),
     )
 
     runs = client.runs_for_head(head) if head else []
@@ -177,6 +185,7 @@ def build_pr_node(
         "frozen": frozen,
         "formal_iv": receipt["receipt_id"] if receipt else None,
         "rejected_receipts": rejected_receipts,
+        "verifier_pool": verifier_pool,
         "gate": gate_result,
         "stale_events": [
             e["event_id"]
@@ -195,7 +204,7 @@ def build_pr_node(
     return node
 
 
-def build_snapshot(client, clock=utcnow) -> dict:
+def build_snapshot(client, clock=utcnow, pool_path=None) -> dict:
     main_branch = client.default_branch() or "main"
     main = client.branch_head(main_branch)
     main_head = main["sha"] if main else None
@@ -204,13 +213,23 @@ def build_snapshot(client, clock=utcnow) -> dict:
     issue = client.dag_issue()
     comments = client.issue_comments(issue["number"]) if issue else []
     ingested = events_mod.ingest_comments(comments)
-    bindings, declared, pool_present = events_mod.parse_verifier_pool(
-        client.issue_body(issue["number"]) if issue else None
+    # FEATURE_05: the tracked registry file is the canonical pool source;
+    # the #719 issue-body block is a legacy fallback only when the file is
+    # absent (verifiers.resolve_pool, fail-closed on an invalid file).
+    pool = verifiers_mod.resolve_pool(
+        client.issue_body(issue["number"]) if issue else None,
+        path=pool_path if pool_path is not None else verifiers_mod.default_pool_path(),
+        repo=client.repo,
+    )
+    verifier_pool = verifiers_mod.pool_summary(
+        pool, total=len(pool.status_map) if pool.source == "registry" else None
     )
 
     nodes = [
         build_pr_node(pr, main_head, ingested.events, ingested.receipts,
-                      bindings, declared, pool_present, client)
+                      pool.bindings, pool.declared, pool.present, client,
+                      status_map=pool.status_map, pool_invalid=pool.pool_invalid,
+                      verifier_pool=verifier_pool)
         for pr in sorted(client.open_prs(), key=lambda p: p["number"])
     ]
     runnable = [n for n in nodes if n["state"] in ("RUNNABLE_READONLY", "RUNNABLE_WRITE")]

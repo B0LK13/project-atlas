@@ -10,8 +10,10 @@ from . import agents as agents_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
+from . import receipts as receipts_mod
 from . import router as router_mod
 from . import stack as stack_mod
+from . import verifiers as verifiers_mod
 from .gh import GhClient
 from .model import build_snapshot, ownership
 
@@ -226,6 +228,199 @@ def cmd_agent(args) -> int:
                 print(f"    - {reason}")
             return 0 if allowed else 1
     return 0 if resolved.status == "REGISTERED" else 1
+
+
+def _pool_path(args) -> Path | None:
+    return Path(args.verifier_registry) if args.verifier_registry else None
+
+
+def _resolve_pool(args, client) -> verifiers_mod.PoolResolution:
+    return verifiers_mod.resolve_pool(
+        None, path=_pool_path(args), repo=client.repo,
+    )
+
+
+def _verifier_rows(resolution: verifiers_mod.PoolResolution,
+                   result: verifiers_mod.PoolResult,
+                   repo: str | None) -> list[dict]:
+    """Pool entries annotated with resolved status, sorted by verifier_id."""
+    rows = []
+    entries = result.pool.get("verifiers", []) if result.pool else []
+    for entry in sorted(entries, key=lambda e: str(e.get("verifier_id", ""))):
+        verifier_id = str(entry.get("verifier_id", ""))
+        status = resolution.status_map.get(verifier_id) if resolution.status_map \
+            else verifiers_mod.authentication_status(entry, repo)
+        rows.append({
+            "verifier_id": verifier_id,
+            "principal": entry.get("principal"),
+            "active": bool(entry.get("active")),
+            "allowed_repositories": sorted(entry.get("allowed_repositories", [])),
+            "capabilities": sorted(entry.get("capabilities", [])),
+            "prohibitions": sorted(entry.get("prohibitions", [])),
+            "status": status,
+        })
+    return rows
+
+
+def cmd_verifiers(args) -> int:
+    client = _client(args)
+    result = verifiers_mod.load_pool(_pool_path(args))
+    if not result.valid:
+        payload = {"schema": verifiers_mod.POOL_SCHEMA_CONST, "valid": False,
+                   "errors": result.errors, "verifiers": []}
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print("VERIFIER POOL INVALID — failing closed "
+                  "(no formal IV can be satisfied):", file=sys.stderr)
+            for error in result.errors:
+                print(f"  {error}", file=sys.stderr)
+        return 1
+    resolution = _resolve_pool(args, client)
+    rows = _verifier_rows(resolution, result, client.repo)
+    if args.json:
+        print(json.dumps({"schema": verifiers_mod.POOL_SCHEMA_CONST, "valid": True,
+                          "errors": [], "repo": client.repo,
+                          "verifiers": rows}, indent=2, sort_keys=True))
+        return 0
+    repo = client.repo or "?"
+    print(f"ATLAS_VERIFIER_POOL_V1 — {len(rows)} declared verifiers (repo={repo})")
+    for row in rows:
+        principal = row["principal"] or "UNBOUND"
+        active = "ACTIVE" if row["active"] else "inactive"
+        print(f"  {row['verifier_id']:<10} {active:<8} principal={principal:<24} "
+              f"status={row['status']}")
+    return 0
+
+
+def cmd_verifier(args) -> int:
+    client = _client(args)
+    result = verifiers_mod.load_pool(_pool_path(args))
+    if not result.valid:
+        print(f"{args.verifier_id}: VERIFIER_POOL_INVALID — failing closed",
+              file=sys.stderr)
+        for error in result.errors:
+            print(f"  {error}", file=sys.stderr)
+        return 1
+    resolution = _resolve_pool(args, client)
+    rows = {row["verifier_id"]: row for row in
+            _verifier_rows(resolution, result, client.repo)}
+    row = rows.get(args.verifier_id)
+    if row is None:
+        if args.json:
+            print(json.dumps({"verifier_id": args.verifier_id,
+                              "status": verifiers_mod.VERIFIER_UNKNOWN,
+                              "registered": False}, indent=2, sort_keys=True))
+        else:
+            print(f"{args.verifier_id}: UNREGISTERED — not in the verifier pool; "
+                  "failing closed, no formal IV possible", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps({"registered": True, **row}, indent=2, sort_keys=True))
+    else:
+        print(f"verifier: {row['verifier_id']} — status={row['status']}")
+        for key in ("principal", "active", "allowed_repositories", "capabilities",
+                    "prohibitions"):
+            print(f"  {key}: {row[key]}")
+        if row["status"] != verifiers_mod.AUTHENTICATED:
+            print("  formal IV: NOT SATISFIABLE — verifier is not AUTHENTICATED")
+    return 0
+
+
+def _live_pr_context(client: GhClient, pr: int) -> tuple[dict | None, str | None]:
+    """Live PR record + failure reason; (None, reason) when unverifiable."""
+    if not client.repo:
+        return None, "GITHUB_UNAVAILABLE"
+    match = next((p for p in client.open_prs() if p.get("number") == pr), None)
+    if match is None:
+        return None, "PR_NOT_IN_OPEN_FRONTIER"
+    return match, None
+
+
+def cmd_iv_eligibility(args) -> int:
+    """Read-only: could a formal-IV receipt from this verifier satisfy the gate?"""
+    client = _client(args)
+    result = verifiers_mod.load_pool(_pool_path(args))
+    resolution = _resolve_pool(args, client) if result.valid \
+        else verifiers_mod.empty_resolution(pool_invalid=True, errors=result.errors)
+
+    pr_record, failure = _live_pr_context(client, args.pr)
+    head = tree = pr_author = None
+    if pr_record is not None:
+        head = pr_record.get("headRefOid")
+        commit = client.commit(head) if head else None
+        tree = commit.get("tree") if commit else None
+        pr_author = (pr_record.get("author") or {}).get("login")
+
+    verifier_status = None
+    if resolution.status_map is not None:
+        verifier_status = resolution.status_map.get(args.verifier,
+                                                    verifiers_mod.VERIFIER_UNKNOWN)
+    elif result.valid and result.pool is not None:
+        entry = next((e for e in result.pool.get("verifiers", [])
+                      if e.get("verifier_id") == args.verifier), None)
+        verifier_status = verifiers_mod.authentication_status(entry, client.repo)
+
+    receipt_rows = []
+    issue = client.dag_issue()
+    if issue:
+        ingested = events_mod.ingest_comments(client.issue_comments(issue["number"]))
+        for receipt in ingested.receipts:
+            if receipt.get("pr") != args.pr \
+                    or receipt.get("verifier_id") != args.verifier:
+                continue
+            source = receipt.get("_source") or {}
+            ok, reasons = receipts_mod.formal_iv_status(
+                receipt, head, tree, resolution.bindings, resolution.declared,
+                resolution.present, source.get("author"),
+                status_map=resolution.status_map,
+                pool_invalid=resolution.pool_invalid,
+                pr_author=pr_author,
+            )
+            receipt_rows.append({"receipt_id": receipt["receipt_id"],
+                                 "eligible": ok, "reasons": reasons})
+
+    reasons: list[str] = []
+    if failure:
+        reasons.append(failure)
+    if resolution.pool_invalid:
+        reasons.append("VERIFIER_POOL_INVALID")
+    if verifier_status is not None and verifier_status != verifiers_mod.AUTHENTICATED:
+        reasons.append(receipts_mod.status_rejection_reason(verifier_status))
+    if not head:
+        reasons.append("CANDIDATE_HEAD_UNKNOWN")
+    if not tree:
+        reasons.append("CANDIDATE_TREE_UNKNOWN")
+    could_satisfy = not reasons
+
+    payload = {
+        "pr": args.pr,
+        "verifier_id": args.verifier,
+        "verifier_status": verifier_status or verifiers_mod.VERIFIER_UNKNOWN,
+        "candidate_head": head,
+        "candidate_tree": tree,
+        "pr_author": pr_author,
+        "pool": verifiers_mod.pool_summary(resolution),
+        "receipts": receipt_rows,
+        "could_satisfy_gate": could_satisfy,
+        "reasons": sorted(set(reasons)),
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"iv-eligibility pr/{args.pr} verifier={args.verifier} "
+              f"status={payload['verifier_status']} "
+              f"could_satisfy_gate={'YES' if could_satisfy else 'NO'}")
+        print(f"  candidate head={head or 'UNKNOWN'} tree={tree or 'UNKNOWN'} "
+              f"pr_author={pr_author or 'UNKNOWN'}")
+        for reason in payload["reasons"]:
+            print(f"  REASON: {reason}")
+        for row in receipt_rows:
+            print(f"  receipt {row['receipt_id']}: "
+                  f"{'ELIGIBLE' if row['eligible'] else 'REJECTED'}")
+            for reason in row["reasons"]:
+                print(f"    - {reason}")
+    return 0 if could_satisfy else 1
 
 
 def cmd_next(args) -> int:
@@ -476,6 +671,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="disposable runtime state directory (default: .atlas-runtime)")
     parser.add_argument("--registry", default=None,
                         help="agent registry JSON (default: registry/agents.json)")
+    parser.add_argument("--verifier-registry", default=None,
+                        help="verifier pool JSON (default: registry/verifiers.json)")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -523,6 +720,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_inspect.add_argument("pr", type=int)
     sub.add_parser("events", help="validated event + receipt stream from DAG Control issue")
     sub.add_parser("owners", help="current ownership map (ambiguity => UNKNOWN)")
+    sub.add_parser("verifiers", help="verifier trust pool with resolved status (FEATURE_05)")
+    p_verifier = sub.add_parser("verifier",
+                                help="inspect one verifier pool entry (FEATURE_05, fail closed)")
+    p_verifier.add_argument("verifier_id")
+    p_iv = sub.add_parser("iv-eligibility",
+                          help="read-only formal-IV satisfiability for pr+verifier (FEATURE_05)")
+    p_iv.add_argument("--pr", type=int, required=True)
+    p_iv.add_argument("--verifier", required=True, help="verifier_id from the pool")
     p_gate = sub.add_parser("gate", help="read-only merge guardian evaluation (D-008)")
     p_gate.add_argument("pr", type=int)
     p_evidence = sub.add_parser("evidence", help="stored evidence reuse classification (D-009)")
@@ -546,6 +751,9 @@ COMMANDS = {
     "inspect": cmd_inspect,
     "events": cmd_events,
     "owners": cmd_owners,
+    "verifiers": cmd_verifiers,
+    "verifier": cmd_verifier,
+    "iv-eligibility": cmd_iv_eligibility,
     "gate": cmd_gate,
     "evidence": cmd_evidence,
     "evidence-ingest": cmd_evidence_ingest,

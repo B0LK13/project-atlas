@@ -16,8 +16,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from atlas_dag import events as events_mod  # noqa: E402
+from atlas_dag import verifiers as verifiers_mod  # noqa: E402
 from atlas_dag.gh import GhClient  # noqa: E402
 from atlas_dag.model import build_snapshot  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _registry_file_absent(monkeypatch, tmp_path):
+    """This suite predates FEATURE_05 (registry/verifiers.json): the committed
+    registry is canonical when present, which would shadow the issue-body
+    pools these tests exercise. Force the registry file absent so the legacy
+    fallback path (parse_verifier_pool) stays the pool source here; the
+    registry file itself is covered by test_atlas_dag_verifiers.py."""
+    monkeypatch.setattr(verifiers_mod, "default_pool_path",
+                        lambda: tmp_path / "absent-verifiers.json")
 
 MAIN_SHA = "1" * 40
 MAIN_TREE = "2" * 40
