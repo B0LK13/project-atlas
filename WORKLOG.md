@@ -13521,7 +13521,8 @@ The candidate was split rather than argued with:
 - **F5** fixes the three permitted sites plus the shared helper;
   `ingestion.py` is restored byte-identical to `main`.
 - **F5-B** is the `ingestion.py` site, recorded as OWNER-GATED. The fix is one
-  line -- the helper already exists -- so what is missing is a decision, not
+  line -- swapping the read for `read_note_text`, the helper F5 introduces,
+  which is NOT on `main` until F5 merges -- so what is missing is a decision, not
   engineering.
 
 The gated defect is NOT downgraded to a paragraph. Its four reproductions stay
@@ -13537,7 +13538,8 @@ sites, and ready for the fourth when F5-B is granted.
 3.13, and this package declares `requires-python >= 3.12`, so it decodes bytes
 directly. The exception surface is unchanged (`OSError`, `UnicodeDecodeError`),
 which is what the existing handlers already catch. A shared helper rather than
-four inline edits, so the invariant has one name and one place to test.
+three inline edits (one per live site), so the invariant has one name and one
+place to test -- and the fourth site can adopt it unchanged when F5-B is granted.
 
 **CORE3-014 is deliberately untouched.** Identity hashing still normalises
 CRLF to LF so content identity is stable across platforms; `canonical_content`
@@ -13597,7 +13599,9 @@ Claimed: CR-bearing line endings inside HUMAN regions survive a refresh
 byte-for-byte at the THREE LIVE writers fixed here; note ownership no longer
 depends on line endings; identity hashing is unchanged. (An earlier revision
 said "all four writers" -- contradicting the next paragraph, and false: the
-fourth measures CR 3 -> 0 on this head. Corrected, not softened.)
+fourth still loses its CR bytes on this head -- CR 3 -> 0 on the verifier's
+whole-note fixture, per-fixture as noted above; the direction is the claim,
+the integer is fixture-dependent. Corrected, not softened.)
 
 **Not claimed:** that the fourth writer is fixed -- `ingestion.py` is
 unchanged here and its defect remains live on `main` under F5-B; general byte

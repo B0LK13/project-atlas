@@ -110,7 +110,8 @@ helper decodes the bytes directly. The exception surface is unchanged: `OSError`
 from the read, `UnicodeDecodeError` (a `UnicodeError`) from the decode — which
 is what the existing `except (OSError, UnicodeError)` handlers already catch.
 
-A shared helper rather than four inline changes, so the invariant has one name,
+A shared helper rather than three inline changes (one per live site), so the
+invariant has one name,
 one docstring stating why `read_text` is wrong here, and one place to test.
 
 ## A regression this fix introduced, found by verification
@@ -234,7 +235,9 @@ unchanged.
 
 (An earlier revision of this sentence said "all four writers", which
 contradicted the very next paragraph and was measurably false — independent
-verification recorded the fourth writer at CR 3 → 0 on this exact head. It is
+verification recorded the fourth writer losing its CR bytes on this exact head
+(at CR 3 → 0 on that verifier's whole-note fixture; see the per-fixture note
+above — the direction is the claim, the integer is fixture-dependent). It is
 corrected rather than softened, because this paragraph is the one most likely
 to be cited downstream as certification.)
 
