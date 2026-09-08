@@ -80,6 +80,47 @@
     "created_at_utc": {
       "type": "string",
       "format": "date-time"
+    },
+    "evidence_class": {
+      "type": "string",
+      "enum": [
+        "exact_head_ci",
+        "formal_iv",
+        "claim_integrity",
+        "platform_validation",
+        "subsystem_tests",
+        "freeze_validation",
+        "equivalence_proof",
+        "post_merge_seal"
+      ]
+    },
+    "parent_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "main_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1
+    },
+    "test_set": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolchain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifier_principal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifier_session": {
+      "type": "string",
+      "minLength": 1
     }
   }
 }
