@@ -13700,6 +13700,149 @@ unmanageable** (pre-existing, not introduced by F5, deliberately not folded in).
 Owner-gated: **F5-B**. Transferred: **issue #726**, bridge-import
 `source_sha256` hashing translated text so it can never verify the file it
 names.
+## AS-OBSIDIAN-CAPTURE-001-F6 — an unreadable note is an operator condition (2026-09-08)
+
+Work package **AS-OBSIDIAN-CAPTURE-001-F6**, branched from `91f40368` (post-F5
+main). Selected from the residual register as the highest-value runnable
+unowned item; no PR, issue or branch claimed it.
+
+Both projection writers read the prior note to splice a fresh generated span
+into it. When that read failed, the raw exception escaped the module's error
+boundary, so a caller catching the module's own error type did not catch these
+at all. (The two `PermissionError` cases already carried the path via
+`OSError.filename`; the escape is what was wrong in all four.) A
+consistency defect rather than a design question: `obsidian_capture_note`
+already catches `(OSError, UnicodeError)` and raises its own domain error.
+
+Reproduced on `91f40368` before any change, through the real entry points:
+
+    obsidian_projection   undecodable   raw UnicodeDecodeError
+    obsidian_projection   unreadable    raw PermissionError
+    graph_projections     undecodable   raw UnicodeDecodeError
+    graph_projections     unreadable    raw PermissionError
+    obsidian_capture_note both          already correct
+
+FOUR leaks, not the three an earlier informal probe recorded -- the projection
+writer leaks on the unreadable case too, which only appeared when both writers
+were driven against both failure modes rather than one each. That is exactly
+why the lane rule says verify every affected entry point, not the reported one.
+
+**Why the existing instrument missed it.** #707's verification fuzzed 60,000
+malformed input pairs and reported 0 raw leaks. Not contradicted: its corpus was
+*valid UTF-8* with malformed markers, so invalid bytes and unreadable files were
+never in the space. Scoping that claim, rather than letting it look wrong.
+
+**Blast radius, and one place the no-write property does NOT hold.** For
+`graph_projections` the read precedes `_promote`, so the failure path writes
+nothing; verified in both orderings by sha256 plus a staging-residue check.
+For `obsidian_projection` it is NOT true, and an earlier revision of this entry
+claimed it was: that writer calls `_write_atomic` INSIDE its per-project loop,
+so in a multi-project vault an earlier note that merged cleanly has already been
+rewritten when a later one fails. Independent verification proved this on head
+AND on base -- pre-existing, not introduced here, but the unqualified claim was
+wrong and is corrected rather than softened. Making that writer
+plan-then-promote is a separate package.
+
+Fix: `try/except (OSError, UnicodeError)` at each read, raising the module's own
+error naming the note and the underlying class, `from exc` so the cause chain
+survives for a developer while the operator gets a path.
+
+Controls, re-derived in full at this head rather than patched line by line --
+which is how the previous revision came to have a correct suite figure sitting
+below a stale control table it no longer matched:
+
+    baseline                              13 passed
+    A graph read guard removed             5 failed
+    B obsidian read guard removed          2 failed
+    C obsidian WRITE guard removed         4 failed
+    D read guard widened, body AND clause  1 failed
+    E finally cleanup guard removed        2 failed
+    F warning payload un-nested            1 failed
+
+    body widened only                     13 passed
+    clause widened only                   13 passed
+
+A-D fail pairwise disjoint sets. E and F do not: F is contained in E, which is
+contained in C -- F < E < C, all strict -- because removing the write guard
+removes both the error E proves is not masked and the warning F proves carries
+its payload. Both remain load-bearing: reverting only the finally guard fails
+E's two tests, and un-nesting only the payload fails F's one.
+
+An earlier revision of this paragraph said E had a "single failing test". That
+was true before the logging test existed; when it was added the table was
+re-derived and this sentence was not -- the same carry-forward defect this entry
+keeps recording, one layer down in the prose rather than the figures.
+
+Control D is the important one, and it took TWO attempts to describe correctly.
+The first candidate said "widen the clause to `except Exception`"; verification
+got 8 passed. The second said "widen the try BODY"; verification got 11 passed.
+Both wrong -- and the second was written without re-running it, which is exactly
+the discipline this lane enforces, applied to itself and missed. Measured
+directly:
+
+    body widened, clause unchanged      13 passed
+    clause widened, body unchanged      13 passed
+    body AND clause both widened         1 failed
+
+The mechanism is the exception hierarchy: `ProtectedRegionError` and
+`GraphProjectionError` are `ValueError` subclasses, so `(OSError, UnicodeError)`
+never catches them however the body is arranged, and `except Exception` catches
+nothing extra unless the merge is inside the `try`. Both changes are required
+before `malformed-generated-markers` is relabelled. The test is load-bearing;
+two successive receipts described the wrong mutation.
+
+Suites (file set named, because an unenumerated figure is not checkable):
+  tests/unit/test_as_obsidian_capture_001.py
+  tests/unit/test_as_obsidian_capture_001_f3.py
+  tests/unit/test_as_obsidian_capture_001_f5_newline_fidelity.py
+  tests/unit/test_as_obsidian_capture_001_f6_error_boundary.py
+  tests/unit/test_as_graph_005_projections.py
+  tests/unit/test_as_graph_005_adversarial.py
+  tests/unit/test_as_graph_005_f4_canonical_semantics.py
+  tests/unit/test_as_coder_alpha_obsidian_001.py
+  tests/unit/test_as_coder_alpha_obsidian_r1_001.py
+= 277 passed, 4 xfailed; full suite 5,682 passed, 8 skipped, 4 xfailed; freeze guard 78
+(the full-suite figure is 26 higher than this package measured before the base
+refresh: F7 merged into main and brought 26 tests with it)
+(neither changed file is a certified surface); ruff and mypy clean (405 files).
+
+### The first candidate FAILED verification, and why
+
+`24fbf2f4` returned FAIL_MATERIAL. Two blocking findings, both mine:
+
+Its two unreadable-note tests provoked the condition with `chmod(0o000)`, which
+is not portable -- on Windows `chmod` clears only the read-only bit, so the read
+succeeds and the test failed with `DID NOT RAISE`; it also passes vacuously as
+root. **Windows CI was red at that head**, and the repo already had the
+convention the new file ignored (`skipif(os.name == "nt")` in `test_logging.py`
+and `test_linux_filesystem_portability.py`). The tests now INJECT the failure by
+patching `Path.read_bytes`/`os.replace`, which is better than skipping: it
+exercises the boundary on every runner and every uid, and tests the claim rather
+than the operating system. One real-`chmod` test is retained for POSIX, properly
+guarded and skipped as root.
+
+The second finding was substantive rather than cosmetic: on Windows an
+"unreadable" note fails at WRITE time, and `_write_atomic`'s `os.replace` was
+unguarded -- so the first candidate leaked a raw `PermissionError` from
+`ObsidianProjectionError` at the very failure mode this package names. The fix
+was platform-incomplete, not merely under-tested. `_write_atomic` is now guarded
+too, and control C pins it.
+
+Claim boundary: a read OR WRITE failure at either projection writer now
+surfaces as that module's own error type, names the note, and preserves the
+cause chain. For `graph_projections` the failure path additionally writes
+nothing. NOT claimed -- that `obsidian_projection` writes nothing: it calls
+`_write_atomic` inside its per-project loop, so a multi-project vault can have
+an earlier note already rewritten (pre-existing, proven on base, disclosed
+above). An earlier revision of this paragraph said "writes nothing" of either
+writer, contradicting this entry's own blast-radius section. Also NOT claimed:
+that any data-loss defect is fixed (there was none on this path); that every raw exception in these modules is wrapped; that
+`ingestion.py`'s parallel plain-`ValueError` sites are addressed; or that the
+diagnostic is uniform across surfaces.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
+
 
 ## AS-OBSIDIAN-CAPTURE-001-F7 — a BOM must not make a note unmanageable (2026-09-08)
 
