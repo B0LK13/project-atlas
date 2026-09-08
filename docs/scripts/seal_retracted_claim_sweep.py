@@ -7,9 +7,10 @@ weak: an exact-string match, then a whitespace-insensitive match, then a match
 defeated by word order ("changed evidence prose only" vs "changed only evidence
 prose").
 
-So this does not match phrases. It matches CONCEPTS: two token patterns that
-must co-occur inside one sentence-sized window, over whitespace-flattened text.
-Wording, word order and line wrapping are therefore irrelevant.
+So this does not match phrases exactly. It matches two token patterns that must
+co-occur inside one sentence-sized window, over whitespace-flattened text.
+**Word order and line wrapping are therefore irrelevant. Wording is not** -- see
+the limits below.
 
 What it does NOT do, stated plainly, because overstating a verification method
 is the defect this file exists to prevent:
@@ -17,9 +18,12 @@ is the defect this file exists to prevent:
 * **It matches a fixed vocabulary, not meaning.** The anchors are literal
   bigrams (``claim record``, ``evidence prose``). A one-word substitution walks
   straight past it -- "changed only *documentation* prose", or "lived in the
-  *record of claims* rather than the *implementation*". Wording is emphatically
-  NOT irrelevant; an earlier docstring claimed it was, and independent
-  verification refuted that with two one-word rewrites.
+  *record of claims* rather than the *implementation*". Independent verification
+  refuted the opposite claim with two one-word rewrites. An earlier revision of
+  THIS docstring asserted wording was irrelevant and then contradicted itself
+  nine lines later, because the correction was appended beneath the false
+  sentence instead of replacing it -- the same defect this file exists to catch,
+  committed inside it.
 * **Sentence windows are naive.** A ``.`` inside a filename ends a window early,
   so a claim split across ``…\`WORKLOG.md\`. Evidence prose was all that moved``
   is missed.
@@ -33,6 +37,14 @@ because it sat next to the paragraph retracting it -- precisely where such a
 restatement would naturally be written, and an UNDER-reporting hazard the
 docstring did not disclose. Verification demonstrated that defeat; it is closed
 here rather than merely documented.
+
+The consequence of that scoping, disclosed rather than left implicit: a
+retraction marker inside the SAME sentence still suppresses. A sentence that
+both invokes a retraction and asserts the retracted claim is bucketed as a
+retraction. That text is visibly self-contradictory and cannot arise from this
+lane's actual failure mode -- a stale copy left behind elsewhere carries no
+marker, which is why every real stale copy found in verification was a plain
+assertion -- so it is an accepted limit, not a closed one.
 
 Do not quote this tool's output as a clean bill of health.
 
