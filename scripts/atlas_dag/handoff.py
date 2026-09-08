@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any
 
 from . import agents as agents_mod
+from . import control_view as control_view_mod
 from . import dispatch as dispatch_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
@@ -304,7 +305,8 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
                   steal_info: dict | None = None,
                   matrix_info: dict | None = None,
                   residual_info: dict | None = None,
-                  telemetry_info: dict | None = None) -> dict:
+                  telemetry_info: dict | None = None,
+                  control_view_info: dict | None = None) -> dict:
     """Mode-specific emphasis block. Presentation ONLY: every value here is
     derived from material truth already in the packet, never contradictory
     with it, and always excluded from the truth fingerprint."""
@@ -351,8 +353,66 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
             out["residuals"] = residual_info
         if telemetry_info is not None:
             out["coordination_telemetry"] = telemetry_info
+        if control_view_info is not None:
+            out["control_view"] = control_view_info
         return out
     return {"audience": "general"}
+
+
+def _resume_control_view(mode: str, snapshot: dict, stacks: dict,
+                         registry: Any, agent_id: str | None,
+                         client: Any, clock: Callable[[], str],
+                         verifier_pool: str | Path | None = None) -> dict | None:
+    """FEATURE_15 global control-view summary for resume presentation."""
+    if mode != "resume":
+        return None
+    try:
+        if registry is None:
+            registry = agents_mod.load_registry()
+        elif not hasattr(registry, "status"):
+            registry = agents_mod.load_registry(registry)
+        issue = client.dag_issue() if client is not None else None
+        events: list[dict] = []
+        if issue is not None:
+            events = events_mod.ingest_comments(
+                client.issue_comments(issue["number"])).events
+        residual_registry = residuals_mod.build_residual_registry(
+            repository=getattr(client, "repo", "UNKNOWN"),
+            events=events, snapshot=snapshot, stacks=stacks,
+            seal_by_pr=None, agent_id=agent_id, registry=registry,
+            clock=clock)
+        matrix = None
+        steal_plan = None
+        if agent_id is not None:
+            weights, source = score_mod.load_weights()
+            matrix = frontier_matrix_mod.build_frontier_matrix(
+                snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
+                weights=weights, weights_source=source,
+                residual_registry=residual_registry, events=events,
+                seal_by_pr=None, clock=clock)
+            steal_plan = steal_mod.plan_steal(
+                snapshot, agent_id, registry, stacks=stacks,
+                weights=weights, weights_source=source, clock=clock)
+        packet = control_view_mod.build_global_control_view(
+            repository=getattr(client, "repo", "UNKNOWN"),
+            snapshot=snapshot, stacks=stacks, events=events,
+            matrix=matrix, residual_registry=residual_registry,
+            steal_plan=steal_plan, agent_id=agent_id, registry=registry,
+            verifier_pool_path=verifier_pool, clock=clock,
+            seal_scan="skipped_for_latency")
+        panels = packet.get("panels") or {}
+        return {
+            "view_fingerprint": packet.get("view_fingerprint"),
+            "agent_status": packet.get("agent_status"),
+            "panel_status": {
+                name: (panels.get(name) or {}).get("status")
+                for name in control_view_mod.PANEL_KEYS
+            },
+            "honesty": packet.get("honesty"),
+            "seal_scan": (packet.get("provenance") or {}).get("seal_scan"),
+        }
+    except Exception:
+        return {"view_fingerprint": None, "reason": "CONTROL_VIEW_UNRESOLVABLE"}
 
 
 def _resume_telemetry(mode: str, snapshot: dict, stacks: dict,
@@ -832,6 +892,7 @@ def build_handoff(
                 "FEATURE_12 multidimensional frontier (presentation only)",
                 "FEATURE_13 residual registry (presentation only)",
                 "FEATURE_14 coordination telemetry (presentation only)",
+                "FEATURE_15 global control view (presentation only)",
             ],
         },
         "presentation": _presentation(
@@ -846,7 +907,10 @@ def build_handoff(
             residual_info=_resume_residuals(
                 mode, snapshot, stacks, registry, agent_id, client, clock),
             telemetry_info=_resume_telemetry(
-                mode, snapshot, stacks, registry, agent_id, client, clock)),
+                mode, snapshot, stacks, registry, agent_id, client, clock),
+            control_view_info=_resume_control_view(
+                mode, snapshot, stacks, registry, agent_id, client, clock,
+                verifier_pool=pool_path)),
     }
 
     # TOCTOU guard: re-resolve the candidate HEAD from live truth before any

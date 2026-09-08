@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import agents as agents_mod
+from . import control_view as control_view_mod
 from . import dispatch as dispatch_mod
 from . import emitter as emitter_mod
 from . import events as events_mod
@@ -585,6 +586,77 @@ def cmd_metrics(args) -> int:
     for key, value in sorted((packet.get("summary") or {}).items()):
         print(f"  {key}={value}")
     print("HONESTY: METRICS!=AUTHORIZATION / TELEMETRY!=AUTHORITY")
+    return 0
+
+
+def _build_live_control_view(args):
+    """FEATURE_15 live path: snapshot → stacks → events → aggregate panels.
+
+    Skips full seal scan of merged PRs (seal_scan: skipped_for_latency).
+    """
+    client = _client(args)
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    registry = agents_mod.load_registry(args.registry)
+    stacks = stack_mod.build_stacks(
+        snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+    events = _live_events(client)
+    agent_id = getattr(args, "agent", None)
+    matrix = None
+    residual_registry = None
+    steal_plan = None
+    if agent_id:
+        residual_registry = residuals_mod.build_residual_registry(
+            repository=client.repo, events=events, snapshot=snapshot,
+            stacks=stacks, seal_by_pr=None, agent_id=agent_id,
+            registry=registry)
+        weights, source = score_mod.load_weights(getattr(args, "weights", None))
+        matrix = frontier_matrix_mod.build_frontier_matrix(
+            snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
+            weights=weights, weights_source=source, events=events,
+            residual_registry=residual_registry, seal_by_pr=None)
+        steal_plan = steal_mod.plan_steal(
+            snapshot, agent_id, registry, stacks=stacks,
+            weights=weights, weights_source=source)
+    else:
+        residual_registry = residuals_mod.build_residual_registry(
+            repository=client.repo, events=events, snapshot=snapshot,
+            stacks=stacks, seal_by_pr=None, agent_id=None, registry=registry)
+    packet = control_view_mod.build_global_control_view(
+        repository=client.repo or "UNKNOWN",
+        snapshot=snapshot,
+        stacks=stacks,
+        events=events,
+        matrix=matrix,
+        residual_registry=residual_registry,
+        steal_plan=steal_plan,
+        agent_id=agent_id,
+        registry=registry,
+        verifier_pool_path=_pool_path(args),
+        seal_scan="skipped_for_latency",
+    )
+    return packet, snapshot
+
+
+def cmd_control_view(args) -> int:
+    """Global control view / dashboard (FEATURE_15, presentation only)."""
+    packet, _ = _build_live_control_view(args)
+    errors = control_view_mod.validate_control_view(packet)
+    if errors:
+        print("control-view: FAIL schema:", file=sys.stderr)
+        for error in errors[:20]:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+        return 0
+    print(f"control-view agent={packet.get('agent')} "
+          f"status={packet.get('agent_status')} "
+          f"view_fp={packet['view_fingerprint'][:12]}…")
+    for name in control_view_mod.PANEL_KEYS:
+        panel = (packet.get("panels") or {}).get(name) or {}
+        print(f"  {name:<16} {panel.get('status'):<10}")
+    print(f"SEAL_SCAN={packet['provenance'].get('seal_scan')}")
+    print("HONESTY: CONTROL_VIEW!=AUTHORITY / UI!=CANONICAL_TRUTH")
     return 0
 
 
@@ -1674,6 +1746,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_metrics.add_argument("--agent", default=None)
     p_metrics.add_argument("--weights", default=None)
     p_metrics.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_control = sub.add_parser(
+        "control-view",
+        help="global control view aggregate (FEATURE_15, presentation only)")
+    p_control.add_argument("--agent", default=None)
+    p_control.add_argument("--weights", default=None)
+    p_control.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_dash = sub.add_parser(
+        "dashboard",
+        help="alias for control-view (FEATURE_15, presentation only)")
+    p_dash.add_argument("--agent", default=None)
+    p_dash.add_argument("--weights", default=None)
+    p_dash.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
     p_next = sub.add_parser("next", help="agent-aware next safe action (FEATURE_02, read-only)")
     p_next.add_argument("--agent", required=True, help="registered agent_id")
@@ -1785,6 +1869,8 @@ COMMANDS = {
     "steal": cmd_steal,
     "telemetry": cmd_telemetry,
     "metrics": cmd_metrics,
+    "control-view": cmd_control_view,
+    "dashboard": cmd_control_view,
     "agents": cmd_agents,
     "agent": cmd_agent,
     "next": cmd_next,
