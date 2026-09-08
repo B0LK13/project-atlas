@@ -14371,11 +14371,11 @@ reason token is not `count`.
 assertion that it changed the file, each reverted with both sources confirmed
 byte-identical:
 
-    A  count site -> bare message                13 failed
-    B  end-before-begin site -> bare              5 failed
-    C  `_generated_span` site -> bare             5 failed
+    A  count site -> bare message                12 failed
+    B  end-before-begin site -> bare              4 failed
+    C  `_generated_span` site -> bare             4 failed
     D  rendered-no-span site -> bare              1 failed
-    E  `_generated_span` reason always `count`    3 failed
+    E  `_generated_span` reason always `count`    2 failed
 
 **Controls C and E earned their place by first failing to fail.** On the initial
 test set, reverting the `_generated_span` site left the suite at **27 passed** --

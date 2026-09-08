@@ -228,10 +228,16 @@ def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) 
             # render offers none. Refuse rather than fall back to overwriting
             # the whole document, which would discard the outside text this
             # branch exists to preserve.
+            # The counts must name the artifact they describe. Borrowing the
+            # note-shaped vocabulary here reported `begin=0,end=0` against the
+            # OPERATOR'S path, telling them their note had no markers when it
+            # has one of each -- the render is what lacks a span. Found by
+            # verification.
             raise GraphProjectionError(
-                f"malformed-generated-markers:"
-                f"{generated_marker_diagnosis(rendered, reason='rendered-has-no-generated-span')}"
-                f":{path}"
+                f"malformed-generated-markers:rendered-has-no-generated-span,"
+                f"rendered-begin={rendered.count(_GENERATED_START)},"
+                f"rendered-end={rendered.count(_GENERATED_END)},"
+                f"expected=1,no-write:{path}"
             )
         return (
             existing[: existing_span[0]]

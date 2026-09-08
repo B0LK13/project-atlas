@@ -49,11 +49,11 @@ each reverted with both sources confirmed byte-identical afterwards.
 | control | reverted | result |
 |---|---|---|
 | baseline | — | **33 passed** |
-| A | count site → bare message | **13 failed** |
-| B | end-before-begin site → bare | **5 failed** |
-| C | `_generated_span` site → bare | **5 failed** |
+| A | count site → bare message | **12 failed** |
+| B | end-before-begin site → bare | **4 failed** |
+| C | `_generated_span` site → bare | **4 failed** |
 | D | rendered-no-span site → bare | **1 failed** |
-| E | `_generated_span` reason always `count` | **3 failed** |
+| E | `_generated_span` reason always `count` | **2 failed** |
 
 **A test that could not fail, found by review.** An earlier revision asserted
 the note was left byte-identical by comparing the `existing` *string* against
