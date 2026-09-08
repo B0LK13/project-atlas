@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/execution-identity.schema.json",
+  "title": "AtlasExecutionIdentityV1",
+  "description": "AT3-103 execution identity (Git/software profile). Identity, not authority. Consistency rules (OBSERVED requires values, UNKNOWN forbids them, digest self-verification) are enforced by atlas_contracts.execution_identity; this schema pins the shape.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "schema_version", "project_id", "source", "environment",
+    "toolchain", "agent", "context", "capabilities", "identity_digest", "run_id"
+  ],
+  "$defs": {
+    "sha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 128},
+    "status": {"enum": ["OBSERVED", "UNKNOWN"]},
+    "token": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^\\S+$"}
+  },
+  "properties": {
+    "schema": {"const": "atlas.execution-identity.v1"},
+    "schema_version": {"const": 1},
+    "project_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "repository", "base_head", "base_tree", "candidate_head", "candidate_tree"],
+      "properties": {
+        "kind": {"const": "git"},
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._@:/-]{0,255}$"},
+        "base_head": {"$ref": "#/$defs/sha1"},
+        "base_tree": {"$ref": "#/$defs/sha1"},
+        "candidate_head": {"anyOf": [{"$ref": "#/$defs/sha1"}, {"type": "null"}]},
+        "candidate_tree": {"anyOf": [{"$ref": "#/$defs/sha1"}, {"type": "null"}]}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "os", "arch", "python"],
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "os": {"anyOf": [{"$ref": "#/$defs/token"}, {"type": "null"}]},
+        "arch": {"anyOf": [{"$ref": "#/$defs/token"}, {"type": "null"}]},
+        "python": {"anyOf": [{"$ref": "#/$defs/token"}, {"type": "null"}]}
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "tools"],
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version"],
+            "properties": {
+              "name": {"$ref": "#/$defs/id"},
+              "version": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^\\S+$"}
+            }
+          }
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "agent_id", "skill_sha256"],
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "agent_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "skill_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "context_digest"],
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "context_digest": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "grant_ref"],
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "grant_ref": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}
+      }
+    },
+    "identity_digest": {"$ref": "#/$defs/sha256"},
+    "run_id": {"type": "string", "pattern": "^run-[0-9a-f]{16}$"}
+  }
+}

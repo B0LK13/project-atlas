@@ -51,7 +51,7 @@ from project_atlas.atlas3.memory.search import search_memory
 from project_atlas.atlas3.mission import compile_mission
 from project_atlas.atlas3.multi_project import compile_multi_project_twin
 from project_atlas.atlas3.org_identity import compile_org_identity
-from project_atlas.atlas3.proof import evaluate_proof
+from project_atlas.atlas3.proof import evaluate_proof, evaluate_proof_v2
 from project_atlas.atlas3.provider_register import (
     assert_cli_design,
     compile_provider_register,
@@ -139,6 +139,18 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     proof.add_argument("--project", required=True)
     proof.add_argument("--evidence", default=None, help="Optional JSON object of stage evidence.")
     proof.add_argument("--model-claims-complete", action="store_true")
+    proof.add_argument(
+        "--identity",
+        type=Path,
+        default=None,
+        help="AT3-103 proof v2: JSON file with a sealed atlas.execution-identity.v1.",
+    )
+    proof.add_argument(
+        "--attestations",
+        type=Path,
+        default=None,
+        help="AT3-103 proof v2: JSON file with a list of sealed evidence attestations.",
+    )
     proof.add_argument("--json", action="store_true")
 
     memory = subparsers.add_parser(
@@ -567,6 +579,36 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     graph_authority.add_argument("--project", required=True)
 
 
+_MAX_PROOF_INPUT_BYTES = 1_048_576
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    raw = _read_bounded(path)
+    if not isinstance(raw, dict):
+        raise Atlas3Error("PROOF_INPUT_INVALID", f"{path} must contain a JSON object")
+    return raw
+
+
+def _read_json_list(path: Path) -> list[Any]:
+    raw = _read_bounded(path)
+    if isinstance(raw, dict) and isinstance(raw.get("attestations"), list):
+        return list(raw["attestations"])
+    if not isinstance(raw, list):
+        raise Atlas3Error("PROOF_INPUT_INVALID", f"{path} must contain a JSON list")
+    return raw
+
+
+def _read_bounded(path: Path) -> Any:
+    if not path.is_file() or path.is_symlink():
+        raise Atlas3Error("PROOF_INPUT_INVALID", f"{path} is not a regular file")
+    if path.stat().st_size > _MAX_PROOF_INPUT_BYTES:
+        raise Atlas3Error("PROOF_INPUT_INVALID", f"{path} exceeds the input size cap")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise Atlas3Error("PROOF_INPUT_INVALID", f"{path}: unreadable JSON") from exc
+
+
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
@@ -709,6 +751,27 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 as_json=True,
             )
         if command == "proof":
+            identity_path = getattr(args, "identity", None)
+            attestations_path = getattr(args, "attestations", None)
+            if identity_path is not None or attestations_path is not None:
+                if identity_path is None or attestations_path is None:
+                    raise Atlas3Error(
+                        "PROOF_V2_INPUTS_INCOMPLETE",
+                        "--identity and --attestations must be given together",
+                    )
+                return _dump(
+                    evaluate_proof_v2(
+                        args.vault,
+                        args.task_id,
+                        project_id=args.project,
+                        identity=_read_json_object(identity_path),
+                        attestations=_read_json_list(attestations_path),
+                        model_claims_complete=bool(
+                            getattr(args, "model_claims_complete", False)
+                        ),
+                    ),
+                    as_json=True,
+                )
             evidence = None
             if getattr(args, "evidence", None):
                 evidence = json.loads(args.evidence)

@@ -34,6 +34,8 @@ AT3-050 Agent Proof-of-Work
         ↓
 AT3-051 Independent verification binding (IV != MERGE)
 AT3-052 ADV binding (ADV != MERGE / != security cert)
+        ↓
+AT3-103 Execution identity + evidence attestation + proof v2 (ULT-01a; contract only)
 ```
 
 Start may read Pulse, but Pulse must not require Start.
@@ -113,6 +115,7 @@ AT3-082 next-honesty ► Pulse + next-lens compose (NEXT != command; no write)
 AT3-093 time-machine-ux ► kdiff reuse (no second clock; wall-clock != valid-time)
 AT3-112 federation-reuse ► FED-001/002 compose (federation != authority; no promote)
 AT3-053 autonomy-gate ► orch DAG/lease reuse (no self-dispatch; lease != merge)
+AT3-103 exec-identity ► AT3-050 v1 kept; typed attestations bound to one HEAD/TREE (model claim != proof; UNKNOWN != OBSERVED; observation wiring deferred)
 AT3-039 normalize ──► canonical envelope (mixed corrupt fail-closed; graph != authority)
 AT3-040 extract ────► landed ITEM_TYPES (heuristic only; forged owner != confirmed)
 AT3-041 dedup ──────► exact/near collapse (provenance retained; no layer collapse)
