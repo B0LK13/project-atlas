@@ -1,7 +1,7 @@
 """Automatic handoff packet generation (FEATURE_08, AUTOMATIC_HANDOFF_GENERATION).
 
 A handoff packet is a PROJECTION of current DAG/repository/evidence truth —
-never new authority. It is built exclusively by reusing the Features 1–7
+never new authority. It is built exclusively by reusing the Features 1-7
 resolvers (snapshot model, stack topology, verifier pool, dispatch planner,
 evidence graph); this module adds no truth of its own.
 
@@ -48,6 +48,7 @@ from . import dispatch as dispatch_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
 from . import evidence_graph as evidence_graph_mod
+from . import frontier_matrix as frontier_matrix_mod
 from . import model as model_mod
 from . import score as score_mod
 from . import seal_plan as seal_plan_mod
@@ -298,7 +299,8 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
                   evidence_section: dict, gate_reasons: list[str],
                   prohibitions: list[str],
                   priority: dict | None = None,
-                  steal_info: dict | None = None) -> dict:
+                  steal_info: dict | None = None,
+                  matrix_info: dict | None = None) -> dict:
     """Mode-specific emphasis block. Presentation ONLY: every value here is
     derived from material truth already in the packet, never contradictory
     with it, and always excluded from the truth fingerprint."""
@@ -339,8 +341,47 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
             out["ranked_next_safe_actions"] = priority
         if steal_info is not None:
             out["steal_candidate"] = steal_info
+        if matrix_info is not None:
+            out["multidim_frontier"] = matrix_info
         return out
     return {"audience": "general"}
+
+
+def _resume_matrix(mode: str, snapshot: dict, stacks: dict,
+                   registry: Any, agent_id: str | None,
+                   clock: Callable[[], str]) -> dict | None:
+    """FEATURE_12 top actions / parallel set for resume presentation."""
+    if mode != "resume" or agent_id is None:
+        return None
+    try:
+        if registry is None:
+            registry = agents_mod.load_registry()
+        elif not hasattr(registry, "status"):
+            registry = agents_mod.load_registry(registry)
+        weights, source = score_mod.load_weights()
+        packet = frontier_matrix_mod.build_frontier_matrix(
+            snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
+            weights=weights, weights_source=source, clock=clock)
+        rankings = packet.get("typed_rankings") or {}
+        return {
+            "frontier_fingerprint": packet.get("frontier_fingerprint"),
+            "top_actions_by_class": {
+                k: v[:5] for k, v in rankings.items() if k.startswith("best_")
+            },
+            "parallel_runnable_set": packet.get("parallel_runnable_set") or [],
+            "blocked_human_verifier_platform": [
+                a["action_id"] for a in packet.get("actions") or []
+                if a["runnable_state"] == frontier_matrix_mod.BLOCKED
+                and (
+                    a["action_class"] == frontier_matrix_mod.CLASS_HUMAN_GATE
+                    or a["action_type"] == frontier_matrix_mod.IV_REQUEST
+                    or any(r.startswith("PLATFORM_")
+                           for r in (a.get("blocking_reasons") or []))
+                )
+            ][:20],
+        }
+    except Exception:
+        return {"frontier_fingerprint": None, "reason": "MATRIX_UNRESOLVABLE"}
 
 
 def _resume_steal(mode: str, snapshot: dict, stacks: dict,
@@ -375,7 +416,7 @@ def _resume_steal(mode: str, snapshot: dict, stacks: dict,
 def _resume_priority(mode: str, snapshot: dict, stacks: dict,
                      registry: Any, agent_id: str | None,
                      clock: Callable[[], str]) -> dict | None:
-    """FEATURE_10 ranked authorized actions for resume presentation only."""
+    """FEATURE_10 ranked view derived from FEATURE_12 matrix (presentation)."""
     if mode != "resume" or agent_id is None:
         return None
     try:
@@ -384,9 +425,10 @@ def _resume_priority(mode: str, snapshot: dict, stacks: dict,
         elif not hasattr(registry, "status"):
             registry = agents_mod.load_registry(registry)
         weights, source = score_mod.load_weights()
-        packet = score_mod.rank_frontier(
+        matrix = frontier_matrix_mod.build_frontier_matrix(
             snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
             weights=weights, weights_source=source, clock=clock)
+        packet = frontier_matrix_mod.score_compat_projection(matrix, snapshot)
         return {
             "ranking_fingerprint": packet["ranking_fingerprint"],
             "weights_id": packet["weights_id"],
@@ -396,6 +438,7 @@ def _resume_priority(mode: str, snapshot: dict, stacks: dict,
                  "total": e["total"], "pr": e["pr"]}
                 for e in packet["ranked"][:10]
             ],
+            "derived_from": frontier_matrix_mod.SCHEMA_CONST,
         }
     except Exception:
         return {"ranking_fingerprint": None, "ranked": [],
@@ -413,7 +456,7 @@ def build_handoff(
     verifier_pool: str | Path | None = None,
     clock: Callable[[], str] = utcnow,
 ) -> dict:
-    """Build one ATLAS_HANDOFF_V1 packet from live Features 1–7 truth.
+    """Build one ATLAS_HANDOFF_V1 packet from live Features 1-7 truth.
 
     Raises HandoffUnavailable when the lane is not truthfully resolvable and
     HandoffStale (HANDOFF_STALE_DURING_BUILD) when the candidate HEAD moves
@@ -647,6 +690,7 @@ def build_handoff(
                 "FEATURE_09 post-merge seal plan",
                 "FEATURE_10 frontier prioritization (presentation only)",
                 "FEATURE_11 safe work stealing (presentation only)",
+                "FEATURE_12 multidimensional frontier (presentation only)",
             ],
         },
         "presentation": _presentation(
@@ -655,6 +699,8 @@ def build_handoff(
             priority=_resume_priority(
                 mode, snapshot, stacks, registry, agent_id, clock),
             steal_info=_resume_steal(
+                mode, snapshot, stacks, registry, agent_id, clock),
+            matrix_info=_resume_matrix(
                 mode, snapshot, stacks, registry, agent_id, clock)),
     }
 
