@@ -1,6 +1,6 @@
 # AS-OBSIDIAN-CAPTURE-001-F6 — an unreadable note is an operator condition
 
-**Status:** implemented, awaiting independent verification. **Not sealed.**
+**Status:** integrated on `main` and **SEALED** (PR #729). See the post-merge seal at the end of this file. An earlier revision left this line reading "awaiting independent verification, not sealed" beneath a completed seal section, which asserted the opposite of the truth.
 
 ## The defect
 
@@ -187,7 +187,7 @@ clean (405 files).
 
 ## Residuals found by verification, recorded not fixed
 
-- **F5's sealed WORKLOG section still carries the abbreviated suite list** that
+- **F5's sealed work-package entry still carries the abbreviated suite list** that
   P3-2 corrected everywhere else, including the two abbreviations that expand to
   filenames which do not exist. It sits in the byte-identical prefix this
   package must not touch -- editing it would break the pure-insertion property
@@ -255,8 +255,14 @@ e264d599` is empty and the merge trees (`src 8086e6f9`, `tests e6157e27`,
 `docs aa0b3336`) are hash-identical to the certified object.
 
 Nine verification rounds against ten objects. Round 1 found the fix itself
-platform-incomplete; every finding after it was in the claim record, not the
-code. The final round returned P0/P1/P2 = 0.
+platform-incomplete. An earlier revision of this paragraph added that "every
+finding after it was in the claim record, not the code" -- **false**, and raised
+by two independent reviewers: six of the nine objects changed `src`/`tests`, and
+only the last three (`c995040a`, `8ec6311d`, `c5d85fe7`) were documentation-only.
+R3's `finally` masking and R5's discarded log payload were engineering defects,
+which is precisely why they are controls **E** and **F** below. The recurring
+defect *class* was bookkeeping; the findings were not all bookkeeping. The final
+round returned P0/P1/P2 = 0.
 
 Measured on the merge object, in an isolated worktree with its own venv, after
 proving both the parent process and a spawned child resolve `project_atlas`

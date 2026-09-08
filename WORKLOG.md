@@ -13957,8 +13957,12 @@ last. Here the merged object IS the verified object, byte for byte.
 
 **Verification.** Five rounds against six objects. Round 5 returned PASS with no
 P0, no P1 and no P2, and concluded the object was mergeable. The `src` tree was
-identical across all six objects — every round after the first changed evidence
-prose only, never the one-line fix. CI green on all four jobs at the exact head,
+identical across all six objects, and `obsidian_capture_note.py` is blob
+`d6617798` in every one — **the one-line fix never changed after round 1**. An
+earlier revision put this as "every round after the first changed evidence prose
+only", which overstates it: the `tests` tree moved in three of the six objects,
+and the receipt records control A going 5 -> 6 when a vacuous assertion was
+strengthened. CI green on all four jobs at the exact head,
 Windows included; `mergeable=MERGEABLE state=CLEAN`; both Copilot threads
 resolved.
 
@@ -14034,9 +14038,22 @@ hash-identical to the certified object.
 **Nine verification rounds against ten objects** — the most-corrected package in
 this lane. Round 1 found a real defect in the fix: it was platform-incomplete,
 because on Windows an unopenable note fails at `os.replace`, not at the read,
-and that site was unguarded. A Linux-only reproduction could not see it. Every
-finding after that was in the claim record rather than the code, and the record
-of them is the substance of this entry:
+and that site was unguarded. A Linux-only reproduction could not see it.
+
+An earlier revision of this entry then said "every finding after that was in the
+claim record rather than the code". **That is false**, it was raised by two
+independent reviewers, and it contradicted this very section eight lines later.
+Measured: **six of the nine objects changed `src`/`tests`** --
+
+    24fbf2f4  c61efe3a  cb9d882d  3710db65  087c5c01  1c65ee98   src/tests changed
+    c995040a  8ec6311d  c5d85fe7                                 documentation only
+
+-- so the documentation-only stretch is rounds 7-9, not everything after round 1.
+R1's platform-incomplete fix, R3's `finally` masking and R5's discarded log
+payload were **engineering** defects, load-bearing enough that this seal makes
+the latter two its controls **E** and **F**. What is true, and is the narrower
+claim now made, is that the defect *class* which kept recurring was
+bookkeeping. The findings themselves:
 
     R2  a negative control corrected without re-running it
     R3  a `finally` that could REPLACE the error it was cleaning up after
@@ -14103,10 +14120,11 @@ control that passes is not evidence; it is usually a broken control.
     owner-gated (frozen surface); the `graph_projections` half is not, and is
     the next runnable candidate in this lane.
   - `_write_atomic`'s `mkdir` sits outside the new guard.
-  - F5's SEALED WORKLOG section still carries the abbreviated suite list whose
-    expansions do not exist. It lies in the byte-identical prefix, so editing it
-    would destroy the pure-insertion property that proves no sealed record was
-    rewritten. For a future package.
+  - F5's sealed work-package entry (WORKLOG L13584 -- its work-package section,
+    not its "post-merge seal" subsection; both are sealed records) still carries
+    the abbreviated suite list whose expansions do not exist. It lies in the
+    byte-identical prefix, so editing it would destroy the pure-insertion
+    property that proves no sealed record was rewritten. For a future package.
   - The receipt's headline figures and control tables are typed, not derived.
     That is exactly where the round-8 blocker lived, and it is the highest-value
     remaining hardening of this lane's evidence process.

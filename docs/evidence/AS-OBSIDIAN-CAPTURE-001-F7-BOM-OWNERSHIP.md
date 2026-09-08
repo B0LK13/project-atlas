@@ -1,6 +1,6 @@
 # AS-OBSIDIAN-CAPTURE-001-F7 — a BOM must not make a note unmanageable
 
-**Status:** implemented, awaiting independent verification. **Not sealed.**
+**Status:** integrated on `main` and **SEALED** (PR #731). See the post-merge seal at the end of this file. An earlier revision left this line reading "awaiting independent verification, not sealed" beneath a completed seal section, which asserted the opposite of the truth.
 
 ## The defect
 
@@ -205,8 +205,12 @@ Integrated as PR #731: merge commit `7b0989a7`, second parent `3d5b1d97`, base
 round 5 certified — so that certification transfers by hash, not by assertion.
 
 Five rounds ran against six objects. Round 5 returned PASS with no P0, no P1 and
-no P2. The `src` tree was identical across all six: every round after the first
-changed evidence prose only, never the one-line fix. Rounds 1-4 are summarised
+no P2. The `src` tree was identical across all six, and `obsidian_capture_note.py`
+is blob `d6617798` in every one: **the one-line fix never changed after round 1**.
+An earlier revision put this as "every round after the first changed evidence
+prose only", which overstates it -- the `tests` tree moved in three of the six
+objects, and this receipt itself records control A going 5 -> 6 when a vacuous
+assertion was strengthened. The narrow claim is the true one. Rounds 1-4 are summarised
 above; each found a defect in the claim record rather than in the code, which is
 the pattern this receipt exists to document.
 
@@ -228,8 +232,8 @@ assertion that it changed the file, source restored byte-identical afterwards:
 
     baseline 26 passed · A 6 failed · B 4 failed · C 3 failed · D 18 failed
 
-matching this receipt's figures exactly. The protections are load-bearing on the
-integrated result, not only on the branch.
+These match this receipt's figures exactly. The protections are load-bearing on
+the integrated result, not only on the branch.
 
 **Two findings from round 5 are fixed here rather than carried**, on the same
 principle applied to F6: a claim an evidence record cannot support should not
