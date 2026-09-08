@@ -110,6 +110,59 @@ is what the existing `except (OSError, UnicodeError)` handlers already catch.
 A shared helper rather than four inline changes, so the invariant has one name,
 one docstring stating why `read_text` is wrong here, and one place to test.
 
+## A regression this fix introduced, found by verification
+
+Reading faithfully is not enough if a *consumer* of that text was silently
+relying on the translation. Independent verification of the first candidate
+found exactly that, and it is the sharpest lesson of this package.
+
+`_existing_capture_id` gated ownership on `text.startswith("---\n")`. The old
+translating read masked it; the faithful read exposed it. Measured on both
+trees, the trigger is precisely **the note's first line ending**:
+
+| note shape | base `7a9eeb76` | first candidate `6788f3bc` |
+|---|---|---|
+| whole file CRLF | `ok`, bytes mutated | **`partial`, `OBSIDIAN_NOTE_CONFLICT`** |
+| first line CRLF only | `ok`, bytes mutated | **`partial`, `OBSIDIAN_NOTE_CONFLICT`** |
+| HUMAN block CRLF only | `ok`, bytes mutated | `ok`, byte-identical |
+| CRLF everywhere but first line | `ok`, bytes mutated | `ok`, HUMAN bytes preserved |
+
+That is what a Windows editor or a `core.autocrlf=true` checkout produces. It
+failed **closed** — raw capture preserved, note untouched, surfaced as
+`status="partial"` rather than silently — but the note would never refresh
+again, and the error named the wrong cause.
+
+Fixed by normalising **for the ownership probe only**, the same split
+`canonical_content` draws for identity: interpret a normalised copy, persist
+the original. Two tests pin it, and a fifth negative control (reverting the
+probe to LF-naive) fails 3 tests.
+
+**Scoped precisely:** on a whole-note CRLF rewrite the *generated* span
+correctly comes back LF, because generated content is derived and re-rendered
+canonically — Atlas owns those bytes. Only HUMAN bytes must survive. An earlier
+revision of the locality test asserted whole-file CR parity and failed for that
+correct reason; it now asserts the HUMAN block.
+
+## Findings recorded rather than fixed here
+
+- **Site 4's blast radius is wider than one note.** `_generated_content` is
+  called from `ingestion.py:2245` (a loop over the whole rendered knowledge
+  bundle) and `:2251` (`projects/<p>/project.md`), so F5-B covers a family of
+  vault notes. Also `ingestion.py:478` reads the same note with a translating
+  `read_text` for preflight marker validation — read-only and harmless, but it
+  means preflight and splice decode differently.
+- **A second splice implementation survives** at `graph_projections.py:184-230`
+  for the no-HUMAN case. Fed faithful bytes today, so not a live defect, but it
+  would silently inherit any future translating read.
+- **Adjacent digest-fidelity defects, out of scope and pre-existing.**
+  `chatgpt_bridge.py:66-74` and `openai_import_real.py:68-77` hash the
+  *translated* text of an operator-supplied file and store it as
+  `source_sha256` beside the path and size, so for a CRLF input the receipt's
+  digest can never match the file it names; in the latter `source_sha256` and
+  `source_bytes` are mutually inconsistent. `obsidian_capture.py:737` already
+  does this correctly via `read_bytes().decode()`. Separate defect class,
+  separate package — deliberately not folded in.
+
 ## The boundary this must NOT cross
 
 `CORE3-014` deliberately normalises CRLF→LF **before hashing** so content
@@ -151,16 +204,28 @@ A further control pins that `Path.read_text` still translates. If it ever stops
 failing, the helper has become redundant — worth learning deliberately rather
 than when someone "simplifies" it away.
 
-**Suites:** F1–F4 + capture + graph projections + Obsidian + F5 = 261 passed,
-4 xfailed. The certified-surface freeze guard
+**Suites:** the F1–F4 + capture + projection set — enumerated, because the
+figure was previously unreproducible as stated:
+`test_as_obsidian_capture_001.py`, `test_as_obsidian_capture_001_f3.py`,
+`test_as_graph_005_projections.py`, `test_as_graph_005_adversarial.py`,
+`test_as_graph_005_f4_canonical_semantics.py`,
+`test_as_coder_alpha_obsidian_001.py`, `test_as_coder_alpha_obsidian_r1_001.py`
+and this package's own file — **264 passed, 4 xfailed**. The certified-surface freeze guard
 (`test_atlas3_demo_isolation_001`, 78 tests) passes, confirming this candidate
 touches no frozen surface. `ruff check .` clean; `mypy src` clean (405 files).
 
 ## Claim boundary
 
 Claimed: CR-bearing line endings inside HUMAN regions survive a refresh
-byte-for-byte at all four generated-span-preserving writers, and identity
-hashing is unchanged.
+byte-for-byte at the **three live** generated-span-preserving writers fixed
+here; note ownership no longer depends on line endings; and identity hashing is
+unchanged.
+
+(An earlier revision of this sentence said "all four writers", which
+contradicted the very next paragraph and was measurably false — independent
+verification recorded the fourth writer at CR 3 → 0 on this exact head. It is
+corrected rather than softened, because this paragraph is the one most likely
+to be cited downstream as certification.)
 
 **Not claimed:** that the fourth writer is fixed — `ingestion.py` is
 unchanged here and its defect is live on `main`, owner-gated as F5-B; general

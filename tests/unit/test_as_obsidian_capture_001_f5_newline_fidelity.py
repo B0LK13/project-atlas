@@ -41,6 +41,7 @@ from project_atlas.graph_projections import (
     materialize_projections,
     write_projection_outputs,
 )
+from project_atlas.graph_relationships import RelationshipRecord
 from project_atlas.ingestion import _generated_content
 from project_atlas.obsidian_capture import canonical_content, capture, content_hash, retry
 from project_atlas.obsidian_projection import (
@@ -70,6 +71,21 @@ def vault(tmp_path: Path) -> Path:
     (root / "projects" / "harbor-api").mkdir(parents=True)
     (root / "generated").mkdir(parents=True)
     return root
+
+
+def _relationship(relationship_id: str) -> RelationshipRecord:
+    return RelationshipRecord(
+        project_id="demo",
+        relationship_id=relationship_id,
+        relationship_type="depends-on",
+        source_entity_id="demo:a",
+        target_entity_id="demo:b",
+        source_graphify_id="a",
+        target_graphify_id="b",
+        link_quality="inferred",
+        relationship_fingerprint="f" * 64,
+        provenance={},
+    )
 
 
 def _sha(path: Path) -> str:
@@ -251,7 +267,17 @@ def test_f5_generated_span_still_refreshes_beside_crlf_human_content(
     tmp_path: Path,
 ) -> None:
     """Preserving HUMAN bytes must not accidentally preserve stale generated
-    bytes -- generated content is derived and must still be replaced."""
+    bytes -- generated content is derived and must still be replaced.
+
+    The second render is given **different** input from the first, and the test
+    asserts the old generated text is gone and the new text is present. An
+    earlier revision re-materialised an identical bundle, so a regression that
+    simply returned the prior note unchanged would have passed it: the
+    assertions only checked marker counts and that the HUMAN body survived.
+    Two independent reviewers caught that, and they were right -- a test whose
+    stated purpose is "the generated span still refreshes" has to make the span
+    actually change.
+    """
     vault = tmp_path / "vault"
     vault.mkdir()
     empty = materialize_projections(project_id="demo", relationships=(), health=None)
@@ -260,14 +286,20 @@ def test_f5_generated_span_still_refreshes_beside_crlf_human_content(
     note.write_bytes(
         _humanize(read_note_text(note), LINE_ENDING_CASES["crlf"]).encode("utf-8")
     )
+    stale_marker = "No retained graph relationships are present for this project."
+    assert stale_marker in read_note_text(note), "precondition: the empty render is present"
 
     changed = materialize_projections(
-        project_id="demo", relationships=(), health=None
+        project_id="demo",
+        relationships=(_relationship("rel-f5"),),
+        health=None,
     )
     write_projection_outputs(changed, vault=vault)
     text = read_note_text(note)
 
-    assert LINE_ENDING_CASES["crlf"] in text
+    assert LINE_ENDING_CASES["crlf"] in text, "HUMAN bytes must survive the refresh"
+    assert stale_marker not in text, "stale generated content was not replaced"
+    assert "rel-f5" in text, "the new generated content did not appear"
     assert text.count(GENERATED_START) == 1, "exactly one generated span survives"
     assert text.count(HUMAN_BEGIN) == 1
 
@@ -284,6 +316,73 @@ def test_f5_lf_only_notes_are_unaffected(vault: Path) -> None:
 
     assert note.read_bytes() == before
     assert b"\r" not in note.read_bytes(), "no line endings were invented"
+
+
+# ---------------------------------------------------------------------------
+# Ownership detection must not depend on line endings.
+#
+# Found by independent verification of the first F5 candidate, and it is the
+# sharpest lesson of this package: reading faithfully is not enough if a
+# consumer of that text was silently relying on the translation.
+#
+# ``_existing_capture_id`` gated on ``text.startswith("---\n")``. The old
+# translating read masked that; the faithful read exposed it. A note whose
+# frontmatter delimiter ends ``\r\n`` -- a Windows editor, or a checkout with
+# ``core.autocrlf=true`` -- was judged unmanaged and refused on every refresh
+# with OBSIDIAN_NOTE_CONFLICT. It failed closed and lost no bytes, but the note
+# never refreshed again and the error named the wrong cause.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("label", "newline"),
+    [("crlf-frontmatter", "\r\n"), ("cr-frontmatter", "\r")],
+)
+def test_f5_note_ownership_survives_non_lf_frontmatter(
+    label: str, newline: str, vault: Path
+) -> None:
+    """A whole-note CRLF rewrite must still be recognised as Atlas-managed."""
+    result = capture(vault, build_capture_request(content=f"f5 {label}"))
+    outputs = result["outputs"]
+    note = Path(str(outputs[0]["vault_root"])) / str(outputs[0]["relative_path"])
+
+    rewritten = read_note_text(note).replace("\n", newline)
+    note.write_bytes(rewritten.encode("utf-8"))
+
+    retried = retry(vault, result["capture_id"])
+
+    assert retried["status"] == "ok", (
+        f"a {label} note was judged unmanaged: {retried.get('errors')}"
+    )
+
+
+def test_f5_ownership_probe_does_not_rewrite_human_bytes(vault: Path) -> None:
+    """Normalising for the ownership probe must stay local to the probe.
+
+    Scoped deliberately to the HUMAN region. On a whole-note CRLF rewrite the
+    *generated* span legitimately comes back LF, because generated content is
+    derived and is re-rendered from scratch every refresh -- Atlas owns those
+    bytes and renders them canonically. Asserting whole-file CR parity would
+    therefore assert the wrong invariant, and an earlier revision of this test
+    did exactly that and failed for a correct reason. What must survive is the
+    operator's HUMAN block.
+    """
+    result = capture(vault, build_capture_request(content="f5 probe locality"))
+    outputs = result["outputs"]
+    note = Path(str(outputs[0]["vault_root"])) / str(outputs[0]["relative_path"])
+    # Insert an LF body first, then convert the WHOLE note to CRLF -- exactly
+    # what a Windows editor does on save. That also gives the frontmatter a
+    # CRLF delimiter, which is what exposed the ownership defect.
+    with_body = _humanize(read_note_text(note), "line one\nline two\n")
+    note.write_bytes(with_body.replace("\n", "\r\n").encode("utf-8"))
+
+    retried = retry(vault, result["capture_id"])
+    after = note.read_bytes()
+
+    assert retried["status"] == "ok", retried.get("errors")
+    assert b"line one\r\nline two\r\n" in after, (
+        "the ownership probe's normalisation leaked into the persisted HUMAN bytes"
+    )
 
 
 # ---------------------------------------------------------------------------

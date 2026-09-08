@@ -13566,15 +13566,21 @@ test. The 7 surviving control A are the ones that must: the four
 and 21/4/5/4/4 under the same controls. Recorded so the earlier figures are
 explained rather than merely superseded.)
 
-Suites: F1-F4 + capture + graph projections + Obsidian + F5 = 261 passed,
-4 xfailed. The freeze guard `test_atlas3_demo_isolation_001` passes (78 tests),
+Suites (file set enumerated, because the figure was previously not
+reproducible as stated): test_as_obsidian_capture_001, _f3,
+test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
+test_as_coder_alpha_obsidian_001, _r1_001, and this package's own file =
+264 passed, 4 xfailed. The freeze guard `test_atlas3_demo_isolation_001` passes (78 tests),
 confirming this candidate touches no certified surface. `ruff check .` clean;
 `mypy src` clean (405 files).
 
 ### Claim boundary
 
 Claimed: CR-bearing line endings inside HUMAN regions survive a refresh
-byte-for-byte at all four writers, and identity hashing is unchanged.
+byte-for-byte at the THREE LIVE writers fixed here; note ownership no longer
+depends on line endings; identity hashing is unchanged. (An earlier revision
+said "all four writers" -- contradicting the next paragraph, and false: the
+fourth measures CR 3 -> 0 on this head. Corrected, not softened.)
 
 **Not claimed:** that the fourth writer is fixed -- `ingestion.py` is
 unchanged here and its defect remains live on `main` under F5-B; general byte
