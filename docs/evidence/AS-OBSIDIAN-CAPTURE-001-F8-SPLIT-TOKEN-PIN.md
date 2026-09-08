@@ -1,5 +1,11 @@
 # AS-OBSIDIAN-CAPTURE-001-F8 — the split-token near miss is pinned
 
+**Status:** integrated on `main` and **SEALED** (PR #740). See the post-merge
+seal at the end of this file. This header was absent from the first revision of
+this receipt, where F6's and F7's both carry one -- noted because a missing
+lifecycle label is the same class of defect as a stale one, and F6/F7's seals
+were blocked on exactly that.
+
 ## What this package is
 
 It is a **pin**, not a fix. The behaviour it asserts is already correct on
@@ -101,3 +107,49 @@ been weak evidence that these pins add anything.
 - **Not that the marker matcher is correct in general** — only that these four
   shapes are preserved, and that two specific plausible relaxations are now
   detected where they previously were not.
+
+---
+
+## Post-merge seal
+
+Integrated as PR #740: merge commit `8aaf7b63`, second parent `bb033a68`, base
+`9972d164`. Merged **unrebased at the verified object** — `git diff bb033a68
+8aaf7b63` is empty and the merge trees are hash-identical to the certified one.
+
+**`src` is byte-identical to pre-merge `main`**, which is this package's central
+claim and the reason it is a pin rather than a fix.
+
+Measured on the merge object, in an isolated worktree whose parent process and
+spawned children were both proven to resolve `project_atlas` there:
+
+    F3 suite       45 passed
+    full suite     5,690 passed, 8 skipped, 4 xfailed
+    freeze guard   78 passed
+    ruff / mypy    clean, 405 files
+
+The controls reproduce **on main**, run from the committed tool:
+
+    control                              base corpus (37)     pinned (45)
+    A  broadly whitespace-tolerant        1 caught             9 caught
+    B  break inside the token only        0 caught, 37 clean   6 caught
+    C  whitespace around the colons       0 caught, 37 clean   2 caught
+
+Sources restored byte-identical. B and C at zero against the base corpus is the
+whole argument for this package, and it holds on the integrated result.
+
+Verification reconstructed all three controls independently, using a
+matcher-relaxing model where this tool canonicalises the input document, and
+obtained the same six cells — two fault models, one result.
+
+**Three findings, all in the claim record, all corrected before merge:** the
+false #716 provenance for three of four shapes; a corpus assertion too weak for
+the "human bytes intact" claim, now pinned by four byte-level tests whose
+non-redundancy was shown by a discriminating control (a mutation keeping the
+substring true but changing the bytes is caught by all four byte tests and by
+zero corpus tests); and the control figures those tests moved (5/3/1 → 9/6/2),
+re-derived everywhere rather than carried.
+
+**Residual:** this tool is linted only by explicit invocation, since
+`docs/scripts` sits outside ruff's configured `include`. An E501 was committed
+into it after the explicit check reported the error, which is precisely how that
+gap bites.
