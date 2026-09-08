@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_EFFICIENCY_METRICS_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "repository",
+    "summary",
+    "honesty",
+    "source_telemetry_fingerprint"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_EFFICIENCY_METRICS_V1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "agent": {
+      "type": ["string", "null"]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["integer", "number", "null"]
+      }
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "telemetry_ne_authority",
+        "metrics_ne_authorization",
+        "derived_from_live_dag_only",
+        "grants_no_write_claim_dispatch_merge_iv"
+      ],
+      "properties": {
+        "telemetry_ne_authority": {
+          "const": true
+        },
+        "metrics_ne_authorization": {
+          "const": true
+        },
+        "derived_from_live_dag_only": {
+          "const": true
+        },
+        "grants_no_write_claim_dispatch_merge_iv": {
+          "const": true
+        }
+      }
+    },
+    "source_telemetry_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "generator": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

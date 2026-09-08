@@ -21,6 +21,7 @@ from . import score as score_mod
 from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
 from . import steal as steal_mod
+from . import telemetry as telemetry_mod
 from . import verifiers as verifiers_mod
 from .gh import GhClient
 from .model import build_snapshot, ownership
@@ -492,6 +493,99 @@ def cmd_explain_priority(args) -> int:
     """Alias surface for score --json factor dump (FEATURE_10)."""
     args.json = True
     return cmd_score(args)
+
+
+def _build_live_telemetry(args):
+    """FEATURE_14 live path: prefer speed — skip full seal scan of merged PRs.
+
+    Residual registry is built from events+stacks only
+    (seal_projection: deferred_or_skipped / SEAL_SCAN_SKIPPED).
+    """
+    client = _client(args)
+    snapshot = build_snapshot(client, pool_path=_pool_path(args))
+    registry = agents_mod.load_registry(args.registry)
+    stacks = stack_mod.build_stacks(
+        snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+    events = _live_events(client)
+    agent_id = getattr(args, "agent", None)
+    matrix = None
+    residual_registry = None
+    steal_plan = None
+    if agent_id:
+        residual_registry = residuals_mod.build_residual_registry(
+            repository=client.repo, events=events, snapshot=snapshot,
+            stacks=stacks, seal_by_pr=None, agent_id=agent_id,
+            registry=registry)
+        weights, source = score_mod.load_weights(getattr(args, "weights", None))
+        matrix = frontier_matrix_mod.build_frontier_matrix(
+            snapshot, agent_id=agent_id, registry=registry, stacks=stacks,
+            weights=weights, weights_source=source, events=events,
+            residual_registry=residual_registry, seal_by_pr=None)
+        steal_plan = steal_mod.plan_steal(
+            snapshot, agent_id, registry, stacks=stacks,
+            weights=weights, weights_source=source)
+    else:
+        # Portfolio path: still project residuals from events+stacks.
+        residual_registry = residuals_mod.build_residual_registry(
+            repository=client.repo, events=events, snapshot=snapshot,
+            stacks=stacks, seal_by_pr=None, agent_id=None, registry=registry)
+    packet = telemetry_mod.build_coordination_telemetry(
+        repository=client.repo or "UNKNOWN",
+        snapshot=snapshot,
+        stacks=stacks,
+        events=events,
+        matrix=matrix,
+        residual_registry=residual_registry,
+        steal_plan=steal_plan,
+        agent_id=agent_id,
+        registry=registry,
+        seal_projection="deferred_or_skipped",
+    )
+    return packet, snapshot
+
+
+def cmd_telemetry(args) -> int:
+    """Coordination telemetry (FEATURE_14, presentation only)."""
+    packet, _ = _build_live_telemetry(args)
+    errors = telemetry_mod.validate_telemetry(packet)
+    if errors:
+        print("telemetry: FAIL schema:", file=sys.stderr)
+        for error in errors[:20]:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+        return 0
+    print(f"telemetry agent={packet.get('agent')} "
+          f"status={packet.get('agent_status')} "
+          f"telemetry_fp={packet['telemetry_fingerprint'][:12]}…")
+    for name, cat in sorted((packet.get("categories") or {}).items()):
+        print(f"  {name:<22} {cat.get('status'):<10} "
+              f"notes={','.join(cat.get('notes') or []) or '-'}")
+    print(f"SEAL_PROJECTION={packet['provenance'].get('seal_projection')}")
+    print(f"HONESTY: TELEMETRY!=AUTHORITY")
+    return 0
+
+
+def cmd_metrics(args) -> int:
+    """Efficiency metrics rollup (FEATURE_14, presentation only)."""
+    telemetry, _ = _build_live_telemetry(args)
+    packet = telemetry_mod.build_efficiency_metrics(telemetry)
+    errors = telemetry_mod.validate_metrics(packet)
+    if errors:
+        print("metrics: FAIL schema:", file=sys.stderr)
+        for error in errors[:20]:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+        return 0
+    print(f"metrics agent={packet.get('agent')} "
+          f"source_fp={str(packet.get('source_telemetry_fingerprint') or '')[:12]}…")
+    for key, value in sorted((packet.get("summary") or {}).items()):
+        print(f"  {key}={value}")
+    print("HONESTY: METRICS!=AUTHORIZATION / TELEMETRY!=AUTHORITY")
+    return 0
 
 
 def cmd_steal_status(args) -> int:
@@ -1568,6 +1662,18 @@ def build_parser() -> argparse.ArgumentParser:
                          help="zero GitHub mutation; report WOULD_CLAIM candidate")
     p_steal.add_argument("--expect-repo", default=None)
     p_steal.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_telemetry = sub.add_parser(
+        "telemetry",
+        help="coordination telemetry (FEATURE_14, presentation only)")
+    p_telemetry.add_argument("--agent", default=None)
+    p_telemetry.add_argument("--weights", default=None)
+    p_telemetry.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_metrics = sub.add_parser(
+        "metrics",
+        help="efficiency metrics rollup (FEATURE_14, presentation only)")
+    p_metrics.add_argument("--agent", default=None)
+    p_metrics.add_argument("--weights", default=None)
+    p_metrics.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
     p_next = sub.add_parser("next", help="agent-aware next safe action (FEATURE_02, read-only)")
     p_next.add_argument("--agent", required=True, help="registered agent_id")
@@ -1677,6 +1783,8 @@ COMMANDS = {
     "explain-priority": cmd_explain_priority,
     "steal-status": cmd_steal_status,
     "steal": cmd_steal,
+    "telemetry": cmd_telemetry,
+    "metrics": cmd_metrics,
     "agents": cmd_agents,
     "agent": cmd_agent,
     "next": cmd_next,
