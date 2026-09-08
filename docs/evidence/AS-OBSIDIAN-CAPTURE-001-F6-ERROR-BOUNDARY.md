@@ -179,11 +179,20 @@ written:
     tests/unit/test_as_coder_alpha_obsidian_001.py
     tests/unit/test_as_coder_alpha_obsidian_r1_001.py
 
-= **277 passed, 4 xfailed**. Full suite **5,656 passed, 8 skipped, 4 xfailed**. Freeze guard 78
+= **277 passed, 4 xfailed**. Full suite **5,682 passed, 8 skipped, 4 xfailed**. Freeze guard 78
+(26 higher than this package first measured: F7 merged into `main` and brought 26 tests with it,
+so the figure moved with the base refresh rather than with any change here)
 (neither changed file is a certified surface). `ruff check .` clean; `mypy src`
 clean (405 files).
 
 ## Residuals found by verification, recorded not fixed
+
+- **F5's sealed WORKLOG section still carries the abbreviated suite list** that
+  P3-2 corrected everywhere else, including the two abbreviations that expand to
+  filenames which do not exist. It sits in the byte-identical prefix this
+  package must not touch -- editing it would break the pure-insertion property
+  that proves no sealed record was rewritten -- so it is recorded here for a
+  future package rather than fixed. Observed by verification in round 8.
 
 - **A directory at the obsidian note path escapes raw.**
   `materialize_obsidian_projection` has no `canonical-target-not-file` precheck

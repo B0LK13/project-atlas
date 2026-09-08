@@ -13801,7 +13801,9 @@ Suites (file set named, because an unenumerated figure is not checkable):
   tests/unit/test_as_graph_005_f4_canonical_semantics.py
   tests/unit/test_as_coder_alpha_obsidian_001.py
   tests/unit/test_as_coder_alpha_obsidian_r1_001.py
-= 277 passed, 4 xfailed; full suite 5,656 passed, 8 skipped, 4 xfailed; freeze guard 78
+= 277 passed, 4 xfailed; full suite 5,682 passed, 8 skipped, 4 xfailed; freeze guard 78
+(the full-suite figure is 26 higher than this package measured before the base
+refresh: F7 merged into main and brought 26 tests with it)
 (neither changed file is a certified surface); ruff and mypy clean (405 files).
 
 ### The first candidate FAILED verification, and why
