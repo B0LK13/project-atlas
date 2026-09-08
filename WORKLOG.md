@@ -13245,7 +13245,7 @@ backlog truth correction for F1/F2/F4 tails on main (merge commit 0414e8d5).
 
 Postmerge seal on actual main (48a51875, pre-#718-docs, behaviour-identical):
 F3 suite + capture + F1/F2 + F4 canonical-semantics + graph projections +
-graph adversarial = 246 passed; full suite 5616 passed / 8 skipped. Seal
+graph adversarial = 246 passed; full suite 5,616 passed / 8 skipped. Seal
 matrix per `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`:
 exact reserved START/END and balanced forged pairs inside HUMAN fail closed
 with the note byte-identical; near misses are accepted per grammar; nested
