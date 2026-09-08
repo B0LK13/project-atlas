@@ -363,6 +363,11 @@ def _total(factors: dict[str, dict]) -> float:
     return round(sum(f["weighted"] for f in factors.values()), 6)
 
 
+def factor_total(factors: dict[str, dict]) -> float:
+    """Public alias for explainable factor summation."""
+    return _total(factors)
+
+
 def _tiebreak_key(entry_class: str, total: float, pr: int, lane: str,
                   order: list[str]) -> list:
     key: list[Any] = []
@@ -376,6 +381,12 @@ def _tiebreak_key(entry_class: str, total: float, pr: int, lane: str,
         elif item == "lane_asc":
             key.append(str(lane))
     return key
+
+
+def tiebreak_key(entry_class: str, total: float, pr: int, lane: str,
+                 order: list[str]) -> list:
+    """Public alias for deterministic ranking keys."""
+    return _tiebreak_key(entry_class, total, pr, lane, order)
 
 
 def score_node(node: dict, auth: dict, stack: dict | None, profile: dict | None,

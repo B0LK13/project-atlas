@@ -38,9 +38,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from . import agents as agents_mod
 from . import dispatch as dispatch_mod
@@ -51,6 +52,7 @@ from . import model as model_mod
 from . import score as score_mod
 from . import seal_plan as seal_plan_mod
 from . import stack as stack_mod
+from . import steal as steal_mod
 from . import verifiers as verifiers_mod
 
 SCHEMA_CONST = "ATLAS_HANDOFF_V1"
@@ -92,7 +94,7 @@ class HandoffUnavailable(HandoffError):
 
 
 def utcnow() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def validate_packet(packet: dict) -> list[str]:
@@ -295,7 +297,8 @@ def _pool_prohibitions(pool_path: Path) -> list[str]:
 def _presentation(mode: str, node: dict, stack_record: dict | None,
                   evidence_section: dict, gate_reasons: list[str],
                   prohibitions: list[str],
-                  priority: dict | None = None) -> dict:
+                  priority: dict | None = None,
+                  steal_info: dict | None = None) -> dict:
     """Mode-specific emphasis block. Presentation ONLY: every value here is
     derived from material truth already in the packet, never contradictory
     with it, and always excluded from the truth fingerprint."""
@@ -334,8 +337,39 @@ def _presentation(mode: str, node: dict, stack_record: dict | None,
         if priority is not None:
             # Ranked authorized actions only — scoring never grants write.
             out["ranked_next_safe_actions"] = priority
+        if steal_info is not None:
+            out["steal_candidate"] = steal_info
         return out
     return {"audience": "general"}
+
+
+def _resume_steal(mode: str, snapshot: dict, stacks: dict,
+                  registry: Any, agent_id: str | None,
+                  clock: Callable[[], str]) -> dict | None:
+    """FEATURE_11 utilization / steal candidate for resume presentation."""
+    if mode != "resume" or agent_id is None:
+        return None
+    try:
+        if registry is None:
+            registry = agents_mod.load_registry()
+        elif not hasattr(registry, "status"):
+            registry = agents_mod.load_registry(registry)
+        weights, source = score_mod.load_weights()
+        plan = steal_mod.plan_steal(
+            snapshot, agent_id, registry, stacks=stacks,
+            weights=weights, weights_source=source, clock=clock)
+        cand = plan.get("candidate")
+        return {
+            "utilization": plan["utilization"],
+            "candidate": (
+                {"pr": cand["pr"], "lane": cand["lane"], "total": cand["total"]}
+                if cand else None
+            ),
+            "ranking_fingerprint": plan.get("ranking_fingerprint"),
+        }
+    except Exception:
+        return {"utilization": steal_mod.NO_SAFE_STEAL,
+                "candidate": None, "reason": "STEAL_PLAN_UNRESOLVABLE"}
 
 
 def _resume_priority(mode: str, snapshot: dict, stacks: dict,
@@ -568,7 +602,7 @@ def build_handoff(
     }
     fingerprint = _canonical_sha256(material)
     handoff_id = "handoff-" + hashlib.sha256(
-        f"{fingerprint}|{pr_number}|{mode}".encode("utf-8")).hexdigest()[:16]
+        f"{fingerprint}|{pr_number}|{mode}".encode()).hexdigest()[:16]
 
     packet = {
         "schema": SCHEMA_CONST,
@@ -612,12 +646,15 @@ def build_handoff(
                 "FEATURE_07 evidence graph",
                 "FEATURE_09 post-merge seal plan",
                 "FEATURE_10 frontier prioritization (presentation only)",
+                "FEATURE_11 safe work stealing (presentation only)",
             ],
         },
         "presentation": _presentation(
             mode, node, stack_record, evidence_section, gate_reasons,
             _pool_prohibitions(pool_path),
             priority=_resume_priority(
+                mode, snapshot, stacks, registry, agent_id, clock),
+            steal_info=_resume_steal(
                 mode, snapshot, stacks, registry, agent_id, clock)),
     }
 
