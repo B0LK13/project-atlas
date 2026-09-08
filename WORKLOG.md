@@ -13794,3 +13794,87 @@ mechanism.
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F7 — post-merge seal (2026-09-08)
+
+Integrated as PR #731. Merge commit `7b0989a7`, second parent `3d5b1d97`, base
+`8076d360`.
+
+**Merged unrebased at the verified object.** `git diff 3d5b1d97 7b0989a7` is
+empty, and the merge object's trees are hash-identical to the certified object:
+
+    src    2d3d6d8842fd24aca4db7f5f5be4124bea016d6d
+    tests  ebb90845f04bee9d01a48262ef943547ca31dc2b
+    docs   cd8180830ffa917a2cec3d090d79116dac7e67e0
+
+So round 5's certification transfers to the merged object by hash, not by
+assertion. This is the distinction F5's seal got wrong and had to correct: a
+verification chain does not certify its final link merely because the link is
+last. Here the merged object IS the verified object, byte for byte.
+
+**Verification.** Five rounds against six objects. Round 5 returned PASS with no
+P0, no P1 and no P2, and concluded the object was mergeable. The `src` tree was
+identical across all six objects — every round after the first changed evidence
+prose only, never the one-line fix. CI green on all four jobs at the exact head,
+Windows included; `mergeable=MERGEABLE state=CLEAN`; both Copilot threads
+resolved.
+
+**Post-merge seal, measured on `7b0989a7` in an isolated worktree with its own
+venv** (the primary checkout sits on another branch and would otherwise capture
+subprocess tests through the editable install — both parent and a spawned child
+were proven to resolve `project_atlas` to the seal worktree before any figure
+below was trusted):
+
+    F7 suite                              26 passed
+    F5 suite                              27 passed,  4 xfailed
+    protected-region + Obsidian selection 259 passed, 4 xfailed
+    full suite                            5,669 passed, 8 skipped, 4 xfailed
+    freeze guard                          78 passed
+    ruff check .                          clean
+    mypy src                              clean, 405 files
+    literal U+FEFF bytes in src/          0
+
+The BOM count is a byte scan, not a text search. `U+FEFF` is invisible in an
+editor, which is exactly how two negative controls silently no-opped during
+development — they searched for a literal BOM while the source held the escape
+`"\ufeff"` — and reported a passing suite that proved nothing.
+
+**Negative controls reproduce on main, not only on the branch:**
+
+    baseline                              26 passed
+    A  BOM strip removed                   6 failed
+    B  F5 newline normalisation removed    4 failed
+    C  `managed is True` check removed     3 failed
+    D  `capture_id` match removed         18 failed
+
+Each mutation was applied under an assertion that it actually changed the file,
+and the source was confirmed restored byte-identical to `7b0989a7` afterwards.
+C and D are the ones that carry weight: they prove the refusal set detects a
+widening of *acceptance*, not merely of recognition. The figures match the
+receipt exactly. The protections are load-bearing on the integrated result.
+
+**Round 5's two P3s are fixed in this seal, not carried.** They were first
+recorded as residuals, on the reasoning that further documentation edits in this
+package had repeatedly introduced fresh drift. That reasoning does not survive
+the principle applied to F6 the same day — a claim an evidence record cannot
+support should not stay in it — and the seal edits both files anyway, so fixing
+them costs nothing beyond the verification the seal already requires:
+
+  - the receipt heading "a pre-existing **fail-open-shaped** path" contradicted
+    its own paragraph, which concludes the *outcome* is fail-closed. It now reads
+    "a pre-existing **escaped exception**", which is what the paragraph shows.
+  - PR #731's description heading "What four verification rounds caught" carried
+    prose for rounds 1-2 only, and is corrected there — that heading is in the
+    description, not in the receipt.
+
+**Residual, pre-existing and out of scope, unchanged by this package.**
+`yaml.safe_load` raises a bare `KeyError` (not a `yaml.YAMLError`) for a
+malformed explicit bool tag, so `_existing_capture_id` escapes uncaught out of
+the public `retry()` API and reaches the CLI as an unhandled traceback: exit 1,
+empty stdout, traceback on stderr. Fail-closed in outcome — the note is left
+byte-identical — but an escaped exception in mechanism. Verified identical at
+base and head, so F7 neither introduced nor worsened it.
+
+**Not claimed:** that the BOM is preserved. It sits in Atlas-owned generated
+territory and is dropped on re-render, pinned by test; HUMAN bytes survive
+verbatim.

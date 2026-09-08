@@ -167,7 +167,7 @@ genuine `capture_id`, so they are alternate spellings of Atlas's own marker
 rather than foreign notes — which is why they are a residual-register line for
 the lane rather than a defect in this package.
 
-**A pre-existing fail-open-shaped path, found by verification and recorded
+**A pre-existing escaped exception, found by verification and recorded
 rather than fixed.** `yaml.safe_load` raises a bare `KeyError` — not a
 `yaml.YAMLError` — for a malformed explicit bool tag, and only `yaml.YAMLError`
 is caught, so `_existing_capture_id` *escapes* instead of refusing cleanly.
@@ -193,3 +193,49 @@ corruption in general is solved.
 
 Implementation evidence, not certification. Independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+---
+
+## Post-merge seal
+
+Integrated as PR #731: merge commit `7b0989a7`, second parent `3d5b1d97`, base
+`8076d360`. Merged **unrebased at the verified object** — `git diff 3d5b1d97
+7b0989a7` is empty and the merge object's `src` (`2d3d6d88`), `tests`
+(`ebb90845`) and `docs` (`cd818083`) trees are hash-identical to the object
+round 5 certified — so that certification transfers by hash, not by assertion.
+
+Five rounds ran against six objects. Round 5 returned PASS with no P0, no P1 and
+no P2. The `src` tree was identical across all six: every round after the first
+changed evidence prose only, never the one-line fix. Rounds 1-4 are summarised
+above; each found a defect in the claim record rather than in the code, which is
+the pattern this receipt exists to document.
+
+Measured on the merge object in an isolated worktree with its own venv — both
+the parent process and a spawned child were proven to resolve `project_atlas` to
+that worktree first, because the repository's primary checkout sits on another
+branch and would otherwise capture subprocess tests through the editable install:
+
+    F7 suite                              26 passed
+    F5 suite                              27 passed,  4 xfailed
+    protected-region + Obsidian selection 259 passed, 4 xfailed
+    full suite                            5,669 passed, 8 skipped, 4 xfailed
+    freeze guard                          78 passed
+    ruff / mypy                           clean, 405 files
+    literal U+FEFF bytes in src/          0  (byte scan, not text search)
+
+All four negative controls reproduce **on main**, each mutation applied under an
+assertion that it changed the file, source restored byte-identical afterwards:
+
+    baseline 26 passed · A 6 failed · B 4 failed · C 3 failed · D 18 failed
+
+matching this receipt's figures exactly. The protections are load-bearing on the
+integrated result, not only on the branch.
+
+**Two findings from round 5 are fixed here rather than carried**, on the same
+principle applied to F6: a claim an evidence record cannot support should not
+remain in it. The heading above called this an *escaped exception*, not a
+"fail-open-shaped path" — the paragraph's own conclusion is that the outcome is
+fail-closed, so the original heading contradicted its body. The second finding
+is in PR #731's description rather than in this file -- a heading promising
+"what four verification rounds caught" above prose for two -- and is corrected
+there; it is named here so the record is complete in one place.
