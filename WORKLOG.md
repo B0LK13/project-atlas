@@ -13749,7 +13749,7 @@ survives for a developer while the operator gets a path.
 
 Controls, re-derived in full at this head rather than patched line by line --
 which is how the previous revision came to have a correct suite figure sitting
-eight rows below a stale control table:
+below a stale control table it no longer matched:
 
     baseline                              13 passed
     A graph read guard removed             5 failed
