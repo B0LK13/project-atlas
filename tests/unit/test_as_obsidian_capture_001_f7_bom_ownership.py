@@ -29,9 +29,10 @@ from project_atlas.capture_sources import build_capture_request
 from project_atlas.obsidian_capture import capture, retry
 from project_atlas.obsidian_capture_note import _existing_capture_id
 
-BOM = "\ufeff"  # explicit escape: a literal U+FEFF is invisible in an
-                 # editor and is exactly what made two of this package's
-                 # own negative controls silently no-op.
+# Explicit escape, never a literal U+FEFF: the literal is invisible in an editor,
+# which is exactly what made two of this package's own negative controls silently
+# no-op. The escape encodes to the same bytes (b"\xef\xbb\xbf").
+BOM = "\ufeff"
 HUMAN_BEGIN = "<!-- BEGIN HUMAN: notes -->"
 HUMAN_END = "<!-- END HUMAN: notes -->"
 

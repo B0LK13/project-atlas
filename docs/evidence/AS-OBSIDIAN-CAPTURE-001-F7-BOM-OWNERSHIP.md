@@ -114,11 +114,21 @@ verbatim and producing identical bytes. The hazard is removed rather than worked
 around. (Two sentences of this receipt were themselves holding invisible
 literals while describing the escape.)
 
-**Suites:** the group set (`test_as_obsidian_capture_001.py`, `_f3.py`,
-`_f5_newline_fidelity.py`, `_f7_bom_ownership.py`,
-`test_as_graph_005_projections.py`, `_adversarial.py`,
-`_f4_canonical_semantics.py`, `test_as_coder_alpha_obsidian_001.py`,
-`test_as_coder_alpha_obsidian_r1_001.py`) = **290 passed, 4 xfailed**. Full suite **5,669 passed, 8 skipped,
+**Suites:** the group set, every filename written out in full because an
+abbreviated list is not runnable as written — an earlier revision expanded only
+the last of six abbreviations, and a verifier ran the wrong set because of it:
+
+    tests/unit/test_as_obsidian_capture_001.py
+    tests/unit/test_as_obsidian_capture_001_f3.py
+    tests/unit/test_as_obsidian_capture_001_f5_newline_fidelity.py
+    tests/unit/test_as_obsidian_capture_001_f7_bom_ownership.py
+    tests/unit/test_as_graph_005_projections.py
+    tests/unit/test_as_graph_005_adversarial.py
+    tests/unit/test_as_graph_005_f4_canonical_semantics.py
+    tests/unit/test_as_coder_alpha_obsidian_001.py
+    tests/unit/test_as_coder_alpha_obsidian_r1_001.py
+
+= **290 passed, 4 xfailed**. Full suite **5,669 passed, 8 skipped,
 4 xfailed**. Freeze guard 78. `ruff` clean; `mypy` clean (405 files).
 
 ## Claim boundary
@@ -139,8 +149,9 @@ someone to discover.
 at base and head, so not introduced here and outside F7's scope: `managed:`
 accepts YAML 1.1 truthies (`yes`, `on`, `TRUE`, `!!bool true`) as well as
 `true`; a YAML anchor/alias, merge key, duplicated `atlas:` key or flow mapping
-all satisfy the probe; and a BOM placed *after* the delimiter is tolerated
-mid-stream by PyYAML. In every one of these the note still carries Atlas's
+all satisfy the probe; YAML plain-scalar whitespace is stripped, so
+`capture_id: rcap-abc ` and `capture_id:  rcap-abc` both parse to the bare
+id; and a BOM placed *after* the delimiter is tolerated mid-stream by PyYAML. In every one of these the note still carries Atlas's
 genuine `capture_id`, so they are alternate spellings of Atlas's own marker
 rather than foreign notes — which is why they are a residual-register line for
 the lane rather than a defect in this package.
