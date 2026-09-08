@@ -13762,12 +13762,16 @@ eight rows below a stale control table:
     body widened only                     13 passed
     clause widened only                   13 passed
 
-A-D fail pairwise disjoint sets. **E does not**: its single failing test
-(`cleanup_failure_does_not_mask_the_domain_error`) is also in C's set, because
-removing the write guard removes the very error E exists to prove is not masked.
-E is still load-bearing -- reverting only the finally guard fails exactly that
-one test -- but the blanket "each failing a disjoint set" predated E and is
-false. Corrected rather than dropped.
+A-D fail pairwise disjoint sets. E and F do not: F is contained in E, which is
+contained in C -- F < E < C, all strict -- because removing the write guard
+removes both the error E proves is not masked and the warning F proves carries
+its payload. Both remain load-bearing: reverting only the finally guard fails
+E's two tests, and un-nesting only the payload fails F's one.
+
+An earlier revision of this paragraph said E had a "single failing test". That
+was true before the logging test existed; when it was added the table was
+re-derived and this sentence was not -- the same carry-forward defect this entry
+keeps recording, one layer down in the prose rather than the figures.
 
 Control D is the important one, and it took TWO attempts to describe correctly.
 The first candidate said "widen the clause to `except Exception`"; verification

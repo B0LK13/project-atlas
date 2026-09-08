@@ -116,9 +116,13 @@ testing the operating system's permission semantics. One real-filesystem
 used by `test_logging.py` (`skipif(os.name == "nt")`) and additionally skipped
 as root.
 
-**Negative controls — each load-bearing. A–D fail pairwise disjoint sets; E's
-single failure is contained in C's, because removing the write guard removes the
-very error E proves is not masked:**
+**Negative controls — each load-bearing. A–D fail pairwise disjoint sets;
+F ⊂ E ⊂ C, all strict**, because removing the write guard removes both the error
+E proves is not masked and the warning F proves carries its payload. (An earlier
+revision said E had a *single* failure. That was true before the logging test
+existed; when it was added the table was re-derived and this sentence was not —
+the same carry-forward this receipt keeps recording, one layer down in the prose
+rather than the figures.)
 
 | control | reverted | result |
 |---|---|---|
