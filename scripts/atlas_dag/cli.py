@@ -6,6 +6,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import agents as agents_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
 from .gh import GhClient
@@ -29,6 +30,15 @@ def _evidence_store(args) -> evidence_mod.EvidenceStore:
 def cmd_snapshot(args) -> int:
     client = _client(args)
     snapshot = build_snapshot(client)
+    registry = agents_mod.load_registry(args.registry)
+    snapshot["agent_registry"] = {
+        "schema": agents_mod.REGISTRY_SCHEMA_CONST,
+        "valid": registry.valid,
+        "agent_ids": sorted(
+            a["agent_id"] for a in registry.registry["agents"]
+        ) if registry.registry else [],
+        "errors": registry.errors,
+    }
     path = _runtime_path(args)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -135,6 +145,86 @@ def cmd_owners(args) -> int:
     return 0
 
 
+def cmd_agents(args) -> int:
+    result = agents_mod.load_registry(args.registry)
+    if not result.valid:
+        if args.json:
+            print(json.dumps({"schema": agents_mod.REGISTRY_SCHEMA_CONST,
+                              "valid": False, "errors": result.errors,
+                              "agents": []}, indent=2, sort_keys=True))
+        else:
+            print("REGISTRY INVALID — failing closed (no inferred authority):")
+            for error in result.errors:
+                print(f"  {error}")
+        return 1
+    agents = sorted(result.registry["agents"], key=lambda a: a["agent_id"])
+    if args.json:
+        print(json.dumps({"schema": agents_mod.REGISTRY_SCHEMA_CONST,
+                          "valid": True, "errors": [],
+                          "agents": agents}, indent=2, sort_keys=True))
+        return 0
+    print(f"ATLAS_AGENT_REGISTRY_V1 — {len(agents)} registered profiles")
+    for profile in agents:
+        active = "ACTIVE" if profile.get("active") else "inactive"
+        platforms = ",".join(profile.get("platforms", []))
+        print(f"  {profile['agent_id']:<22} {active:<8} [{platforms:<12}] "
+              f"role={profile.get('role')} "
+              f"verification_class={profile.get('verification_class')}")
+    return 0
+
+
+def cmd_agent(args) -> int:
+    result = agents_mod.load_registry(args.registry)
+    resolved = agents_mod.resolve_agent(result, args.agent_id)
+    if args.json:
+        payload = {"agent_id": args.agent_id, "status": resolved.status,
+                   "errors": resolved.errors}
+        if resolved.profile is not None:
+            payload["profile"] = resolved.profile
+        if args.eval is not None and resolved.profile is not None:
+            request = agents_mod.AgentRequest(
+                action=args.eval,
+                platform=args.platform,
+                scope=args.scope,
+                lane_owner=args.lane_owner,
+                lane_frozen=args.frozen,
+                event_type=args.event_type,
+            )
+            allowed, reasons = agents_mod.evaluate(resolved.profile, request)
+            payload["evaluation"] = {"action": args.eval, "allowed": allowed,
+                                     "reasons": reasons}
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        if resolved.status != "REGISTERED":
+            print(f"{args.agent_id}: {resolved.status} — failing closed, "
+                  "no authority inferred", file=sys.stderr)
+            for error in resolved.errors:
+                print(f"  {error}", file=sys.stderr)
+            return 1
+        profile = resolved.profile
+        print(f"agent: {profile['agent_id']} — {profile.get('role')}")
+        for key in ("active", "platforms", "capabilities", "prohibitions",
+                    "write_scopes", "event_permissions", "verification_class",
+                    "principal"):
+            print(f"  {key}: {profile.get(key)}")
+        if args.eval is not None:
+            request = agents_mod.AgentRequest(
+                action=args.eval,
+                platform=args.platform,
+                scope=args.scope,
+                lane_owner=args.lane_owner,
+                lane_frozen=args.frozen,
+                event_type=args.event_type,
+            )
+            allowed, reasons = agents_mod.evaluate(profile, request)
+            verdict = "ALLOW" if allowed else "DENY"
+            print(f"  eval {args.eval}: {verdict}")
+            for reason in reasons:
+                print(f"    - {reason}")
+            return 0 if allowed else 1
+    return 0 if resolved.status == "REGISTERED" else 1
+
+
 def cmd_gate(args) -> int:
     snapshot = build_snapshot(_client(args))
     node = _find_node(snapshot, args.pr)
@@ -234,11 +324,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo", default=None, help="owner/repo (default: inferred via gh)")
     parser.add_argument("--runtime-dir", default=RUNTIME_DIR,
                         help="disposable runtime state directory (default: .atlas-runtime)")
+    parser.add_argument("--registry", default=None,
+                        help="agent registry JSON (default: registry/agents.json)")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("snapshot", help="rebuild DAG snapshot into runtime state")
     sub.add_parser("frontier", help="list nodes with frontier states")
+    sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
+    p_agent = sub.add_parser("agent", help="inspect/evaluate one agent profile (fail closed)")
+    p_agent.add_argument("agent_id")
+    p_agent.add_argument("--eval", default=None,
+                         help="evaluate an action: read/write/post_event/post_receipt/"
+                              "claim_lane/merge/satisfy_formal_iv/run_on_platform")
+    p_agent.add_argument("--platform", default=None)
+    p_agent.add_argument("--scope", default=None,
+                         help="repo-relative path scope (write) or github surface")
+    p_agent.add_argument("--lane-owner", default=None,
+                         help="active lane owner from #719 truth, if any")
+    p_agent.add_argument("--frozen", action="store_true",
+                         help="lane is frozen per repository truth")
+    p_agent.add_argument("--event-type", default=None)
     p_inspect = sub.add_parser("inspect", help="inspect one PR node")
     p_inspect.add_argument("pr", type=int)
     sub.add_parser("events", help="validated event + receipt stream from DAG Control issue")
@@ -256,6 +362,8 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "snapshot": cmd_snapshot,
     "frontier": cmd_frontier,
+    "agents": cmd_agents,
+    "agent": cmd_agent,
     "inspect": cmd_inspect,
     "events": cmd_events,
     "owners": cmd_owners,

@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_AGENT_REGISTRY_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "registry_id",
+    "version",
+    "agents"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_AGENT_REGISTRY_V1"
+    },
+    "registry_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "agent_id",
+          "role",
+          "active",
+          "platforms",
+          "capabilities",
+          "prohibitions",
+          "write_scopes",
+          "event_permissions",
+          "verification_class"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "minLength": 3
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "platforms": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "linux",
+                "windows",
+                "darwin",
+                "any"
+              ]
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "READ_REPO",
+                "READ_GITHUB",
+                "RUN_TESTS",
+                "RUN_LINT",
+                "RUN_SNAPSHOT",
+                "WRITE_CODE",
+                "WRITE_TESTS",
+                "WRITE_DOCS",
+                "POST_EVENTS",
+                "INGEST_EVIDENCE",
+                "CLAIM_OWNERSHIP",
+                "MANAGE_WORKTREE"
+              ]
+            }
+          },
+          "prohibitions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "AUTO_MERGE",
+                "HISTORY_REWRITE",
+                "FORCE_PUSH",
+                "SELF_IV",
+                "FABRICATE_VERIFIER_PRINCIPAL",
+                "BYPASS_OWNER_GATE",
+                "BYPASS_FREEZE",
+                "EMULATE_WINDOWS_VALIDATION",
+                "SUDO_SYSTEM_MUTATION",
+                "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
+                "TRUST_PROSPECTIVE_MERGE_SHA"
+              ]
+            }
+          },
+          "write_scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(path|github):[A-Za-z0-9_./:*-]+$"
+            }
+          },
+          "event_permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "HEAD_MOVED",
+                "CI_COMPLETED",
+                "IV_COMPLETED",
+                "NEW_FINDING",
+                "FINDING_RECLASSIFIED",
+                "CLAIM_INTEGRITY_CHANGED",
+                "OWNER_CLAIMED",
+                "OWNER_RELEASED",
+                "HUMAN_GATE_REQUIRED",
+                "CURRENT_MAIN_COMPATIBILITY_CHANGED",
+                "MERGE_ELIGIBLE",
+                "MERGED",
+                "SEALED",
+                "ZERO_RUNNABLE_FRONTIER"
+              ]
+            }
+          },
+          "verification_class": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "IMPLEMENTATION",
+              "INDEPENDENT_VERIFIER"
+            ]
+          },
+          "principal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}
