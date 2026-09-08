@@ -108,6 +108,36 @@
       "items": {
         "type": "string"
       }
+    },
+    "base_branch": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "base_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "main_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parent_pr": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "parent_head": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   }
 }
