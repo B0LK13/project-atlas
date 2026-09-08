@@ -173,9 +173,18 @@ rather than fixed.** `yaml.safe_load` raises a bare `KeyError` — not a
 is caught, so `_existing_capture_id` *escapes* instead of refusing cleanly.
 Reproduced: `---\natlas: !!bool nope\n---\nbody\n` → `KeyError: 'nope'`,
 **identically at base and head**, so it is not introduced here and is outside
-F7's scope. It belongs in the residual register because an ownership probe that
-raises rather than returning `None` is shaped like a fail-open, even though the
-caller currently turns it into a failure.
+F7's scope. **Corrected after verification:** an earlier revision of this paragraph said
+"the caller currently turns it into a failure". It does not. `owner =
+_existing_capture_id(existing)` is not inside a `try`, so the `KeyError`
+propagates uncaught out of `write_note` and **out of the public `retry()` API**
+— no `ObsidianNoteError`, no `status`/`errors` structure — and reaches the CLI
+as an unhandled traceback (exit 1, empty stdout). Re-verified here by driving
+the real `capture()`/`retry()`: `retry RAISED KeyError: 'nope'`, note
+byte-identical afterwards.
+
+So the *outcome* is fail-closed — nothing is written — but the *mechanism* is an
+escaped exception, not a handled failure, which is why it belongs in the
+residual register rather than being waved through.
 
 **Also not claimed:** that other encoding signatures (UTF-16 BOMs, which would
 fail the UTF-8 decode long before this probe) are handled; that ownership

@@ -13746,8 +13746,11 @@ copy. The note's bytes are untouched, and ownership still requires
 `atlas.managed is True` and a matching `capture_id` from genuine YAML.
 
 Controls, each load-bearing and each failing a DISTINCT set -- not a disjoint
-one: |A n B| = 3 and C is a subset of D, which the entry below refutes itself by
-noting that dropping the `capture_id` match fails all 18 hostile shapes:
+one. Measured: |A n B| = 3 (the two BOM+CR shapes and the direct probe, where
+both normalisations must compose), and C is a strict subset of D. The C-in-D
+relation was already implied by this package's own text, which says dropping the
+`capture_id` match fails ALL 18 hostile shapes -- necessarily including C's
+three -- so "disjoint" was refutable from the receipt alone:
 
     baseline                             26 passed
     A  BOM strip removed (this fix)       6 failed
@@ -13777,6 +13780,17 @@ re-rendered from scratch, so it is dropped on refresh. That is consistent with
 the human region survives verbatim alongside it. Also not claimed: that UTF-16
 BOMs are handled (they fail the UTF-8 decode long before this probe), or that
 ownership is correct for shapes outside the 18 tested.
+
+Residual recorded here as well as in the receipt, because this lane's convention
+registers residuals in the WORKLOG and a residual that lives in one document
+decays: `yaml.safe_load` raises a bare `KeyError` -- not a `yaml.YAMLError` --
+for a malformed explicit bool tag, and only `yaml.YAMLError` is caught, so
+`_existing_capture_id` escapes rather than refusing cleanly. Verified at both
+base and head with `---\natlas: !!bool nope\n---\nbody\n` -> `KeyError: 'nope'`;
+pre-existing, outside F7's scope. Nothing converts it: it propagates out of the
+public `retry()` API and reaches the CLI as an unhandled traceback. Fail-closed
+in outcome -- the note is left byte-identical -- but an escaped exception in
+mechanism.
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
