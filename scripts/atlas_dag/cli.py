@@ -10,6 +10,7 @@ from . import agents as agents_mod
 from . import events as events_mod
 from . import evidence as evidence_mod
 from . import router as router_mod
+from . import stack as stack_mod
 from .gh import GhClient
 from .model import build_snapshot
 
@@ -227,10 +228,13 @@ def cmd_agent(args) -> int:
 
 
 def cmd_next(args) -> int:
-    """Read-only agent-aware routing (FEATURE_02). Recommends only."""
-    snapshot = build_snapshot(_client(args))
+    """Read-only agent-aware routing (FEATURE_02 + FEATURE_03 stack truth)."""
+    client = _client(args)
+    snapshot = build_snapshot(client)
     registry = agents_mod.load_registry(args.registry)
-    result = router_mod.route(args.agent, snapshot, registry)
+    stacks = stack_mod.build_stacks(snapshot["nodes"], client,
+                                    snapshot.get("main_branch") or "main")
+    result = router_mod.route(args.agent, snapshot, registry, stacks)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
@@ -243,6 +247,59 @@ def cmd_next(args) -> int:
                 print(f"  alt: {alt['lane']} {alt['action_class']} "
                       f"({', '.join(alt['reasons']) or 'not routable'})")
     return 0 if result["routable"] else 1
+
+
+def cmd_stack(args) -> int:
+    client = _client(args)
+    snapshot = build_snapshot(client)
+    stacks = stack_mod.build_stacks(snapshot["nodes"], client,
+                                    snapshot.get("main_branch") or "main")
+    record = stacks.get(f"pr/{args.pr}")
+    if record is None:
+        print(f"PR #{args.pr} not in open-PR frontier", file=sys.stderr)
+        return 2
+    chain = stack_mod.chain_for(record["lane"], stacks)
+    if args.json:
+        print(json.dumps({"node": record, "chain": chain}, indent=2,
+                         sort_keys=True))
+        return 0
+    print(f"stack for pr/{args.pr} — state={record['stack_state']} "
+          f"depth={record['depth']} root={record['stack_root']}")
+    for entry in chain:
+        marker = "->" if entry["lane"] != record["lane"] else "*"
+        print(f"  {marker} {entry['lane']:<9} {entry['stack_state']:<26} "
+              f"head={str(entry['child_head'])[:10]} "
+              f"parent={entry['parent_pr']} "
+              f"ancestor={entry['parent_ancestor_of_child']}")
+        for reason in entry["reasons"]:
+            print(f"      - {reason}")
+    if record["children"]:
+        print(f"  children: {', '.join(record['children'])}")
+    if record["restack_required"]:
+        print("  RESTACK_REQUIRED (detection only — no auto-restack)")
+    return 0
+
+
+def cmd_stacks(args) -> int:
+    client = _client(args)
+    snapshot = build_snapshot(client)
+    stacks = stack_mod.build_stacks(snapshot["nodes"], client,
+                                    snapshot.get("main_branch") or "main")
+    lanes = sorted(stacks, key=lambda l: (stacks[l]["stack_root"] or "~", l))
+    if args.json:
+        print(json.dumps({"stacks": [stacks[l] for l in lanes]}, indent=2,
+                         sort_keys=True))
+        return 0
+    current = None
+    for lane in lanes:
+        record = stacks[lane]
+        if record["stack_root"] != current:
+            current = record["stack_root"]
+            print(f"stack root: {current or '(unresolved)'}")
+        print(f"  {lane:<9} d{record['depth']} {record['stack_state']:<26} "
+              f"parent={record['parent_pr']} "
+              f"ancestor={record['parent_ancestor_of_child']}")
+    return 0
 
 
 def cmd_gate(args) -> int:
@@ -354,6 +411,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("agents", help="registered agent profiles (FEATURE_01, fail closed)")
     p_next = sub.add_parser("next", help="agent-aware next safe action (FEATURE_02, read-only)")
     p_next.add_argument("--agent", required=True, help="registered agent_id")
+    p_stack = sub.add_parser("stack", help="stack chain for one PR (FEATURE_03, read-only)")
+    p_stack.add_argument("pr", type=int)
+    sub.add_parser("stacks", help="all stack chains grouped by root (FEATURE_03)")
     p_agent = sub.add_parser("agent", help="inspect/evaluate one agent profile (fail closed)")
     p_agent.add_argument("agent_id")
     p_agent.add_argument("--eval", default=None,
@@ -387,6 +447,8 @@ COMMANDS = {
     "agents": cmd_agents,
     "agent": cmd_agent,
     "next": cmd_next,
+    "stack": cmd_stack,
+    "stacks": cmd_stacks,
     "inspect": cmd_inspect,
     "events": cmd_events,
     "owners": cmd_owners,
