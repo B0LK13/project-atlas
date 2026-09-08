@@ -112,8 +112,13 @@ marker still fails closed byte-identical.
 
 **CRLF, scoped precisely.** At the `protected_regions` module level a HUMAN
 block containing `\r\n` is preserved verbatim. **End to end through the writers
-it is not**, and this receipt previously overstated that. All three writers read
-the prior note with `Path.read_text(encoding="utf-8")`, whose universal-newline
+it is not**, and this receipt previously overstated that. **Four** writers read
+the prior note this way -- the three `merge_protected_regions` callers
+(`obsidian_capture_note.py:378`, `obsidian_projection.py:360`,
+`graph_projections.py:644`) plus `ingestion.py:99` (`_generated_content`), which
+preserves a generated span without going through `protected_regions` at all, so
+a grep for the merge function misses it. An earlier revision of this receipt
+said three. Each uses `Path.read_text(encoding="utf-8")`, whose universal-newline
 translation converts `\r\n` to `\n` *before the merge ever sees the bytes*, so a
 CRLF HUMAN block returns to disk LF-only. That behaviour is **pre-existing and
 reproduces byte-for-byte on base main `15c9a6d6`** — it is not introduced or
@@ -136,10 +141,10 @@ Both were run in scratch and reverted; neither is committed.
 
 | control | expectation | observed |
 |---|---|---|
-| remove the diagnostic classification | the diagnostic tests fail | **7 failed** at this head (it was 4 at the first candidate `56b1b0c2`, before the containment tests were added; the earlier figure was carried forward and is corrected here) |
+| remove the diagnostic classification | the diagnostic tests fail | **7 failed** at this head (it was 4 at the first candidate `56b1b0c2`; three further tests fail here because two more containment tests and the linearity test were added after that candidate. An earlier revision said 4 was the count "before the containment tests were added" -- that is false: one containment test already existed at `56b1b0c2` and is one of its four failures) |
 | emulate an escaping strategy on preserved HUMAN blocks | byte-preservation tests catch it | 6 failed |
 | restore the permissive `[^\s>]*` containment grammar | the unnamed-marker false-positive test fails | 1 failed, exactly that one |
-| restore the pairwise (quadratic) containment scan | the linearity test fails | 1 failed, at 18.3s |
+| restore the pairwise (quadratic) containment scan | the linearity test fails | 1 failed, at 18.3s -- **timing NOT re-run at the exact head or at any seal; treat as unverified.** The linearity test itself is green |
 
 So the diagnostic tests are load-bearing on the change, and the byte tests would
 catch a future regression to auto-escaping.
@@ -159,7 +164,7 @@ catch a future regression to auto-escaping.
 | gate | result |
 |---|---|
 | F3 suite | **37 passed** |
-| F3 + capture + F1/F2 + F4 + graph projection + Obsidian suites | **249 passed, 0 failed** |
+| F3 + capture + F1/F2 + F4 + graph projection + Obsidian suites | **249 passed, 0 failed** -- **not reproducible as stated**: the file set is unspecified, nearest reconstruction 237/0 (also file-set-unspecified). Subsumed by the green full suite |
 | `ruff check .` | All checks passed |
 | `mypy src` | Success, 405 source files |
 
@@ -187,7 +192,7 @@ Both sequences are ascending and the spans do not overlap, so they are now
 walked together. Measured after: **0.012s at 5,000** and 0.070s at 20,000 — from
 quadratic to linear, ~90× faster at 5,000. A regression test pins it with a
 generous 5s bound at 20,000 regions; the negative control (restoring the
-pairwise scan) takes **18.3s** and fails it.
+pairwise scan) takes **18.3s** and fails it. That timing was measured at the pre-remediation candidate and has **not** been re-run at the exact head or at any seal; treat the number as unverified.
 
 ## Failure atomicity
 
@@ -205,12 +210,12 @@ Recorded rather than left for a reader to discover.
 - **Self-nesting containment.** `_outermost_human_spans` pairs
   `BEGIN x … BEGIN x … END x … END x` by name, where the canonical
   `_human_region_spans` refuses it as `ambiguous-protected-region-nesting`
-  (52 of 66,430 exhaustive marker sequences in independent verification). The
+  (reported as 52 of 66,430 exhaustive marker sequences by an independent verifier whose harness was **never committed** -- that figure is **not reconstructible and must not be cited**; the divergence itself is separately confirmed). The
   asserted fact remains true under every reading of that ambiguity — the marker
   really is inside a HUMAN block — but it is the one place the containment check
   speaks about structure the canonical grammar declines to parse.
 - **The diagnostic is not uniform across surfaces.** The retained no-HUMAN-regions
-  branch in `graph_projections._validate_protected_markers` still emits the bare
+  branch in `graph_projections` still emits the bare
   `malformed-generated-markers:<path>`, so an operator can still meet an
   uninformative refusal on that path. Nothing here claims uniformity.
 
@@ -225,6 +230,16 @@ observable structural facts.
 opaque; that any render output is reversible; that a malformed state identifies
 operator action; or that Obsidian note corruption in general is solved.
 
-This is implementation evidence, not certification. Independent exact-head
-verification and CI are required before merge, and merge authority does not
-belong to this lane.
+This began as implementation evidence, not certification, and said that
+independent exact-head verification and CI were required before merge and that
+merge authority did not belong to this lane. **All three conditions were met**:
+the exact head `c6b0ecb8` returned `PASS_WITH_NONBLOCKING_FINDINGS` (P0=0,
+P1=0), CI was green on all four required jobs at that object, and the merge was
+made by the owner. It merged unrebased as `48a51875`, whose `src` and `tests`
+trees are byte-identical to the verified object, so the verdict transfers
+without an inference step.
+
+What this receipt still does **not** certify is unchanged: no `CODEX_VALIDATED`,
+no discharge of `EXTERNAL_SECURITY_REVALIDATION_REQUIRED`, and F3's runtime
+delta remains diagnostic-only -- the fail-closed behaviour predates this work
+package.
