@@ -15,6 +15,7 @@ from . import evidence_graph as evidence_graph_mod
 from . import frontier_matrix as frontier_matrix_mod
 from . import handoff as handoff_mod
 from . import receipts as receipts_mod
+from . import residuals as residuals_mod
 from . import router as router_mod
 from . import score as score_mod
 from . import seal_plan as seal_plan_mod
@@ -122,10 +123,12 @@ def _build_live_matrix(args):
         snapshot["nodes"], client, snapshot.get("main_branch") or "main")
     weights, source = score_mod.load_weights(getattr(args, "weights", None))
     pool = _resolve_pool(args, client)
+    events = _live_events(client)
+    seal_by_pr = _collect_seal_by_pr(client, snapshot)
     return frontier_matrix_mod.build_frontier_matrix(
         snapshot, agent_id=getattr(args, "agent", None), registry=registry,
         stacks=stacks, weights=weights, weights_source=source,
-        client=client, pool=pool), snapshot
+        client=client, pool=pool, events=events, seal_by_pr=seal_by_pr), snapshot
 
 
 def cmd_frontier_matrix(args) -> int:
@@ -208,6 +211,244 @@ def cmd_explain_action(args) -> int:
         print(f"  score_total={action['score_total']}")
     print(f"  concurrency_group={action.get('concurrency_group')}")
     print(f"  truth_fingerprint={action.get('truth_fingerprint')}")
+    return 0
+
+
+def _live_events(client) -> list[dict]:
+    issue = client.dag_issue()
+    if not issue:
+        return []
+    return events_mod.ingest_comments(client.issue_comments(issue["number"])).events
+
+
+def _collect_seal_by_pr(client, snapshot, clock=None) -> dict[int, dict]:
+    """Build Feature-09 seal plans for snapshot + recently merged PRs.
+
+    Open snapshot lanes alone miss postmerge obligations on already-merged
+    PRs (e.g. #740). Recently merged candidates are included so Feature-13
+    can project durable seal residuals without inventing obligations.
+    """
+    out: dict[int, dict] = {}
+    prs = {int(n["pr"]) for n in (snapshot.get("nodes") or []) if n.get("pr")}
+    try:
+        repo = client.repo
+        if repo:
+            merged = client.gh_json([
+                "pr", "list", "--repo", repo, "--state", "merged",
+                "--limit", "25", "--json", "number",
+            ]) or []
+            for item in merged:
+                if item.get("number") is not None:
+                    prs.add(int(item["number"]))
+    except Exception:
+        pass
+    for pr in sorted(prs):
+        try:
+            if clock is None:
+                plan = seal_plan_mod.build_seal_plan(pr, client)
+            else:
+                plan = seal_plan_mod.build_seal_plan(pr, client, clock=clock)
+        except Exception:
+            continue
+        out[pr] = plan
+    return out
+
+
+def _build_residual_registry(args, client=None, snapshot=None, stacks=None,
+                             seal_by_pr=None):
+    client = client or _client(args)
+    snapshot = snapshot or build_snapshot(client, pool_path=_pool_path(args))
+    stacks = stacks or stack_mod.build_stacks(
+        snapshot["nodes"], client, snapshot.get("main_branch") or "main")
+    if seal_by_pr is None:
+        seal_by_pr = _collect_seal_by_pr(client, snapshot)
+    registry = agents_mod.load_registry(args.registry)
+    events = _live_events(client)
+    return residuals_mod.build_residual_registry(
+        repository=client.repo, events=events, snapshot=snapshot, stacks=stacks,
+        seal_by_pr=seal_by_pr, agent_id=getattr(args, "agent", None),
+        registry=registry), snapshot, stacks
+
+
+def cmd_residuals(args) -> int:
+    """List durable residuals (FEATURE_13)."""
+    packet, _, _ = _build_residual_registry(args)
+    errors = residuals_mod.validate_registry(packet)
+    if errors:
+        print("residuals: FAIL schema:", file=sys.stderr)
+        for error in errors[:20]:
+            print(f"  SCHEMA: {error}", file=sys.stderr)
+        return 1
+    state_filter = getattr(args, "state", None)
+    rows = packet["residuals"]
+    if state_filter:
+        rows = [r for r in rows
+                if r["disposition"] == state_filter
+                or r["derived_execution_state"] == state_filter]
+    view = {**packet, "residuals": rows}
+    if args.json:
+        print(json.dumps(view, indent=2, sort_keys=True))
+        return 0
+    print(f"residuals open={packet['open_count']} runnable={packet['runnable_count']} "
+          f"blocked={packet['blocked_count']} fingerprint={packet['registry_fingerprint'][:12]}")
+    for rec in rows[:40]:
+        print(f"  {rec['residual_id']:<28} {rec['disposition']:<14} "
+              f"{rec['derived_execution_state']:<12} {rec['residual_type']:<20} "
+              f"{rec.get('target_lane') or '-'}")
+    return 0
+
+
+def cmd_residual(args) -> int:
+    """Inspect one residual by id (FEATURE_13)."""
+    packet, _, _ = _build_residual_registry(args)
+    found = residuals_mod.get_residual(packet, args.residual_id)
+    if args.json:
+        print(json.dumps(found, indent=2, sort_keys=True))
+        return 0 if found.get("found") else 2
+    if not found.get("found"):
+        print(f"residual: FAIL {found.get('reason')}", file=sys.stderr)
+        return 2
+    rec = found["residual"]
+    print(f"{rec['residual_id']} disposition={rec['disposition']} "
+          f"derived={rec['derived_execution_state']} type={rec['residual_type']}")
+    print(f"  action={rec['required_action_type']} lane={rec.get('target_lane')}")
+    print(f"  {rec['description']}")
+    for reason in rec.get("blocking_reasons") or []:
+        print(f"  BLOCKER: {reason}")
+    for hist in rec.get("resolution_history") or []:
+        print(f"  HISTORY: {hist.get('event')} {hist.get('state')} "
+              f"evt={hist.get('event_id')}")
+    return 0
+
+
+def cmd_residual_register(args) -> int:
+    """Register a structured residual via FEATURE_04 event emit."""
+    client = _client(args)
+    registry = agents_mod.load_registry(args.registry)
+    rid = args.residual_id or residuals_mod.make_residual_id(
+        "register", args.description, str(args.pr or ""), args.residual_type)
+    note = args.description
+    profile = agents_mod.resolve_agent(registry, args.agent).profile or {}
+    try:
+        ctx = emitter_mod.resolve_context(
+            client, args.pr, profile, expected_repo=getattr(args, "expect_repo", None))
+        payload = emitter_mod.build_event(
+            ctx, event=residuals_mod.EVT_REGISTERED, state="OPEN",
+            note=note, next_actions=["residual"])
+        payload["residual_id"] = rid
+        payload["residual_type"] = args.residual_type
+        payload["required_action_type"] = args.action_type
+        payload["severity"] = args.severity
+        if args.prerequisite:
+            payload["prerequisites"] = list(args.prerequisite)
+        if args.criterion:
+            payload["resolution_criteria"] = list(args.criterion)
+        status = emitter_mod.emit_event(
+            client, registry, payload, dry_run=bool(args.dry_run))
+    except emitter_mod.EmitError as exc:
+        print(f"residual-register: FAIL {exc}", file=sys.stderr)
+        return 1
+    out = {"residual_id": rid, "emit_status": status, "event_id": payload["event_id"],
+           "dry_run": bool(args.dry_run)}
+    if args.json:
+        print(json.dumps(out, indent=2, sort_keys=True))
+    else:
+        print(f"residual-register {rid} status={status} event={payload['event_id']}")
+    return 0 if status in ("posted", "already-present", "would-post") else 1
+
+
+def cmd_residual_resolve(args) -> int:
+    """Resolve / accept-risk / reopen a residual via FEATURE_04 emit."""
+    client = _client(args)
+    registry = agents_mod.load_registry(args.registry)
+    packet, snapshot, _ = _build_residual_registry(args, client=client)
+    found = residuals_mod.get_residual(packet, args.residual_id)
+    if not found.get("found"):
+        print(f"residual-resolve: FAIL {found.get('reason')}", file=sys.stderr)
+        return 2
+    rec = found["residual"]
+    evidence = list(args.evidence or [])
+    event = {
+        "RESOLVED": residuals_mod.EVT_RESOLVED,
+        "ACCEPTED_RISK": residuals_mod.EVT_ACCEPTED,
+        "REOPENED": residuals_mod.EVT_REOPENED,
+        "SUPERSEDED": residuals_mod.EVT_SUPERSEDED,
+    }[args.disposition]
+    pr = rec.get("target_pr") or args.pr
+    if pr is None:
+        print("residual-resolve: FAIL TARGET_PR_REQUIRED", file=sys.stderr)
+        return 2
+    node = next((n for n in snapshot["nodes"] if n.get("pr") == pr), {})
+    if args.disposition == "RESOLVED":
+        ok, reasons = residuals_mod.resolution_evidence_valid(
+            rec, evidence, current_head=node.get("head"))
+        if not ok:
+            print(f"residual-resolve: FAIL {','.join(reasons)}", file=sys.stderr)
+            return 1
+    if args.disposition == "ACCEPTED_RISK":
+        profile = agents_mod.resolve_agent(registry, args.agent).profile
+        ok, reasons = residuals_mod.accepted_risk_authorized(
+            profile, rec, node.get("owner"))
+        if not ok:
+            print(f"residual-resolve: FAIL {','.join(reasons)}", file=sys.stderr)
+            return 1
+    profile = agents_mod.resolve_agent(registry, args.agent).profile or {}
+    try:
+        ctx = emitter_mod.resolve_context(client, int(pr), profile)
+        payload = emitter_mod.build_event(
+            ctx, event=event, state=args.disposition,
+            note=args.note or f"{args.disposition} {args.residual_id}",
+            evidence=evidence, next_actions=[])
+        payload["residual_id"] = args.residual_id
+        status = emitter_mod.emit_event(
+            client, registry, payload, dry_run=bool(args.dry_run))
+    except emitter_mod.EmitError as exc:
+        print(f"residual-resolve: FAIL {exc}", file=sys.stderr)
+        return 1
+    out = {"residual_id": args.residual_id, "disposition": args.disposition,
+           "emit_status": status, "event_id": payload["event_id"]}
+    if args.json:
+        print(json.dumps(out, indent=2, sort_keys=True))
+    else:
+        print(f"residual-resolve {args.residual_id} → {args.disposition} "
+              f"status={status}")
+    return 0 if status in ("posted", "already-present", "would-post") else 1
+
+
+def cmd_residual_frontier(args) -> int:
+    """Residual-backed actions in the Feature-12 frontier (FEATURE_13)."""
+    client = _client(args)
+    packet, snapshot, stacks = _build_residual_registry(args, client=client)
+    registry = agents_mod.load_registry(args.registry)
+    weights, source = score_mod.load_weights(getattr(args, "weights", None))
+    events = _live_events(client)
+    seal_by_pr = _collect_seal_by_pr(client, snapshot)
+    matrix = frontier_matrix_mod.build_frontier_matrix(
+        snapshot, agent_id=args.agent, registry=registry, stacks=stacks,
+        weights=weights, weights_source=source, residual_registry=packet,
+        events=events, client=client, seal_by_pr=seal_by_pr)
+    residual_actions = [
+        a for a in matrix["actions"] if a.get("residual_id")
+    ]
+    view = {
+        "schema": residuals_mod.REGISTRY_SCHEMA,
+        "agent": args.agent,
+        "registry_fingerprint": packet["registry_fingerprint"],
+        "frontier_fingerprint": matrix["frontier_fingerprint"],
+        "residual_actions": residual_actions,
+        "runnable": [a for a in residual_actions
+                     if a["runnable_state"] == frontier_matrix_mod.RUNNABLE],
+        "blocked": [a for a in residual_actions
+                    if a["runnable_state"] == frontier_matrix_mod.BLOCKED],
+    }
+    if args.json:
+        print(json.dumps(view, indent=2, sort_keys=True))
+        return 0
+    print(f"residual-frontier agent={args.agent} "
+          f"residual_actions={len(residual_actions)} "
+          f"runnable={len(view['runnable'])} blocked={len(view['blocked'])}")
+    for action in residual_actions[:30]:
+        print(f"  {action['runnable_state']:<12} {action['action_id']}")
     return 0
 
 
@@ -1252,6 +1493,53 @@ def build_parser() -> argparse.ArgumentParser:
     p_explain_action.add_argument("--agent", default=None)
     p_explain_action.add_argument("--weights", default=None)
     p_explain_action.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_residuals = sub.add_parser(
+        "residuals", help="list durable residuals (FEATURE_13)")
+    p_residuals.add_argument("--agent", default=None)
+    p_residuals.add_argument("--state", default=None,
+                             help="filter by disposition or derived execution state")
+    p_residuals.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_residual = sub.add_parser(
+        "residual", help="inspect one residual by id (FEATURE_13)")
+    p_residual.add_argument("residual_id")
+    p_residual.add_argument("--agent", default=None)
+    p_residual.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_res_reg = sub.add_parser(
+        "residual-register",
+        help="register structured residual via FEATURE_04 emit (FEATURE_13)")
+    p_res_reg.add_argument("--agent", required=True)
+    p_res_reg.add_argument("--pr", type=int, required=True)
+    p_res_reg.add_argument("--description", required=True)
+    p_res_reg.add_argument("--residual-type", required=True,
+                           choices=sorted(residuals_mod.RESIDUAL_TYPES))
+    p_res_reg.add_argument("--action-type", required=True,
+                           choices=sorted(residuals_mod.ACTION_TYPES))
+    p_res_reg.add_argument("--severity", default="P2")
+    p_res_reg.add_argument("--residual-id", default=None)
+    p_res_reg.add_argument("--prerequisite", action="append", default=[])
+    p_res_reg.add_argument("--criterion", action="append", default=[])
+    p_res_reg.add_argument("--dry-run", action="store_true")
+    p_res_reg.add_argument("--expect-repo", default=None)
+    p_res_reg.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_res_resolve = sub.add_parser(
+        "residual-resolve",
+        help="resolve/accept-risk/reopen residual via FEATURE_04 (FEATURE_13)")
+    p_res_resolve.add_argument("residual_id")
+    p_res_resolve.add_argument("--agent", required=True)
+    p_res_resolve.add_argument("--disposition", required=True,
+                               choices=["RESOLVED", "ACCEPTED_RISK", "REOPENED",
+                                        "SUPERSEDED"])
+    p_res_resolve.add_argument("--evidence", action="append", default=[])
+    p_res_resolve.add_argument("--pr", type=int, default=None)
+    p_res_resolve.add_argument("--note", default=None)
+    p_res_resolve.add_argument("--dry-run", action="store_true")
+    p_res_resolve.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    p_res_front = sub.add_parser(
+        "residual-frontier",
+        help="residual-backed Feature-12 actions for one agent (FEATURE_13)")
+    p_res_front.add_argument("--agent", required=True)
+    p_res_front.add_argument("--weights", default=None)
+    p_res_front.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
     p_score = sub.add_parser(
         "score", help="score one PR after authorization (FEATURE_10)")
     p_score.add_argument("--pr", type=int, required=True)
@@ -1380,6 +1668,11 @@ COMMANDS = {
     "frontier-matrix": cmd_frontier_matrix,
     "frontier-actions": cmd_frontier_actions,
     "explain-action": cmd_explain_action,
+    "residuals": cmd_residuals,
+    "residual": cmd_residual,
+    "residual-register": cmd_residual_register,
+    "residual-resolve": cmd_residual_resolve,
+    "residual-frontier": cmd_residual_frontier,
     "score": cmd_score,
     "explain-priority": cmd_explain_priority,
     "steal-status": cmd_steal_status,

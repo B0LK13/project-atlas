@@ -93,23 +93,30 @@ def validate_matrix(packet: dict) -> list[str]:
     )
 
 
-def action_id(pr: int, action_type: str) -> str:
+def action_id(pr: int, action_type: str, residual_id: str | None = None) -> str:
     if action_type not in ACTION_TYPES:
         raise FrontierMatrixError(f"UNKNOWN_ACTION_TYPE:{action_type}")
-    return f"pr/{int(pr)}:{action_type}"
+    base = f"pr/{int(pr)}:{action_type}"
+    if residual_id:
+        return f"{base}:{residual_id}"
+    return base
 
 
-def parse_action_id(aid: str) -> tuple[int, str]:
+def parse_action_id(aid: str) -> tuple[int, str, str | None]:
     if ":" not in aid or not aid.startswith("pr/"):
         raise FrontierMatrixError(f"MALFORMED_ACTION_ID:{aid}")
-    lane, atype = aid.rsplit(":", 1)
+    parts = aid.split(":")
+    if len(parts) < 2:
+        raise FrontierMatrixError(f"MALFORMED_ACTION_ID:{aid}")
+    lane, atype = parts[0], parts[1]
+    residual_id = parts[2] if len(parts) >= 3 else None
     if atype not in ACTION_TYPES:
         raise FrontierMatrixError(f"UNKNOWN_ACTION_TYPE:{atype}")
     try:
         pr = int(lane.split("/", 1)[1])
     except (IndexError, ValueError) as exc:
         raise FrontierMatrixError(f"MALFORMED_ACTION_ID:{aid}") from exc
-    return pr, atype
+    return pr, atype, residual_id
 
 
 def hypothesize_owned(node: dict, agent_id: str) -> dict:
@@ -229,6 +236,76 @@ def _caps(profile: dict | None) -> set[str]:
     if profile is None:
         return set()
     return {str(c) for c in profile.get("capabilities", [])}
+
+
+def _class_for_action_type(action_type: str) -> str:
+    if action_type in (IMPLEMENT, REMEDIATE, OWNERSHIP_CLAIM, RESTACK_REQUIRED):
+        return CLASS_WRITE
+    if action_type in (READONLY_ANALYZE,):
+        return CLASS_READONLY
+    if action_type in (CI_DISPATCH, IV_REQUEST, POSTMERGE_VALIDATE,
+                       POSTMERGE_RECONCILE):
+        return CLASS_VALIDATION
+    return CLASS_HUMAN_GATE
+
+
+def _emit_residual_backed(residual_packet: dict | None,
+                          nodes_by_pr: dict[int, dict],
+                          stacks: dict | None,
+                          profile: dict | None,
+                          agent_status: str,
+                          weights: dict) -> list[dict]:
+    """FEATURE_13: project OPEN residuals into typed frontier actions."""
+    if not residual_packet:
+        return []
+    from . import residuals as residuals_mod
+    out: list[dict] = []
+    for seed in residuals_mod.residual_frontier_actions(residual_packet):
+        pr = seed.get("pr")
+        if pr is None:
+            # Targetless residual: synthetic node shell for lane-less research.
+            node = {
+                "pr": 0, "lane": seed.get("lane") or "residual/unbound",
+                "head": None, "tree": None, "ownership": "UNOWNED",
+                "owner": None, "frozen": False, "state": "RUNNABLE_READONLY",
+                "claimants": [],
+            }
+            pr = 0
+        else:
+            pr = int(pr)
+            node = nodes_by_pr.get(pr) or {
+                "pr": pr, "lane": seed.get("lane") or f"pr/{pr}",
+                "head": None, "tree": None, "ownership": "UNOWNED",
+                "owner": None, "frozen": False, "state": "RUNNABLE_READONLY",
+                "claimants": [],
+            }
+        lane = str(seed.get("lane") or node.get("lane") or f"pr/{pr}")
+        stack = (stacks or {}).get(lane)
+        atype = seed["action_type"]
+        if atype not in ACTION_TYPES:
+            continue
+        action = _base_action(node, atype, _class_for_action_type(atype), stack)
+        action["action_id"] = action_id(pr, atype, seed["residual_id"])
+        action["residual_id"] = seed["residual_id"]
+        action["residual_type"] = seed.get("residual_type")
+        action["concurrency_group"] = f"residual:{seed['residual_id']}"
+        derived = seed.get("derived_execution_state")
+        reasons = list(seed.get("blocking_reasons") or [])
+        # Score never converts blocked → runnable.
+        if derived == residuals_mod.RUNNABLE:
+            action = _set_state(action, RUNNABLE, [])
+            _score_action(action, node, stack, profile, weights)
+            # Mild residual severity boost as score dimension only.
+            if action.get("score_total") is not None and seed.get("severity") == "P0":
+                action["score_total"] = float(action["score_total"]) + 5.0
+        elif derived == residuals_mod.INELIGIBLE:
+            action = _set_state(action, INELIGIBLE, reasons)
+        elif derived == residuals_mod.NOT_APPLICABLE:
+            action = _set_state(action, NOT_APPLICABLE, reasons)
+        else:
+            action = _set_state(action, BLOCKED, reasons or ["RESIDUAL_BLOCKED"])
+        out.append(action)
+    return out
 
 
 def _emit_readonly(profile: dict | None, node: dict, stack: dict | None,
@@ -610,6 +687,8 @@ def build_frontier_matrix(
     weights_source: str = "explicit",
     dispatch_by_pr: dict[int, dict] | None = None,
     seal_by_pr: dict[int, dict] | None = None,
+    residual_registry: dict | None = None,
+    events: list[dict] | None = None,
     extra_nodes: list[dict] | None = None,
     client: Any = None,
     pool: Any = None,
@@ -637,6 +716,18 @@ def build_frontier_matrix(
         nodes.extend(extra_nodes)
     # Deterministic lane order independent of source permutation.
     nodes = sorted(nodes, key=lambda n: (int(n["pr"]), str(n.get("lane") or "")))
+    nodes_by_pr = {int(n["pr"]): n for n in nodes}
+
+    # FEATURE_13 residual registry (event-derived + seal/stack projections).
+    if residual_registry is None and (events is not None or seal_by_pr or stacks):
+        from . import residuals as residuals_mod
+        repo = (snapshot.get("repository")
+                or (getattr(client, "repo", None) if client else None)
+                or "UNKNOWN")
+        residual_registry = residuals_mod.build_residual_registry(
+            repository=str(repo), events=events or [], snapshot=snapshot,
+            stacks=stacks, seal_by_pr=seal_by_pr, agent_id=agent_id,
+            registry=registry, clock=clock)
 
     actions: list[dict] = []
     for node in nodes:
@@ -670,6 +761,9 @@ def build_frontier_matrix(
         for action in actions:
             if action["pr"] == pr and action.get("score_total") is None:
                 _score_action(action, node, stack, profile, cfg)
+
+    actions.extend(_emit_residual_backed(
+        residual_registry, nodes_by_pr, stacks, profile, agent_status, cfg))
 
     # Stable action order.
     actions.sort(key=lambda a: (int(a["pr"]), a["action_type"], a["action_id"]))
@@ -727,8 +821,12 @@ def build_frontier_matrix(
                 "FEATURE_06 dispatch plan",
                 "FEATURE_09 seal plan",
                 "FEATURE_10 frontier scoring (dimension only)",
+                "FEATURE_13 residual registry (obligation projection)",
             ],
         },
+        "residual_registry_fingerprint": (
+            (residual_registry or {}).get("registry_fingerprint")),
+        "open_residual_count": (residual_registry or {}).get("open_count"),
     }
     return packet
 
