@@ -13148,3 +13148,89 @@ AS-OBSIDIAN-CAPTURE-001-F2, merged as `eadc0f62`).
   is retained graph-specific behavior). This is implementation evidence, not
   certification: fresh independent verification and exact-head CI are
   required before merge (F4 merge is Owner-bound; not pre-authorized).
+
+## AS-OBSIDIAN-CAPTURE-001-F3 — reserved marker closure (2026-09-07, post-F4)
+
+Work package: **AS-OBSIDIAN-CAPTURE-001-F3**, sequenced after F4 (merged as
+`15c9a6d6`). Base `15c9a6d6` / tree `ca209578`.
+
+Owner policy: Atlas structural marker spellings are **reserved everywhere**,
+including inside a HUMAN protected region. HUMAN payload is not opaque, and raw
+HUMAN bytes are immutable — no auto-escaping, no normalisation, no zero-width
+rewriting.
+
+The safety behaviour was measured before anything was changed, and it already
+held on main: all five exact reserved spellings inside a HUMAN region already
+failed closed with the note byte-identical, and all seven near-miss controls
+(bare token, extra inner spacing, `startx` suffix, uppercase, partial token,
+ordinary HTML comment, unnamed HUMAN marker) were already preserved as ordinary
+prose. Under the minimal-change principle no parser change was manufactured.
+
+The remaining defect was diagnostic quality. `malformed-generated-markers:<path>`
+told an operator nothing about what collided or whether anything had been
+written. The refusal now carries observable facts —
+`count` or `end-before-begin`, `begin=`/`end=`/`expected=` counts,
+`reserved-marker-in-human-region` **only when structurally determinable**, and
+`no-write` — behind the unchanged leading class token, so every existing
+matcher, including the `GraphProjectionError` translations in
+`graph_projections.py`, keeps working.
+
+Causal honesty is the constraint that shaped this. The same failure shape can
+arise from an operator writing a reserved spelling as prose, from Atlas
+corrupting its own generated structure, or from an unrelated malformed state,
+and the implementation cannot distinguish them — so it claims no authorship. A
+duplicated generated marker outside any HUMAN region is not reported as a region
+collision, and that is pinned by its own test. The containment helper is
+deliberately non-raising: it runs only to enrich a diagnostic for a document
+already known to be malformed, so it must not fail and mask the real error.
+
+The balanced forged pair is the load-bearing refusal: counting alone would see
+begins and ends match and could call it balanced, and it is refused only because
+Atlas owns exactly one generated span.
+
+Review then caught a real false-positive source in the containment check: it
+matched marker names with `[^\s>]*` and paired by a bare depth counter, so
+`<!-- BEGIN HUMAN: -->` — which the canonical `[^\s>]+` grammar does not treat
+as a region at all — produced a `reserved-marker-in-human-region` claim about a
+region that does not exist, and crossed markers were read as a balanced span.
+That is the same second-parser-drift failure this project keeps meeting, so the
+helper now shares the canonical grammar and strict name-matched pairing and
+returns "not determinable" for orphan, crossed or unclosed structure.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`.
+Review also caught that the containment check compared every marker against
+every span — quadratic on precisely the input that reaches it, so a refusal
+could spend seconds formatting its own error (1.09s at 5,000 regions). Both
+sequences are ascending and non-overlapping, so they are now walked together:
+0.012s at 5,000 and 0.070s at 20,000. A test pins the linearity; restoring the
+pairwise scan takes 18.3s and fails it.
+
+Tests: F3 suite 37 passed; F3 + capture + F1/F2 + F4 + graph projection +
+Obsidian suites 249 passed / 0 failed; `ruff check .` clean; `mypy src` clean
+(405 files). F4 differential harness unchanged at this branch — graph converges
+on canonical exactly, 2178/1822 with zero on every corruption counter.
+
+Negative controls, run in scratch and reverted: removing the diagnostic
+classification fails exactly the four diagnostic tests; emulating an escaping
+strategy on preserved HUMAN blocks fails six byte-preservation tests. Both are
+load-bearing.
+
+Broader suite under independent verification: 5,616 passed, 8 skipped, 0 failed.
+An earlier revision of this entry reported four `tests/unit/test_logging.py`
+failures as an environment artifact; those did not reproduce for the verifier
+(18/18 pass there), so the claim was more pessimistic than reality and is
+recorded as machine-local rather than as a property of this candidate.
+
+Two claim corrections from verification, made rather than waived: the
+disable-the-diagnostic negative control fails **7** tests at this head, not the
+4 carried forward from the first candidate before the containment tests existed;
+and the CRLF byte-fidelity claim holds at the `protected_regions` module level
+but **not** end to end, because all three writers read prior notes with
+`Path.read_text`, whose universal-newline translation converts CRLF to LF before
+the merge sees the bytes. That is pre-existing and identical on base main, but
+"no normalisation" is not currently honoured for line endings at the product
+boundary and deserves its own work package.
+
+This entry is implementation evidence, not certification: independent exact-head
+verification and CI are required before merge, and merge authority is not this
+lane's.
