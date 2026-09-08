@@ -14333,3 +14333,78 @@ checkable is cited; what is not is named as such.
 come from #716, or that the matcher is correct in general. Only that these four
 shapes are preserved, and that two specific plausible relaxations are now
 detected where they previously were not.
+
+## AS-OBSIDIAN-CAPTURE-001-F9 — one marker diagnosis, whichever writer refuses (2026-09-08)
+
+A generated-marker collision is one operator condition. It did not read as one.
+Reproduced on `e264d599` and re-checked on current `main`, the identical corrupt
+note through both generated-span-preserving writers:
+
+    canonical : malformed-generated-markers:count,begin=2,end=1,expected=1,no-write:n.md
+    graph     : malformed-generated-markers:n.md
+
+So what an operator was told about their own file depended on an internal
+routing detail they cannot observe: which surface reached the note first. The
+canonical message names the reason, the observable counts, what was expected,
+whether a reserved spelling demonstrably sits inside a HUMAN region, and -- most
+useful of all -- that **nothing was written**. The graph message names a path.
+
+Recorded in the F1-F4 residual register as "the diagnostic is not uniform across
+surfaces", with the five `graph_projections` sites and three `ingestion.py`
+sites enumerated. This closes the five; the three are owner-gated.
+
+**Diagnosis, not policy.** Exactly the same notes are refused, with the same
+fail-closed guarantee and the same bytes left on disk -- both pinned, not
+assumed: every corrupt shape is asserted refused AND asserted to leave the note
+byte-identical, and a positive control asserts a well-formed note still merges.
+The message PREFIX is unchanged, so the change is backward compatible with every
+existing assertion matching `malformed-generated-markers` -- **89 tests across
+five suites**, verified passing before and after.
+
+**One site gets an honest reason instead of the shared one.** The fifth is not a
+marker malformation at all: it refuses because the *fresh render* offers no
+generated span, an Atlas-side condition rather than a corrupt note. Reporting it
+as `malformed-generated-markers` pointed the operator at the wrong artifact
+entirely. It now reads `rendered-has-no-generated-span`, and a test asserts the
+reason token is not `count`.
+
+**Negative controls** (32 passed baseline), each applied under a sha256
+assertion that it changed the file, each reverted with both sources confirmed
+byte-identical:
+
+    A  count site -> bare message                12 failed
+    B  end-before-begin site -> bare              4 failed
+    C  `_generated_span` site -> bare             4 failed
+    D  rendered-no-span site -> bare              1 failed
+    E  `_generated_span` reason always `count`    2 failed
+
+**Controls C and E earned their place by first failing to fail.** On the initial
+test set, reverting the `_generated_span` site left the suite at **27 passed** --
+the tests were not load-bearing there at all. The reason is structural rather
+than an oversight: that guard is **unreachable** through
+`_merge_protected_regions`, because `_validate_protected_markers` runs first on
+both `existing` and `rendered` and already refuses every shape that would
+trigger it. It is defence in depth for direct callers. Four direct-call tests
+now pin it -- the only way it can be pinned -- and the controls bite at 4 and 2.
+Recorded because the honest reading of a passing negative control is "the
+control is broken, or the protection is not where I thought"; here it was the
+second.
+
+**Owner-gated, not fixed.** `ingestion.py` raises a plain `ValueError` at `:103`,
+`:107` and `:484`, with a different spelling again -- `malformed generated
+markers`, spaces not hyphens -- and no diagnosis at all. So a third surface
+reports a third thing for the same condition, and it is the surface closest to
+the product boundary. `src/project_atlas/ingestion.py` is a certified surface
+frozen by `test_atlas3_demo_isolation_001`; the only sanctioned edit path is an
+owner-approved exception pinned to an exact sha256 under
+`docs/atlas-3/ARCHITECTURE.md` SS9.1, which this lane cannot self-grant. The fix
+is mechanical -- the same public helper this package exports -- and what is
+missing is the owner decision, not engineering.
+
+**Not claimed:** that refusal behaviour changed (same notes, same bytes); that
+the three surfaces now agree (two do); or that `_generated_span`'s guard is
+reachable in production (it demonstrably is not, and is described as defence in
+depth because that is what it is).
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
