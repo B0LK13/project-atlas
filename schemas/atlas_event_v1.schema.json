@@ -74,6 +74,7 @@
         "OWNER_CLAIMED",
         "OWNER_RELEASED",
         "HUMAN_GATE_REQUIRED",
+        "IV_REQUEST",
         "CURRENT_MAIN_COMPATIBILITY_CHANGED",
         "MERGE_ELIGIBLE",
         "MERGED",
