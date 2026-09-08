@@ -13700,3 +13700,97 @@ unmanageable** (pre-existing, not introduced by F5, deliberately not folded in).
 Owner-gated: **F5-B**. Transferred: **issue #726**, bridge-import
 `source_sha256` hashing translated text so it can never verify the file it
 names.
+
+## AS-OBSIDIAN-CAPTURE-001-F7 — a BOM must not make a note unmanageable (2026-09-08)
+
+Work package **AS-OBSIDIAN-CAPTURE-001-F7**, branched from `8076d360`. Found
+while building the lane's residual register during F5's verification wait; no
+PR, issue or branch claimed it.
+
+Windows Notepad writes UTF-8 WITH a byte-order mark by default. An operator who
+opens an Atlas-managed note there and saves it gets a file Atlas no longer
+recognises as its own -- correct `capture_id`, correct frontmatter, just a
+`U+FEFF` prefix -- and every refresh is refused with `OBSIDIAN_NOTE_CONFLICT`,
+"refusing to overwrite a note Atlas does not manage". The note stops updating
+permanently and the error names the wrong cause: it IS Atlas's note.
+
+Reproduced on `8076d360` through the real `capture()`/`retry()` driver:
+
+    plain LF                  ok
+    CRLF (F5 fixed)           ok
+    BOM + LF                  partial  OBSIDIAN_NOTE_CONFLICT
+    BOM + CRLF (Notepad)      partial  OBSIDIAN_NOTE_CONFLICT
+
+Pre-existing. Same consumer and same consequence as the CRLF-frontmatter
+regression F5's round-1 verification caught, but a different trigger -- so a
+separate package, and deliberately NOT folded into F5, which would have voided
+a completed four-round certification for a defect F5 did not cause.
+
+### The trap is sharper than the defect
+
+Refusing a note Atlas does not recognise is CORRECT fail-closed behaviour. The
+fix must widen what Atlas RECOGNISES, never what it ACCEPTS; a change that
+started accepting foreign notes would be far worse than the defect it repairs.
+
+So the evidence is weighted at 18 hostile-shape refusal tests against 8
+recognition tests. Every hostile shape is asserted refused AND left
+byte-identical: no frontmatter, foreign frontmatter, `managed: false`,
+`managed: "true"`, a different `capture_id`, malformed YAML, an indented
+delimiter, `atlas` as a scalar, a non-string `capture_id`, unterminated
+frontmatter, an empty file, a BOM-only file, a double BOM, plus BOM-prefixed
+variants.
+
+Fix: one line. `_existing_capture_id` already normalised line endings for the
+ownership probe only (F5); it now also strips a leading BOM from that same probe
+copy. The note's bytes are untouched, and ownership still requires
+`atlas.managed is True` and a matching `capture_id` from genuine YAML.
+
+Controls, each load-bearing and each failing a DISTINCT set -- not a disjoint
+one. Measured: |A n B| = 3 (the two BOM+CR shapes and the direct probe, where
+both normalisations must compose), and C is a strict subset of D. The C-in-D
+relation was already implied by this package's own text, which says dropping the
+`capture_id` match fails ALL 18 hostile shapes -- necessarily including C's
+three -- so "disjoint" was refutable from the receipt alone:
+
+    baseline                             26 passed
+    A  BOM strip removed (this fix)       6 failed
+    B  F5 line-ending normalisation gone  4 failed
+    C  `managed is True` check dropped    3 failed
+    D  `capture_id` match dropped        18 failed
+
+C and D are the ones that matter: they prove the refusal set actually detects a
+widening of acceptance. D failing all 18 is what makes this safe to land.
+
+Every mutation was applied under an assertion that it changed the file. Two
+earlier attempts at controls A and B silently NO-OPPED -- the source contains
+the escape `"\ufeff"`, not a literal BOM -- and reported a passing suite that
+proved nothing. The assertion is what caught it, and it is the reason that
+discipline exists.
+
+Suites: group set (9 files, enumerated in the evidence receipt) 290 passed /
+4 xfailed; full suite 5,669 passed, 8 skipped, 4 xfailed; freeze guard 78;
+ruff and mypy clean (405 files).
+
+Claim boundary: a BOM-prefixed note Atlas genuinely owns is recognised and
+refreshes, its HUMAN bytes survive, and every unowned shape tested is still
+refused with the file byte-identical. NOT claimed -- the BOM is not preserved:
+it sits before the frontmatter in Atlas-owned generated territory, which is
+re-rendered from scratch, so it is dropped on refresh. That is consistent with
+"generated content is derived" and is not a HUMAN-byte loss; a test pins that
+the human region survives verbatim alongside it. Also not claimed: that UTF-16
+BOMs are handled (they fail the UTF-8 decode long before this probe), or that
+ownership is correct for shapes outside the 18 tested.
+
+Residual recorded here as well as in the receipt, because this lane's convention
+registers residuals in the WORKLOG and a residual that lives in one document
+decays: `yaml.safe_load` raises a bare `KeyError` -- not a `yaml.YAMLError` --
+for a malformed explicit bool tag, and only `yaml.YAMLError` is caught, so
+`_existing_capture_id` escapes rather than refusing cleanly. Verified at both
+base and head with `---\natlas: !!bool nope\n---\nbody\n` -> `KeyError: 'nope'`;
+pre-existing, outside F7's scope. Nothing converts it: it propagates out of the
+public `retry()` API and reaches the CLI as an unhandled traceback. Fail-closed
+in outcome -- the note is left byte-identical -- but an escaped exception in
+mechanism.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.

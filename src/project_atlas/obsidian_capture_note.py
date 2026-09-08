@@ -271,8 +271,19 @@ def _existing_capture_id(text: str) -> str | None:
     ``startswith("---\n")``, be judged unmanaged, and be refused on every
     refresh with ``OBSIDIAN_NOTE_CONFLICT``. That fails closed and loses no
     bytes, but it misdiagnoses the cause and the note never refreshes again.
+
+    A leading UTF-8 BOM is stripped from the probe for exactly the same reason.
+    Windows Notepad writes UTF-8 **with** BOM by default, so an operator who
+    opens an Atlas-managed note there and saves it gets a note Atlas no longer
+    recognises as its own -- correct ``capture_id``, correct frontmatter, just a
+    ``U+FEFF`` prefix -- and it stops refreshing permanently.
+
+    This widens what Atlas *recognises*, never what it *accepts*. Ownership
+    still requires ``atlas.managed is True`` and a matching ``capture_id`` from
+    genuine YAML frontmatter; a note Atlas does not own is refused exactly as
+    before, BOM or not. The hostile-shape refusal set is pinned by test.
     """
-    probe = text.replace("\r\n", "\n").replace("\r", "\n")
+    probe = text.replace("\r\n", "\n").replace("\r", "\n").removeprefix("\ufeff")
     if not probe.startswith("---\n"):
         return None
     end = probe.find("\n---", 4)
