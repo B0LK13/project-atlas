@@ -13758,7 +13758,7 @@ widening of acceptance. D failing all 18 is what makes this safe to land.
 
 Every mutation was applied under an assertion that it changed the file. Two
 earlier attempts at controls A and B silently NO-OPPED -- the source contains
-the escape `"﻿"`, not a literal BOM -- and reported a passing suite that
+the escape `"\ufeff"`, not a literal BOM -- and reported a passing suite that
 proved nothing. The assertion is what caught it, and it is the reason that
 discipline exists.
 

@@ -33,7 +33,7 @@ regression F5's verification caught, but a different trigger — so it is a
 separate package, and deliberately was not folded into F5, which would have
 voided a completed four-round certification for a defect F5 did not cause.
 
-`grep` finds no BOM handling anywhere in `src/` — no `utf-8-sig`, no `﻿`.
+`grep` finds no BOM handling anywhere in `src/` — no `utf-8-sig`, no `\ufeff`.
 
 ## The trap, which is sharper than the defect
 
@@ -52,7 +52,7 @@ ownership probe only** (F5); it now also strips a leading BOM from that same
 probe copy:
 
 ```python
-probe = text.replace("\r\n", "\n").replace("\r", "\n").removeprefix("﻿")
+probe = text.replace("\r\n", "\n").replace("\r", "\n").removeprefix("\ufeff")
 ```
 
 The note's own bytes are untouched — the same split `canonical_content` draws
@@ -89,8 +89,16 @@ shapes, which is what makes this package safe to land.
 
 Each mutation was applied under an assertion that it changed the file. Two
 earlier attempts at controls A and B silently no-opped — the source contains the
-escape `"﻿"`, not a literal BOM — and reported a passing suite that proved
+escape `"\ufeff"`, not a literal BOM — and reported a passing suite that proved
 nothing. The assertion is what caught that.
+
+Review then named the root cause rather than the symptom: a literal `U+FEFF` is
+**invisible in an editor**, so it is trivially lost, duplicated or mismatched
+during an edit — which is exactly how those controls no-opped. Every occurrence
+in this package now uses the explicit `\ufeff` escape, matching the source
+verbatim and producing identical bytes. The hazard is removed rather than worked
+around. (Two sentences of this receipt were themselves holding invisible
+literals while describing the escape.)
 
 **Suites:** the group set (`test_as_obsidian_capture_001.py`, `_f3.py`,
 `_f5_newline_fidelity.py`, `_f7_bom_ownership.py`,
