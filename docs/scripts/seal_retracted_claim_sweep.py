@@ -1,4 +1,4 @@
-"""Find live copies of a claim a seal has retracted.
+r"""Find live copies of a claim a seal has retracted.
 
 AS-OBSIDIAN-CAPTURE-001 F6/F7 seals. Three consecutive verification rounds
 failed on the same defect -- a correction applied to some copies and not all --
@@ -11,11 +11,30 @@ So this does not match phrases. It matches CONCEPTS: two token patterns that
 must co-occur inside one sentence-sized window, over whitespace-flattened text.
 Wording, word order and line wrapping are therefore irrelevant.
 
-It deliberately OVER-reports. A sentence is flagged LIVE unless a retraction
-marker appears near it, and unrelated sentences that merely reuse the vocabulary
-are flagged too -- this tool cannot tell them apart semantically. Every hit must
-be classified by hand. Do not quote its output as a clean bill of health; that
-over-reporting is itself the defect it exists to prevent.
+What it does NOT do, stated plainly, because overstating a verification method
+is the defect this file exists to prevent:
+
+* **It matches a fixed vocabulary, not meaning.** The anchors are literal
+  bigrams (``claim record``, ``evidence prose``). A one-word substitution walks
+  straight past it -- "changed only *documentation* prose", or "lived in the
+  *record of claims* rather than the *implementation*". Wording is emphatically
+  NOT irrelevant; an earlier docstring claimed it was, and independent
+  verification refuted that with two one-word rewrites.
+* **Sentence windows are naive.** A ``.`` inside a filename ends a window early,
+  so a claim split across ``…\`WORKLOG.md\`. Evidence prose was all that moved``
+  is missed.
+* **It over-reports.** Unrelated sentences reusing the vocabulary are flagged;
+  they cannot be told apart semantically. Every hit needs a human.
+
+The retraction test is deliberately scoped to the SENTENCE, not a byte window
+around it. An earlier version searched 320 bytes either side, which silently
+downgraded a verbatim restatement of a retracted claim to ``retraction`` merely
+because it sat next to the paragraph retracting it -- precisely where such a
+restatement would naturally be written, and an UNDER-reporting hazard the
+docstring did not disclose. Verification demonstrated that defeat; it is closed
+here rather than merely documented.
+
+Do not quote this tool's output as a clean bill of health.
 
 Usage:  python docs/scripts/seal_retracted_claim_sweep.py FILE [FILE ...]
 Exit:   0 if nothing is flagged LIVE, 1 otherwise (review each hit regardless).
@@ -43,8 +62,6 @@ RETRACTION = re.compile(
     rb"(earlier revision|\*\*false\*\*|overstates|retract|the seals said)", re.I
 )
 
-WINDOW = 320  # bytes of context searched either side for a retraction marker
-
 
 def sweep(paths: list[str]) -> int:
     live = 0
@@ -58,8 +75,9 @@ def sweep(paths: list[str]) -> int:
                 if not (first.search(sentence) and second.search(sentence)):
                     continue
                 hits += 1
-                context = flat[max(0, match.start() - WINDOW) : match.end() + WINDOW]
-                is_live = not RETRACTION.search(context)
+                # Scoped to the sentence itself: a retraction marker merely
+                # NEARBY must not excuse a live restatement (see module docstring).
+                is_live = not RETRACTION.search(sentence)
                 live += is_live
                 tag = "LIVE" if is_live else "retraction"
                 text = sentence.strip().decode("utf-8", "replace")[:150]
