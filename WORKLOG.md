@@ -14377,6 +14377,22 @@ byte-identical:
     D  rendered-no-span site -> bare              1 failed
     E  `_generated_span` reason always `count`    2 failed
 
+**Two tests that could not fail, both found by review.** The first asserted the
+note was byte-identical by comparing the `existing` *string* to itself -- a
+`str` is immutable, so it could not fail, while four artifacts cited it as the
+pin for that claim. Its replacement drives the real writer and asserts the
+file's sha256. The second shipped in the very commit that removed the first: a
+residue test globbing `*.tmp`, a suffix this module never writes, since
+`_promote` stages as `.<name>.<txn>.atlas-stage` and `.atlas-backup`. The
+control that appeared to validate it renamed staging to `.tmp` -- matching the
+test's glob rather than the code's naming -- so it validated the assertion
+against itself. It now compares the whole vault byte for byte, which holds
+regardless of naming, and the underlying fact is stronger than "no residue":
+the merge raises while the plan is still being built, so `_promote` is never
+reached -- zero invocations measured during a refusal. Residue is structurally
+impossible. Controlled with the code's own convention: leaking a `.atlas-stage`
+file fails 5 of 33, where the old glob missed it entirely.
+
 **Controls C and E earned their place by first failing to fail.** On the initial
 test set, reverting the `_generated_span` site left the suite at **27 passed** --
 the tests were not load-bearing there at all. The reason is structural rather

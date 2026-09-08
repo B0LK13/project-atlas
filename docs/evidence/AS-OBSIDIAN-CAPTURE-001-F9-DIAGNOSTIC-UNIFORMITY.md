@@ -60,9 +60,22 @@ the note was left byte-identical by comparing the `existing` *string* against
 itself before and after the call. A `str` is immutable, so that assertion could
 not fail and pinned nothing -- while this receipt cited it as proof the bytes
 were untouched. It now drives the real writer against a real vault and asserts
-the file's sha256, and a second test asserts no `.tmp` staging residue survives
-a refused refresh. Both are controlled: making the merge silently accept
-overwrites the note and fails 28 of 33; leaving residue behind fails 5.
+the file's sha256.
+
+**And then a second one, in the commit that removed the first.** The companion
+residue test globbed `*.tmp` -- a suffix this module never writes, since
+`_promote` stages as `.<name>.<txn>.atlas-stage` and `.atlas-backup`. Worse, the
+control that appeared to validate it renamed staging to `.tmp`, matching the
+test's glob rather than the code's naming, so the control validated the
+assertion against itself. Verification caught both halves.
+
+It now compares the **whole vault, byte for byte**, before and after a refused
+refresh, which holds regardless of naming. And the underlying fact is stronger
+than "no residue": the merge raises while the write plan is still being built,
+so `_promote` is never reached at all -- measured at **zero invocations** during
+a refusal. Residue is structurally impossible, not merely absent. Controlled
+with the code's own convention: leaking a `.atlas-stage` file fails 5 of 33,
+where the old glob would have missed it entirely.
 
 **Controls C and E earned their place by first failing to fail.** On the initial
 test set, reverting the `_generated_span` site left the suite at **27 passed** —

@@ -139,8 +139,23 @@ def test_f9_refusal_leaves_the_note_on_disk_byte_identical(
     assert note.read_bytes() == corrupt.encode("utf-8")
 
 
-def test_f9_no_staging_residue_after_a_refused_refresh(tmp_path: pathlib.Path) -> None:
-    """Fail-closed must also mean nothing half-written is left behind."""
+def test_f9_refused_refresh_leaves_the_whole_vault_unchanged(tmp_path: pathlib.Path) -> None:
+    """Fail-closed means nothing is left behind -- of any name.
+
+    An earlier revision of this test globbed ``*.tmp``. This module never writes
+    that suffix: ``_promote`` stages as ``.<name>.<txn>.atlas-stage`` and
+    ``.<name>.<txn>.atlas-backup``. So the assertion could not fail, and the
+    control that "proved" it worked only did so because the mutation renamed
+    staging to ``.tmp`` -- matching the test's glob rather than the code's
+    naming, validating the assertion against itself. Verification caught both.
+
+    The true and stronger statement, which this now asserts: a refused refresh
+    leaves the entire vault byte-identical. That holds regardless of naming, and
+    for a structural reason worth recording -- the merge raises while the write
+    plan is still being built, so ``_promote`` is never reached at all (measured:
+    zero invocations during a refusal). Residue is impossible rather than merely
+    absent, and this test fails if that ever stops being true.
+    """
     corrupt, _ = CORRUPT["duplicate-begin"]
     vault = tmp_path / "vault"
     vault.mkdir()
@@ -149,10 +164,20 @@ def test_f9_no_staging_residue_after_a_refused_refresh(tmp_path: pathlib.Path) -
     note = vault / "generated/graph/projections/demo/relationships.md"
     note.write_bytes(corrupt.encode("utf-8"))
 
+    def snapshot() -> dict[str, bytes]:
+        return {
+            str(f.relative_to(vault)): f.read_bytes()
+            for f in sorted(vault.rglob("*"))
+            if f.is_file()
+        }
+
+    before = snapshot()
     with pytest.raises(GraphProjectionError):
         write_projection_outputs(bundle, vault=vault)
 
-    assert not list(vault.rglob("*.tmp")), sorted(p.name for p in vault.rglob("*.tmp"))
+    after = snapshot()
+    assert set(after) == set(before), sorted(set(after) ^ set(before))
+    assert after == before
 
 
 @pytest.mark.parametrize("label", sorted(CORRUPT))
