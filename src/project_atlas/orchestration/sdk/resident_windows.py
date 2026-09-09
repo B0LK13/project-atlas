@@ -126,7 +126,9 @@ def detach_resident_driver(
     env["PYTHONPATH"] = str(package_src) + (
         os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
     )
-    proc = subprocess.Popen(
+    # D146 (R1): the returned Popen handle is deliberately not consulted
+    # after this point -- see the poll loop below for why.
+    subprocess.Popen(
         args,
         cwd=str(root),
         stdout=log,
@@ -143,18 +145,17 @@ def detach_resident_driver(
         if holder > 0:
             resolved_pid = holder
             break
-        # The launched process object exiting is not itself proof the
-        # resident failed -- it may be a launcher stub that legitimately
-        # exits once its real-interpreter child is running. But it no
-        # longer matters which: an identity not yet confirmed already
-        # resolves to 0 either way (never a guessed PID), so checking once
-        # more and then stopping the poll on exit is strictly a latency
-        # win, never a correctness risk, once the fallback is honest.
-        if proc.poll() is not None:
-            holder = read_primary_lock_pid(root)
-            if holder > 0:
-                resolved_pid = holder
-            break
+        # D146 review (R1): the launched process object exiting is NOT
+        # sufficient evidence the resident cannot still appear -- a
+        # launcher/trampoline can legitimately exit *before* its
+        # real-interpreter child finishes importing and acquires the
+        # primary lock (detach-and-exit is a valid launcher pattern, not
+        # only "launcher waits for child"; this repo's own host observed
+        # the latter, but the poll must not assume every launcher does).
+        # `proc` is intentionally not consulted here: the only thing that
+        # establishes authoritative identity is the primary lock itself,
+        # so the bounded wait watches only that, for its full budget,
+        # regardless of the launched process object's own lifetime.
         time.sleep(_RESIDENT_STARTUP_POLL_INTERVAL_SEC)
     write_host_identity(
         root,
