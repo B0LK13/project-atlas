@@ -20,6 +20,8 @@ IMPLEMENTED != MERGED
 | Package | `AS-STUDIO-A2-001` |
 | Branch | `feat/as-studio-a2-001` |
 | Base | A1 tip / PR #770 |
+| HEAD |  |
+| Local tests | 59 passed (A0+A1+A2); ruff PASS; doctor PASS |
 | Module | `scripts/atlas_studio/action_intent.py` |
 | Schemas | `atlas_studio_action_{intent,preview,decision}_v1.schema.json` |
 | CLI | `claim-candidates`, `claim-preview`, `claim-intent`, `claim-evaluate`, `claim-execute` |
