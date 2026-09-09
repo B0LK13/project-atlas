@@ -1,10 +1,8 @@
-import Ajv2020, { type ValidateFunction } from "ajv/dist/2020.js";
-import missionControlSchema from "../../../../schemas/atlas_studio_mission_control_v1.schema.json";
-import studioSnapshotSchema from "../../../../schemas/atlas_studio_snapshot_v1.schema.json";
-import studioEventSchema from "../../../../schemas/atlas_studio_event_v1.schema.json";
-import controlViewSchema from "../../../../schemas/atlas_global_control_view_v1.schema.json";
-import telemetrySchema from "../../../../schemas/atlas_coordination_telemetry_v1.schema.json";
-import efficiencyMetricsSchema from "../../../../schemas/atlas_efficiency_metrics_v1.schema.json";
+import type { ValidateFunction } from "ajv";
+import {
+  validateMissionControl, validateStudioSnapshot, validateStudioEvent,
+  validateControlView, validateTelemetry, validateEfficiencyMetrics,
+} from "virtual:atlas-projection-validators";
 import type {
   FreshnessState,
   MissionControlProjection,
@@ -15,14 +13,6 @@ export { unavailableEnvelope } from "./unavailable";
 
 export const BRIDGE_URL =
   import.meta.env.VITE_ATLAS_STUDIO_BRIDGE_URL ?? "http://127.0.0.1:47631/v1/mission-control";
-
-const ajv = new Ajv2020({ allErrors: true, strict: false });
-const validateMissionControl = ajv.compile(missionControlSchema);
-const validateStudioSnapshot = ajv.compile(studioSnapshotSchema);
-const validateStudioEvent = ajv.compile(studioEventSchema);
-const validateControlView = ajv.compile(controlViewSchema);
-const validateTelemetry = ajv.compile(telemetrySchema);
-const validateEfficiencyMetrics = ajv.compile(efficiencyMetricsSchema);
 
 const ATTENTION_AUTHORITY_KEYS = [
   "authorized",

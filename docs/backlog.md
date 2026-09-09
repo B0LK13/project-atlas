@@ -841,3 +841,6 @@ Honesty: `PREP != IMPLEMENTED` · `STUDIO_UI != AUTHORITY` ·
 - [ ] AS-STUDIO-A6 Research/design workflow
 - [ ] AS-STUDIO-A7 Evals / Observatory / Improvement Plane UX
 - [ ] AS-STUDIO-A8 Autonomous workstation gate
+
+- [x] D-006 Atlas Studio native CSP fix, ordinary desktop projection/error/recovery and bounded Debian install/window/uninstall evidence (see `docs/atlas-3/studio/desktop/RECOVERY-006.md`).
+- [ ] D-006 close canonical documentation receipt and remaining visual/installed functional acceptance before review readiness.

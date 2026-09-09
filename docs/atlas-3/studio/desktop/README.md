@@ -1,7 +1,7 @@
 # Atlas Studio desktop recovery candidate
 
-This is a read-only desktop review candidate. The live browser experience is validated; native Linux acceptance and canonical documentation synchronization remain incomplete. See
-[latest recovery](RECOVERY-005.md) for exact upstream observations and acceptance gaps.
+This is a read-only desktop review candidate. The live browser experience is validated; native launch and bounded Debian lifecycle are validated in D-006; canonical documentation synchronization remains incomplete. See
+[latest recovery](RECOVERY-006.md) for exact upstream observations and acceptance gaps.
 
 ## Linux development
 

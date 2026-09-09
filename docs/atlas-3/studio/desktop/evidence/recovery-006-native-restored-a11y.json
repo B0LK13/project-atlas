@@ -1,0 +1,761 @@
+[
+  {
+    "depth": 0,
+    "role": "application",
+    "name": "atlas-studio",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 1,
+    "role": "frame",
+    "name": "Atlas Studio",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 2,
+    "role": "panel",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 3,
+    "role": "panel",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 4,
+    "role": "filler",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 5,
+    "role": "separator",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 5,
+    "role": "button",
+    "name": "Minimize",
+    "text": "",
+    "actions": [
+      "click"
+    ]
+  },
+  {
+    "depth": 5,
+    "role": "button",
+    "name": "Maximize",
+    "text": "",
+    "actions": [
+      "click"
+    ]
+  },
+  {
+    "depth": 5,
+    "role": "button",
+    "name": "Close",
+    "text": "",
+    "actions": [
+      "click"
+    ]
+  },
+  {
+    "depth": 4,
+    "role": "filler",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 5,
+    "role": "label",
+    "name": "Atlas Studio",
+    "text": "Atlas Studio",
+    "actions": []
+  },
+  {
+    "depth": 5,
+    "role": "label",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 2,
+    "role": "filler",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 3,
+    "role": "filler",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 4,
+    "role": "filler",
+    "name": "",
+    "text": "",
+    "actions": []
+  },
+  {
+    "depth": 5,
+    "role": "scroll pane",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 6,
+    "role": "document web",
+    "name": "Atlas Studio",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 7,
+    "role": "link",
+    "name": "Skip to project view",
+    "text": "Skip to project view",
+    "actions": [
+      "jump"
+    ]
+  },
+  {
+    "depth": 7,
+    "role": "landmark",
+    "name": "Atlas Studio navigation",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "unknown",
+    "name": "",
+    "text": "ATLAS",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "button",
+    "name": "A/01\nProject workspace B0LK13/project-atlas",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "landmark",
+    "name": "primary navigation",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "COMMAND",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Mission Control",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Projects",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Agents",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "landmark",
+    "name": "project navigation",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "PROJECT PLANE",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "DAG / Work Graph",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Repository",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "CI & Verification",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Knowledge",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Chronicle",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "landmark",
+    "name": "system navigation",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "STUDIO",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Design Lab",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "button",
+    "name": "Environment",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "unknown",
+    "name": "",
+    "text": "READ-ONLY LANE",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "section",
+    "name": "",
+    "text": "Studio grants no mutation",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 7,
+    "role": "landmark",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "button",
+    "name": "Navigate Studio screens\u2026 K",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "button",
+    "name": "Refresh read-only projection",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "button",
+    "name": "Density focus; switch density",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "button",
+    "name": "Theme dark; switch theme",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "button",
+    "name": "Inspect projection attention",
+    "text": "",
+    "actions": [
+      "press"
+    ]
+  },
+  {
+    "depth": 7,
+    "role": "status bar",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "unknown",
+    "name": "",
+    "text": "CURRENT READ-ONLY PROJECTION \u00b7 LOCAL AGE CHECK",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 7,
+    "role": "landmark",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "header",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "Atlas / Engineering workstation",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "heading",
+    "name": "Repository",
+    "text": "Repository",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "unknown",
+    "name": "",
+    "text": "LIVE \u00b7 Source status: HUMAN_ATTENTION_REQUIRED",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "header",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "ATTENTION \u2260 AUTHORIZATION",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "heading",
+    "name": "Attention",
+    "text": "Attention",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "article",
+    "name": "External IV gated / unbound",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "heading",
+    "name": "External IV gated / unbound",
+    "text": "External IV gated / unbound",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "Verifier pool unbound or absent (EXTERNAL_IV_GATED).",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "unknown",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 10,
+    "role": "unknown",
+    "name": "Source classification",
+    "text": "\ufffcSource classification",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "article",
+    "name": "Waiting on IV (55)",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "heading",
+    "name": "Waiting on IV (55)",
+    "text": "Waiting on IV (55)",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "dispatch_gates.waiting_iv",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "unknown",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 10,
+    "role": "unknown",
+    "name": "Source classification",
+    "text": "\ufffcSource classification",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "article",
+    "name": "Waiting on CI (10)",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "heading",
+    "name": "Waiting on CI (10)",
+    "text": "Waiting on CI (10)",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "dispatch_gates.waiting_ci",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "unknown",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 10,
+    "role": "unknown",
+    "name": "Source classification",
+    "text": "\ufffcSource classification",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "unknown",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "unknown",
+    "name": "Inspect 5 more attention items",
+    "text": "\ufffcInspect 5 more attention items",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "header",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "paragraph",
+    "name": "",
+    "text": "OK",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "heading",
+    "name": "Stacks",
+    "text": "Stacks",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "description list",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "description term",
+    "name": "",
+    "text": "max depth",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "description value",
+    "name": "",
+    "text": "21",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "description term",
+    "name": "",
+    "text": "restack required count",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "description value",
+    "name": "",
+    "text": "0",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "description term",
+    "name": "",
+    "text": "stack record count",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "description value",
+    "name": "",
+    "text": "55",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "unknown",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "unknown",
+    "name": "Source notes",
+    "text": "\ufffcSource notes",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 8,
+    "role": "unknown",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 9,
+    "role": "unknown",
+    "name": "Projection provenance",
+    "text": "\ufffcProjection provenance",
+    "actions": [
+      ""
+    ]
+  },
+  {
+    "depth": 6,
+    "role": "scroll bar",
+    "name": "",
+    "text": "",
+    "actions": [
+      ""
+    ]
+  }
+]

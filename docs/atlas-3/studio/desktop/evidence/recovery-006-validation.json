@@ -1,0 +1,60 @@
+{
+  "authority": {
+    "A2_IMPLEMENTATION": "NOT_PERFORMED",
+    "MERGE": "NOT_PERFORMED",
+    "SELF_IV": "NOT_CLAIMED"
+  },
+  "base": "028157e25f74ecea5da5b6ee407a7a866124f4b5",
+  "directive": "D-CODEX-ATLAS-STUDIO-FINAL-DELIVERY-GATES-006",
+  "evidence_sha256": {
+    "recovery-006-installed-a11y.json": "bd7c8103cc89441954836e5df0c9e360162619bc4224b5ff109a28ce460dbf41",
+    "recovery-006-installed-native.png": "1bffb9e34d5ab9c0212d9f7c6b60e26cd4f8399085843a49ea7f3ab96a4120b4",
+    "recovery-006-native-error-a11y.json": "78d4a1c2fdefdec49f24c105bce50eafad676ef580a58b1dee03b109e5728bf8",
+    "recovery-006-native-mission-a11y.json": "c83e43c2f6d36c68d7e04215222c5ffd73f33b5ed18ad64b11a64a53df71a8c0",
+    "recovery-006-native-restored-a11y.json": "8727d38c291f9a258c0d3b61dbd4e9776b6f3a5de7763557a8c9c6bbfeb933a2"
+  },
+  "native": {
+    "bridge_failure": "BRIDGE DISCONNECTED; old active agent data absent",
+    "bridge_recovery": "CURRENT READ-ONLY PROJECTION returned",
+    "build_exit": 0,
+    "environment": "Ubuntu26.04.1 Wayland; GLib2.88.0 GTK3.24.52 WebKit2.52.6; Rust1.98.1",
+    "launch": "ordinary desktop session, no sandbox-disabling flags",
+    "navigation": "AT-SPI activation of Mission Control and inspection of real WebKit contents",
+    "real_values": {
+      "active_agents": 1,
+      "waiting_ci": 9,
+      "waiting_iv": 54
+    },
+    "screenshot": "actual installed WebKit under Xvfb, inspected; ordinary Wayland foreground capture unavailable"
+  },
+  "package": {
+    "creation": "PASS",
+    "format": "deb",
+    "installation": "PASS in rootless Podman Ubuntu26.04",
+    "installed_launch": "non-root process and 1440x900 window under Xvfb; default sandbox; not full functional acceptance",
+    "installed_render": "BRIDGE DISCONNECTED and Projection Unavailable verified via AT-SPI; screenshot inspected; no fixture fallback",
+    "lifecycle_exit": 0,
+    "second_uninstall": "PASS after installed rendering check",
+    "sha256": "361b0b684e1a600b38aeedd23a15a4db6a9805893db0587ca142a47664028a19",
+    "uninstall": "PASS; /usr/bin/atlas-studio absent",
+    "version": "0.1.0"
+  },
+  "predecessor_head": "4bd31652acbbc90a778a4a0980a5c5086af91883",
+  "source_sha256": {
+    "apps/studio/e2e/native-csp.spec.ts": "6c23e61c7ca705b413a09c06fc0b5b13ef0ac0e13816389f4335741ee18d23dd",
+    "apps/studio/package-lock.json": "15057a4463ac85ef0c8df4fc64ec13df650e113e265b4b7bfcffd613ec908bcb",
+    "apps/studio/package.json": "802ba7765111f88e2fb3fcea57a140a4bc94793888fd5612c00614af09a22e09",
+    "apps/studio/src-tauri/capabilities/default.json": "2c90d5604e6db85cb2f8b4f4a0c590ba082f3daf0c9c59b984bba74b37170594",
+    "apps/studio/src-tauri/tauri.conf.json": "ce36e4b1c5476cadbd2f06ab9a249d4ad242dea46a7b0dec2b6cfe04ce65cf46",
+    "apps/studio/src/data/adapter.ts": "40a2ddbafaf23134587071796b80c4dde1200c491668d5a2f96bc29807cd1fa7",
+    "apps/studio/src/vite-env.d.ts": "edc23478a012ff8ebeca9afc8a3cb25056c37ec7ba587542c1eab000c8b35f8d",
+    "apps/studio/vite.config.ts": "a546b0d50aecafb12581045b9b6c35ebda32f48d54d103019a2c6775d9feaf05"
+  },
+  "validation": {
+    "browser": "17 passed in28.6s including native CSP and real A1; no skipped tests",
+    "documentation": "no receipt; provider credentials unavailable",
+    "focused_python": "19 passed",
+    "frontend": "36 passed; typecheck and production build pass",
+    "review": "no material finding; schema watch improvement applied; not IV"
+  }
+}
