@@ -14544,7 +14544,11 @@ emit malformed markers. False, and verification challenged it. Nothing in the
 render path escapes marker text -- `_redact_text` strips secrets and truncates
 but never touches HTML comments -- so a relationship field holding HUMAN marker
 text reaches the render verbatim; `source_entity_id`, `target_entity_id`,
-`relationship_type` and `relationship_id` all carry it.
+`relationship_type`, `relationship_id` and
+`provenance.graphify_artifact_refs[].relative_path` all carry it. **An earlier
+revision of this paragraph named only the first four.** The fifth is the one
+that bypasses `_redact_text` entirely; the correction was made in the receipt
+at `3b22f6d4` and did not reach this copy until the seal.
 
 The precondition neither my claim nor verification's stated: the prior note must
 have **no HUMAN regions**, which is the branch that splices by hand. An operator
@@ -14577,3 +14581,213 @@ surfaces agree in all directions -- they deliberately do not. Nor that
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F10 -- POST-MERGE SEAL (`06362807`)
+
+Integrated as PR #753 and sealed on the merge object. Merged **unrebased at the
+verified object**: merge commit `06362807`, first parent `a7adce4e`, second
+parent `3b22f6d4`, merge tree `1b11d3a0` **hash-identical to the PR head tree**,
+`git diff 3b22f6d4 06362807` empty, component trees `src 8ec29893`,
+`tests 6aa392e7`, `docs f81c9855`.
+
+That tree identity is the load-bearing fact rather than a formality: it means
+the exact-head CI which ran on `3b22f6d4` -- all four jobs green, both review
+threads resolved -- tested byte-for-byte what is now on `main`. There is no gap
+between the verified object and the merged one to argue about.
+
+**Re-measured on the merge object rather than carried forward.** The
+differential sweep, varying both sides of the merge, at three depths:
+
+    depth 2:     625 pairs   fail-open 0   disclosed (F4 contract)  2
+    depth 3:  15,625 pairs   fail-open 0   disclosed               12
+    depth 4: 390,625 pairs   fail-open 0   disclosed               42
+    total:   406,875 pairs   fail-open 0
+
+The disclosed direction -- canonical accepts, graph refuses -- is still present
+and grows with depth, so the corpus has not gone inert while reporting zero.
+
+**The sweep still bites.** With the fix removed from the merge object the same
+corpus at the same depths reports 1 / 3 / 54 fail-open, and the F10 suite drops
+from 7 passed to 4 failed: `crossed-a-b`, `reversed-end-before-begin`,
+`a_poisoned_field_cannot_brick_the_projection`, and
+`no_fail_open_divergence_across_a_differential_sweep`. The mutation was applied
+under a sha256 assertion that it changed the file and the source restored
+byte-identical (`1d9c0f84` before and after).
+
+Gates on `06362807`: F10 suite 7 passed; freeze guard and lifecycle sweep 81
+passed; full suite 5,733 passed, 8 skipped, 4 xfailed; `ruff check .` clean; `mypy src` clean (405 files).
+
+**What this seal does not claim.** Not that upstream reachability is
+established -- a live corruption path is demonstrated at the render and write
+layers, but whether a full `discover -> ingest -> graphify` run with
+attacker-controlled sources can plant such a field value is not shown. Not that
+the two surfaces agree in all directions; they deliberately do not, and F4's
+disclosed contract is asserted so it is not removed while "fixing the asymmetry"
+wholesale. Not that `ingestion.py` is covered: a third writer, owner-gated
+behind a frozen surface needing an owner-approved sha256-pinned exception under
+`docs/atlas-3/ARCHITECTURE.md` §9.1.
+
+**The pattern this package repeats, worth recording because it is now the rule
+rather than the exception in this lane: the code held from the first
+reproduction; every blocking finding was in the claim record.** Three
+corrections were needed before it could be sealed. The blast radius was
+understated -- an earlier revision called the defect defence in depth needing a
+broken renderer, and reproduction proved a durable denial-of-refresh instead.
+That retraction then reached the WORKLOG, the backlog and the receipt's Blast
+radius section but NOT the test module's docstring or the receipt's own `What is
+not claimed` list, whose first bullet still asserted the retracted claim in the
+conclusion a reader reaches last -- corrected-in-some-copies-not-all, on the
+central claim of a package whose subject is claim honesty. And a count was wrong
+by one: four propagating relationship fields named, five real, the fifth
+(`provenance.graphify_artifact_refs[].relative_path`) being the one that
+bypasses `_redact_text` entirely.
+
+A fourth, on the code side and equally instructive: the first version of the
+no-write test bound `before = NO_HUMAN_PRIOR` and asserted
+`before == NO_HUMAN_PRIOR` -- two names for one immutable `str`. Both review bots
+and verification caught it independently. It was the third tautological
+assertion in this lane and the second written after the lesson was recorded.
+Replaced by the end-to-end reproduction, which fails without the fix.
+
+**On editing this file in place.** The paragraph above was corrected in place
+rather than by appending a note beneath it. `WORKLOG.md:10947` describes a prior
+correction as made "rather than edited in place, per this file's own append-only
+convention", so that choice needs reconciling rather than silently contradicting.
+
+Measured on `origin/main`: of the last 38 commits touching `WORKLOG.md`, **26**
+delete lines, and the window is dense with in-place corrections of exactly this
+kind -- `f11d89ec` "bring WORKLOG to parity, after committing the fix to one copy
+only", `7b1763e0` "correct a wrong figure, a misleading message, and my own
+ledger damage", `9b2dba97` "correct the provenance claim". So the convention as
+stated at 10947 is not what this file's history shows; append-only is the
+practice for *new* entries, not for a sentence that is simply false. Appending a
+contradiction beneath a false claim leaves both on the page, which is the defect
+this seal exists to record.
+
+An earlier revision of this package cited **9** of 38 rather than 26, and
+asserted it over verification's correct figure. The cause is worth recording
+because it is a measurement-environment error, not arithmetic: the count was run
+in a worktree parked on an old branch, so it measured commits from 2026-08-31 to
+09-05 instead of 09-08 to 09-09, and the two precedent commits it cited
+(`9c146a31`, `ef5420f9`) sit at positions 76 and 78 in this file's history --
+outside any 38-commit window on `main`. Same class as trusting a subprocess to
+resolve the tree you think you are testing.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F10-REFUSAL-PARITY.md`,
+post-merge seal section.
+
+## AS-OBSIDIAN-CAPTURE-001-F11 -- the mkdir failure site in each writer
+
+F6 closed the error boundary for two ways an atomic note write can fail: the read
+of the prior note, and `os.replace`. Creating the note's parent directory was
+left outside the guard in **both** writers, so a blocked or unwritable parent
+escaped as a raw `OSError` past `ObsidianProjectionError` /
+`GraphProjectionError`. A caller catching only the domain error did not catch it
+at all -- the defect F6 exists to prevent, one step earlier in the same function.
+
+Reproduced on `a7adce4e` and again on current `main`, by a plain file where a
+path component must be a directory:
+
+    obsidian_projection._write_atomic  ->  NotADirectoryError escaped raw
+    graph_projections._promote         ->  NotADirectoryError escaped raw
+
+**Both sites were already recorded; an earlier revision claimed otherwise and it
+is retracted.** F6's residual register names the second one explicitly -- "an
+ancestor directory replaced by a file" escaping the unguarded `_promote` -- 13
+lines above the bullet this package quoted. The fix is new; the finding was not.
+
+Six lines of code replace one in each writer (`+11/-1` and `+10/-1` with
+comments), raising the module's own error type and naming the **directory**,
+which is what the operator must act on: `unwritable-note-directory:<Type>:<path>`.
+
+**The P0 this package paid for.** Two tests asserted the literal string
+`"NotADirectoryError"`. Windows raises `FileExistsError` for the same fixture and
+CI went red; on Linux alone the class depends on shape (ancestor file -> ENOTDIR
+20, immediate parent file -> EEXIST 17), so the assertion was platform- AND
+shape-coupled from the start. Fixed by **measuring**: a helper performs the same
+`mkdir`, catches the `OSError`, and the test asserts the guard names THAT class.
+Portable and strictly stronger -- a guard reporting a generic `OSError` now fails,
+which the hard-coded string could not detect. Under a plugin simulating the
+Windows class: new assertion 5 passed, old assertion 2 failed / 3 passed. Windows
+CI is green at `83a3d7a3` and again at `217e93eb`, 5,682 passed at both -- the same
+count, as a docs-only delta over an identical `tests/` tree must produce. The
+SHAs are named because the ledger outlives the PR.
+
+**A justification that was exactly backwards.** The docstring claimed a
+`pytest.raises` test "would pass on a writer that raised nothing at all", and
+used that to prefer a `try/except OSError`. `pytest.raises` fails with DID NOT
+RAISE and re-raises non-matching exceptions, so it rejects both failure modes.
+Demonstrated with a mutant that swallows the `mkdir` failure and raises nothing:
+the old form 1 passed, the new form 1 failed. That test was also redundant with
+the two above it, on the same fixture; it now runs a second, materially different
+blocked shape, so containment is not pinned to one errno.
+
+**Controls** -- each mutation under a sha256 assertion that it changed the file,
+restored with `git restore --source=HEAD --staged --worktree` under a porcelain
+emptiness assertion, sources byte-identical afterwards:
+
+    baseline                                     5 passed
+    projection guard removed                     3 failed
+    graph guard removed                          3 failed
+    both guards swallow and raise nothing        4 failed, 1 passed
+    guard reports a generic OSError              3 failed
+    fixture made inert (one fixture)             3 failed, 2 passed
+    fixture made inert (both fixtures)           4 failed, 1 passed
+    restored                                     5 passed
+
+Read the 3/3 rows honestly: each is carried by ONE guard-specific test, the other
+two being shared tests that detect either guard's absence. Judged on name sets --
+`A\B = {projection_mkdir}`, `B\A = {graph_mkdir}` -- neither contains the other,
+so both guards ARE independently load-bearing, with one independent witness each,
+not three. The two inert-fixture rows differ because making only `_blocked_parent`
+inert leaves the second shape live; both are recorded rather than picking the
+larger.
+
+**Reachability, corrected downward.** An earlier revision said the failure
+"surfaces today as an unhandled traceback rather than an Atlas diagnostic". Not
+true at either production surface: `cli.py:4264` catches `(ObsidianProjectionError,
+OSError, ValueError)`, `connect.py:786` catches `(OSError, ValueError, KeyError,
+TypeError)`, and both already contained the raw error on base. Only
+`demo_readiness.py:162`, an internal harness, is unguarded. What this buys is
+precision and type-correctness at the boundary, not traceback-vs-diagnostic.
+Weaker still on the graph side: `graph_projections.write_projection_outputs` has
+**no caller anywhere in `src/`** -- seven test modules only -- so that half is not
+reachable from any Atlas command today.
+
+**Not a policy change**, verified independently rather than argued: 67 legitimate
+scenarios at the previous head and 57 re-instrumented at this one, with
+tree-level manifests compared by path and sha256 and zero differing scenarios;
+plus 960 concurrent writes into a shared not-yet-existing tree with zero errors
+on base and head alike. The 67 is attributed rather than cited: it is not
+reproducible from anything in this repository.
+`Path.mkdir(parents=True, exist_ok=True)` is race-safe and the guard is purely
+additive.
+
+**What it does NOT close.** F6's register named THREE raw `_promote` escapes; this
+closes one. The other two remain raw, reproduced with line attribution **at this head** --
+the same sites sit at 603/605/609 on `ef628223` and 605/607/611 on current `main`
+(`e4dd17bc`), so a line number without its object is not a fact. Issue #757 names
+`main` and therefore needs 605/607/611, not these:
+
+    read-only output directory   PermissionError  graph_projections.py:620
+    existing target unreadable   PermissionError  graph_projections.py:616
+    ENAMETOOLONG filename        OSError          graph_projections.py:614
+
+The third is not in the register. Filed as **#757** so they are explicitly owned;
+deliberately not folded in, being different sites with different failure modes.
+The same three sites are at 603/605/609 on `ef628223`, at 605/607/611 on current
+`main` (`e4dd17bc`), and at 614/616/620 here. An earlier revision cited the first
+set and called it `main`; a first correction cited this set and called it the
+merged base. Both were wrong about the OBJECT rather than the arithmetic, which
+is the lesson worth keeping: a line number without its object is not a fact.
+Issue #757 names `main` and therefore needs 605/607/611, not these.
+
+**Not claimed:** that every `OSError` in these modules is contained (the mkdir
+site only); that the F6 property holds "at all three sites", as an earlier
+docstring said; that `ingestion.py` is covered (a third writer, owner-gated behind
+a frozen surface needing an owner-approved sha256-pinned exception under
+`docs/atlas-3/ARCHITECTURE.md` §9.1); or that anything is verified on Windows
+beyond CI -- junctions, ACL-denied components and case-insensitive filesystems
+are untested.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F11-MKDIR-BOUNDARY.md`.
