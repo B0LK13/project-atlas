@@ -37,6 +37,7 @@ STALE_INTENT = "STALE_INTENT"
 ALREADY_DECIDED = "ALREADY_DECIDED"
 DUPLICATE_SUBMIT_RISK = "DUPLICATE_SUBMIT_RISK"
 INTERRUPTED_UNCERTAIN = "INTERRUPTED_UNCERTAIN"
+MISMATCHED_BINDING = "MISMATCHED_BINDING"
 MISSING = "MISSING"
 MALFORMED = "MALFORMED"
 
@@ -173,6 +174,22 @@ def build_recovery(state: str, *, intent_id: str | None) -> dict[str, Any]:
                 "summary": "Do not auto-retry; duplicate effects risk",
             }
         )
+    elif state == MISMATCHED_BINDING:
+        actions.append(
+            {
+                "id": "reject_cross_mission_attach",
+                "summary": (
+                    "Decision/evidence intent_id does not match intent — do not treat as "
+                    "this mission's outcome; do not re-execute"
+                ),
+            }
+        )
+        actions.append(
+            {
+                "id": "locate_correct_records",
+                "summary": "Locate matching intent_id records or mint a fresh intent for this lane",
+            }
+        )
 
     return {"actions": actions, "auto_retry": False, "notes": notes}
 
@@ -198,6 +215,16 @@ def classify_continuity(
     decision = prior_decision
     if decision is None and isinstance(prior_evidence, dict):
         decision = prior_evidence.get("decision")
+
+    if isinstance(decision, dict) and decision.get("intent_id") not in (None, intent_id):
+        return MISMATCHED_BINDING
+    if isinstance(prior_evidence, dict):
+        ev_decision = prior_evidence.get("decision")
+        if isinstance(ev_decision, dict) and ev_decision.get("intent_id") not in (
+            None,
+            intent_id,
+        ):
+            return MISMATCHED_BINDING
 
     if isinstance(decision, dict) and decision.get("intent_id") == intent_id:
         outcome = classify_decision(decision)

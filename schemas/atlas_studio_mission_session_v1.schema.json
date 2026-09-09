@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_MISSION_SESSION_V1",
+  "description": "AS-STUDIO-A2-006 coherent mission session continuity packet. Composes journey + continuity + evidence. SESSION!=AUTHORITY; AUTO_RETRY=FORBIDDEN; TASK_CONTEXT may be UNAVAILABLE.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "session_state",
+    "binding",
+    "lifecycle",
+    "recovery",
+    "resume",
+    "honesty",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {"const": "ATLAS_STUDIO_MISSION_SESSION_V1"},
+    "generated_at_utc": {"type": "string"},
+    "session_state": {
+      "type": "string",
+      "enum": [
+        "READY_TO_EVALUATE",
+        "PENDING_EXECUTE",
+        "CONFIRMED_SUCCESS",
+        "REFUSED",
+        "FAILED_UNCERTAIN",
+        "STALE_INTENT",
+        "MISMATCHED_BINDING",
+        "DECISION_MISSING",
+        "EVIDENCE_UNAVAILABLE",
+        "PERSISTENCE_FAILED_SIGNAL",
+        "INCOMPLETE",
+        "UNAVAILABLE"
+      ]
+    },
+    "binding": {"type": "object"},
+    "lifecycle": {"type": "object"},
+    "dependencies": {"type": "object"},
+    "recovery": {
+      "type": "object",
+      "required": ["actions", "auto_retry"],
+      "properties": {
+        "actions": {"type": "array"},
+        "auto_retry": {"type": "boolean"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "resume": {"type": "object"},
+    "honesty": {"type": "object"},
+    "provenance": {"type": "object"}
+  }
+}

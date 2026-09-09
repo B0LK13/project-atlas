@@ -25,6 +25,7 @@
         "ALREADY_DECIDED",
         "DUPLICATE_SUBMIT_RISK",
         "INTERRUPTED_UNCERTAIN",
+        "MISMATCHED_BINDING",
         "MISSING",
         "MALFORMED"
       ]

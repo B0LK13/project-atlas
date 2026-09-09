@@ -14840,3 +14840,16 @@ Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT` (same lane as A2-004)
 - CI exact-head: run **34390223409** SUCCESS
 - Durable handoff: `docs/atlas-3/studio/a2-004/iv/A2-004-005-FORMAL-IV-HANDOFF-4904125f.md`
 - `FORMAL_IV != MERGE_AUTHORIZATION`; later tip commits not auto-covered
+
+## AS-STUDIO-A2-006 — Mission Session Continuity (2026-09-09)
+
+Goal: `ATLAS-STUDIO-MISSION-CONTINUITY-AND-RECOVERY-001`
+
+- Closed #788 validation cycle: Formal IV PASS scoped to `4904125f`; tip CI
+  `34393171693` SUCCESS on freeze `10df59fb`; executable post-IV delta documented.
+- Branched `feat/as-studio-a2-006-mission-session` from freeze (non-moving target).
+- Implemented `ATLAS_STUDIO_MISSION_SESSION_V1` + CLI `mission-session`.
+- Binding: mismatched intent_id / repository → MISMATCHED_BINDING.
+- Persistence failure after mutation → claim-execute exit 3 + session flag.
+- Cross-process resume test; task-context dependency explicit UNAVAILABLE.
+- Studio suite: 126 passed. Formal IV = NOT_STARTED. MERGE not granted.

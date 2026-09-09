@@ -428,11 +428,25 @@ def build_mission_journey(
                     "AUTHORIZATION=NOT_GRANTED_BY_THIS_PACKET",
                 ],
             },
+            "mission_session": {
+                "command": (
+                    "atlas-studio mission-session --intent-file <intent.json> "
+                    "[--decision-file <decision.json>] [--json]"
+                ),
+                "package": "AS-STUDIO-A2-006",
+                "auto_retry": False,
+                "notes": [
+                    "SESSION!=AUTHORITY",
+                    "composes continuity+evidence for cross-process resume",
+                    "AUTO_RETRY=FORBIDDEN",
+                ],
+            },
             "notes": [
                 "PREVIEW!=EXECUTION",
                 "AVAILABLE!=AUTHORIZED",
                 "use claim-evaluate/claim-execute for gated mutation",
                 "use action-evidence after evaluate/execute to monitor/recover",
+                "use mission-session to resume after interrupt without re-execute",
             ],
         },
         "honesty": honesty_block(),
