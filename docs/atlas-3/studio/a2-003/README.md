@@ -48,6 +48,14 @@ atlas-studio task-context --lane pr/786 --agent A --repo O/N --json > ctx.json  
 atlas-studio task-context --verify-continuation ctx.json --agent A --repo O/N    # import + verify
 ```
 
+**Identity decides the verdict; snapshot drift is advisory.** Lane, repository,
+head, ownership and owner changes mean the recorded evidence no longer describes
+the world. Fingerprints and CI status move on every rebuild as the estate
+advances, so they are reported as `advisory_changes` with guidance to re-mint
+intents (a stale fingerprint is refused as `REFUSED_STALE` at claim time) — this
+was found live, where two consecutive exports of an unchanged lane already
+differed in both fingerprints.
+
 Verdict `ATLAS_STUDIO_CONTINUATION_VERDICT_V1`: `STILL_VALID` (exit 0),
 `INVALIDATED` (exit 1, with the changed fields listed), or `UNVERIFIABLE`
 (exit 1) when the packet is unreadable, schema-invalid, or the lane could not

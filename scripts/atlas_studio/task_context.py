@@ -677,6 +677,18 @@ def _recorded_marks(packet: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _verdict_guidance(verdict: str, advisory: list[dict[str, Any]]) -> str:
+    if verdict != STILL_VALID:
+        return "Rebuild task context before acting; do not replay recorded evidence."
+    if advisory:
+        return (
+            "Lane identity is unchanged, so the recorded evidence still describes this "
+            "lane; the estate snapshot moved on, so re-mint any intent from fresh "
+            "Mission Control or it will be refused as REFUSED_STALE. Context, not permission."
+        )
+    return "Recorded evidence still describes current truth; it is context, not permission."
+
+
 def verify_continuation(
     recorded: Any,
     current: dict[str, Any] | None,
@@ -696,6 +708,7 @@ def verify_continuation(
             "verdict": UNVERIFIABLE,
             "reasons": ["RECORDED_NOT_OBJECT"],
             "changes": [],
+            "advisory_changes": [],
             "recorded": {},
             "current": {},
             "authorization": "NOT_GRANTED_BY_THIS_PACKET",
@@ -709,6 +722,7 @@ def verify_continuation(
             "verdict": UNVERIFIABLE,
             "reasons": ["RECORDED_SCHEMA_INVALID", *schema_errors[:3]],
             "changes": [],
+            "advisory_changes": [],
             "recorded": _recorded_marks(recorded),
             "current": {},
             "authorization": "NOT_GRANTED_BY_THIS_PACKET",
@@ -722,6 +736,7 @@ def verify_continuation(
             "verdict": UNVERIFIABLE,
             "reasons": ["CURRENT_TRUTH_UNAVAILABLE"],
             "changes": [],
+            "advisory_changes": [],
             "recorded": rec,
             "current": {},
             "authorization": "NOT_GRANTED_BY_THIS_PACKET",
@@ -729,46 +744,41 @@ def verify_continuation(
             "verified_at_utc": now,
         }
     cur = _recorded_marks(current)
-    changes: list[dict[str, Any]] = []
-    unverifiable: list[str] = []
-    for field, code in (
+    # Identity decides the verdict: those fields change what a resuming session
+    # may do. Snapshot fields (fingerprints, CI) move on every rebuild as the
+    # estate advances — found live, two consecutive exports of an unchanged lane
+    # differed in both fingerprints, so treating drift as INVALIDATED made even a
+    # freshly exported packet invalid. Drift is advisory instead.
+    identity_fields = (
         ("lane", "LANE_MISMATCH"),
         ("repository", "REPOSITORY_MISMATCH"),
         ("lane_head", "LANE_HEAD_MOVED"),
         ("ownership", "OWNERSHIP_CHANGED"),
         ("owner", "OWNER_CHANGED"),
+    )
+    advisory_fields = (
         ("ci_status", "CI_STATUS_CHANGED"),
         ("mission_control", "MISSION_CONTROL_FINGERPRINT_CHANGED"),
         ("frontier", "FRONTIER_FINGERPRINT_CHANGED"),
-    ):
-        before, after = rec.get(field), cur.get(field)
-        if before != after:
-            # A None -> value transition is a real change (UNOWNED -> OWNED by
-            # someone), not an unobservable one; report it rather than drop it.
-            changes.append({"field": field, "code": code, "recorded": before, "current": after})
+    )
+    changes: list[dict[str, Any]] = []
+    advisory: list[dict[str, Any]] = []
+    unverifiable: list[str] = []
+    for bucket, fields in ((changes, identity_fields), (advisory, advisory_fields)):
+        for field, code in fields:
+            before, after = rec.get(field), cur.get(field)
+            if before != after:
+                # A None -> value transition is a real change (UNOWNED -> OWNED
+                # by someone), not an unobservable one; report it, never drop it.
+                bucket.append({"field": field, "code": code, "recorded": before, "current": after})
     # Unobservable is separate from changed: if the lane could not be resolved on
     # either side, say so instead of implying the comparison was complete.
     for side, packet in (("recorded", recorded), ("current", current)):
         if ((packet.get("lane_state") or {}).get("status")) != KNOWN:
             unverifiable.append(f"LANE_STATE_UNKNOWN:{side}")
-    blocking = [
-        c
-        for c in changes
-        if c["code"]
-        in {
-            "LANE_MISMATCH",
-            "REPOSITORY_MISMATCH",
-            "LANE_HEAD_MOVED",
-            "OWNERSHIP_CHANGED",
-            "OWNER_CHANGED",
-        }
-    ]
     if changes:
-        # Blocking codes first so the most decisive reason reads first.
-        ordered = [c["code"] for c in blocking] + [
-            c["code"] for c in changes if c not in blocking
-        ]
-        verdict, reasons = INVALIDATED, ordered + sorted(set(unverifiable))
+        verdict = INVALIDATED
+        reasons = [c["code"] for c in changes] + sorted(set(unverifiable))
     elif unverifiable:
         verdict, reasons = UNVERIFIABLE, sorted(set(unverifiable))
     else:
@@ -778,13 +788,10 @@ def verify_continuation(
         "verdict": verdict,
         "reasons": reasons,
         "changes": changes,
+        "advisory_changes": advisory,
         "recorded": rec,
         "current": cur,
-        "guidance": (
-            "Recorded evidence still describes current truth; it is context, not permission."
-            if verdict == STILL_VALID
-            else "Rebuild task context before acting; do not replay recorded evidence."
-        ),
+        "guidance": _verdict_guidance(verdict, advisory),
         "authorization": "NOT_GRANTED_BY_THIS_PACKET",
         "honesty": honesty_block() | {"imported_context_ne_permission": True},
         "verified_at_utc": now,

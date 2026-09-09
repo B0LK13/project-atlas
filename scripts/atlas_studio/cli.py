@@ -284,6 +284,8 @@ def cmd_task_context(args: argparse.Namespace) -> int:
                     print(
                         f"  changed {change['field']}: {change['recorded']} -> {change['current']}"
                     )
+                for change in verdict.get("advisory_changes") or []:
+                    print(f"  advisory {change['field']}: moved on since the packet")
                 for reason in verdict["reasons"]:
                     print(f"  reason: {reason}")
                 print(f"  {verdict.get('guidance')}")

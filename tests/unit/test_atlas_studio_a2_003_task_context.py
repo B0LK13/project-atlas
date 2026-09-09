@@ -746,13 +746,33 @@ def test_ownership_change_invalidates():
     assert {"OWNERSHIP_CHANGED", "OWNER_CHANGED"} <= set(v["reasons"])
 
 
-def test_fingerprint_drift_invalidates():
+def test_fingerprint_drift_is_advisory_not_invalidating():
+    """The estate snapshot moves constantly; identity is what decides the verdict.
+
+    Found live: two consecutive exports of the same unchanged lane differed in
+    both fingerprints, so treating drift as INVALIDATED made every freshly
+    exported packet invalid.
+    """
     rec = _packet()
     matrix = _matrix([_claim_action()])
     matrix["frontier_fingerprint"] = _fp("moved-on")
     v = tc.verify_continuation(rec, _packet(frontier_matrix=matrix), clock=clock)
+    assert v["verdict"] == tc.STILL_VALID
+    assert v["changes"] == []
+    codes = {c["code"] for c in v["advisory_changes"]}
+    assert "FRONTIER_FINGERPRINT_CHANGED" in codes
+    assert "REFUSED_STALE" in v["guidance"]
+    assert tc.validate_continuation_verdict(v) == []
+
+
+def test_identity_change_outranks_advisory_drift():
+    rec = _packet()
+    matrix = _matrix([_claim_action(head="f" * 40)])
+    matrix["frontier_fingerprint"] = _fp("moved-on")
+    v = tc.verify_continuation(rec, _packet(frontier_matrix=matrix), clock=clock)
     assert v["verdict"] == tc.INVALIDATED
-    assert "FRONTIER_FINGERPRINT_CHANGED" in v["reasons"]
+    assert [c["code"] for c in v["changes"]] == ["LANE_HEAD_MOVED"]
+    assert {c["code"] for c in v["advisory_changes"]} == {"FRONTIER_FINGERPRINT_CHANGED"}
 
 
 def test_missing_current_truth_is_unverifiable_not_valid():

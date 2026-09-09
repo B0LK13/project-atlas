@@ -1,35 +1,104 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ATLAS_STUDIO_CONTINUATION_VERDICT_V1",
-  "description": "AS-STUDIO-A2-003 verdict comparing a recorded ATLAS_STUDIO_TASK_CONTEXT_V1 packet against freshly built truth. IMPORTED_CONTEXT != PERMISSION: a STILL_VALID verdict authorizes nothing.",
+  "description": "AS-STUDIO-A2-003 verdict comparing a recorded ATLAS_STUDIO_TASK_CONTEXT_V1 packet against freshly built truth. Identity changes (lane, repository, head, ownership, owner) decide the verdict; snapshot drift is advisory. IMPORTED_CONTEXT != PERMISSION: a STILL_VALID verdict authorizes nothing.",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema", "verdict", "reasons", "changes", "recorded", "current", "authorization", "honesty", "verified_at_utc"],
+  "required": [
+    "schema",
+    "verdict",
+    "reasons",
+    "changes",
+    "recorded",
+    "current",
+    "authorization",
+    "honesty",
+    "verified_at_utc",
+    "advisory_changes"
+  ],
   "properties": {
-    "schema": { "const": "ATLAS_STUDIO_CONTINUATION_VERDICT_V1" },
-    "verdict": { "enum": ["STILL_VALID", "INVALIDATED", "UNVERIFIABLE"] },
-    "reasons": { "type": "array", "items": { "type": "string" } },
+    "schema": {
+      "const": "ATLAS_STUDIO_CONTINUATION_VERDICT_V1"
+    },
+    "verdict": {
+      "enum": [
+        "STILL_VALID",
+        "INVALIDATED",
+        "UNVERIFIABLE"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "changes": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["field", "code", "recorded", "current"],
-        "properties": { "field": { "type": "string" }, "code": { "type": "string" } }
+        "required": [
+          "field",
+          "code",
+          "recorded",
+          "current"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        }
       }
     },
-    "recorded": { "type": "object" },
-    "current": { "type": "object" },
-    "guidance": { "type": "string" },
-    "authorization": { "const": "NOT_GRANTED_BY_THIS_PACKET" },
+    "recorded": {
+      "type": "object"
+    },
+    "current": {
+      "type": "object"
+    },
+    "guidance": {
+      "type": "string"
+    },
+    "authorization": {
+      "const": "NOT_GRANTED_BY_THIS_PACKET"
+    },
     "honesty": {
       "type": "object",
-      "required": ["imported_context_ne_permission", "continuation_ne_execution", "task_context_ne_mutation"],
+      "required": [
+        "imported_context_ne_permission",
+        "continuation_ne_execution",
+        "task_context_ne_mutation"
+      ],
       "properties": {
-        "imported_context_ne_permission": { "const": true },
-        "continuation_ne_execution": { "const": true },
-        "task_context_ne_mutation": { "const": true }
+        "imported_context_ne_permission": {
+          "const": true
+        },
+        "continuation_ne_execution": {
+          "const": true
+        },
+        "task_context_ne_mutation": {
+          "const": true
+        }
       }
     },
-    "verified_at_utc": { "type": "string" }
+    "verified_at_utc": {
+      "type": "string"
+    },
+    "advisory_changes": {
+      "type": "array",
+      "description": "Snapshot drift (fingerprints, CI status) that does not change lane identity; re-mint intents before acting.",
+      "items": {
+        "type": "object",
+        "required": [
+          "field",
+          "code",
+          "recorded",
+          "current"
+        ]
+      }
+    }
   }
 }
