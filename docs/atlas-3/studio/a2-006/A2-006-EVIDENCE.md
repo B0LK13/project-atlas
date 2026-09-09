@@ -6,32 +6,34 @@ BRANCH                  = feat/as-studio-a2-006-mission-session
 PR                      = #791
 BASE_BRANCH             = feat/as-studio-a2-004-action-evidence
 BASE_FREEZE_HEAD        = 10df59fb0d0241bb8bc117b37df4fd205642ac32
-BASE_FREEZE_TREE        = 1e17bddc30cecff2070c2b0b24a4cf57012d0027
-FORMAL_IV_PRIOR         = PASS on 4904125f (A2-004/005 only; not inherited)
-HEAD                    = 3a95a8cf1087ca9203644c02ee873e6c79b79033
-TREE                    = 61d18e6e485ff33334310552f0e87f832f3bd22f
+FORMAL_IV_PRIOR         = PASS on 4904125f (A2-004/005 only; NOT inherited)
+HEAD                    = PENDING_AFTER_HARDENING_COMMIT
+TREE                    = PENDING_AFTER_HARDENING_COMMIT
+PRIOR_TIP_AA915318      = aa915318a79872cf7bc6ea9004c4a87178114589 (pre-hardening; superseded)
 CI_EXACT_HEAD           = PENDING
-FORMAL_IV               = NOT_STARTED
+FORMAL_IV               = NOT_STARTED (packet prepared under iv/)
 MERGE_AUTHORIZATION     = NOT_GRANTED
 ```
 
 ## Local validation
 
 ```text
-Studio unit suite A0–A2 + A2-002/004/005/006: 126 passed
-Doctor: a2_006_* checks included
+Studio unit suite: 134 passed
+Doctor: a2_006_* PASS
 ```
 
-## Demonstrated risks
+## Repairs in this hardening cycle
 
-| Case | Coverage |
+| Risk | Result |
 |---|---|
-| Cross-process resume | `test_cross_process_resume` |
-| Mismatched intent_id | `test_mismatched_intent_binding` + continuity state |
-| Mismatched repository | `test_mismatched_repo_binding` |
-| Uncertain mutation | `test_uncertain_and_persistence_failed` |
-| Persistence failed after mutation | `test_write_decision_persistence_failure_after_mutation` (exit 3) |
-| Task-context unavailable | doctor + session dependencies |
+| Fingerprint changes with wall-clock | Fixed — fingerprint excludes `generated_at_utc` |
+| Malformed → PENDING_EXECUTE | Fixed — continuity returns MALFORMED; session INCOMPLETE |
+| Malformed intent + success decision | Fixed — not CONFIRMED_SUCCESS |
+| `--repo` without artifact repos | Fixed — REPO_UNVERIFIED_IN_ARTIFACTS fail closed |
+| Conflicting evidence vs decision | Fixed — CONFLICTING_EVIDENCE |
+| DRY_RUN / FAILED_NO_MUTATION → REFUSED | Fixed — dedicated session states |
+| Orphan tmp with final | Fixed — not INTERRUPTED; tmp not promoted |
+| Persistence-failed recommends replay | Fixed — explicit do_not + recovery text |
 
 ## Honesty
 
@@ -39,4 +41,5 @@ Doctor: a2_006_* checks included
 CI_PASS != FORMAL_IV
 FORMAL_IV_4904125f != THIS_CANDIDATE
 AUTO_RETRY = FORBIDDEN
+CONTROL_PLANE_OBSERVATION = UNAVAILABLE (explicit)
 ```

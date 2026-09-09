@@ -14853,3 +14853,14 @@ Goal: `ATLAS-STUDIO-MISSION-CONTINUITY-AND-RECOVERY-001`
 - Persistence failure after mutation → claim-execute exit 3 + session flag.
 - Cross-process resume test; task-context dependency explicit UNAVAILABLE.
 - Studio suite: 126 passed. Formal IV = NOT_STARTED. MERGE not granted.
+
+## AS-STUDIO-A2-006 hardening — fingerprint/binding/conflict (2026-09-09)
+
+Goal: mission-session dependability under stale evidence / interrupted persistence /
+repeated inspection / uncertain outcomes.
+
+- Reproduced Copilot/Codex findings: wall-clock fingerprint drift; malformed→PENDING;
+  --repo unverified; evidence/decision conflict; DRY_RUN mislabeled REFUSED.
+- Repaired mission_session + intent_continuity MALFORMED path; expanded tests (134 suite).
+- Control-plane observation: explicit UNAVAILABLE (no invented API).
+- Formal IV request packet prepared (owner dispatch). MERGE not granted.

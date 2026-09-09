@@ -26,6 +26,15 @@ from atlas_studio import (
     UI_STATE_IS_PROJECTION,
 )
 from atlas_studio.action_evidence import classify_decision
+from atlas_studio.action_evidence import (
+    CONFIRMED_SUCCESS as AE_CONFIRMED_SUCCESS,
+    DRY_RUN as AE_DRY_RUN,
+    FAILED_CONFIRMED_NO_MUTATION as AE_FAILED_NO_MUTATION,
+    FAILED_UNCERTAIN as AE_FAILED_UNCERTAIN,
+    MALFORMED as AE_MALFORMED,
+    PENDING_EXECUTE as AE_PENDING_EXECUTE,
+    REFUSED as AE_REFUSED,
+)
 from atlas_studio.snapshot import utcnow, validator_for
 
 SCHEMA_CONST = "ATLAS_STUDIO_INTENT_CONTINUITY_V1"
@@ -228,14 +237,16 @@ def classify_continuity(
 
     if isinstance(decision, dict) and decision.get("intent_id") == intent_id:
         outcome = classify_decision(decision)
-        if outcome == "FAILED_UNCERTAIN":
+        if outcome == AE_MALFORMED:
+            return MALFORMED
+        if outcome == AE_FAILED_UNCERTAIN:
             return INTERRUPTED_UNCERTAIN
-        if outcome in {"CONFIRMED_SUCCESS", "REFUSED", "DRY_RUN", "PENDING_EXECUTE"}:
+        if outcome in {AE_CONFIRMED_SUCCESS, AE_REFUSED, AE_DRY_RUN, AE_PENDING_EXECUTE}:
             # Any durable decision for this intent means do not re-submit blindly.
-            if outcome == "PENDING_EXECUTE":
+            if outcome == AE_PENDING_EXECUTE:
                 return DUPLICATE_SUBMIT_RISK
             return ALREADY_DECIDED
-        if outcome == "FAILED_CONFIRMED_NO_MUTATION":
+        if outcome == AE_FAILED_NO_MUTATION:
             return ALREADY_DECIDED
         return DUPLICATE_SUBMIT_RISK
 

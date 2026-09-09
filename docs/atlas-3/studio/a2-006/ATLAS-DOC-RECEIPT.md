@@ -1,13 +1,14 @@
-# ATLAS-DOC-RECEIPT — AS-STUDIO-A2-006
+# ATLAS-DOC-RECEIPT — AS-STUDIO-A2-006 (hardening)
 
 ```text
 PACKAGE_ID              = AS-STUDIO-A2-006
-DOC_SCOPE               = docs/atlas-3/studio/a2-006/
-BRANCH                  = feat/as-studio-a2-006-mission-session
+DOC_SCOPE               = docs/atlas-3/studio/a2-006/ (+ iv/ request packet)
+PR                      = #791
 AUTHORITY               = documentation + RO implementation evidence only
-MERGE_AUTHORIZATION     = NOT_GRANTED
 FORMAL_IV               = NOT_STARTED
+MERGE_AUTHORIZATION     = NOT_GRANTED
 ```
 
-Documents describe the validation-cycle freeze for #788 and the mission-session
-continuity package. They do not grant merge or extend Formal IV from `4904125f`.
+Documents reconcile tip metadata with evidence, prepare an independent Formal IV
+request packet, and record continuity repairs. They do not grant merge or extend
+Formal IV from `4904125f` / #788.

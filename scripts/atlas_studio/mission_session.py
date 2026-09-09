@@ -5,10 +5,10 @@ Composes A2-002 journey pointers + A2-004 evidence + A2-005 continuity.
 Does not mint intents, execute claims, or import #786 task_context (dependency
 state UNAVAILABLE until that module is present on the stack).
 
-Binding: intent_id / repository must agree across records or MISMATCHED_BINDING.
-Uncertain mutations stay uncertain. AUTO_RETRY = FORBIDDEN.
-PERSISTENCE_FAILED_SIGNAL is an operator-supplied flag when mutation may have
-occurred but decision file write failed — never invents mutation success.
+Binding: intent_id / repository / lane must agree across records or
+MISMATCHED_BINDING. Uncertain mutations stay uncertain. AUTO_RETRY = FORBIDDEN.
+PERSISTENCE_FAILED_SIGNAL never invents mutation success and never recommends
+replay. Fingerprints are stable across wall-clock for unchanged inputs.
 """
 from __future__ import annotations
 
@@ -27,18 +27,21 @@ from atlas_studio import (
 )
 from atlas_studio.action_evidence import (
     CONFIRMED_SUCCESS,
+    DRY_RUN,
+    FAILED_CONFIRMED_NO_MUTATION,
     FAILED_UNCERTAIN,
+    MALFORMED as EVIDENCE_MALFORMED,
     PENDING_EXECUTE,
     REFUSED,
     UNAVAILABLE as EVIDENCE_UNAVAILABLE_CLASS,
     build_action_evidence,
-    classify_decision,
 )
 from atlas_studio.intent_continuity import (
     ALREADY_DECIDED,
     DUPLICATE_SUBMIT_RISK,
     FRESH,
     INTERRUPTED_UNCERTAIN,
+    MALFORMED as CONTINUITY_MALFORMED,
     MISMATCHED_BINDING,
     MISSING,
     STALE_INTENT,
@@ -54,9 +57,12 @@ READY_TO_EVALUATE = "READY_TO_EVALUATE"
 SESSION_PENDING_EXECUTE = "PENDING_EXECUTE"
 SESSION_CONFIRMED_SUCCESS = "CONFIRMED_SUCCESS"
 SESSION_REFUSED = "REFUSED"
+SESSION_DRY_RUN = "DRY_RUN"
 SESSION_FAILED_UNCERTAIN = "FAILED_UNCERTAIN"
+SESSION_FAILED_CONFIRMED_NO_MUTATION = "FAILED_CONFIRMED_NO_MUTATION"
 SESSION_STALE_INTENT = "STALE_INTENT"
 SESSION_MISMATCHED_BINDING = "MISMATCHED_BINDING"
+SESSION_CONFLICTING_EVIDENCE = "CONFLICTING_EVIDENCE"
 SESSION_DECISION_MISSING = "DECISION_MISSING"
 SESSION_EVIDENCE_UNAVAILABLE = "EVIDENCE_UNAVAILABLE"
 SESSION_PERSISTENCE_FAILED_SIGNAL = "PERSISTENCE_FAILED_SIGNAL"
@@ -77,8 +83,11 @@ def honesty_block() -> dict[str, bool]:
         "monitor_ne_reexecute": True,
         "uncertain_mutation_ne_nothing_changed": True,
         "persistence_failed_ne_confirmed_success": True,
+        "persistence_failed_ne_replay": True,
+        "fingerprint_stable_across_wall_clock": True,
         "knowledge_ne_permission": True,
         "task_context_dependency_explicit": True,
+        "control_plane_observation_ne_invented": True,
         "formal_iv_tip_ne_later_tip": True,
     }
 
@@ -127,12 +136,86 @@ def _task_context_dependency() -> dict[str, Any]:
         }
 
 
+def _control_plane_observation_dependency() -> dict[str, Any]:
+    """No Studio-owned RO observation API for OWNER_CLAIMED in this lane.
+
+    atlas_dag event bus exists, but Studio mission-session does not wrap a
+    bounded reconciler here. Timeout/missing/unavailable must remain uncertain.
+    """
+    return {
+        "state": "UNAVAILABLE",
+        "api": "NONE_IN_MISSION_SESSION",
+        "guidance": [
+            "Inspect atlas_dag event bus / OWNER_CLAIMED for the lane before any fresh intent",
+            "Timeout or missing observation != proof that no mutation occurred",
+            "Do not auto-retry claim-execute",
+        ],
+        "notes": [
+            "CONTROL_PLANE_OBSERVATION_API = UNAVAILABLE in this package",
+            "UNCERTAIN stays UNCERTAIN until authoritative observation resolves it",
+        ],
+    }
+
+
+def _extract_repo(obj: dict[str, Any] | None) -> str | None:
+    if not isinstance(obj, dict):
+        return None
+    for key in ("repository", "target_repo", "expected_repo", "repo"):
+        value = obj.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    evidence = obj.get("evidence")
+    if isinstance(evidence, dict):
+        for key in ("repository", "repo", "expected_repo"):
+            value = evidence.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _extract_lane(obj: dict[str, Any] | None) -> str | None:
+    if not isinstance(obj, dict):
+        return None
+    for key in ("target_lane", "lane"):
+        value = obj.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    evidence = obj.get("evidence")
+    if isinstance(evidence, dict):
+        for key in ("target_lane", "lane"):
+            value = evidence.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _decisions_conflict(
+    decision: dict[str, Any] | None, evidence_packet: dict[str, Any] | None
+) -> bool:
+    """True when separately supplied evidence contradicts the decision file."""
+    if not isinstance(decision, dict) or not isinstance(evidence_packet, dict):
+        return False
+    embedded = evidence_packet.get("decision")
+    if not isinstance(embedded, dict):
+        return False
+    # Same object identity / exact match → ok
+    if embedded == decision:
+        return False
+    for key in ("intent_id", "decision", "mutated", "evaluated_at_utc"):
+        left = decision.get(key)
+        right = embedded.get(key)
+        if left is not None and right is not None and left != right:
+            return True
+    return False
+
+
 def _derive_session_state(
     *,
     continuity_state: str,
     outcome_class: str | None,
     persistence_failed_after_mutation: bool,
     interrupted_atomic_write: bool,
+    conflicting_evidence: bool,
     has_intent: bool,
     has_decision: bool,
 ) -> str:
@@ -142,35 +225,84 @@ def _derive_session_state(
         return SESSION_INTERRUPTED_ATOMIC_WRITE
     if continuity_state == MISMATCHED_BINDING:
         return SESSION_MISMATCHED_BINDING
+    if conflicting_evidence:
+        return SESSION_CONFLICTING_EVIDENCE
     if continuity_state == STALE_INTENT:
         return SESSION_STALE_INTENT
-    if continuity_state == INTERRUPTED_UNCERTAIN or outcome_class == FAILED_UNCERTAIN:
-        return SESSION_FAILED_UNCERTAIN
+    if continuity_state == CONTINUITY_MALFORMED or outcome_class == EVIDENCE_MALFORMED:
+        return SESSION_INCOMPLETE
     if continuity_state == MISSING or not has_intent:
         return SESSION_UNAVAILABLE if not has_intent else SESSION_INCOMPLETE
-    if continuity_state in {ALREADY_DECIDED, DUPLICATE_SUBMIT_RISK} or outcome_class == CONFIRMED_SUCCESS:
-        if outcome_class == CONFIRMED_SUCCESS:
-            return SESSION_CONFIRMED_SUCCESS
-        if outcome_class == REFUSED:
-            return SESSION_REFUSED
-        if outcome_class == PENDING_EXECUTE:
-            return SESSION_PENDING_EXECUTE
-        if continuity_state == DUPLICATE_SUBMIT_RISK:
-            return SESSION_PENDING_EXECUTE
-        return SESSION_CONFIRMED_SUCCESS if outcome_class == CONFIRMED_SUCCESS else SESSION_REFUSED
+    if continuity_state == INTERRUPTED_UNCERTAIN or outcome_class == FAILED_UNCERTAIN:
+        return SESSION_FAILED_UNCERTAIN
+    if outcome_class == FAILED_CONFIRMED_NO_MUTATION:
+        return SESSION_FAILED_CONFIRMED_NO_MUTATION
+    if outcome_class == DRY_RUN:
+        return SESSION_DRY_RUN
     if not has_decision:
         if continuity_state == FRESH:
             return READY_TO_EVALUATE
         return SESSION_DECISION_MISSING
     if outcome_class in {None, EVIDENCE_UNAVAILABLE_CLASS}:
         return SESSION_EVIDENCE_UNAVAILABLE
+    # Success / refuse / pending only when continuity agrees the decision belongs here.
+    if continuity_state == ALREADY_DECIDED:
+        if outcome_class == CONFIRMED_SUCCESS:
+            return SESSION_CONFIRMED_SUCCESS
+        if outcome_class == REFUSED:
+            return SESSION_REFUSED
+        if outcome_class == PENDING_EXECUTE:
+            return SESSION_PENDING_EXECUTE
+        return SESSION_INCOMPLETE
+    if continuity_state == DUPLICATE_SUBMIT_RISK:
+        if outcome_class == PENDING_EXECUTE:
+            return SESSION_PENDING_EXECUTE
+        if outcome_class == CONFIRMED_SUCCESS:
+            # Prior allow without execute — do not call it confirmed success.
+            return SESSION_PENDING_EXECUTE
+        return SESSION_INCOMPLETE
+    if continuity_state == FRESH and outcome_class == CONFIRMED_SUCCESS:
+        # Decision present but continuity still FRESH is inconsistent → incomplete.
+        return SESSION_INCOMPLETE
     if outcome_class == REFUSED:
         return SESSION_REFUSED
     if outcome_class == PENDING_EXECUTE:
         return SESSION_PENDING_EXECUTE
     if outcome_class == CONFIRMED_SUCCESS:
-        return SESSION_CONFIRMED_SUCCESS
+        return SESSION_INCOMPLETE
     return SESSION_INCOMPLETE
+
+
+def _fingerprint_material(packet: dict[str, Any]) -> dict[str, Any]:
+    """Stable material: excludes wall-clock and free-text recovery notes."""
+    recovery = packet.get("recovery") or {}
+    action_ids = sorted(
+        {
+            str(a.get("id"))
+            for a in (recovery.get("actions") or [])
+            if isinstance(a, dict) and a.get("id")
+        }
+    )
+    resume = packet.get("resume") or {}
+    return {
+        "schema": packet.get("schema"),
+        "session_state": packet.get("session_state"),
+        "binding": packet.get("binding"),
+        "lifecycle": packet.get("lifecycle"),
+        "dependencies": packet.get("dependencies"),
+        "recovery": {
+            "auto_retry": recovery.get("auto_retry"),
+            "action_ids": action_ids,
+        },
+        "resume": {
+            "intent_id": resume.get("intent_id"),
+            "repository": resume.get("repository"),
+            "session_state": resume.get("session_state"),
+            "commands": resume.get("commands"),
+            "do_not": resume.get("do_not"),
+        },
+        "honesty": packet.get("honesty"),
+    }
 
 
 def build_mission_session(
@@ -190,12 +322,16 @@ def build_mission_session(
     notes = [f"package:{PACKAGE_ID}", "session_ne_authority", "auto_retry_forbidden"]
 
     interrupted_atomic_write = False
+    orphan_tmp_with_final = False
     if decision_file is not None:
         dpath = Path(decision_file)
         tmp_sibling = dpath.with_suffix(dpath.suffix + ".tmp")
         if tmp_sibling.is_file() and not dpath.is_file():
             interrupted_atomic_write = True
             notes.append(f"orphan_tmp:{tmp_sibling}")
+        elif tmp_sibling.is_file() and dpath.is_file():
+            orphan_tmp_with_final = True
+            notes.append(f"tmp_coexists_with_final:{tmp_sibling}")
 
     continuity = build_intent_continuity(
         intent=intent,
@@ -210,12 +346,18 @@ def build_mission_session(
     loaded_decision = continuity.get("prior_decision")
     loaded_evidence_packet = continuity.get("prior_evidence")
 
+    conflicting_evidence = False
     if loaded_evidence_packet is None and loaded_decision is not None:
         evidence_packet = build_action_evidence(decision=loaded_decision, clock=clock)
         notes.append("evidence_derived_from_decision")
     elif loaded_evidence_packet is not None:
         evidence_packet = loaded_evidence_packet
         notes.append("evidence_injected_or_loaded")
+        if loaded_decision is not None and _decisions_conflict(
+            loaded_decision, evidence_packet
+        ):
+            conflicting_evidence = True
+            notes.append("EVIDENCE_CONFLICTS_WITH_DECISION")
     else:
         evidence_packet = build_action_evidence(decision=None, clock=clock)
         notes.append("evidence_unavailable")
@@ -223,31 +365,50 @@ def build_mission_session(
     outcome_class = evidence_packet.get("outcome_class")
     continuity_state = str(continuity.get("continuity_state"))
 
-    # Repository binding across intent / decision / journey
-    intent_repo = None
-    if isinstance(loaded_intent, dict):
-        intent_repo = loaded_intent.get("repository") or loaded_intent.get("target_repo")
-    decision_repo = None
-    if isinstance(loaded_decision, dict):
-        ev = loaded_decision.get("evidence") or {}
-        decision_repo = (
-            loaded_decision.get("repository")
-            or (ev.get("repo") if isinstance(ev, dict) else None)
-        )
-    journey_repo = (journey or {}).get("repository") if isinstance(journey, dict) else None
-    expected = expected_repository or journey_repo or intent_repo
+    intent_repo = _extract_repo(loaded_intent if isinstance(loaded_intent, dict) else None)
+    decision_repo = _extract_repo(
+        loaded_decision if isinstance(loaded_decision, dict) else None
+    )
+    journey_repo = _extract_repo(journey if isinstance(journey, dict) else None)
+    intent_lane = _extract_lane(loaded_intent if isinstance(loaded_intent, dict) else None)
+    decision_lane = _extract_lane(
+        loaded_decision if isinstance(loaded_decision, dict) else None
+    )
+
+    expected = expected_repository or journey_repo or intent_repo or decision_repo
     binding_ok = True
     binding_notes: list[str] = []
-    for label, value in (
-        ("intent", intent_repo),
-        ("decision", decision_repo),
-        ("journey", journey_repo),
-    ):
-        if expected and value and value != expected:
+    present_repos = {
+        label: value
+        for label, value in (
+            ("intent", intent_repo),
+            ("decision", decision_repo),
+            ("journey", journey_repo),
+        )
+        if value
+    }
+    if expected_repository:
+        # Fail closed: explicit --repo must be verified against artifacts.
+        if not present_repos:
             binding_ok = False
-            binding_notes.append(f"REPO_MISMATCH:{label}:{value}!={expected}")
+            binding_notes.append("REPO_UNVERIFIED_IN_ARTIFACTS")
+        else:
+            for label, value in present_repos.items():
+                if value != expected_repository:
+                    binding_ok = False
+                    binding_notes.append(f"REPO_MISMATCH:{label}:{value}!={expected_repository}")
+        expected = expected_repository
+    else:
+        for label, value in present_repos.items():
+            if expected and value != expected:
+                binding_ok = False
+                binding_notes.append(f"REPO_MISMATCH:{label}:{value}!={expected}")
+
+    if intent_lane and decision_lane and intent_lane != decision_lane:
+        binding_ok = False
+        binding_notes.append(f"LANE_MISMATCH:{intent_lane}!={decision_lane}")
+
     if not binding_ok and continuity_state != MISMATCHED_BINDING:
-        # Elevate to mismatched when repos disagree even if intent_ids match.
         continuity_state = MISMATCHED_BINDING
         notes.extend(binding_notes)
 
@@ -256,18 +417,29 @@ def build_mission_session(
         outcome_class=str(outcome_class) if outcome_class else None,
         persistence_failed_after_mutation=persistence_failed_after_mutation,
         interrupted_atomic_write=interrupted_atomic_write,
+        conflicting_evidence=conflicting_evidence,
         has_intent=isinstance(loaded_intent, dict),
         has_decision=isinstance(loaded_decision, dict),
     )
 
     recovery_actions = list((continuity.get("recovery") or {}).get("actions") or [])
     evidence_actions = list((evidence_packet.get("recovery") or {}).get("actions") or [])
-    # Prefer continuity actions; append evidence actions with distinct ids.
     seen = {a.get("id") for a in recovery_actions if isinstance(a, dict)}
     for action in evidence_actions:
         if isinstance(action, dict) and action.get("id") not in seen:
             recovery_actions.append(action)
             seen.add(action.get("id"))
+    if orphan_tmp_with_final:
+        recovery_actions.insert(
+            0,
+            {
+                "id": "tmp_coexists_with_final",
+                "summary": (
+                    "decision.json.tmp coexists with final decision.json — prefer the final "
+                    "file; do not promote tmp; inspect if contents disagree"
+                ),
+            },
+        )
     if interrupted_atomic_write:
         recovery_actions.insert(
             0,
@@ -286,15 +458,39 @@ def build_mission_session(
                 "id": "persistence_failed_after_possible_mutation",
                 "summary": (
                     "Decision file was not persisted after a possible mutation — "
-                    "inspect control plane; do NOT re-execute; do NOT assume success"
+                    "inspect control plane; do NOT re-execute / replay claim-execute; "
+                    "do NOT assume success"
                 ),
             },
         )
+    if conflicting_evidence:
+        recovery_actions.insert(
+            0,
+            {
+                "id": "conflicting_evidence",
+                "summary": (
+                    "Evidence packet contradicts decision file (shared intent_id, different "
+                    "attempt fields) — do not treat as confirmed success; do not replay"
+                ),
+            },
+        )
+
+    # Strip any recovery text that could be read as replay permission.
+    for action in recovery_actions:
+        if not isinstance(action, dict):
+            continue
+        summary = str(action.get("summary") or "").lower()
+        if "re-run claim-execute" in summary or "replay claim-execute" in summary:
+            action["summary"] = (
+                "Inspect control plane / event bus; mint a fresh intent only after "
+                "authoritative observation (AUTO_RETRY=FORBIDDEN)"
+            )
 
     intent_id = (loaded_intent or {}).get("intent_id") if isinstance(loaded_intent, dict) else None
     resume = {
         "intent_id": intent_id,
         "repository": expected,
+        "lane": intent_lane or decision_lane,
         "session_state": session_state,
         "commands": {
             "mission_session": (
@@ -313,13 +509,17 @@ def build_mission_session(
         },
         "do_not": [
             "auto-retry claim-execute",
+            "replay claim-execute after PERSISTENCE_FAILED_SIGNAL",
             "treat MISMATCHED_BINDING as success",
             "treat PERSISTENCE_FAILED_SIGNAL as confirmed mutation",
+            "treat CONFLICTING_EVIDENCE as confirmed success",
             "treat uncertain mutation as nothing-changed",
+            "promote decision.json.tmp to authoritative success",
         ],
         "notes": [
             "RESUME_NE_REEXECUTE",
             "another process loads the same files and re-derives this packet",
+            "fingerprint excludes generated_at_utc",
         ],
     }
 
@@ -333,6 +533,8 @@ def build_mission_session(
             "intent_repository": intent_repo,
             "decision_repository": decision_repo,
             "journey_repository": journey_repo,
+            "intent_lane": intent_lane,
+            "decision_lane": decision_lane,
             "binding_ok": binding_ok and continuity_state != MISMATCHED_BINDING,
             "notes": binding_notes,
         },
@@ -349,6 +551,7 @@ def build_mission_session(
                 "mutated": (loaded_decision or {}).get("mutated")
                 if isinstance(loaded_decision, dict)
                 else None,
+                "conflicting_with_decision_file": conflicting_evidence,
             },
             "journey": {
                 "present": journey is not None,
@@ -358,9 +561,11 @@ def build_mission_session(
             },
             "persistence_failed_after_mutation": persistence_failed_after_mutation,
             "interrupted_atomic_write": interrupted_atomic_write,
+            "orphan_tmp_with_final": orphan_tmp_with_final,
         },
         "dependencies": {
             "task_context": _task_context_dependency(),
+            "control_plane_observation": _control_plane_observation_dependency(),
             "a2_002_mission_journey": "REQUIRED_COMPOSITION",
             "a2_004_action_evidence": "REQUIRED_COMPOSITION",
             "a2_005_intent_continuity": "REQUIRED_COMPOSITION",
@@ -371,6 +576,7 @@ def build_mission_session(
             "notes": [
                 "AUTO_RETRY=FORBIDDEN",
                 "SESSION!=AUTHORITY",
+                "REPLAY_FORBIDDEN",
                 f"continuity_state={continuity.get('continuity_state')}",
                 f"outcome_class={outcome_class}",
             ],
@@ -390,8 +596,9 @@ def build_mission_session(
             "session_fingerprint": None,
         },
     }
-    material = {k: v for k, v in packet.items() if k != "provenance"}
-    packet["provenance"]["session_fingerprint"] = _canonical_sha256(material)
+    packet["provenance"]["session_fingerprint"] = _canonical_sha256(
+        _fingerprint_material(packet)
+    )
     return packet
 
 
@@ -401,6 +608,7 @@ def format_mission_session_tui(packet: dict) -> str:
     recovery = packet.get("recovery") or {}
     deps = packet.get("dependencies") or {}
     tc = deps.get("task_context") or {}
+    obs = deps.get("control_plane_observation") or {}
     lines = [
         f"atlas-studio mission-session schema={packet.get('schema')}",
         f"session_state={packet.get('session_state')} "
@@ -409,24 +617,14 @@ def format_mission_session_tui(packet: dict) -> str:
         f"continuity={((lifecycle.get('continuity') or {}).get('state'))} "
         f"outcome={((lifecycle.get('evidence') or {}).get('outcome_class'))} "
         f"persistence_failed={lifecycle.get('persistence_failed_after_mutation')}",
-        f"task_context={tc.get('state')} ownership={tc.get('ownership')}",
+        f"task_context={tc.get('state')} observation={obs.get('state')}",
         f"auto_retry={recovery.get('auto_retry')}",
     ]
     for action in (recovery.get("actions") or [])[:6]:
         lines.append(f"  recovery: [{action.get('id')}] {action.get('summary')}")
     lines.append(
         "HONESTY: SESSION!=AUTHORITY / AUTO_RETRY=FORBIDDEN / "
-        "PERSISTENCE_FAILED!=SUCCESS / UNCERTAIN!=NOTHING_CHANGED"
+        "PERSISTENCE_FAILED!=SUCCESS / UNCERTAIN!=NOTHING_CHANGED / "
+        "FINGERPRINT_STABLE"
     )
     return "\n".join(lines)
-
-
-# Re-export classify_decision for tests that probe outcome mapping.
-__all__ = [
-    "SCHEMA_CONST",
-    "build_mission_session",
-    "format_mission_session_tui",
-    "honesty_block",
-    "validate_mission_session",
-    "classify_decision",
-]
