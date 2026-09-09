@@ -363,13 +363,19 @@ def render_relationships_markdown(
             if isinstance(refs, list):
                 for ref in refs:
                     if isinstance(ref, Mapping):
-                        path = str(ref.get("relative_path", ""))
-                        digest = str(ref.get("sha256", ""))[:16]
+                        path = _redact_text(str(ref.get("relative_path", "")))
+                        digest = _redact_text(str(ref.get("sha256", ""))[:16])
                         if path:
                             ref_bits.append(f"`{path}` (`{digest}…`)")
             joined = ", ".join(ref_bits) if ref_bits else "_none_"
+            # Same field, same note: the table above renders this through
+            # `_redact_text` and this line did not, so a reviewer reading the
+            # table saw the control working while the raw value sat two lines
+            # below it. Redaction has to be a property of the field, not of the
+            # block that happens to be rendering it.
             lines.append(
-                f"- `{record.relationship_id}` · `{DERIVED_LABEL}` · artifacts: {joined}"
+                f"- `{_redact_text(record.relationship_id)}` · `{DERIVED_LABEL}` "
+                f"· artifacts: {joined}"
             )
         lines.append("")
 
