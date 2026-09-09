@@ -14915,3 +14915,246 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-OBSIDIAN-CAPTURE-001-F16 -- human bytes across writes that SUCCEED
+
+Every protected-region test in this repository pins a **refusal**. Refusals are
+the safe direction. The dangerous case is a write that **succeeds** while
+altering bytes the operator owns, because by construction every marker, count and
+placement check has already passed on it.
+
+Measured on `b87b4a22` by parsing the test tree rather than reading it: **8**
+assertions across two modules touch extracted human regions, **all 8** compare an
+extraction against a literal, and **0** compare an extraction against another
+extraction. The invariant itself -- the human regions that come out are the
+human regions that went in -- was asserted nowhere.
+
+**A hypothesis discarded before writing anything.** I expected the existing
+assertions to be blind to whitespace and newline changes because they use
+`.strip()`. Measured: they are not. `.strip()` touches only the region's outer
+edges and the extracted region includes its BEGIN/END markers, so interior
+trailing runs and CRLF survive it. The existing assertions are byte-capable; what
+was missing is the invariant, a corpus, and the success path to disk. That is a
+narrower claim than the one issue #760 was filed with, and #760 has been
+corrected to it.
+
+**What this adds**: a corpus of 204 prior/rendered pairs -- tabs, leading and
+trailing runs, CRLF, blank lines, a no-break space, a zero-width space, emoji,
+non-ASCII, backslashes, marker-shaped text, a 300-character body, and two-region
+notes whose render lists the regions in the OPPOSITE order -- swept through every
+generated-span-preserving merge reachable without an owner-gated exception, then
+followed to disk through all three atomic writers and re-extracted.
+
+    accepted 366    refused 14    human bytes changed 0
+
+The 14 refusals matter as much as the 366: they are evidence the corpus still
+reaches the accept/refuse boundary, so `MIN_REFUSED` is asserted. **The counts
+moved from 332/12** when an inert name column was fixed -- an earlier revision
+included `"n o t e s"` and the marker grammar is `[^\s>]+`, so that entire
+column produced no region at all while still being counted in the corpus size.
+Twenty of the advertised pairs never reached a merger. Verification found it;
+a test now asserts every NAME actually parses, because an inert column inside a
+corpus is the same defect as an inert corpus, only harder to see. A corpus that
+drifted to all-accept would report the same zero while proving less.
+
+**Sixteen controls, each under an anchor assertion with the file restored
+byte-identical (`3f2f4cba`)**: baseline 8 passed; real merge normalising CRLF 1
+failed; real merge dropping a byte 1 failed; comparison neutered 2 failed; corpus
+truncated 2 failed; the only CRLF body removed 2 failed; refusal counting removed
+1 failed; an unparseable NAME reintroduced 1 failed; `capture_io` write path
+normalising CRLF 1 failed; a fifth splicing module dropped into `src/` 1 failed;
+import detection removed 1 failed; the re-export alias dropped 1 failed; the
+detector returning nothing 2 failed; restored 8 passed. **Two mutations initially
+reported green because their anchor did not match** -- shell escaping mangled a
+CRLF literal and a tuple element had no leading whitespace -- and an inert
+mutation reporting green is the same defect this module exists to catch, so both
+were re-applied through a file-based mutator before being counted.
+
+**Two controls were rewritten because they could not fail.** The first versions
+removed an assertion -- from the disk test and from the exclusion test -- and
+deleting an assertion can never make a test fail. The honest form is to break
+what each guard PROTECTS: corrupt the writer, and actually add the frozen writer
+to the sweep. Both then bit immediately. That is the fourth time in this lane a
+control has passed for a structural reason, and the first time the fix was to
+re-aim the control rather than to strengthen the code.
+
+The `ingestion` row is worth its own note: adding it fails the INVARIANT test as
+well as the exclusion test, which demonstrates the #759 CRLF defect through this
+harness. The exclusion protects the suite from a real, reproduced defect rather
+than a hypothetical one.
+
+**Owner-gated, not fixed**: `ingestion._generated_content` is the fourth writer
+and is excluded because `src/project_atlas/ingestion.py` sits on the frozen
+surface enumerated by `test_atlas3_demo_isolation_001`. Including it would fail
+this suite for a defect this package does not own; fixing it needs an
+owner-approved sha256-pinned exception under `docs/atlas-3/ARCHITECTURE.md` §9.1,
+which this lane cannot self-grant. The exclusion is asserted by a test that names
+the condition for reversing it.
+
+**Not claimed**: that the writers are correct in general (only that across this
+corpus no accepted write altered human bytes -- the corpus is finite and
+hand-chosen); that `HUMAN_CONTENT_INTEGRITY = CONTINUOUSLY_VERIFIED` holds for
+Atlas as a whole (three of the four generated-span-preserving writers are now
+continuously verified on the success path, the fourth is #759 and remains
+owner-gated, so the honest statement is *continuously verified for the writers
+this lane may touch, with the exact blocker identified*); that refusal coverage
+changed; or that any `src/` file is modified -- none is.
+
+**The writer set was wrong, and is now enforced rather than declared.** An
+earlier revision of this package swept two merge paths and two atomic writers and
+called that the full set. Derived mechanically from the source tree -- every
+module importing or calling `merge_protected_regions`, `read_note_text` or
+`_generated_content`, or a local alias they are re-exported under -- which are the
+ways this derivation can SEE, not the only ways such content can be reached; that
+stronger claim is retracted below -- there are FOUR: `graph_projections`,
+`obsidian_projection`, `obsidian_capture_note`, and the frozen `ingestion`.
+
+`obsidian_capture_note` was the miss. It shares the canonical merge but has its
+OWN atomic writer delegating to `capture_io.write_atomic_under_root`, so the
+previous disk round trip claimed coverage broader than the code behind it. It is
+now swept, and corrupting that write path to normalise CRLF fails the round-trip
+test.
+
+The set is enforced by derivation at test time: a module that can splice human
+regions and is neither swept nor explicitly excluded with a recorded reason fails
+`test_f16_every_splicing_writer_is_covered_or_explicitly_excluded`. Measured by
+dropping a hypothetical fifth splicing module into `src/` -- it fails
+immediately. The derivation keys on the ORIGINAL imported name, so renaming on import cannot
+hide a writer, and on the known local aliases too, so re-exporting through a
+third module cannot either. An earlier revision claimed alias-following was
+pinned by an assertion; it was not -- discovery filters on the un-aliased name,
+so that assertion passed just as readily on a derivation resolving no aliases at
+all. Verification measured it. It is replaced by feeding the detector synthetic
+modules and requiring the right verdict.
+
+**What the derivation does NOT close**, measured across two verification rounds
+rather than reasoned. A second round found a FIFTH evasion class in three
+idiomatic spellings -- a splicer reached as an attribute in non-call position
+(`_F = pr.merge_...` then `_F(...)`, `functools.partial`, `staticmethod`). Those
+are not route-arounds; they are what someone writes without thinking, which made
+them materially more reachable than the evasions already documented. Closed by an
+`ast.Attribute` clause, measured free: the discovered set is unchanged. The scan
+root widened from one package to all of `src/` in the same round, since
+`src/atlas_contracts/` is a real shipped package a writer could sit in.
+
+Three evasions survive and are stated rather than implied away:
+`importlib.import_module` plus `getattr` with split literals;
+`module.__dict__["merge_protected_regions"]`; and a hand-rolled splice using
+`Path.read_bytes` and its own regex, which mentions none of these names at all --
+that last one falsifying the premise directly. Two further limits are pinned
+rather than argued: a two-hop re-export under an unlisted name evades at the
+writer module, and the alias list itself ROTS if a writer renames its local
+alias, so a test now checks the list against the tree in both directions.
+
+The guard makes the ACCIDENTAL new writer hard to introduce. It does not close
+the set, and an earlier revision of this entry said it did.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F16-ACCEPTED-WRITE-INTEGRITY.md`.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F18/F19 -- write boundary and write attribution
+
+Two questions kept deliberately apart, because they have different answers and
+different limits: F18 asks whether a write altered operator-owned bytes; F19
+asks which execution did it, under what authority, against which exact state.
+
+**F18** intercepts the OS primitives note bytes reach disk through --
+`os.replace`, `os.rename`, `os.open`, `os.close`, `os.fdopen`, `builtins.open`,
+`Path.write_bytes`, `Path.write_text` -- rather than Atlas's own helpers, so it
+is spelling-independent: a writer need not call the blessed helper to be seen.
+Twelve bypass routes were enumerated and all twelve are caught. The detector is
+itself falsifiable: unhooking each primitive in turn makes the corresponding
+route escape, without which "all routes caught" would be equally consistent
+with a detector that always reports success.
+
+**F18 detects damage but cannot attribute it, and an earlier reading of it was
+wrong.** `Violation.origin` names the innermost frame inside `src/`, which was
+read as "the responsible writer". It is not: a caller handing damaged bytes to
+`capture_io.write_atomic_under_root` and a caller writing them directly are the
+same act with different plumbing. The property is renamed
+`landed_via_atlas_helper` and must never be used as a gate; the limitation is
+pinned by a test.
+
+**The boundary is opt-in, and that is a measured retreat rather than a
+preference.** Installing it for every session broke three tests that spawn a
+nested `pytest` -- the child loads the same conftest and the added option
+changed its exit status. The sensor is not at fault and its census is real, but
+a monitor that changes the result of the suite it observes is not an observer.
+Making it continuous requires that nested-pytest interaction to be fixed first,
+which belongs to the owners of those tests and is recorded rather than worked
+around. One opt-in full-suite run reports `568 protected writes checked, 82
+altered operator regions`; those 82 are NOT 82 defects -- most are fixtures
+legitimately rewriting their own notes, and presenting the raw count as a defect
+count would be the overclaim this entry exists to avoid.
+
+**F19 introduces no new identity system.** `AgentLease` already carries every
+field the attribution question needs: `agent_id`/`lease_id` for which
+execution, `capabilities`/`authorized_paths`/`forbidden_paths`/`active` for
+under what authority, and `base_pin` for against which exact state. The lease
+record was already well formed; what did not exist was any connection between
+it and a write. That connection -- a `ContextVar` binding, trusted via a minted
+token rather than via the presence of a lease object -- is the whole of F19.
+
+Seven mutations were applied to the classifier and each turns the suite red
+(trust any claimed binding: 2 failed; authorize everything: 4 failed; ignore
+forbidden paths, ignore `active=False`, let `reconcile` claim observation it
+lacked, never destroy the token on exit: 1 failed each; treat silence as clean:
+2 failed). Baseline and restored: 14 passed. Inheritance across concurrency is
+measured, not assumed -- an awaited task stays attributed, a bare thread starts
+with an empty context and is reported unattributed.
+
+**Demonstrated, not deployed.** Nothing in `src/project_atlas` calls `bind()`. F19 proves
+the binding works and that its protections are load-bearing; it does not make Atlas
+attribute its own writes today. The integration point is identified rather than left
+vague: `leases.py:grant_lease` is the sole place an `AgentLease` is ever created and is
+reached in production from `governor.py:596`, so one `bind()` there would cover every
+governed execution. That is a `src/` change this lane has not made and is recorded as a
+handoff.
+
+**What this does NOT claim.** Not `A_WRITER_CANNOT_SILENTLY_BYPASS_HUMAN_CONTENT_INTEGRITY`:
+the boundary is report-only in-process and absent out-of-process. Not
+cross-process attribution -- the process boundary carries no trusted identity,
+so a subprocess write is `OUTSIDE_OBSERVABLE_BOUNDARY` and stays there. Not a
+production control: both modules live under `tests/`, nothing in
+`src/project_atlas` imports them, and no shipped code path changes. Not a
+defence against hostile in-process code, which can mint itself a token exactly
+as it can unhook the boundary -- pinned by a test that PASSES WHEN THE ATTACK
+SUCCEEDS. Not a closure of #759, whose frozen surface is untouched.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F18-F19-WRITE-BOUNDARY-AND-ATTRIBUTION.md`.
+
+
+### F18 addendum -- three defects Windows CI found that POSIX could not
+
+All three were mine. (1) `_note` seeded notes with `Path.write_text`, which
+translates `\n` to `\r\n` on Windows, so the FIXTURE was the source of the byte
+difference the boundary reported and a correct write looked like damage; seeding
+is now byte-exact. (2) `os.rename` onto an existing file raises `WinError 183` on
+Windows where it overwrites on POSIX, so that route cannot damage a protected
+note there -- it is inapplicable rather than an escape, and the runner now names
+inapplicable routes and asserts at most two of twelve may be skipped, so "no
+route escaped" cannot become true by everything being skipped.
+
+(3) is the one that matters: **fixing (1) exposed a real gap in the boundary.**
+The `Path.write_text` hook checked the payload it was HANDED, not the bytes that
+LANDED. Text mode is not byte-transparent, so a write that translates line
+endings rewrites operator bytes while every word still matches, and the hook
+could not see it. `Path.write_text` is now verified after the write via
+`_check_landed`, which cannot be fooled by anything the write layer does on the
+way down; `builtins.open` already checked at descriptor close and was measured
+to catch it unaided. This is the same class as the CRLF-translating READ that
+`read_note_text` exists to prevent, arriving from the write side.
+
+Verified by simulating both Windows behaviours on Linux -- a non-overwriting
+`os.rename` and newline-translating text mode: 8 passed under simulation, 24
+passed + 1 skipped natively. The text-mode test PROBES whether translation
+actually happens rather than assuming it from the platform name.
+
+**The measured answer to the attribution question.** Full-suite census with the
+boundary and ledger installed: `GOVERNED_AND_ATTRIBUTED=1,
+ATTRIBUTED_BUT_UNAUTHORIZED=1, DETECTED_BUT_UNATTRIBUTED=565` -- 2 of 567, and
+both attributed writes are F19's own tests binding a lease deliberately. **Atlas
+can currently explain none of its real protected writes.** That census run was
+NOT fully green (`1 failed, 5789 passed`, the failure being the nested-pytest
+test that is the reason the boundary is opt-in), and the figure is reported with
+that caveat rather than as a clean measurement.
