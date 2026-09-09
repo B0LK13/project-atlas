@@ -14791,3 +14791,34 @@ beyond CI -- junctions, ACL-denied components and case-insensitive filesystems
 are untested.
 
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F11-MKDIR-BOUNDARY.md`.
+
+## AS-STUDIO-INTAKE-20260908-01 — canonical Studio docs package
+
+**Date:** 2026-09-09  
+**Lane:** `docs/as-studio-intake-20260908`  
+**Epic:** [#746](https://github.com/B0LK13/project-atlas/issues/746)
+
+Synchronized the Atlas Studio owner master update into canonical repository
+documentation under `docs/atlas-3/studio/`, with cross-links from Coder Alpha
+and Atlas 3 north stars. No Studio runtime/UI implementation in this package.
+
+Vault normalize/route/receipt remains **PENDING**: production `mda` is not on
+PATH (fixture mock must not be treated as production success).
+
+Coordination Features 1–16 remain implementation-complete on the stacked PR
+tip with exact-head CI PASS and `EXTERNAL_IV_GATED`; this docs sync does not
+merge that stack and does not claim formal IV.
+
+Evidence: `docs/evidence/AS-STUDIO-INTAKE-20260908-01-CANONICAL-DOCS-SYNC.md`.
+
+```text
+ATLAS_STUDIO_CANONICAL_PACKAGE = SYNCHRONIZED_IN_REPO
+VAULT_DOCUMENTATION_RECEIPT = PENDING_MDA
+AS_STUDIO_A0_001 = READY_FOR_IMPLEMENTATION_PACKAGE
+AS_STUDIO_A1 = NOT_STARTED
+```
+
+## Studio A0 closure docs CI poke
+
+Docs-only tip `f883329c`; ensuring PR #762 receives CI.
+
