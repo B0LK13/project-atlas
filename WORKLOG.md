@@ -14497,3 +14497,83 @@ invariant this seal rests on, so wiring it up belongs to a follow-up. Until then
 is reproducible on demand and not continuously enforced.
 
 **A residual verification found, pre-existing and not F9's.** Across a **20,314-case corpus** it observed **41** shapes where the two surfaces disagree on whether to refuse -- 30 where canonical raises and graph does not, 11 the reverse; a separate 40,000-case fuzz gives **90** (61 and 29). An earlier revision of this seal attributed the 41 to the 40,000-case run, which was wrong, and neither corpus is committed. The direction matters and "disagree" understates it: the larger group is graph **accepting and writing** a rendered document that canonical refuses as structurally unpaired -- fail-open-shaped relative to canonical. It concerns HUMAN marker *pairing* rather than generated-marker diagnosis, is identical on the base so F9 neither introduced nor worsened it, and F9's diff changes message text and never control flow. **This warrants its own work package**, not a residual line: it is a refusal-set divergence between two writers, measured today by no committed instrument.
+
+## AS-OBSIDIAN-CAPTURE-001-F10 — graph must not write what canonical refuses (2026-09-09)
+
+Two generated-span-preserving writers disagreed on **whether** a document was
+safe to write. Not on how to describe a refusal -- that was F9 -- but on the
+refusal itself, which is a policy difference at a writer boundary.
+
+Reproduced on `dbf8d838` by sweeping **both sides** of the merge. That is what
+makes it visible: a corpus varying only the prior note cannot see a defect that
+lives on the rendered side, and every sweep in this lane until now varied only
+the prior note.
+
+    existing = <GS>|<GE>|                    a generated span, no HUMAN regions
+    rendered = <END HUMAN>|<BEGIN HUMAN>|    markers in reversed order
+
+    canonical : REFUSE  malformed-protected-markers:unpaired:notes
+    graph     : ACCEPT  and writes the document verbatim
+
+**A path asymmetry, not a validator one**, which is why counting arguments
+missed it. `graph_projections._merge_protected_regions` keeps F4's disclosed
+contract for a prior note with no HUMAN regions -- preserve the text outside the
+generated span -- and that branch splices by hand instead of delegating, so it
+never reaches the canonical structural parse. Its own validation compares HUMAN
+marker counts and names, never **order**, so `END notes` then `BEGIN notes` is
+one begin and one end with matching names and passes. Both validators accept
+these shapes; canonical only refuses inside the merge.
+
+Fixed by running the already-public `reject_ambiguous_region_identity` on the
+rendered document, translating `ProtectedRegionError` to `GraphProjectionError`
+at the boundary as the rest of the module does. Four lines plus an import.
+
+**Differential sweep, both sides varied:**
+
+    base, depth 2:    625 pairs,  3 divergences, 1 fail-open
+    head, depth 2:    625 pairs,  2 divergences, 0 fail-open
+    head, depth 3: 15,625 pairs, 12 divergences, 0 fail-open
+
+Every remaining divergence is the opposite direction -- canonical accepts, graph
+refuses -- which is F4's disclosed contract, and a test pins it so nobody
+removes it while "fixing the asymmetry" wholesale.
+
+**Blast radius: I got this wrong, in the direction that understated it.** An
+earlier revision called this defence in depth, needing the renderer itself to
+emit malformed markers. False, and verification challenged it. Nothing in the
+render path escapes marker text -- `_redact_text` strips secrets and truncates
+but never touches HTML comments -- so a relationship field holding HUMAN marker
+text reaches the render verbatim; `source_entity_id`, `target_entity_id`,
+`relationship_type` and `relationship_id` all carry it.
+
+The precondition neither my claim nor verification's stated: the prior note must
+have **no HUMAN regions**, which is the branch that splices by hand. An operator
+who deleted their block, or a note predating HUMAN emission, is in that state.
+
+Given both, reproduced end to end through the real writer:
+
+    BASE   poisoned refresh WRITTEN; every later refresh -- including a clean
+           one with zero relationships -- PERMANENTLY REFUSED. No self-heal.
+    HEAD   refused up front; note byte-identical; no staging residue; the
+           projection remains refreshable.
+
+A durable denial-of-refresh, not defence in depth. The fix turns a permanent
+brick into a clean refusal, and a test now pins that consequence rather than the
+mechanism.
+
+**A test that could not fail, again.** The first version of that test bound
+`before = NO_HUMAN_PRIOR` and asserted `before == NO_HUMAN_PRIOR` -- two names
+for one immutable `str`. Both review bots and verification caught it
+independently. This is the third tautological assertion in this lane, and the
+second I have written after recording the lesson. Replaced by the end-to-end
+reproduction above, which fails without the fix.
+
+**Not claimed:** that a full `discover -> ingest -> graphify` run with
+attacker-controlled sources can plant such a field value. The render and write
+layers propagate it unsanitised and the pre-fix writer persists it; the
+reachability ceiling is upstream and is not established here. Nor that the two
+surfaces agree in all directions -- they deliberately do not. Nor that
+`ingestion.py` is covered: a third writer, owner-gated behind a frozen surface.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.

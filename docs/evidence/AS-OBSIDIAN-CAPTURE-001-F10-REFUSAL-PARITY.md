@@ -38,8 +38,9 @@ For `END notes` followed by `BEGIN notes` that is one begin and one end with
 matching names, so it passes. The canonical core refuses the same document as
 `unpaired`, because it parses structure rather than counting tokens.
 
-**Both public validators pass these shapes.** `validate_protected_markers`
-accepts reversed and crossed markers on either side; canonical only refuses
+**Both validators pass these shapes** -- canonical's public
+`validate_protected_markers` and graph's private `_validate_protected_markers`
+(an earlier revision called both public; graph's is not); canonical only refuses
 later, inside `merge_protected_regions`. So this was never a validator
 asymmetry — it was a *path* asymmetry, and that is why counting-based reasoning
 missed it.
@@ -77,16 +78,44 @@ unmatched BEGIN — so the fix specifically closes **reversed** and **crossed**
 markers. Recorded because a control that fails for a reason the fix did not
 provide is not evidence for the fix.
 
-## Blast radius, stated honestly
+## Blast radius — I got this wrong, in the direction that understated it
 
-The rendered document is **Atlas-generated**, so reaching this needs the
-renderer itself to emit malformed markers, which it does not today. This is
-defence in depth at a writer boundary rather than a live corruption path.
+An earlier revision of this receipt said reaching the defect "needs the renderer
+itself to emit malformed markers, which it does not today," and called it
+defence in depth. **That is false.** Independent verification challenged it and
+reproduction settled it.
 
-It is worth closing anyway, and the reason is specific: the canonical core
-already refuses these shapes. A second writer that accepts them means the
-guarantee depends on which surface reaches the note — the same class of defect
-F9 closed for diagnostics, here for policy.
+Nothing in the render path escapes marker text. `_redact_text` strips secrets and
+truncates to 240 characters but never touches HTML comments, so a relationship
+field containing HUMAN marker text reaches the render **verbatim**. Measured:
+`source_entity_id`, `target_entity_id`, `relationship_type` and
+`relationship_id` all accept it and carry it into the bundle.
+
+**The precondition, which neither my original claim nor verification's stated:**
+the prior note must have **no HUMAN regions**, because that is the branch which
+splices by hand. An operator who deletes their HUMAN block, or a note predating
+HUMAN emission, is in that state. With a note that *does* carry HUMAN regions --
+the shape a fresh render produces -- the merge delegates to the canonical core
+and is correctly refused even before this fix.
+
+Given both, reproduced end to end through the real writer against a real vault:
+
+    BASE   poisoned refresh WRITTEN; the note now carries reversed markers;
+           every later refresh -- including a clean one with zero
+           relationships -- is PERMANENTLY REFUSED. The projection cannot
+           self-heal.
+    HEAD   refused up front; note byte-identical; no staging residue; the
+           projection remains refreshable afterwards.
+
+So this is a **durable denial-of-refresh corruption**, not defence in depth. The
+fix converts a permanent brick into a clean refusal. A test now pins that
+end-to-end consequence rather than the mechanism.
+
+**Still not claimed:** that an end-to-end `discover -> ingest -> graphify` run
+with attacker-controlled sources can plant such a field value. What is shown is
+that the render and write layers propagate it unsanitised and that the pre-fix
+writer persists the result. The ceiling on reachability is set upstream, and is
+not established here.
 
 ## What is not claimed
 

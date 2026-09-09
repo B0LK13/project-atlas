@@ -32,6 +32,8 @@ worth having precisely because the canonical core already refuses these shapes.
 from __future__ import annotations
 
 import itertools
+import pathlib
+import re
 
 import pytest
 
@@ -75,14 +77,74 @@ def test_f10_graph_refuses_a_render_canonical_refuses(label: str) -> None:
         gp._merge_protected_regions(existing=NO_HUMAN_PRIOR, rendered=rendered, path="n.md")
 
 
-@pytest.mark.parametrize("label", sorted(MALFORMED_RENDER))
-def test_f10_refusal_leaves_the_prior_note_untouched(label: str) -> None:
-    before = NO_HUMAN_PRIOR
-    with pytest.raises(GraphProjectionError):
-        gp._merge_protected_regions(
-            existing=NO_HUMAN_PRIOR, rendered=MALFORMED_RENDER[label], path="n.md"
+def test_f10_a_poisoned_field_cannot_brick_the_projection(tmp_path: pathlib.Path) -> None:
+    """End-to-end: the defect this package exists to close, through the real writer.
+
+    An earlier revision bound ``before = NO_HUMAN_PRIOR`` and then asserted
+    ``before == NO_HUMAN_PRIOR`` -- two names for the same immutable ``str``, so
+    it could not fail. Both review bots and verification caught it. This is the
+    test it should have been, and it pins the consequence, not the mechanism.
+
+    Reachability, established by reproduction rather than argument. Nothing in
+    the render path escapes marker text: ``_redact_text`` strips secrets and
+    truncates but never touches HTML comments, so a relationship field holding
+    HUMAN marker text reaches the render verbatim. Combined with a prior note
+    that has no HUMAN regions -- an operator who deleted their block, or a note
+    predating HUMAN emission -- the pre-fix writer WROTE the poisoned document,
+    after which every later refresh, including a clean one with no relationships
+    at all, was permanently refused. The projection could not self-heal.
+    """
+    poison = f"{HUMAN_CLOSE} x {HUMAN_OPEN}"
+    record = {
+        "project_id": "demo",
+        "relationship_id": "r1",
+        "relationship_type": "depends_on",
+        "source_entity_id": poison,
+        "target_entity_id": "b",
+        "relationship_fingerprint": "f" * 8,
+        "link_quality": "inferred",
+        "provenance": {},
+    }
+    clean = dict(record, source_entity_id="a")
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    gp.write_projection_outputs(
+        gp.materialize_projections(project_id="demo", relationships=[clean], health=None),
+        vault=vault,
+    )
+    note = vault / "generated/graph/projections/demo/relationships.md"
+    # Strip the HUMAN regions: this is the state that reaches the branch which
+    # splices by hand instead of delegating to the canonical core.
+    note.write_text(
+        re.sub(
+            re.escape(HUMAN_OPEN) + r".*?" + re.escape(HUMAN_CLOSE),
+            "",
+            note.read_text(),
+            flags=re.S,
         )
-    assert before == NO_HUMAN_PRIOR
+    )
+    assert HUMAN_OPEN not in note.read_text()
+    before = note.read_bytes()
+
+    with pytest.raises(GraphProjectionError):
+        gp.write_projection_outputs(
+            gp.materialize_projections(project_id="demo", relationships=[record], health=None),
+            vault=vault,
+        )
+
+    assert note.read_bytes() == before, "the poisoned render must not be written"
+    assert not list(vault.rglob("*.atlas-stage")), "no staging residue may survive"
+
+    # The consequence that makes this more than a diagnostic nicety: the
+    # projection must remain refreshable afterwards.
+    gp.write_projection_outputs(
+        gp.materialize_projections(project_id="demo", relationships=[], health=None), vault=vault
+    )
+    gp.write_projection_outputs(
+        gp.materialize_projections(project_id="demo", relationships=[clean], health=None),
+        vault=vault,
+    )
 
 
 def test_f10_a_well_formed_render_is_still_accepted() -> None:
