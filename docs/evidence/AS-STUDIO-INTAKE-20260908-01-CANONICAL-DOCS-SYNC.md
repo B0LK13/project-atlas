@@ -41,3 +41,12 @@ IMPLEMENTED != MERGED_TO_MAIN
 CI_PASS != FORMAL_IV
 EXTERNAL_IV_GATED != VERIFIED
 ```
+
+## Closure amendment (2026-09-09)
+
+- A0 technical closure + owner decisions: `docs/atlas-3/studio/a0/A0-CLOSURE.md`
+- A1 reconciled scope + READY package: `docs/atlas-3/studio/a1/`
+- Implementation object for A0 remains PR #763 (not this docs PR)
+- Stamp: `STUDIO_CANONICAL_PACKAGE_STATUS = REPO_SYNCHRONIZED_PR_OPEN`
+- `IMPLEMENTED != MERGED_TO_MAIN` still holds for this PR
+
