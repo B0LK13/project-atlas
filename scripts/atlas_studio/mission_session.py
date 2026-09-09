@@ -320,6 +320,7 @@ def build_mission_session(
 ) -> dict[str, Any]:
     """Build ATLAS_STUDIO_MISSION_SESSION_V1. Never mutates; never re-executes."""
     notes = [f"package:{PACKAGE_ID}", "session_ne_authority", "auto_retry_forbidden"]
+    input_hashes: dict[str, str] = {}
 
     interrupted_atomic_write = False
     orphan_tmp_with_final = False
@@ -345,6 +346,14 @@ def build_mission_session(
     loaded_intent = continuity.get("intent")
     loaded_decision = continuity.get("prior_decision")
     loaded_evidence_packet = continuity.get("prior_evidence")
+
+    # Point-in-time input hashes (TOCTOU: session is a snapshot, not a live watcher).
+    if isinstance(loaded_intent, dict):
+        input_hashes["intent"] = _canonical_sha256(loaded_intent)
+    if isinstance(loaded_decision, dict):
+        input_hashes["decision"] = _canonical_sha256(loaded_decision)
+    if isinstance(loaded_evidence_packet, dict):
+        input_hashes["evidence"] = _canonical_sha256(loaded_evidence_packet)
 
     conflicting_evidence = False
     if loaded_evidence_packet is None and loaded_decision is not None:
@@ -593,6 +602,7 @@ def build_mission_session(
                 "atlas_studio.mission_journey (optional inject)",
             ],
             "notes": notes,
+            "input_content_hashes": input_hashes,
             "session_fingerprint": None,
         },
     }

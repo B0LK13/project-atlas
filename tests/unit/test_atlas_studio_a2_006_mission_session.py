@@ -61,6 +61,17 @@ def _decision(**overrides):
     return base
 
 
+def test_input_content_hashes_snapshot_point_in_time():
+    """Session records hashes of loaded intent/decision (point-in-time projection)."""
+    packet = ms.build_mission_session(
+        intent=_intent(), decision=_decision(), clock=clock
+    )
+    hashes = packet["provenance"]["input_content_hashes"]
+    assert "intent" in hashes and "decision" in hashes
+    assert hashes["intent"] == ms._canonical_sha256(_intent())
+    assert hashes["decision"] == ms._canonical_sha256(_decision())
+
+
 def test_success_session_schema():
     packet = ms.build_mission_session(
         intent=_intent(), decision=_decision(), clock=clock
