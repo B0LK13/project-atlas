@@ -115,12 +115,26 @@ KNOWLEDGE != PERMISSION
 FORMAL_IV = NOT_STARTED
 ```
 
+## A2-004 Action Evidence & Recovery (lane)
+
+See [`a2-004/`](./a2-004/).
+
+```text
+AS_STUDIO_A2_004 = IMPLEMENTED_IN_LANE (RO evidence + recovery)
+BASE = A2-002 tip (stack disclosed; certified A2 tip preserved)
+AUTO_RETRY = FORBIDDEN
+MONITOR != RE-EXECUTE
+CAPTURE != AUTHORITY
+FORMAL_IV = NOT_STARTED
+```
+
 ## Next
 
 1. Owner merge/IV decisions for A0/A1/A2-001 remain separate from technical completeness.
 2. Human review-thread adjudication on #776 remains external.
 3. Later A2.x: dispatch / steal-auto / handoff delivery / worktree behind the same intent bridge.
-4. A2-002 successor requires its own exact-head CI + formal IV (does not inherit A2-001 IV).
+4. A2-002 / A2-004 successors require their own exact-head CI + formal IV (do not inherit A2-001 IV).
+5. Avoid overlapping #786 (task-context), #782 (target_repo), #781 (visual shell).
 
 ## A0 package
 

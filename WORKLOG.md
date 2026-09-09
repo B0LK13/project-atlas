@@ -14808,3 +14808,16 @@ Directive: `D-CODEX-ATLAS-STUDIO-A2-CERTIFIED-CONTINUATION-002`
 - Studio suite: 101 passed; doctor a2_002_* PASS.
 - Overlap avoided: #782 repo-binding, #781 visual shell.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`; A2-002 Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-004 — Action Evidence & Recovery (2026-09-09)
+
+Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT`
+
+- Stacked on A2-002 tip `cd4523fc` (certified A2 `2debb778` preserved).
+- Branch: `feat/as-studio-a2-004-action-evidence`.
+- Avoided ownership overlap with #786 (task-context), #782, #781.
+- Implemented `ATLAS_STUDIO_ACTION_EVIDENCE_V1` + CLI `action-evidence` / `evidence`.
+- Recovery forbids auto-retry; uncertain mutation ≠ nothing-changed; optional
+  non-canonical knowledge spool (`CAPTURE!=AUTHORITY`).
+- Studio suite: 109 passed; doctor a2_004_* PASS.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED.

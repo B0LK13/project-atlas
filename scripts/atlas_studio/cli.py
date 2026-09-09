@@ -395,6 +395,32 @@ def cmd_mission_journey(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_action_evidence(args: argparse.Namespace) -> int:
+    """AS-STUDIO-A2-004 RO action evidence + recovery — never re-executes."""
+    from atlas_studio.action_evidence import (
+        build_action_evidence,
+        format_action_evidence_tui,
+        validate_action_evidence,
+    )
+
+    packet = build_action_evidence(
+        decision_file=args.decision_file,
+        spool_dir=args.spool_dir,
+        write_spool=bool(args.write_spool),
+    )
+    errors = validate_action_evidence(packet)
+    if errors:
+        for err in errors:
+            print(f"  SCHEMA: {err}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(format_action_evidence_tui(packet))
+    # Exit 0 for inspect success; outcome_class is in the packet (not a mutation gate).
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "schema": "ATLAS_STUDIO_DOCTOR_V0",
@@ -625,6 +651,48 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001
         add("a2_002_mission_journey", False, f"{type(exc).__name__}:{exc}")
 
+    # A2-004: action evidence + recovery (monitor != re-execute).
+    try:
+        from atlas_studio import action_evidence as ae
+
+        honesty = ae.honesty_block()
+        add(
+            "a2_004_evidence_honesty",
+            honesty.get("auto_retry_forbidden") is True
+            and honesty.get("uncertain_mutation_ne_nothing_changed") is True
+            and honesty.get("capture_ne_authority") is True,
+            json.dumps(honesty, sort_keys=True),
+        )
+        failed = {
+            "schema": "ATLAS_STUDIO_ACTION_DECISION_V1",
+            "decision": "EXECUTION_FAILED",
+            "action_type": "OWNERSHIP_CLAIM",
+            "intent_id": "intent-test",
+            "mutated": False,
+            "reasons": ["executor raised"],
+            "evidence": {"mutation_state": "UNKNOWN"},
+            "honesty": {},
+            "evaluated_at_utc": "2026-09-09T12:00:00Z",
+        }
+        packet = ae.build_action_evidence(
+            decision=failed, clock=lambda: "2026-09-09T12:00:00Z"
+        )
+        errs = ae.validate_action_evidence(packet)
+        add(
+            "a2_004_action_evidence_schema",
+            not errs
+            and packet.get("outcome_class") == ae.FAILED_UNCERTAIN
+            and packet["recovery"]["auto_retry"] is False,
+            "ok" if not errs else "; ".join(errs[:5]),
+        )
+        add(
+            "a2_004_no_auto_retry",
+            packet["recovery"]["auto_retry"] is False,
+            "recovery.auto_retry must stay false",
+        )
+    except Exception as exc:  # noqa: BLE001
+        add("a2_004_action_evidence", False, f"{type(exc).__name__}:{exc}")
+
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -776,6 +844,32 @@ def build_parser() -> argparse.ArgumentParser:
     journey.add_argument("--weights", default=None)
     journey.add_argument("--json", action="store_true")
     journey.set_defaults(func=cmd_mission_journey)
+
+    evidence = sub.add_parser(
+        "action-evidence",
+        aliases=["evidence"],
+        help=(
+            "AS-STUDIO-A2-004 inspect decision evidence + recovery "
+            "(never re-executes; optional non-canonical spool)"
+        ),
+    )
+    evidence.add_argument(
+        "--decision-file",
+        default=None,
+        help="Path to ATLAS_STUDIO_ACTION_DECISION_V1 JSON",
+    )
+    evidence.add_argument(
+        "--write-spool",
+        action="store_true",
+        help="Write non-canonical knowledge spool (CAPTURE!=AUTHORITY)",
+    )
+    evidence.add_argument(
+        "--spool-dir",
+        default=None,
+        help="Directory for optional knowledge spool write",
+    )
+    evidence.add_argument("--json", action="store_true")
+    evidence.set_defaults(func=cmd_action_evidence)
 
     doc = sub.add_parser("doctor", help="Import/honesty/schema diagnostics")
     doc.add_argument("--json", action="store_true")
