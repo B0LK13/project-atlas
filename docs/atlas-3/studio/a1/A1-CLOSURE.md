@@ -25,7 +25,7 @@ remains unbound on this estate → status is **EXTERNAL_IV_GATED**, not
 |---|---|
 | Package | `AS-STUDIO-A1-001` |
 | Branch | `feat/as-studio-a1-001` |
-| HEAD (closure tip) | `3d76fa0ed6f3d8a039b8a5cc9c47a34ec1a12046` (+ semantic-boundary tip) |
+| HEAD (closure tip) |  |
 | PR | https://github.com/B0LK13/project-atlas/pull/770 |
 | Schema | `schemas/atlas_studio_mission_control_v1.schema.json` |
 | Module | `scripts/atlas_studio/mission_control.py` |
