@@ -215,6 +215,32 @@ def cmd_task_context(args: argparse.Namespace) -> int:
     """AS-STUDIO-A2-003: read-only task context + continuation for one lane."""
     from atlas_studio import task_context as tcx
 
+    if not args.lane and not args.verify_continuation:
+        print(
+            "atlas-studio task-context: FAIL --lane is required "
+            "(or --verify-continuation PACKET)",
+            file=sys.stderr,
+        )
+        return 2
+
+    recorded = None
+    if args.verify_continuation:
+        try:
+            recorded = _load_json_file(args.verify_continuation)
+        except Exception as exc:
+            print(
+                f"atlas-studio task-context: FAIL cannot read continuation packet "
+                f"{type(exc).__name__}:{exc}",
+                file=sys.stderr,
+            )
+            return 1
+        args.lane = args.lane or str(recorded.get("lane") or "")
+        if not args.lane:
+            print(
+                "atlas-studio task-context: FAIL packet has no lane; pass --lane",
+                file=sys.stderr,
+            )
+            return 2
     try:
         offline = bool(args.mc_file or args.matrix_file or args.stacks_file)
         if offline:
@@ -241,6 +267,28 @@ def cmd_task_context(args: argparse.Namespace) -> int:
         if errors:
             print(f"atlas-studio task-context: FAIL schema {errors[0]}", file=sys.stderr)
             return 1
+        if recorded is not None:
+            verdict = tcx.verify_continuation(recorded, packet)
+            verdict_errors = tcx.validate_continuation_verdict(verdict)
+            if verdict_errors:
+                print(
+                    f"atlas-studio task-context: FAIL verdict schema {verdict_errors[0]}",
+                    file=sys.stderr,
+                )
+                return 1
+            if args.json:
+                print(json.dumps(verdict, indent=2, sort_keys=True))
+            else:
+                print(f"CONTINUATION {verdict['verdict']} lane={packet.get('lane')}")
+                for change in verdict["changes"]:
+                    print(
+                        f"  changed {change['field']}: {change['recorded']} -> {change['current']}"
+                    )
+                for reason in verdict["reasons"]:
+                    print(f"  reason: {reason}")
+                print(f"  {verdict.get('guidance')}")
+                print("HONESTY: IMPORTED_CONTEXT!=PERMISSION / VERDICT!=AUTHORIZATION")
+            return 0 if verdict["verdict"] == tcx.STILL_VALID else 1
     except Exception as exc:
         print(f"atlas-studio task-context: FAIL {type(exc).__name__}:{exc}", file=sys.stderr)
         return 1
@@ -870,7 +918,14 @@ def build_parser() -> argparse.ArgumentParser:
         "task-context",
         help="RO task context + continuation for one lane (AS-STUDIO-A2-003)",
     )
-    tcp.add_argument("--lane", required=True, help="Lane id, e.g. pr/776")
+    tcp.add_argument("--lane", default=None, help="Lane id, e.g. pr/776")
+    tcp.add_argument(
+        "--verify-continuation",
+        default=None,
+        metavar="PACKET",
+        help="Re-read truth and report whether a recorded packet is STILL_VALID "
+        "(exit 0) or INVALIDATED/UNVERIFIABLE (exit 1). Imports context, never permission.",
+    )
     tcp.add_argument("--agent", default=None, help="Agent id (required for live mode)")
     tcp.add_argument("--repo", default=None, help="owner/name override for gh")
     tcp.add_argument("--vault", default=None, help="Compiled Atlas vault (knowledge lenses)")

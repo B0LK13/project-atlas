@@ -38,6 +38,24 @@ Schema `ATLAS_STUDIO_TASK_CONTEXT_V1` (`schemas/atlas_studio_task_context_v1.sch
 | `continuation` | pointers to `atlas-dag handoff --mode resume` and `atlas handoff create`; optional `export_agent_context` (no refresh) | `built_here = false` always |
 | `missing` | every absent input | explicit list, never defaulted |
 
+## Continuation verification (export → import → verdict)
+
+`--verify-continuation PACKET` re-reads truth and compares it with a recorded
+packet, so a resuming session does not have to hand-roll the check:
+
+```bash
+atlas-studio task-context --lane pr/786 --agent A --repo O/N --json > ctx.json   # export
+atlas-studio task-context --verify-continuation ctx.json --agent A --repo O/N    # import + verify
+```
+
+Verdict `ATLAS_STUDIO_CONTINUATION_VERDICT_V1`: `STILL_VALID` (exit 0),
+`INVALIDATED` (exit 1, with the changed fields listed), or `UNVERIFIABLE`
+(exit 1) when the packet is unreadable, schema-invalid, or the lane could not
+be resolved on either side. A field that is absent on one side is reported as a
+change, never silently treated as equal. `IMPORTED_CONTEXT != PERMISSION`: a
+`STILL_VALID` verdict says the recorded evidence still describes the world, and
+authorizes nothing.
+
 ## Requirements served (#746 register)
 
 06 Mission Control · 13 DAG/work graph · 18 CI/IV (identity fields surfaced, never

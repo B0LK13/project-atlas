@@ -14822,3 +14822,21 @@ Directive: `D-CODEX-ATLAS-STUDIO-A2-CERTIFIED-CONTINUATION-002`
   MISSING_SHOWN_EXPLICITLY; `merged` always UNKNOWN; no materialization of any vault lens
 - Not started: dispatch/IV/handoff-deliver/steal/merge/worktree; FORMAL_IV=NOT_STARTED;
   MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AS-STUDIO-A2-003 — live validation, baseline repairs, continuation verification
+
+- Ran the package through its real entry point against the real repository, which
+  exposed three defects fixtures had hidden: two baseline (`clock=None` into
+  `build_studio_snapshot`; positional args to a keyword-only
+  `build_frontier_matrix`) that broke **every** live Studio command and were
+  reproduced on base `cd4523fc`; one in this package (classifier read top-level
+  lens fields while the real lenses nest counters under `signals`)
+- Repaired the two baseline defects once in the shared `_live_frontier` helper
+- Added `verify_continuation` + `ATLAS_STUDIO_CONTINUATION_VERDICT_V1` and
+  `task-context --verify-continuation`: STILL_VALID / INVALIDATED / UNVERIFIABLE
+  with changed fields itemized; exit 0 only when STILL_VALID
+- Live round trip caught a real invalidation: a packet recorded at head
+  `924a4f88` was correctly INVALIDATED after the branch moved to `e0f50f69`
+- Tests 28 → 46; Studio A0–A2-003 suite 147 passed; doctor ok
+- Honesty: IMPORTED_CONTEXT != PERMISSION; verification authorizes nothing;
+  CLI/schema/API only, no Studio UI integration; FORMAL_IV = NOT_STARTED

@@ -695,3 +695,149 @@ def test_live_frontier_never_passes_none_clock_to_builders(monkeypatch):
     assert callable(seen["mc_clock"]), "None clock would raise inside build_studio_snapshot"
     assert callable(seen["matrix_clock"])
     assert isinstance(seen["positional_only_snapshot"], dict)
+
+
+# --- continuation verification (export -> import -> verdict) ------------------
+
+
+def _packet(**kw):
+    base = dict(
+        lane="pr/900",
+        agent_id=AGENT,
+        mission_control=_mc_live(),
+        frontier_matrix=_matrix([_claim_action()]),
+        stacks=_stacks(),
+        clock=clock,
+    )
+    base.update(kw)
+    return tc.build_task_context(**base)
+
+
+def test_unchanged_truth_is_still_valid():
+    rec = _packet()
+    v = tc.verify_continuation(rec, _packet(), clock=clock)
+    assert v["verdict"] == tc.STILL_VALID
+    assert v["reasons"] == [] and v["changes"] == []
+    assert v["authorization"] == "NOT_GRANTED_BY_THIS_PACKET"
+    assert v["honesty"]["imported_context_ne_permission"] is True
+    assert "not permission" in v["guidance"]
+    assert tc.validate_continuation_verdict(v) == []
+
+
+def test_moved_head_invalidates():
+    rec = _packet()
+    moved = _packet(frontier_matrix=_matrix([_claim_action(head="f" * 40)]))
+    v = tc.verify_continuation(rec, moved, clock=clock)
+    assert v["verdict"] == tc.INVALIDATED
+    assert "LANE_HEAD_MOVED" in v["reasons"]
+    change = next(c for c in v["changes"] if c["field"] == "lane_head")
+    assert change["recorded"] == HEAD and change["current"] == "f" * 40
+    assert "Rebuild task context" in v["guidance"]
+    assert tc.validate_continuation_verdict(v) == []
+
+
+def test_ownership_change_invalidates():
+    rec = _packet()
+    taken = _packet(
+        frontier_matrix=_matrix([_claim_action(ownership="OWNED", owner="windows-main")])
+    )
+    v = tc.verify_continuation(rec, taken, clock=clock)
+    assert v["verdict"] == tc.INVALIDATED
+    assert {"OWNERSHIP_CHANGED", "OWNER_CHANGED"} <= set(v["reasons"])
+
+
+def test_fingerprint_drift_invalidates():
+    rec = _packet()
+    matrix = _matrix([_claim_action()])
+    matrix["frontier_fingerprint"] = _fp("moved-on")
+    v = tc.verify_continuation(rec, _packet(frontier_matrix=matrix), clock=clock)
+    assert v["verdict"] == tc.INVALIDATED
+    assert "FRONTIER_FINGERPRINT_CHANGED" in v["reasons"]
+
+
+def test_missing_current_truth_is_unverifiable_not_valid():
+    v = tc.verify_continuation(_packet(), None, clock=clock)
+    assert v["verdict"] == tc.UNVERIFIABLE
+    assert v["reasons"] == ["CURRENT_TRUTH_UNAVAILABLE"]
+    assert tc.validate_continuation_verdict(v) == []
+
+
+@pytest.mark.parametrize("junk", ["not a dict", 42, None, []])
+def test_non_packet_is_unverifiable(junk):
+    v = tc.verify_continuation(junk, _packet(), clock=clock)
+    assert v["verdict"] == tc.UNVERIFIABLE
+    assert v["reasons"] == ["RECORDED_NOT_OBJECT"]
+
+
+def test_schema_invalid_packet_is_unverifiable():
+    bad = _packet()
+    del bad["honesty"]
+    v = tc.verify_continuation(bad, _packet(), clock=clock)
+    assert v["verdict"] == tc.UNVERIFIABLE
+    assert v["reasons"][0] == "RECORDED_SCHEMA_INVALID"
+
+
+def test_unknown_side_is_unverifiable_never_silently_valid():
+    """A field present on one side and absent on the other must not read as equal."""
+    rec = _packet()
+    blind = _packet(frontier_matrix=None)
+    v = tc.verify_continuation(rec, blind, clock=clock)
+    assert v["verdict"] in {tc.INVALIDATED, tc.UNVERIFIABLE}
+    assert v["verdict"] != tc.STILL_VALID
+
+
+def test_cli_verify_continuation_roundtrip(tmp_path, capsys):
+    """Export a packet, then import it through the CLI and get a verdict."""
+    pkt = tmp_path / "ctx.json"
+    pkt.write_text(json.dumps(_packet()), encoding="utf-8")
+    files = {
+        "--mc-file": _write_json(tmp_path / "mc.json", _mc_live()),
+        "--matrix-file": _write_json(tmp_path / "m.json", _matrix([_claim_action()])),
+        "--stacks-file": _write_json(tmp_path / "s.json", _stacks()),
+    }
+    argv = ["task-context", "--verify-continuation", str(pkt), "--agent", AGENT]
+    for flag, path in files.items():
+        argv += [flag, path]
+    rc = studio_cli.main([*argv, "--json"])
+    verdict = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert verdict["schema"] == tc.VERDICT_SCHEMA_CONST
+    assert verdict["verdict"] == tc.STILL_VALID
+    assert verdict["recorded"]["lane"] == "pr/900"  # lane recovered from the packet
+
+
+def test_cli_verify_continuation_exit_1_when_invalidated(tmp_path, capsys):
+    pkt = tmp_path / "ctx.json"
+    pkt.write_text(json.dumps(_packet()), encoding="utf-8")
+    argv = [
+        "task-context",
+        "--verify-continuation",
+        str(pkt),
+        "--agent",
+        AGENT,
+        "--mc-file",
+        _write_json(tmp_path / "mc.json", _mc_live()),
+        "--matrix-file",
+        _write_json(tmp_path / "m.json", _matrix([_claim_action(head="e" * 40)])),
+        "--stacks-file",
+        _write_json(tmp_path / "s.json", _stacks()),
+    ]
+    rc = studio_cli.main(argv)
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "CONTINUATION INVALIDATED" in out
+    assert "LANE_HEAD_MOVED" in out
+    assert "IMPORTED_CONTEXT!=PERMISSION" in out
+
+
+def test_cli_unreadable_packet_fails_closed(tmp_path, capsys):
+    missing = tmp_path / "nope.json"
+    rc = studio_cli.main(["task-context", "--verify-continuation", str(missing)])
+    assert rc == 1
+    assert "cannot read continuation packet" in capsys.readouterr().err
+
+
+def test_cli_requires_lane_or_packet(capsys):
+    rc = studio_cli.main(["task-context", "--agent", AGENT])
+    assert rc == 2
+    assert "--lane is required" in capsys.readouterr().err

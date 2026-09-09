@@ -11,8 +11,8 @@ CI_PASS != FORMAL_IV · IMPLEMENTED != MERGED · TASK_CONTEXT != AUTHORITY
 | Base | #785 `feat/as-studio-a2-002-mission-journey` @ `cd4523fc588ac941b13ad75731624039e572ba71` |
 | HEAD | pinned by the evidence-tip commit after exact-head CI |
 | Module | `scripts/atlas_studio/task_context.py` |
-| CLI | `atlas-studio task-context --lane pr/N [--agent] [--vault --project] [--with-agent-context] [--mc-file --matrix-file --stacks-file] [--json]` |
-| Schema | `schemas/atlas_studio_task_context_v1.schema.json` |
+| CLI | `atlas-studio task-context --lane pr/N [...]` and `task-context --verify-continuation PACKET` |
+| Schemas | `atlas_studio_task_context_v1.schema.json`, `atlas_studio_continuation_verdict_v1.schema.json` |
 | Doctor | `a2_003_task_context` |
 | Tests | `tests/unit/test_atlas_studio_a2_003_task_context.py` (31) |
 | Demonstration | `A2-003-FIRST-WORK-PACKAGE.md` § Demonstration — live lane read, real vault, real conflict, stale/mismatch, cross-process continuation |

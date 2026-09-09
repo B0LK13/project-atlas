@@ -36,6 +36,12 @@ from atlas_studio.snapshot import validator_for
 
 SCHEMA_CONST = "ATLAS_STUDIO_TASK_CONTEXT_V1"
 SCHEMA_FILE = "atlas_studio_task_context_v1.schema.json"
+VERDICT_SCHEMA_CONST = "ATLAS_STUDIO_CONTINUATION_VERDICT_V1"
+VERDICT_SCHEMA_FILE = "atlas_studio_continuation_verdict_v1.schema.json"
+STILL_VALID = "STILL_VALID"
+INVALIDATED = "INVALIDATED"
+UNVERIFIABLE = "UNVERIFIABLE"
+IMPORTED_CONTEXT_NE_PERMISSION = True
 PACKAGE_ID = "AS-STUDIO-A2-003"
 
 KNOWN = "KNOWN"
@@ -647,6 +653,144 @@ def build_continuation(
 # --- packet --------------------------------------------------------------------
 
 
+def validate_continuation_verdict(packet: dict) -> list[str]:
+    validator = validator_for(VERDICT_SCHEMA_FILE)
+    return [
+        f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}"
+        for e in validator.iter_errors(packet)
+    ]
+
+
+def _recorded_marks(packet: dict[str, Any]) -> dict[str, Any]:
+    ident = (packet.get("lane_state") or {}).get("identity") or {}
+    fps = (packet.get("continuation") or {}).get("fingerprints") or {}
+    return {
+        "lane": packet.get("lane"),
+        "repository": packet.get("repository"),
+        "lane_head": fps.get("lane_head") or ident.get("head"),
+        "lane_tree": fps.get("lane_tree") or ident.get("tree"),
+        "ownership": ident.get("ownership"),
+        "owner": ident.get("owner"),
+        "ci_status": ident.get("ci_status"),
+        "mission_control": fps.get("mission_control"),
+        "frontier": fps.get("frontier"),
+    }
+
+
+def verify_continuation(
+    recorded: Any,
+    current: dict[str, Any] | None,
+    *,
+    clock: Callable[[], str] = utcnow,
+) -> dict[str, Any]:
+    """Compare a recorded task-context packet against freshly built truth.
+
+    IMPORTED_CONTEXT != PERMISSION. A ``STILL_VALID`` verdict says the recorded
+    evidence still describes the world; it authorizes nothing. Anything that
+    cannot be compared is ``UNVERIFIABLE``, never silently ``STILL_VALID``.
+    """
+    now = clock()
+    if not isinstance(recorded, dict):
+        return {
+            "schema": VERDICT_SCHEMA_CONST,
+            "verdict": UNVERIFIABLE,
+            "reasons": ["RECORDED_NOT_OBJECT"],
+            "changes": [],
+            "recorded": {},
+            "current": {},
+            "authorization": "NOT_GRANTED_BY_THIS_PACKET",
+            "honesty": honesty_block() | {"imported_context_ne_permission": True},
+            "verified_at_utc": now,
+        }
+    schema_errors = validate_task_context(recorded)
+    if schema_errors:
+        return {
+            "schema": VERDICT_SCHEMA_CONST,
+            "verdict": UNVERIFIABLE,
+            "reasons": ["RECORDED_SCHEMA_INVALID", *schema_errors[:3]],
+            "changes": [],
+            "recorded": _recorded_marks(recorded),
+            "current": {},
+            "authorization": "NOT_GRANTED_BY_THIS_PACKET",
+            "honesty": honesty_block() | {"imported_context_ne_permission": True},
+            "verified_at_utc": now,
+        }
+    rec = _recorded_marks(recorded)
+    if current is None:
+        return {
+            "schema": VERDICT_SCHEMA_CONST,
+            "verdict": UNVERIFIABLE,
+            "reasons": ["CURRENT_TRUTH_UNAVAILABLE"],
+            "changes": [],
+            "recorded": rec,
+            "current": {},
+            "authorization": "NOT_GRANTED_BY_THIS_PACKET",
+            "honesty": honesty_block() | {"imported_context_ne_permission": True},
+            "verified_at_utc": now,
+        }
+    cur = _recorded_marks(current)
+    changes: list[dict[str, Any]] = []
+    unverifiable: list[str] = []
+    for field, code in (
+        ("lane", "LANE_MISMATCH"),
+        ("repository", "REPOSITORY_MISMATCH"),
+        ("lane_head", "LANE_HEAD_MOVED"),
+        ("ownership", "OWNERSHIP_CHANGED"),
+        ("owner", "OWNER_CHANGED"),
+        ("ci_status", "CI_STATUS_CHANGED"),
+        ("mission_control", "MISSION_CONTROL_FINGERPRINT_CHANGED"),
+        ("frontier", "FRONTIER_FINGERPRINT_CHANGED"),
+    ):
+        before, after = rec.get(field), cur.get(field)
+        if before != after:
+            # A None -> value transition is a real change (UNOWNED -> OWNED by
+            # someone), not an unobservable one; report it rather than drop it.
+            changes.append({"field": field, "code": code, "recorded": before, "current": after})
+    # Unobservable is separate from changed: if the lane could not be resolved on
+    # either side, say so instead of implying the comparison was complete.
+    for side, packet in (("recorded", recorded), ("current", current)):
+        if ((packet.get("lane_state") or {}).get("status")) != KNOWN:
+            unverifiable.append(f"LANE_STATE_UNKNOWN:{side}")
+    blocking = [
+        c
+        for c in changes
+        if c["code"]
+        in {
+            "LANE_MISMATCH",
+            "REPOSITORY_MISMATCH",
+            "LANE_HEAD_MOVED",
+            "OWNERSHIP_CHANGED",
+            "OWNER_CHANGED",
+        }
+    ]
+    if changes:
+        # Blocking codes first so the most decisive reason reads first.
+        ordered = [c["code"] for c in blocking] + [
+            c["code"] for c in changes if c not in blocking
+        ]
+        verdict, reasons = INVALIDATED, ordered + sorted(set(unverifiable))
+    elif unverifiable:
+        verdict, reasons = UNVERIFIABLE, sorted(set(unverifiable))
+    else:
+        verdict, reasons = STILL_VALID, []
+    return {
+        "schema": VERDICT_SCHEMA_CONST,
+        "verdict": verdict,
+        "reasons": reasons,
+        "changes": changes,
+        "recorded": rec,
+        "current": cur,
+        "guidance": (
+            "Recorded evidence still describes current truth; it is context, not permission."
+            if verdict == STILL_VALID
+            else "Rebuild task context before acting; do not replay recorded evidence."
+        ),
+        "authorization": "NOT_GRANTED_BY_THIS_PACKET",
+        "honesty": honesty_block() | {"imported_context_ne_permission": True},
+        "verified_at_utc": now,
+    }
+
+
 def build_task_context(
     *,
     lane: str,
@@ -781,8 +925,12 @@ def format_task_context_tui(packet: dict) -> str:
 
 
 __all__ = [
+    "INVALIDATED",
     "PACKAGE_ID",
     "SCHEMA_CONST",
+    "STILL_VALID",
+    "UNVERIFIABLE",
+    "VERDICT_SCHEMA_CONST",
     "TaskContextError",
     "build_continuation",
     "build_task_context",
@@ -793,5 +941,7 @@ __all__ = [
     "project_lane_state",
     "recovery_guidance",
     "supported_next_step",
+    "validate_continuation_verdict",
     "validate_task_context",
+    "verify_continuation",
 ]
