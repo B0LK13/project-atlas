@@ -20,7 +20,20 @@ Measured on `b87b4a22` by parsing the test tree, not by reading it:
 | comparing an extraction to **another extraction** | **0** |
 
 So the invariant itself — *the human regions that come out are the human regions
-that went in* — was asserted nowhere.
+that went in* — was asserted nowhere, **as a byte-exact invariant**.
+
+Two qualifications this record owes, both from independent verification:
+
+- The **8** counts assertions touching a region *value*. Two more touch only the
+  key set, and of the 8, only 2 compare against a true literal — five compare
+  against a `_human(...)` helper call and one against a local. The load-bearing
+  half, *0 compare an extraction against another extraction*, reproduces exactly.
+- `test_f4_differential_randomized_matches_canonical_core` already runs a
+  **500-trial randomized success-path sweep** at base, asserting the two writers
+  agree and that each operator payload survives every accepted merge. It checks
+  substring containment on well-behaved ASCII, so the byte-exact, whitespace and
+  CRLF gap this package fills is real — but "asserted nowhere" was too broad and
+  is narrowed here.
 
 **A hypothesis I had to discard first.** I expected the existing assertions to be
 blind to whitespace and newline changes, because they use `.strip()`. Measured:
@@ -40,13 +53,13 @@ every generated-span-preserving merge reachable without an owner-gated exception
 
 Measured at `b87b4a22`:
 
-    accepted 332    refused 12    human bytes changed 0
+    accepted 366    refused 14    human bytes changed 0
 
-The 12 refusals matter as much as the 332: they are evidence the corpus still
+The 14 refusals matter as much as the 366: they are evidence the corpus still
 reaches the accept/refuse boundary. A corpus that had drifted to all-accept would
 report the same zero while proving less, so `MIN_REFUSED` is asserted.
 
-The success path is then followed **to disk** through both atomic writers —
+The success path is then followed **to disk** through all three atomic writers —
 merge, write, read back, re-extract — because the operator's bytes are only safe
 if they are still intact in the file.
 
@@ -58,23 +71,29 @@ deliberately corrupted in the two ways this module exists to catch.
 
 | control | measured |
 |---|---|
-| baseline | **7 passed** |
-| real writer normalises CRLF (the #759 defect) | **1 failed** — the invariant test |
-| real writer drops one byte per human body | **1 failed** — the invariant test |
+| baseline | **8 passed** |
+| real merge normalises CRLF (the #759 defect) | **1 failed** |
+| real merge drops one byte per human body | **1 failed** |
+| region comparison neutered | **2 failed** |
 | corpus truncated to 3 pairs | **2 failed** |
-| region comparison neutered (`if False`) | **2 failed** |
-| `changed` list silently cleared | **2 failed** |
-| the only CRLF body removed from the corpus | **2 failed** |
+| the only CRLF body removed | **2 failed** |
 | refusal counting removed | **1 failed** |
-| **`_write_atomic` corrupted to normalise CRLF on the way to disk** | **1 failed** — the round-trip test |
-| **`ingestion._generated_content` added to the sweep** | **2 failed** — invariant *and* exclusion |
-| **a fifth splicing module dropped into `src/`** | **1 failed** — the structural guard |
-| **`capture_io` write path normalises CRLF** | **1 failed** — the third disk writer |
-| **derivation stops following aliased imports** | **1 failed** |
-| restored | **7 passed** |
+| an unparseable NAME reintroduced | **1 failed** |
+| `capture_io` write path normalises CRLF | **1 failed** |
+| a fifth splicing module dropped into `src/` | **1 failed** |
+| import detection removed from the derivation | **1 failed** |
+| the re-export alias dropped | **1 failed** |
+| the detector returns nothing | **2 failed** |
+| restored | **8 passed** |
 
-Each mutation was applied under an anchor assertion and the file restored
-byte-identical (`56357fc0`).
+Each mutation applied under an anchor assertion, file restored byte-identical
+(`5ed8aea2f7b0`). **Two mutations initially reported "8 passed" because the anchor did
+not match** -- shell escaping mangled a `\r\n` literal, and a tuple element had
+no leading whitespace. An inert mutation reporting green is the same defect this
+module exists to catch, so both were re-applied through a file-based mutator and
+only then counted.
+
+
 
 **Two of these controls were rewritten because the first versions could not
 fail.** I had "removed the disk assertion" and "neutered the exclusion assertion"
@@ -113,11 +132,28 @@ is neither swept nor explicitly excluded with a recorded reason. Adding a fifth
 writer therefore cannot pass review silently — measured: dropping a hypothetical
 fifth splicing module into `src/` fails that test immediately.
 
-The derivation follows **aliased** imports, which matters because all three
-non-frozen writers rename the canonical merge on import
-(`_merge_protected_regions`, `_canonical_merge_protected_regions`). A derivation
-matching only the original name would have missed every one of them, so that
-property is asserted too — removing alias resolution fails the test.
+**The derivation keys on the original imported name**, so renaming on import
+cannot hide a writer, and on the known local aliases too, so re-exporting through
+a third module cannot either. Both are now exercised against synthetic modules
+rather than asserted about.
+
+An earlier revision claimed alias-following was pinned by an assertion. It was
+not: discovery filters on the *un-aliased* name, so alias resolution was never
+load-bearing for it, and that assertion passed just as readily on a derivation
+resolving no aliases at all. Verification measured exactly that. The assertion
+is replaced by feeding the detector a renamed import and a re-export and
+requiring the right verdict.
+
+**What the derivation does NOT close.** Verification demonstrated four evasions.
+The re-export is now caught; three remain and are measured:
+`importlib.import_module` plus `getattr` with split literals;
+`module.__dict__["merge_protected_regions"]`; and a hand-rolled splice using
+`Path.read_bytes` and its own regex, which mentions none of these names at all.
+That last one falsifies the original premise directly — those three functions are
+**not** the only way to reach a prior note's human bytes, and nothing enforces
+that they are. The guard makes the *accidental* new writer hard to introduce; it
+does not make the set closed, and an earlier revision of this document said it
+did.
 
 **The guard caught its author on its first run.** An earlier revision of the
 coverage table listed `protected_regions.py`. That module *defines* the merge; it

@@ -14943,22 +14943,32 @@ trailing runs, CRLF, blank lines, a no-break space, a zero-width space, emoji,
 non-ASCII, backslashes, marker-shaped text, a 300-character body, and two-region
 notes whose render lists the regions in the OPPOSITE order -- swept through every
 generated-span-preserving merge reachable without an owner-gated exception, then
-followed to disk through both atomic writers and re-extracted.
+followed to disk through all three atomic writers and re-extracted.
 
-    accepted 332    refused 12    human bytes changed 0
+    accepted 366    refused 14    human bytes changed 0
 
-The 12 refusals matter as much as the 332: they are evidence the corpus still
-reaches the accept/refuse boundary, so `MIN_REFUSED` is asserted. A corpus that
+The 14 refusals matter as much as the 366: they are evidence the corpus still
+reaches the accept/refuse boundary, so `MIN_REFUSED` is asserted. **The counts
+moved from 332/12** when an inert name column was fixed -- an earlier revision
+included `"n o t e s"` and the marker grammar is `[^\s>]+`, so that entire
+column produced no region at all while still being counted in the corpus size.
+Twenty of the advertised pairs never reached a merger. Verification found it;
+a test now asserts every NAME actually parses, because an inert column inside a
+corpus is the same defect as an inert corpus, only harder to see. A corpus that
 drifted to all-accept would report the same zero while proving less.
 
-**The zero is falsifiable in the same test run**, not in a session transcript.
-Ten controls, each under an anchor assertion with the file restored
-byte-identical (`56357fc0`): baseline 6 passed; real writer normalising CRLF 1
-failed; real writer dropping a byte 1 failed; corpus truncated to 3 pairs 2
-failed; comparison neutered 2 failed; `changed` list cleared 2 failed; the only
-CRLF body removed 2 failed; refusal counting removed 1 failed; `_write_atomic`
-corrupted to normalise CRLF on the way to disk 1 failed; `ingestion` added to the
-sweep 2 failed; restored 6 passed.
+**Twelve controls, each under an anchor assertion with the file restored
+byte-identical (`5ed8aea2`)**: baseline 8 passed; real merge normalising CRLF 1
+failed; real merge dropping a byte 1 failed; comparison neutered 2 failed; corpus
+truncated 2 failed; the only CRLF body removed 2 failed; refusal counting removed
+1 failed; an unparseable NAME reintroduced 1 failed; `capture_io` write path
+normalising CRLF 1 failed; a fifth splicing module dropped into `src/` 1 failed;
+import detection removed 1 failed; the re-export alias dropped 1 failed; the
+detector returning nothing 2 failed; restored 8 passed. **Two mutations initially
+reported green because their anchor did not match** -- shell escaping mangled a
+CRLF literal and a tuple element had no leading whitespace -- and an inert
+mutation reporting green is the same defect this module exists to catch, so both
+were re-applied through a file-based mutator before being counted.
 
 **Two controls were rewritten because they could not fail.** The first versions
 removed an assertion -- from the disk test and from the exclusion test -- and

@@ -88,7 +88,13 @@ BODIES = (
     "x" * 300,
 )
 
-NAMES = ("notes", "Notes", "n o t e s", "a-b", "a_b", "α", "x")
+#: Region names. Every one must actually parse as a name -- asserted below,
+#: because an earlier revision included ``"n o t e s"`` and the marker grammar is
+#: ``[^\s>]+``, so that entire column produced no region at all. Twenty of the
+#: advertised pairs never reached a merger while still being counted in the
+#: corpus size. An inert column inside a corpus is the same defect as an inert
+#: corpus, only harder to see.
+NAMES = ("notes", "Notes", "n-o-t-e-s", "a-b", "a_b", "α", "x")
 
 
 def _region(name: str, body: str) -> str:
@@ -319,6 +325,15 @@ def test_f16_the_corpus_can_actually_carry_the_corruption_it_looks_for() -> None
     Asserted on the corpus rather than on the sweep, so it fails loudly if a
     future edit trims the interesting bodies out.
     """
+    for name in NAMES:
+        prior = f"{GENERATED_START}\nx\n{GENERATED_END}\n" + _region(name, "body") + "\n"
+        assert _safe_extract(prior), (
+            f"name {name!r} produces no region at all, so its entire column of the "
+            "corpus is inert while still being counted in the corpus size. The "
+            "marker grammar is `[^\\s>]+` -- a name containing whitespace is not a "
+            "name. An earlier revision shipped exactly this with 'n o t e s'."
+        )
+
     joined = "".join(BODIES)
     assert "\r\n" in joined, "no CRLF body: the newline control cannot bite"
     assert any(b != b.strip() and b.strip() for b in BODIES), "no leading/trailing runs"
@@ -376,32 +391,75 @@ WRITER_COVERAGE = {
 }
 
 
+#: The names that indicate a module can reach a prior note's human content.
+#: ``_merge_protected_regions`` / ``_canonical_merge_protected_regions`` are the
+#: local aliases the canonical merge is re-exported under; matching them catches
+#: a writer that imports it from a third module rather than from the source.
+_SPLICER_NAMES = frozenset(
+    {
+        "merge_protected_regions",
+        "read_note_text",
+        "_generated_content",
+        "_merge_protected_regions",
+        "_canonical_merge_protected_regions",
+    }
+)
+
+
+def _splices(source: str) -> list[str]:
+    """Which splicing names ``source`` imports or calls.
+
+    One implementation, used by the derivation below AND by the tests that feed
+    it synthetic modules -- so those tests exercise the real detector rather
+    than a copy of it that could drift away from the thing being trusted.
+    """
+    if not any(name in source for name in _SPLICER_NAMES):
+        return []
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom):
+            # Keyed on the ORIGINAL imported name, so renaming on import cannot
+            # hide a writer -- and on the local alias too, so re-exporting
+            # through a third module cannot either.
+            names |= {a.name for a in node.names if a.name in _SPLICER_NAMES}
+        elif isinstance(node, ast.Call):
+            names |= {ast.unparse(node.func).split(".")[-1]} & _SPLICER_NAMES
+    return sorted(names)
+
+
 def _splicing_modules() -> dict[str, list[str]]:
     """Every module that can splice human regions into a prior note.
 
     Derived from the source tree, not from a hand-kept list: any module that
     imports or calls ``merge_protected_regions``, ``read_note_text`` or
-    ``_generated_content``. Those three are the only ways to obtain a prior
-    note's human content in order to write it back.
+    ``_generated_content``, or that imports one of the local aliases those are
+    known to be re-exported under.
+
+    **What this does and does not close.** It catches the case that actually
+    happens -- somebody adds a writer by importing the canonical merge, under any
+    name, and the guard fails until the writer is swept or explicitly excluded.
+    It does **not** close the set, and an earlier revision of this docstring
+    claimed it did. Verification demonstrated four evasions, each a module that
+    can splice human regions and passes this derivation: a re-export through a
+    third module; ``importlib.import_module`` plus ``getattr`` with split string
+    literals; ``module.__dict__["merge_protected_regions"]``; and a hand-rolled
+    splice using ``Path.read_bytes`` and its own regex, which mentions none of
+    these names at all. The last one falsifies the premise directly -- those
+    three functions are *not* the only way to reach a prior note's human bytes,
+    and nothing enforces that they are.
+
+    The re-export case is now caught, because it is the one a maintainer might
+    reach for innocently. The other three require deliberately routing around
+    the obvious import, and no import-graph analysis can see the hand-rolled
+    one. Stated rather than implied, because "the set of writers is a closed,
+    reviewed set" is a stronger claim than this mechanism supports.
     """
-    splicers = {"merge_protected_regions", "read_note_text", "_generated_content"}
     found: dict[str, list[str]] = {}
     root = Path(__file__).resolve().parents[2] / "src" / "project_atlas"
     for path in sorted(root.rglob("*.py")):
-        source = path.read_text(errors="replace")
-        if not any(name in source for name in splicers):
-            continue
-        names: set[str] = set()
-        for node in ast.walk(ast.parse(source)):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
-                "protected_regions"
-            ):
-                names |= {a.asname or a.name for a in node.names if a.name in splicers}
-            elif isinstance(node, ast.Call):
-                names |= {ast.unparse(node.func).split(".")[-1]} & splicers
+        names = _splices(path.read_text(errors="replace"))
         if names:
-            rel = path.relative_to(root.parents[1]).as_posix()
-            found[rel] = sorted(names)
+            found[path.relative_to(root.parents[1]).as_posix()] = names
     return found
 
 
@@ -432,17 +490,38 @@ def test_f16_every_splicing_writer_is_covered_or_explicitly_excluded() -> None:
         "A coverage claim outliving its subject is how this record rots."
     )
 
-    # Renaming on import must not hide a writer. All three non-frozen writers
-    # alias the canonical merge (`_merge_protected_regions`,
-    # `_canonical_merge_protected_regions`), so a derivation that matched only
-    # the original name would silently miss every one of them.
-    aliased = {
-        module
-        for module, names in discovered.items()
-        if any(name not in {"read_note_text", "_generated_content"} for name in names)
-    }
-    assert aliased, (
-        "no module resolved an aliased merge import; the derivation has stopped "
-        "following `from ... import merge_protected_regions as _x` and would now "
-        "miss a writer that renames it"
+def test_f16_the_derivation_survives_renaming_and_re_export(tmp_path: Path) -> None:
+    """Two evasions that MUST be caught, exercised rather than asserted about.
+
+    An earlier revision asserted alias-following like this::
+
+        aliased = {m for m, names in discovered.items() if ...}
+        assert aliased
+
+    That could not fail. Discovery filters on the ORIGINAL imported name, so
+    alias resolution was never load-bearing for it, and the assertion passed
+    just as readily on a derivation that resolved no aliases at all --
+    verification measured exactly that. It is replaced by feeding the detector
+    synthetic modules and requiring the right verdict.
+
+    The two shapes here are the ones a maintainer reaches for without malice:
+    renaming on import, and importing from whichever module already has it.
+    """
+    renamed = (
+        "from project_atlas.protected_regions import merge_protected_regions as _m\n"
+        "def w(p, r):\n"
+        "    p.write_text(_m(existing=p.read_text(), rendered=r, path=str(p)))\n"
     )
+    re_exported = (
+        "from project_atlas.obsidian_projection import _merge_protected_regions\n"
+        "def w(p, r):\n"
+        "    p.write_text(_merge_protected_regions(existing=p.read_text(), "
+        "rendered=r, path=str(p)))\n"
+    )
+    for label, source in (("renamed on import", renamed), ("re-exported", re_exported)):
+        assert _splices(source), f"a writer that is {label} evades the derivation"
+
+    # And the negative side: a module that merely mentions the words must not be
+    # flagged, or the guard degenerates into "any file containing this string".
+    prose_only = '"""Discusses merge_protected_regions and read_note_text."""\nX = 1\n'
+    assert not _splices(prose_only), "the derivation flags a module that only mentions"
