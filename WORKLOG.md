@@ -14915,3 +14915,79 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-OBSIDIAN-CAPTURE-001-F16 -- human bytes across writes that SUCCEED
+
+Every protected-region test in this repository pins a **refusal**. Refusals are
+the safe direction. The dangerous case is a write that **succeeds** while
+altering bytes the operator owns, because by construction every marker, count and
+placement check has already passed on it.
+
+Measured on `b87b4a22` by parsing the test tree rather than reading it: **8**
+assertions across two modules touch extracted human regions, **all 8** compare an
+extraction against a literal, and **0** compare an extraction against another
+extraction. The invariant itself -- the human regions that come out are the
+human regions that went in -- was asserted nowhere.
+
+**A hypothesis discarded before writing anything.** I expected the existing
+assertions to be blind to whitespace and newline changes because they use
+`.strip()`. Measured: they are not. `.strip()` touches only the region's outer
+edges and the extracted region includes its BEGIN/END markers, so interior
+trailing runs and CRLF survive it. The existing assertions are byte-capable; what
+was missing is the invariant, a corpus, and the success path to disk. That is a
+narrower claim than the one issue #760 was filed with, and #760 has been
+corrected to it.
+
+**What this adds**: a corpus of 204 prior/rendered pairs -- tabs, leading and
+trailing runs, CRLF, blank lines, a no-break space, a zero-width space, emoji,
+non-ASCII, backslashes, marker-shaped text, a 300-character body, and two-region
+notes whose render lists the regions in the OPPOSITE order -- swept through every
+generated-span-preserving merge reachable without an owner-gated exception, then
+followed to disk through both atomic writers and re-extracted.
+
+    accepted 332    refused 12    human bytes changed 0
+
+The 12 refusals matter as much as the 332: they are evidence the corpus still
+reaches the accept/refuse boundary, so `MIN_REFUSED` is asserted. A corpus that
+drifted to all-accept would report the same zero while proving less.
+
+**The zero is falsifiable in the same test run**, not in a session transcript.
+Ten controls, each under an anchor assertion with the file restored
+byte-identical (`56357fc0`): baseline 6 passed; real writer normalising CRLF 1
+failed; real writer dropping a byte 1 failed; corpus truncated to 3 pairs 2
+failed; comparison neutered 2 failed; `changed` list cleared 2 failed; the only
+CRLF body removed 2 failed; refusal counting removed 1 failed; `_write_atomic`
+corrupted to normalise CRLF on the way to disk 1 failed; `ingestion` added to the
+sweep 2 failed; restored 6 passed.
+
+**Two controls were rewritten because they could not fail.** The first versions
+removed an assertion -- from the disk test and from the exclusion test -- and
+deleting an assertion can never make a test fail. The honest form is to break
+what each guard PROTECTS: corrupt the writer, and actually add the frozen writer
+to the sweep. Both then bit immediately. That is the fourth time in this lane a
+control has passed for a structural reason, and the first time the fix was to
+re-aim the control rather than to strengthen the code.
+
+The `ingestion` row is worth its own note: adding it fails the INVARIANT test as
+well as the exclusion test, which demonstrates the #759 CRLF defect through this
+harness. The exclusion protects the suite from a real, reproduced defect rather
+than a hypothetical one.
+
+**Owner-gated, not fixed**: `ingestion._generated_content` is the fourth writer
+and is excluded because `src/project_atlas/ingestion.py` sits on the frozen
+surface enumerated by `test_atlas3_demo_isolation_001`. Including it would fail
+this suite for a defect this package does not own; fixing it needs an
+owner-approved sha256-pinned exception under `docs/atlas-3/ARCHITECTURE.md` §9.1,
+which this lane cannot self-grant. The exclusion is asserted by a test that names
+the condition for reversing it.
+
+**Not claimed**: that the writers are correct in general (only that across this
+corpus no accepted write altered human bytes -- the corpus is finite and
+hand-chosen); that `HUMAN_CONTENT_INTEGRITY = CONTINUOUSLY_VERIFIED` holds for
+Atlas as a whole (three of the four generated-span-preserving writers are now
+continuously verified on the success path, the fourth is #759 and remains
+owner-gated, so the honest statement is *continuously verified for the writers
+this lane may touch, with the exact blocker identified*); that refusal coverage
+changed; or that any `src/` file is modified -- none is.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F16-ACCEPTED-WRITE-INTEGRITY.md`.
