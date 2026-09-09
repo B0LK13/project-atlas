@@ -3,8 +3,10 @@
 ```text
 Package: AS-STUDIO-A1-001
 Title: Read-only Mission Control projection over F15 control view
-Status: READY (design/outcomes) — IMPLEMENTATION NOT_STARTED
-Depends: AS-STUDIO-A0-001 TECHNICALLY_COMPLETE; owner O1 for start gate
+Status: IMPLEMENTED_IN_LANE (CLI/TUI Mission Control)
+Depends: AS-STUDIO-A0-001 TECHNICALLY_COMPLETE; O1/O6 APPROVED
+O1: APPROVED — in-process atlas_dag builders = authoritative RO runtime (no atlasd)
+O6: APPROVED — seal/evidence may be UNKNOWN/deferred; never promote to healthy
 MERGE_AUTHORIZATION = NOT_GRANTED
 ```
 
@@ -82,6 +84,15 @@ IF owner O1 answered (or waived with O1a recorded)
   AND A0 closure stamps remain true
 THEN AS-STUDIO-A1-001 implementation may begin
 ELSE AS_STUDIO_A1_IMPLEMENTATION = NOT_STARTED
+
+## Owner decisions (binding, recorded)
+
+| ID | Decision |
+|---|---|
+| **O1** | APPROVED — in-process `atlas_dag` / GhClient as interim authoritative RO runtime for A1; dedicated `atlasd` deferred |
+| **O6** | APPROVED — A1 may ship with labeled UNKNOWN postmerge/evidence; never promote UNKNOWN to HEALTHY |
+| Shell | CLI/TUI Mission Control first; Tauri deferred |
+
 ```
 
 ## Owner prompt (copyable)
@@ -89,3 +100,10 @@ ELSE AS_STUDIO_A1_IMPLEMENTATION = NOT_STARTED
 > For A1: do we accept in-process `atlas_dag`/GhClient as interim authoritative
 > RO runtime (**O1a**), or require a dedicated `atlasd`/service first (**O1b**)?
 > Prefer A1.0 CLI/TUI Mission Control before Tauri (**yes/no**)?
+
+```text
+O1 = APPROVED
+O6 = APPROVED
+AS_STUDIO_A1_IMPLEMENTATION = IMPLEMENTED_IN_LANE
+MERGE_AUTHORIZATION = NOT_GRANTED
+```

@@ -1,4 +1,4 @@
-"""Atlas Studio A0 — Linux read-only projection slice (AS-STUDIO-A0-001).
+"""Atlas Studio — A0 snapshot + A1 Mission Control (AS-STUDIO-A0/A1).
 
 STUDIO_UI != AUTHORITY
 ATLAS_DAEMON = AUTHORITATIVE_RUNTIME
@@ -8,13 +8,18 @@ NO_WHOLESALE_CORE_REWRITE
 REUSE_BEFORE_REIMPLEMENT
 MODEL_PROVIDER != ATLAS_ARCHITECTURE
 STUDIO_CRASH != AGENT_TASK_TERMINATION
+ATTENTION != AUTHORIZATION
+STALE != CURRENT
+UNKNOWN != HEALTHY
 
 Read-only only: no claim / dispatch / emit / merge / vault write APIs.
+O1: in-process atlas_dag builders are authoritative RO runtime for A1.
+O6: seal/evidence may be UNKNOWN/deferred — never promote to healthy.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
-# Honesty design laws (must remain True; mirrored in snapshot honesty block).
+# Honesty design laws (must remain True; mirrored in snapshot/MC honesty blocks).
 STUDIO_UI_NE_AUTHORITY = True
 ATLAS_DAEMON_IS_AUTHORITATIVE_RUNTIME = True
 UI_STATE_IS_PROJECTION = True
@@ -24,3 +29,9 @@ REUSE_BEFORE_REIMPLEMENT = True
 MODEL_PROVIDER_NE_ATLAS_ARCHITECTURE = True
 STUDIO_CRASH_NE_AGENT_TASK_TERMINATION = True
 GRANTS_NO_MUTATION = True
+ATTENTION_NE_AUTHORIZATION = True
+STALE_NE_CURRENT = True
+UNKNOWN_NE_HEALTHY = True
+NESTED_HONESTY_FAIL_CLOSED = True
+O1_IN_PROCESS_ATLAS_DAG_RO_RUNTIME = True
+O6_SEAL_EVIDENCE_MAY_BE_UNKNOWN = True

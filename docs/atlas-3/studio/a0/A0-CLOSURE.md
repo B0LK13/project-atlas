@@ -104,6 +104,9 @@ Owner must choose for A1:
 Until O1 is answered, default for **design** is O1a (matches shipped A0), and
 `AS_STUDIO_A1_IMPLEMENTATION = NOT_STARTED`.
 
+**A1 owner recording:** **O1 APPROVED FOR A1** as O1a (in-process `atlas_dag`
+RO runtime; no atlasd required for Mission Control).
+
 ### O2 — Merge sequencing
 
 Owner decides when to merge #762 (docs→main), #763 (A0, stacked on #751), and
@@ -127,6 +130,9 @@ UNKNOWN). Owner chooses: A1 may ship with labeled UNKNOWN postmerge/evidence
 (**O6a**) or must pay seal/evidence collection cost before Mission Control
 (**O6b**).
 
+**A1 owner recording:** **O6 APPROVED FOR A1** as O6a (labeled UNKNOWN
+postmerge/evidence allowed; never promote to healthy).
+
 ### O5 — A1 shell preference (product, not A0 architecture)
 
 #746 prefers Tauri 2 desktop. Repo truth: A0 CLI projection already works.
@@ -139,6 +145,6 @@ Tauri-now. See `../a1/A1-FIRST-WORK-PACKAGE.md`.
 AS_STUDIO_A0_001 = TECHNICALLY_COMPLETE
 A0_REMAINING_OWNER_DECISIONS = EXPLICIT
 STUDIO_CANONICAL_PACKAGE_STATUS = REPO_SYNCHRONIZED_PR_OPEN
-ATLAS_STUDIO_A1_IMPLEMENTATION = NOT_STARTED
+ATLAS_STUDIO_A1_IMPLEMENTATION = IMPLEMENTED_IN_LANE  # see a1/; O1/O6 APPROVED
 MERGE_AUTHORIZATION = NOT_GRANTED
 ```

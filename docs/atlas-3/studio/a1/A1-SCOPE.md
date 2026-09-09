@@ -7,7 +7,9 @@ NO_CLI_TEXT_PARSING_AS_PROTOCOL
 NO_PARALLEL_CONTROL_PLANE
 REUSE_BEFORE_REIMPLEMENT
 STALE_UI_STATE != CURRENT_TRUTH
-AS_STUDIO_A1_IMPLEMENTATION = NOT_STARTED
+AS_STUDIO_A1_IMPLEMENTATION = IMPLEMENTED_IN_LANE
+O1 = APPROVED (in-process atlas_dag RO)
+O6 = APPROVED (seal/evidence UNKNOWN ok; never HEALTHY)
 ```
 
 This document **challenges** earlier A1 planning where repository truth
@@ -19,8 +21,8 @@ diverges. It does not implement A1.
 |---|---|---|
 | A1 implies desktop Mission Control (Tauri) early | A0 already ships typed RO projection CLI over F14/F15/F13; no Tauri stack in-repo | **A1.0 = useful RO Mission Control projection** (CLI/TUI or thin view). Tauri is **optional shell** (A1.1 / separate ADR), not a prerequisite for Mission Control usefulness |
 | Need new Studio eligibility/ownership engines | F15 `ATLAS_GLOBAL_CONTROL_VIEW_V1` already panels: agents, ownership, stacks, frontier, residuals, telemetry, steal, dispatch_gates, evidence_health, postmerge, event_bus, system_honesty | **Present and explain F15 panels** — do not reimplement |
-| “Daemon data” means atlasd only | No `atlasd` binary yet; live truth is coordination builders + GhClient | Pending **O1** in A0-CLOSURE; design assumes interim in-process control plane unless owner requires atlasd first |
-| A1 starts after vague A0 acceptance | A0 is `TECHNICALLY_COMPLETE` with explicit owner decisions | A1 **design READY**; implementation waits on O1 (or owner waive) |
+| “Daemon data” means atlasd only | No `atlasd` binary yet; live truth is coordination builders + GhClient | **O1 APPROVED**: in-process `atlas_dag` builders are authoritative RO runtime for A1 (no atlasd required) |
+| A1 starts after vague A0 acceptance | A0 is `TECHNICALLY_COMPLETE` with explicit owner decisions | A1 **IMPLEMENTED_IN_LANE** (`AS-STUDIO-A1-001`); MERGE_AUTHORIZATION = NOT_GRANTED |
 
 ## Mission Control outcomes A1 must deliver
 
@@ -65,5 +67,5 @@ remain load-bearing for A1, interpreted as **projection over F1–F16**.
 ```text
 A0 TECHNICALLY_COMPLETE (done)
 + F1–F16 control plane available on implementation tip (done at #751 lineage)
-+ O1 answered or waived → A1 implementation may start
++ O1/O6 APPROVED → A1 implementation in lane (`AS-STUDIO-A1-001`)
 ```

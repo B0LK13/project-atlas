@@ -14720,3 +14720,28 @@ AS_STUDIO_A1 = NOT_STARTED
 - A1 scope reconciled + AS-STUDIO-A1-001 READY under `docs/atlas-3/studio/a1/`
 - A1 implementation NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
 
+
+
+## AS-STUDIO-A1-001 — Read-only Mission Control (lane)
+
+- Branch: `feat/as-studio-a1-001` on A0 tip `efb92255…` / PR #763
+- Owner: **O1 APPROVED** (in-process atlas_dag RO runtime); **O6 APPROVED** (seal/evidence UNKNOWN ok)
+- Deliverables: `ATLAS_STUDIO_MISSION_CONTROL_V1` schema; `mission_control.py`; CLI `mc`/`mission-control`; docs; unit tests
+- Honesty: STUDIO_UI!=AUTHORITY; ATTENTION!=AUTHORIZATION; STALE!=CURRENT; UNKNOWN!=HEALTHY; NO_MUTATION; A0 nested honesty preserved
+- Non-goals: Tauri, A2 mutations, commit/push/PR/merge, formal IV
+- Evidence: `docs/atlas-3/studio/a1/A1-EVIDENCE.md`
+
+
+## CLOSE_ATLAS_STUDIO_A1_AND_DEFINE_A2
+
+- Branch: `feat/as-studio-a1-001` @ `3d76fa0e…` (+ semantic-boundary / A2-docs tip)
+- A1 closure: `docs/atlas-3/studio/a1/A1-CLOSURE.md` → **TECHNICALLY_COMPLETE / EXTERNAL_IV_GATED**
+  (honest: CI PASS ≠ FORMAL_IV; verifiers unbound → not CERTIFIED)
+- Adversarial suite: `tests/unit/test_atlas_studio_a1_semantic_boundaries.py` (10 attacks) — all PASS
+- Combined gate: 15 A0 + 15 A1 + 10 semantic = **40 passed**; ruff PASS
+- Fail-closed narrowed: `AGENT_MATRIX_MISMATCH` suppresses foreign frontier rankings/attention
+- Live mc: `mission_status=HUMAN_ATTENTION_REQUIRED`, `freshness=LIVE`, `attention_count=8`
+- `MISSION_CONTROL_HUMAN_COHERENCE = PROVEN`; `STUDIO_MUTATION_AUTHORITY = NONE`
+- A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
+  governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
+- Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added

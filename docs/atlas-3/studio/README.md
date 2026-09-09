@@ -75,17 +75,35 @@ IMPLEMENTED != MERGED
 MERGE_AUTHORIZATION = NOT_GRANTED
 ```
 
-## A1 preparation (not started)
+## A1 Mission Control (lane)
 
-See [`a1/`](./a1/). Scope reconciled from repository truth; first package
-`AS-STUDIO-A1-001` is **READY**. Implementation waits on owner gate **O1**
-(daemon transport) unless waived — see A0-CLOSURE.
+See [`a1/`](./a1/), [A1-CLOSURE.md](./a1/A1-CLOSURE.md), and
+[A1-EVIDENCE.md](./a1/A1-EVIDENCE.md).
+
+```text
+AS_STUDIO_A1_001 = TECHNICALLY_COMPLETE / EXTERNAL_IV_GATED
+MISSION_CONTROL_HUMAN_COHERENCE = PROVEN
+STUDIO_MUTATION_AUTHORITY = NONE
+IMPLEMENTED != MERGED
+CI_PASS != FORMAL_IV
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+## A2 governed intents (docs only)
+
+See [`a2/`](./a2/) and [ADR-035](../../adr/ADR-035-studio-governed-action-intent.md).
+
+```text
+AS_STUDIO_A2 = SCOPE_READY / IMPLEMENTATION_NOT_STARTED
+AS_STUDIO_A2_001 = READY (governed OWNERSHIP_CLAIM)
+BUTTON != MUTATION
+```
 
 ## Next
 
-1. Owner answers O1–O5 in `a0/A0-CLOSURE.md` (especially O1).
-2. Owner merge/IV decisions remain separate from technical completeness.
-3. Do not start A1 implementation until O1 is closed or waived.
+1. Owner merge/IV decisions for A0/A1 remain separate from technical completeness.
+2. Do not implement A2 mutation paths until `AS-STUDIO-A2-001` starts under ADR-035.
+3. Formal IV / verifier bind remains `EXTERNAL_IV_GATED`.
 
 ## A0 package
 
