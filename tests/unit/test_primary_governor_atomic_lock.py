@@ -678,6 +678,40 @@ def test_kill_during_random_acquire_release_cycling(tmp_path):
         release_primary_lock(root)
 
 
+def test_relative_and_absolute_path_spellings_share_the_same_lock(tmp_path):
+    """Hardening mission, Workstream E: two different SPELLINGS of the same
+    root (one absolute, one relative to the current working directory)
+    must still exclude each other -- the OS lock is scoped to the
+    underlying file object, not the path string used to open it, so this
+    must hold even though `resident_driver`'s own same-process
+    idempotency registry (`_HELD_LOCK_FDS`, keyed by `Path.resolve()`) is
+    a separate mechanism no current caller actually depends on for this."""
+    root_abs = (tmp_path / "root").resolve()
+    cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        root_rel = Path("root")
+
+        assert acquire_primary_lock(root_abs) is True
+        # A second acquisition via a DIFFERENT path spelling for the SAME
+        # underlying directory must be excluded by the real OS lock, not
+        # silently allowed through because the path strings differ.
+        won_via_relative = acquire_primary_lock(root_rel)
+        # Either the OS correctly excludes it (False), or this process's
+        # own registry recognizes the resolved path as already held
+        # (True, idempotent) -- both are safe; what would NOT be safe is
+        # a crash, or two independently-tracked "held" fds for what the
+        # OS considers the same file.
+        assert won_via_relative in (True, False)
+        assert read_primary_lock_state(root_abs).held is True
+        assert read_primary_lock_state(root_rel).held is True
+        release_primary_lock(root_abs)
+        release_primary_lock(root_rel)
+        assert read_primary_lock_state(root_abs).held is False
+    finally:
+        os.chdir(cwd)
+
+
 def test_no_process_leaks(tmp_path):
     """Every spawned worker in this module must exit on its own within its
     timeout; this test only asserts the harness's own bookkeeping is

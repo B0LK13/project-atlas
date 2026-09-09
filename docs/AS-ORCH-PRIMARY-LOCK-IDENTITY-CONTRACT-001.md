@@ -164,6 +164,49 @@ out of this contract's narrow scope.
   claim simultaneous same-root coordination across that specific
   boundary.
 
+## Security / trust boundary
+
+Receipt content never decides lock ownership, which already bounds the
+impact of any receipt tampering to observability, never exclusivity --
+`ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1` cannot be broken by writing to the
+receipt file, only the OS lock can grant that, and that requires real OS
+permission to lock the file.
+
+**Genuine finding, not fixed (documented residual)**: the receipt's `pid`
+field is not bound to the identity of the process that is actually
+holding the OS lock at read time -- `read_primary_lock_state()` confirms
+identity from two independently-checked facts (the OS lock is held by
+*someone*; the receipt names *some* positive, currently-alive PID), not
+from a proof that they are the same process. A co-located process that
+already has filesystem write access to Atlas's own runtime state
+directory (i.e., is already inside Atlas's trust boundary -- in practice,
+the same OS user account) can overwrite `resident-primary-receipt.json`
+with an arbitrary *live* PID while a different, real process holds the
+actual lock, causing this function to report a CONFIRMED identity for
+the wrong process. This is not exploitable by an attacker outside that
+trust boundary (no filesystem write access, no effect), and does not let
+a second process become primary -- it only makes the observability `pid`
+field lie about *which* real process the (still-real, still-exclusive)
+lock belongs to. A local process with this level of access could already
+do far more damage to Atlas's other state; this is not treated as a
+priority fix, and is recorded here as the trust-boundary analysis
+Workstream L asked for. A future mitigation, if ever warranted, would
+bind the receipt to a token only the actual OS-lock holder could produce
+(the same lock-generation-token idea already deferred for the reader-race
+residual above) -- not implemented now.
+
+Malformed/hostile receipt *shapes* (non-dict JSON, negative/huge/non-int
+`pid`, empty file) are all already handled -- see the state table above --
+without ever producing a false `CONFIRMED` or a crash from this module's
+own read path (issue #767's own parser is a separate, narrower concern;
+not implemented here, see that doc/issue).
+
+A malicious symlink substituting the lock file path itself is a general
+"an attacker with write access to your state directory can redirect your
+own file operations" concern, not specific to this lock design; the same
+trust-boundary reasoning above applies and no additional mitigation is
+implemented here.
+
 ## Path identity
 
 The OS lock is scoped to the underlying file object, not the path string
