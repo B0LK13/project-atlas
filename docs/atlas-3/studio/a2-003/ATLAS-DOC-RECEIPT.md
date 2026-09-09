@@ -11,32 +11,45 @@ atlas_updates:
   - docs/atlas-3/studio/a2-003/ATLAS-DOC-RECEIPT.md
   - docs/atlas-3/studio/README.md
   - WORKLOG.md
+out_of_tree_evidence:
+  # Recorded outside the repository on purpose: appending them to this branch
+  # would move the head and invalidate the pending exact-head CI run.
+  - ~/Projects/atlas-handoffs/A2-003-LIVE-DEMONSTRATION-2026-09-09.md
+  - ~/Projects/atlas-handoffs/INTEGRATION-CANDIDATE-001.md
+  - ~/Projects/atlas-handoffs/INTEGRATION-SEQUENCE-AND-OWNER-ACTIONS.md
+  - ~/Projects/atlas-handoffs/OWNER-DECISION-PACKET-2026-09-09.md
+  - ~/Projects/atlas-handoffs/ATLAS-REMAINING-WORK-MAP-2026-09-09.md
 validation:
-  studio_suite: 148 passed (A0 + A1 + A1-semantic + A2 + A2-002 + A2-003)
+  studio_suite: 148 passed
   package_tests: 47
   ruff: clean by explicit file path (repo config excludes scripts/, issue #774)
   doctor: ok, includes a2_003_task_context
+  integration_candidate:
+    base: origin/main b87b4a22
+    candidate: 2cd379f2 (tree 326625a1)
+    conflicts: WORKLOG.md only, resolved by union
+    full_repository_suite: pytest exit 0, no test failed
   exact_head_ci:
-    - head: 924a4f88, run: 34386646378, conclusion: success (4/4)
-    - head: e0f50f69, run: 34390138198, conclusion: success (4/4)
-    - head: b3fbcb51, run: pending at receipt time
+    - head: 924a4f88, run: 34386646378, conclusion: success
+    - head: e0f50f69, run: 34390138198, conclusion: success
+    - head: 2f89b26e, run: 34394357024, conclusion: success
+    - head: 19aa31b6, run: pending at receipt time (parent-merge successor)
 sync_state: not_run
 blockers:
-  - "Vault/mda-cli normalization NOT run in this session; this receipt records raw in-repo docs only"
-  - "Formal IV for A2-003 NOT_STARTED; atlas-dag gate 786 reports FORMAL_IV_MISSING"
-  - "CLAIM_INTEGRITY_NOT_PASS:UNKNOWN — the lane was never claimed through the control plane"
+  - "Vault/mda-cli normalization NOT run; this receipt covers raw in-repo docs only and claims no vault sync"
+  - "FORMAL_IV NOT_STARTED; atlas-dag gate 786 reports FORMAL_IV_MISSING"
+  - "CLAIM_INTEGRITY_NOT_PASS:UNKNOWN - the lane was never claimed through the control plane"
   - "MERGE_AUTHORIZATION = NOT_GRANTED"
 ```
 
 Session notes:
-- Certified object `2debb778` (#776) untouched; no commit on any branch owned
-  elsewhere (#781, #785 both advanced during the session and were not edited).
-- Package surface is CLI + schema + Python API. **No Studio UI integration.**
-- Two baseline defects in the live Studio path were reproduced on base
-  `cd4523fc` and repaired in the shared `_live_frontier` helper; a third, in
-  this package's lens classifier, was found by running the real lenses over a
-  real vault.
-- Read-only evidence: a real `atlas init` vault (30 files, plus seeded decision
-  and conflict records) is byte-identical before and after every exercised run.
-  This covers the paths exercised; it is not a proof that all paths are
-  mutation-free.
+- Surface is CLI + schema + Python API. **No Studio UI integration.** Browser
+  verification was not performed; visual behaviour is unverified.
+- Certified object `2debb778` (#776) untouched. #781, #785 and #788 belong to
+  other agents and were not edited; #785's advance was consumed by merging its
+  tip into this branch (`19aa31b6`), which is why this head supersedes the
+  CI-green `2f89b26e`.
+- Three defects were found by running the real entry point: two baseline
+  (reproduced on base `cd4523fc` through the pre-existing claim path) and one in
+  this package's lens classifier. A fourth, in the first cut of continuation
+  verification, was found by live use.
