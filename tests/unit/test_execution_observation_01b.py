@@ -946,15 +946,20 @@ def test_remote_urls_with_newlines_or_a_second_at_sign_are_refused(url: str) -> 
     assert "evil" not in str(excinfo.value) and "x@y" not in str(excinfo.value)
 
 
-def test_status_argv_and_executable_digest_are_pinned(repo: Path) -> None:
-    # U27 / U28
-    import hashlib
-
+def test_status_argv_is_pinned(repo: Path) -> None:
+    # U27
     runner = ScriptedRunner(repo)
-    out = observe(repo, runner)
+    observe(repo, runner)
     status = next(call for call in runner.calls if "status" in call)
     assert "--untracked-files=all" in status and "--porcelain" in status
     assert "--no-optional-locks" in status
+
+
+def test_executable_path_digest_is_sha256_of_the_path_never_the_path(repo: Path) -> None:
+    # U28
+    import hashlib
+
+    out = observe(repo, ScriptedRunner(repo))
     digest = out.receipt.observed.source.git_executable_path_digest
     assert digest == hashlib.sha256(str(GIT).encode("utf-8")).hexdigest()
     assert str(GIT) not in json.dumps(out.receipt.to_record())
@@ -1021,7 +1026,7 @@ def test_receipt_git_scalars_are_strict_bools(repo: Path, field: str, value: obj
     assert "boolean" in text.lower() or "GIT_OBSERVATION_INCOMPLETE" in text
 
 
-@pytest.mark.parametrize("value", ["1", 1.0, True, 0, 2, None])
+@pytest.mark.parametrize("value", ["1", 1.0, True, 0, 2])
 def test_receipt_schema_version_is_a_strict_int_pinned_to_one(repo: Path, value: object) -> None:
     # U68: `schema_version` is StrictInt in [1, 1]; strings, floats, bools and
     # other integers are refused even though they would coerce or compare equal

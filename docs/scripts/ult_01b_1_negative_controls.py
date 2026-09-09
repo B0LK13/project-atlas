@@ -141,6 +141,13 @@ CONTROLS = {
  "OC-BE read credential api.read fallback widened (Z16 variant)": ("src/project_atlas/authz.py",
    "            capabilities=frozenset(set(read_op.capabilities) | {\"api.read\"}),\n",
    "            capabilities=frozenset(set(base.capabilities) | {\"api.read\"}),\n"),
+ "OC-BF status omits --untracked-files=all (U27)": ("src/project_atlas/execution_observation/git.py",
+   "            \"--untracked-files=all\",\n", ""),
+ "OC-BG executable path digest is a constant (U28)": ("src/project_atlas/execution_observation/git.py",
+   "        executable_path_digest=hashlib.sha256(str(git).encode(\"utf-8\")).hexdigest(),",
+   "        executable_path_digest=hashlib.sha256(b\"git\").hexdigest(),"),
+ "OC-BH locator target-is-file check dropped (U74)": ("src/project_atlas/atlas3/contracts.py",
+   "    if target.exists() and not target.is_file():", "    if False:"),
 }
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def failing():
