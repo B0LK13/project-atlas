@@ -398,6 +398,20 @@ def build_mission_journey(
                     "AUTO_RETRY=FORBIDDEN",
                     "CAPTURE!=AUTHORITY",
                     "inspect EXECUTION_FAILED before any fresh intent",
+                    "use intent-continuity after interrupt/stale/duplicate risk",
+                ],
+            },
+            "continuity": {
+                "command": (
+                    "atlas-studio intent-continuity --intent-file <intent.json> "
+                    "[--decision-file <decision.json>]"
+                ),
+                "package": "AS-STUDIO-A2-005",
+                "auto_retry": False,
+                "notes": [
+                    "STALE_INTENT!=PERMISSION",
+                    "DUPLICATE_SUBMIT!=AUTO_RETRY",
+                    "INSPECT!=EXECUTE",
                 ],
             },
             "notes": [

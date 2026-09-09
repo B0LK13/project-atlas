@@ -421,6 +421,31 @@ def cmd_action_evidence(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_intent_continuity(args: argparse.Namespace) -> int:
+    """AS-STUDIO-A2-005 RO intent continuity — never executes."""
+    from atlas_studio.intent_continuity import (
+        build_intent_continuity,
+        format_intent_continuity_tui,
+        validate_intent_continuity,
+    )
+
+    packet = build_intent_continuity(
+        intent_file=args.intent_file,
+        decision_file=args.decision_file,
+        evidence_file=args.evidence_file,
+    )
+    errors = validate_intent_continuity(packet)
+    if errors:
+        for err in errors:
+            print(f"  SCHEMA: {err}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(format_intent_continuity_tui(packet))
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "schema": "ATLAS_STUDIO_DOCTOR_V0",
@@ -693,6 +718,39 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001
         add("a2_004_action_evidence", False, f"{type(exc).__name__}:{exc}")
 
+    # A2-005: intent continuity / interrupted session inspect.
+    try:
+        from atlas_studio import intent_continuity as ic
+
+        honesty = ic.honesty_block()
+        add(
+            "a2_005_continuity_honesty",
+            honesty.get("inspect_ne_execute") is True
+            and honesty.get("stale_intent_ne_permission") is True
+            and honesty.get("auto_retry_forbidden") is True,
+            json.dumps(honesty, sort_keys=True),
+        )
+        intent = {
+            "schema": "ATLAS_STUDIO_ACTION_INTENT_V1",
+            "intent_id": "intent-test",
+            "action_type": "OWNERSHIP_CLAIM",
+            "requested_at_utc": "2026-09-09T10:00:00Z",
+            "max_age_seconds": 60,
+        }
+        packet = ic.build_intent_continuity(
+            intent=intent, clock=lambda: "2026-09-09T12:00:00Z"
+        )
+        errs = ic.validate_intent_continuity(packet)
+        add(
+            "a2_005_intent_continuity_schema",
+            not errs
+            and packet.get("continuity_state") == ic.STALE_INTENT
+            and packet["recovery"]["auto_retry"] is False,
+            "ok" if not errs else "; ".join(errs[:5]),
+        )
+    except Exception as exc:  # noqa: BLE001
+        add("a2_005_intent_continuity", False, f"{type(exc).__name__}:{exc}")
+
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -870,6 +928,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evidence.add_argument("--json", action="store_true")
     evidence.set_defaults(func=cmd_action_evidence)
+
+    continuity = sub.add_parser(
+        "intent-continuity",
+        aliases=["continuity"],
+        help=(
+            "AS-STUDIO-A2-005 inspect intent continuity after interrupt/stale/duplicate "
+            "(never executes)"
+        ),
+    )
+    continuity.add_argument("--intent-file", default=None, help="Intent JSON path")
+    continuity.add_argument(
+        "--decision-file",
+        default=None,
+        help="Optional prior ATLAS_STUDIO_ACTION_DECISION_V1",
+    )
+    continuity.add_argument(
+        "--evidence-file",
+        default=None,
+        help="Optional prior ATLAS_STUDIO_ACTION_EVIDENCE_V1",
+    )
+    continuity.add_argument("--json", action="store_true")
+    continuity.set_defaults(func=cmd_intent_continuity)
 
     doc = sub.add_parser("doctor", help="Import/honesty/schema diagnostics")
     doc.add_argument("--json", action="store_true")

@@ -14821,3 +14821,15 @@ Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT`
   non-canonical knowledge spool (`CAPTURE!=AUTHORITY`).
 - Studio suite: 109 passed; doctor a2_004_* PASS.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-005 — Intent Continuity (2026-09-09)
+
+Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT` (same lane as A2-004)
+
+- Branch: `feat/as-studio-a2-004-action-evidence` (PR #788)
+- CLI: `intent-continuity` / `continuity`
+- States: FRESH / STALE_INTENT / ALREADY_DECIDED / DUPLICATE_SUBMIT_RISK /
+  INTERRUPTED_UNCERTAIN / MISSING / MALFORMED
+- Linked from mission-journey `next_actions.continuity`
+- Studio suite: 116 passed (local)
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED
