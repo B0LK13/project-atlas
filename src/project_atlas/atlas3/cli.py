@@ -856,10 +856,11 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 store_observation_receipt,
             )
 
-            # Owner decision O3: dedicated `execution.observe`, default off. The
-            # capability literal lives in authz.py, a certified frozen surface;
-            # until an owner-approved pinned exception adds it there, this gate
-            # fails closed with authz-unknown-capability (never a self-grant).
+            # Owner decision O3: dedicated `execution.observe`, privileged and
+            # default off (registered in authz.py under the owner-approved pinned
+            # exception OG-ULT-01B-1-AUTHZ-EXECUTION-OBSERVE-20260909). Elevation
+            # is never self-granted: the operator must list the capability in
+            # ATLAS_CLI_ELEVATE_CAPS or this gate fails closed.
             try:
                 require_cli_elevated_operator(
                     "local-operator-observe",

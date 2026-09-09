@@ -54,12 +54,19 @@ clock-free (this package is the only place observation launches a process).
   `observation_id`; it can never make a stage PRESENT. Proof v1 unchanged.
 - CLI: `atlas observe-execution --vault --project --repo [--base-ref] [--remote]`
   and `atlas proof --observation <file>`. Root `cli.py` untouched.
-- **Owner gate (O3 realization):** the dedicated `execution.observe`
-  capability must be registered in `src/project_atlas/authz.py`, a certified
-  frozen surface, under an owner-approved sha256-pinned exception. Until
-  then the CLI gate fails closed on the unknown capability (never a
-  self-grant); the Python API is unaffected. The exact change is
-  `docs/evidence/ULT-01B-1-authz-execution-observe.patch`.
+- **Authorization (O3 realized under owner directive
+  `GOAL = COMPLETE_ULT_01B_1_OPERATIONAL_AUTHORIZATION`):** `execution.observe`
+  is registered in `src/project_atlas/authz.py` — a certified frozen surface —
+  under the owner-approved sha256-pinned exception
+  `OG-ULT-01B-1-AUTHZ-EXECUTION-OBSERVE-20260909` (preimage
+  `505ca5bb…`, blob `c6dd713a`; the applied change is exactly
+  `docs/evidence/ULT-01B-1-authz-execution-observe.patch`). It is a member of
+  `ALL_CAPABILITIES` and `PRIVILEGED_CAPABILITIES` and of nothing else: not
+  `DEFAULT_OPERATOR_CAPS`, not `READ_ONLY_CAPABILITIES`. The CLI fails closed
+  without `ATLAS_CLI_ELEVATE_CAPS=execution.observe`
+  (`authz-cli-elevation-required` / `-incomplete`); with it the real live
+  path runs and stores the receipt. A read credential can never carry it;
+  the default local operator never has it; no existing capability widened.
 - OBSERVED != CLAIMED · UNKNOWN != FAILURE · MODEL_OUTPUT != OBSERVATION ·
   DIRTY_WORKTREE != VALID_CANDIDATE_OBSERVATION · OBSERVATION != AUTHORITY ·
   SECRET != EVIDENCE_PAYLOAD · MERGE_AUTHORIZATION = NOT_GRANTED

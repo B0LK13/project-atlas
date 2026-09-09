@@ -406,18 +406,71 @@ def test_cli_is_denied_without_the_dedicated_capability(
         "observe-execution", "--vault", str(vault), "--project", "harbor-api", "--repo", str(cloned)
     )
     assert code == EXIT_ERROR and payload["error"] == "AUTHZ_DENIED"
+    assert "authz-cli-elevation-required:execution.observe" in str(payload["detail"])
     assert not (vault / "generated").exists()
-    # Owner decision O3 names `execution.observe`; the literal is registered in
-    # authz.py, a certified frozen surface, only under an owner-approved pinned
-    # exception. Until then even an explicit elevation fails closed on the
-    # unknown capability -- never a self-grant.
-    monkeypatch.setenv("ATLAS_CLI_ELEVATE_CAPS", "execution.observe")
+    # an elevation that lists other privileged capabilities but not this one
+    # is incomplete, never widened
+    monkeypatch.setenv("ATLAS_CLI_ELEVATE_CAPS", "vault.write,provider.live")
     code, payload = _cli(
         "observe-execution", "--vault", str(vault), "--project", "harbor-api", "--repo", str(cloned)
     )
     assert code == EXIT_ERROR and payload["error"] == "AUTHZ_DENIED"
-    assert "authz-unknown-capability" in str(payload["detail"])
+    assert "authz-cli-elevation-incomplete:execution.observe" in str(payload["detail"])
     assert not (vault / "generated").exists()
+
+
+def test_cli_with_explicit_elevation_runs_the_real_observation_path(
+    cloned: Path, vault: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ATLAS_CLI_ELEVATE_CAPS", "execution.observe")
+    code, payload = _cli(
+        "observe-execution",
+        "--vault",
+        str(vault),
+        "--project",
+        "harbor-api",
+        "--repo",
+        str(cloned),
+        "--json",
+    )
+    assert code == EXIT_OK and payload["ok"] is True
+    assert payload["observed_is_current"] is False
+    assert payload["authority"] == "derived"
+    assert payload["merge_authorization"] == "NOT_GRANTED"
+    bindings = payload["bindings"]
+    assert bindings["object_bound"] is True and bindings["agent_bound"] is False
+    receipt = payload["receipt"]
+    assert receipt["identity"]["source"]["candidate_head"] == _git("rev-parse", "HEAD", cwd=cloned)
+    assert receipt["identity"]["source"]["repository"] == "github.com/b0lk13/project-atlas"
+    written = vault / payload["receipt_path"]
+    assert written.is_file()
+    assert written.relative_to(vault).parts[:5] == (
+        "generated",
+        "ops",
+        "atlas3",
+        "observation",
+        "v1",
+    )
+    stored = json.loads(written.read_text(encoding="utf-8"))
+    assert stored["observation_id"] == payload["observation_id"]
+    assert "observed_at" not in stored and "timestamp" not in stored
+    # deterministic and idempotent: a second run seals the same receipt and
+    # leaves the stored bytes unchanged
+    before = written.read_bytes()
+    code2, payload2 = _cli(
+        "observe-execution",
+        "--vault",
+        str(vault),
+        "--project",
+        "harbor-api",
+        "--repo",
+        str(cloned),
+        "--json",
+    )
+    assert code2 == EXIT_OK and payload2["observation_id"] == payload["observation_id"]
+    assert written.read_bytes() == before
+    # the sealed receipt links into proof v2 through the same digest
+    assert payload2["identity_digest"] == receipt["identity_digest"]
 
 
 def test_cli_proof_observation_flag_links_a_stored_receipt(

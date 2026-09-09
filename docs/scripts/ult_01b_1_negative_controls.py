@@ -13,7 +13,7 @@ import hashlib, json, subprocess, sys, tempfile
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PY = Path(sys.executable)
-TESTS = ["tests/unit/test_atlas_contracts_observation_receipt_01b.py","tests/unit/test_execution_observation_01b.py","tests/integration/test_execution_observation_live_01b.py"]
+TESTS = ["tests/unit/test_atlas_contracts_observation_receipt_01b.py","tests/unit/test_execution_observation_01b.py","tests/integration/test_execution_observation_live_01b.py","tests/unit/test_authz_execution_observe_01b.py"]
 CONTROLS = {
  "OC-A dirty worktree accepted": ("src/project_atlas/execution_observation/git.py",
    "    if status:\n        raise ObservationError(\n            \"WORKTREE_NOT_CLEAN\"", "    if False:\n        raise ObservationError(\n            \"WORKTREE_NOT_CLEAN\""),
@@ -75,6 +75,20 @@ CONTROLS = {
    "            \"--ignore-submodules=dirty\",\n        ],", "        ],"),
  "OC-AF filter driver name not validated": ("src/project_atlas/execution_observation/git.py",
    "        if not _FILTER_DRIVER_RE.fullmatch(name):", "        if False:"),
+ # --- operational authorization (owner grant OG-ULT-01B-1-AUTHZ-EXECUTION-OBSERVE-20260909)
+ "OC-AG execution.observe granted to the default operator": ("src/project_atlas/authz.py",
+   "        \"scheduler.arm\",\n        \"chatgpt.bridge\",\n        \"collab.session\",\n    }\n)\n\n# Caps that a read session credential may carry",
+   "        \"scheduler.arm\",\n        \"chatgpt.bridge\",\n        \"collab.session\",\n        \"execution.observe\",\n    }\n)\n\n# Caps that a read session credential may carry"),
+ "OC-AH execution.observe carried by read credentials": ("src/project_atlas/authz.py",
+   "        \"collab.session\",\n    }\n)\n\n# Privileged / mutating capabilities",
+   "        \"collab.session\",\n        \"execution.observe\",\n    }\n)\n\n# Privileged / mutating capabilities"),
+ "OC-AI execution.observe demoted from privileged": ("src/project_atlas/authz.py",
+   "        # receipt under the vault; dedicated capability, default off (O3).\n        \"execution.observe\",\n", ""),
+ "OC-AJ CLI observation gate removed (default operator observes)": ("src/project_atlas/atlas3/cli.py",
+   "                require_cli_elevated_operator(\n                    \"local-operator-observe\",\n                    required={cast(Capability, OBSERVE_CAPABILITY)},\n                )",
+   "                pass"),
+ "OC-AK CLI elevation allow-list not checked for completeness": ("src/project_atlas/authz.py",
+   "    if missing:\n        raise AuthzError(", "    if False:\n        raise AuthzError("),
 }
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def failing():

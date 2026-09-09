@@ -43,9 +43,10 @@ from project_atlas.execution_observation.runner import (
 
 OBSERVER_NAME: Final[str] = "atlas-execution-observer"
 SLICE_ID: Final[str] = "ULT-01b-1"
-# Owner decision O3: the dedicated capability name. Its registration in
-# project_atlas.authz (a certified frozen surface) is owner-gated; until then
-# the CLI gate fails closed on an unknown capability.
+# Owner decision O3: the dedicated capability name, registered in
+# project_atlas.authz as privileged and default-off (owner-approved pinned
+# exception OG-ULT-01B-1-AUTHZ-EXECUTION-OBSERVE-20260909). The CLI gate
+# requires explicit elevation through ATLAS_CLI_ELEVATE_CAPS.
 OBSERVE_CAPABILITY: Final[str] = "execution.observe"
 
 
