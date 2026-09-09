@@ -14451,7 +14451,7 @@ parent process and a spawned child resolve `project_atlas` there:
 
     F9 suite                     33 passed
     five pre-existing suites    100 passed
-    freeze guard + label sweep   81 passed
+    freeze guard + lifecycle sweep  81 passed
     full suite                5,726 passed, 8 skipped, 4 xfailed
     ruff / mypy                 clean, 405 files
 
@@ -14467,14 +14467,9 @@ parent process and a spawned child resolve `project_atlas` there:
 Each mutation under a sha256 assertion that it changed the file; source restored
 byte-identical after every run.
 
-**What verification established beyond this package's own claims.** Four rounds
-across four heads, ending with no P0 and no P1: the defect is real on the base
-(12 of 19 shapes diverged); the two surfaces are byte-identical at head across
-all 19, including **14 shapes the verifier constructed that this package never
-tested**; the refusal set provably did not move across **38,248 differential
-cases** plus 12 at disk level; and `_generated_span`'s guard is unreachable
-through the public path under **32,488 instrumented invocations with zero
-raises**.
+**Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py` compares both surfaces over a named corpus plus a generated sweep -- **226 shapes, 203 refused, 226 byte-identical outcomes, 0 divergences** -- and reports refusal as well as message, so a future change that widens or narrows what is refused surfaces as a policy delta rather than only a wording one. Controlled: reverting the count site to its bare message yields **48 divergences of 226**. That script exists because review raised, correctly, that this seal was citing measurements no clean checkout could audit -- an instrument described is not an instrument available.
+
+Independent verification ran larger corpora of its own and reported the same direction: 19 of 27 shapes divergent on the base and 0 at head, the refusal set unmoved across 20,314 cases, and `_generated_span`'s guard never raising across 3,883 public-path invocations. **Those harnesses are not in this repository**, so those figures are attributed rather than cited as evidence -- the numbers this seal rests on are the ones the committed script reproduces.
 
 **Two tests that could not fail were removed, and the second is the more
 instructive.** The first compared an immutable `str` to itself while four
@@ -14499,6 +14494,18 @@ exports.
 three surfaces now agree (two do); or that `_generated_span`'s guard is reachable
 in production (it demonstrably is not).
 
-**Citation boundary.** Where this seal refers to IV rounds, those reports are
-session artifacts and are **not in this repository**. No verdict is asserted here
-as fact. Every measurement cited is re-runnable and every git fact checkable.
+**Citation boundary.** Where this seal refers to verification rounds, those
+reports are session artifacts and are **not in this repository**. No verdict is
+asserted here as fact -- an earlier revision of this section said "no P0 and no
+P1" three paragraphs above this boundary, contradicting it, and review caught
+that in all three artifacts. The figures this seal rests on are reproducible by
+the committed script and by re-running the named suites; figures attributed to
+verification's own harnesses are marked as such and are not reproducible here.
+
+**A residual verification found, pre-existing and not F9's.** Across a 40,000-case
+fuzz it observed 41 shapes where the two surfaces disagree on whether to refuse --
+30 where canonical raises and graph does not, 11 the reverse. These concern HUMAN
+marker *pairing*, not generated-marker diagnosis, and were **verified identical on
+the base**, so F9 neither introduced nor worsened them; F9's diff changes message
+text, never control flow. Recorded here as a candidate for its own package rather
+than folded into this one.
