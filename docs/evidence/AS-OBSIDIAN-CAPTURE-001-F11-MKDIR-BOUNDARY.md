@@ -72,8 +72,11 @@ any Atlas command today.
 
 Each mutation applied under an assertion that the file changed, then restored
 with `git restore --source=HEAD --staged --worktree` under a `git status
---porcelain` emptiness assertion. Sources byte-identical before and after
-(`a538ab59…` / `e957a673…`).
+--porcelain` emptiness assertion. Sources byte-identical before and after; the
+obsidian writer is `a538ab59…` at every head in this package. An earlier revision
+also pinned the graph writer at `e957a673…`, which belongs to `ef628223` and
+stopped holding the moment F10 landed and shifted the file around an unchanged
+guard block. It is dropped rather than restated.
 
 | control | result | failing tests |
 |---|---|---|
@@ -137,11 +140,20 @@ The other two remain raw at this head, pre-existing and reproduced here:
 | existing target unreadable | `PermissionError` | `graph_projections.py:616` `path.read_bytes()` |
 | `ENAMETOOLONG` filename | `OSError` | `graph_projections.py:614` `path.exists()` |
 
-The escape table's line numbers are stated **at the merged base `06362807`**. An
-earlier revision cited 609/605/603, which were correct at the pre-merge head and
-went stale by 11 lines when F10 landed -- and line 609 there is now the guarded
-`mkdir` itself, so those numbers pointed a reader at the fix rather than at an
-escape. Verification caught it. The durable anchors are the code expressions,
+The escape table's line numbers are stated **at this head**, which is the only
+object where they are right. There are three, and they all differ:
+
+| object | `path.exists()` | `path.read_bytes()` | `staged.write_bytes()` |
+|---|---|---|---|
+| `ef628223` (pre-F10) | 603 | 605 | 609 |
+| `e4dd17bc` (current `main`) | 605 | 607 | 611 |
+| **this head** | **614** | **616** | **620** |
+
+An earlier revision cited the first row and labelled it `main`; a first
+correction gave the third row and labelled it the merged base. Both were wrong
+about the object, which is the actual lesson -- a line number without its object
+is not a fact. Line 609 is the guarded `mkdir` **at this head**, which is why the
+original table pointed a reader at the fix. The durable anchors are the code expressions,
 which is why they are quoted alongside.
 
 These three are filed as **#757** so they are explicitly owned, and deliberately
@@ -150,7 +162,9 @@ not folded in here: different sites, different failure modes, different guards.
 ## What is not claimed
 
 - **Not a policy change.** Nothing that succeeded before is refused now.
-  Verification confirmed this independently across 67 legitimate scenarios
+  Verification confirmed this independently -- 67 legitimate scenarios at the
+previous head, and 57 recorded scenarios re-instrumented at this one with
+tree-level manifests compared path-and-sha256 --
   (deep paths, unusual directory names, symlinked vault root, 1 MB and binary
   content, multi-file plans) with byte-identical output trees on base and head,
   plus 960 concurrent writes into a shared not-yet-existing tree with zero

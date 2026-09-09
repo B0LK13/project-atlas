@@ -14709,7 +14709,9 @@ shape-coupled from the start. Fixed by **measuring**: a helper performs the same
 Portable and strictly stronger -- a guard reporting a generic `OSError` now fails,
 which the hard-coded string could not detect. Under a plugin simulating the
 Windows class: new assertion 5 passed, old assertion 2 failed / 3 passed. Windows
-CI is green at the merged head (5,682 passed).
+CI is green at `83a3d7a3` and again at `217e93eb`, 5,682 passed at both -- the same
+count, as a docs-only delta over an identical `tests/` tree must produce. The
+SHAs are named because the ledger outlives the PR.
 
 **A justification that was exactly backwards.** The docstring claimed a
 `pytest.raises` test "would pass on a writer that raised nothing at all", and
@@ -14753,14 +14755,19 @@ Weaker still on the graph side: `graph_projections.write_projection_outputs` has
 reachable from any Atlas command today.
 
 **Not a policy change**, verified independently rather than argued: 67 legitimate
-scenarios with byte-identical output trees on base and head, plus 960 concurrent
-writes into a shared not-yet-existing tree with zero errors either side.
+scenarios at the previous head and 57 re-instrumented at this one, with
+tree-level manifests compared by path and sha256 and zero differing scenarios;
+plus 960 concurrent writes into a shared not-yet-existing tree with zero errors
+on base and head alike. The 67 is attributed rather than cited: it is not
+reproducible from anything in this repository.
 `Path.mkdir(parents=True, exist_ok=True)` is race-safe and the guard is purely
 additive.
 
 **What it does NOT close.** F6's register named THREE raw `_promote` escapes; this
-closes one. The other two remain raw, reproduced with line attribution on the
-merged base:
+closes one. The other two remain raw, reproduced with line attribution **at this head** --
+the same sites sit at 603/605/609 on `ef628223` and 605/607/611 on current `main`
+(`e4dd17bc`), so a line number without its object is not a fact. Issue #757 names
+`main` and therefore needs 605/607/611, not these:
 
     read-only output directory   PermissionError  graph_projections.py:620
     existing target unreadable   PermissionError  graph_projections.py:616
@@ -14768,9 +14775,12 @@ merged base:
 
 The third is not in the register. Filed as **#757** so they are explicitly owned;
 deliberately not folded in, being different sites with different failure modes.
-An earlier revision of this record cited 609/605/603, correct at the pre-merge
-head and stale by 11 lines once F10 landed -- line 609 today is the guarded
-`mkdir` itself, so those numbers pointed a reader at the fix.
+The same three sites are at 603/605/609 on `ef628223`, at 605/607/611 on current
+`main` (`e4dd17bc`), and at 614/616/620 here. An earlier revision cited the first
+set and called it `main`; a first correction cited this set and called it the
+merged base. Both were wrong about the OBJECT rather than the arithmetic, which
+is the lesson worth keeping: a line number without its object is not a fact.
+Issue #757 names `main` and therefore needs 605/607/611, not these.
 
 **Not claimed:** that every `OSError` in these modules is contained (the mkdir
 site only); that the F6 property holds "at all three sites", as an earlier
