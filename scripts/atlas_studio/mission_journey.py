@@ -414,6 +414,20 @@ def build_mission_journey(
                     "INSPECT!=EXECUTE",
                 ],
             },
+            "task_context": {
+                "command": (
+                    "atlas-studio task-context --lane <lane> --agent <agent> "
+                    "--repo <owner/name> [--vault <vault> --project <id>]"
+                ),
+                "package": "AS-STUDIO-A2-003",
+                "ownership": "PR_786_DRAFT",
+                "built_here": False,
+                "notes": [
+                    "lane-scoped preparation owned by A2-003; journey does not reimplement",
+                    "KNOWLEDGE!=PERMISSION",
+                    "AUTHORIZATION=NOT_GRANTED_BY_THIS_PACKET",
+                ],
+            },
             "notes": [
                 "PREVIEW!=EXECUTION",
                 "AVAILABLE!=AUTHORIZED",

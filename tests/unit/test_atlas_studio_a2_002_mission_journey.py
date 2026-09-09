@@ -112,6 +112,10 @@ def test_journey_schema_success_path():
     monitoring = packet["next_actions"]["monitoring"]
     assert monitoring["auto_retry"] is False
     assert "action-evidence" in monitoring["command"]
+    task_ctx = packet["next_actions"]["task_context"]
+    assert task_ctx["built_here"] is False
+    assert task_ctx["ownership"] == "PR_786_DRAFT"
+    assert "task-context" in task_ctx["command"]
 
 
 def test_knowledge_none_found():
