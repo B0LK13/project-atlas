@@ -101,7 +101,11 @@ def outcome(existing: str) -> tuple[str, str]:
 
 def main() -> int:
     shapes: list[tuple[str, str]] = list(NAMED.items())
-    for n, combo in enumerate(itertools.product(FRAGMENTS, repeat=3)):
+    # Depth 4 rather than 3: verification measured that depth 3 reaches 17 distinct
+    # outcomes and depth 4 reaches 27, including classes the shallower corpus never
+    # touches, at no meaningful cost. Parity was confirmed to hold across the deeper
+    # corpus before this was raised.
+    for n, combo in enumerate(itertools.product(FRAGMENTS, repeat=4)):
         shapes.append((f"sweep-{n}", "".join(combo)))
 
     agree = 0
@@ -143,12 +147,15 @@ def main() -> int:
     print(f"  refused by the sweep   {sweep_refusals}")
     print(f"  generated-marker cases {generated_marker}")
 
-    assert len(distinct_outcomes) >= 15, len(distinct_outcomes)
+    # The load-bearing guard: verification could not construct a corpus across 407
+    # variants that passes this and the sweep check while going inert.
+    assert len(distinct_outcomes) >= 25, len(distinct_outcomes)
     assert sweep_refusals > 0, "the sweep contributes no refusals -- it has gone inert"
-    # 42 measured; the floor sits below it with room, so it catches a corpus
-    # that collapses without encoding today's exact count. An earlier revision
-    # asserted >= 50, a number carried over from a larger corpus and never
-    # measured against this one -- it failed immediately.
+    # Documentation of composition rather than independent protection:
+    # verification showed this is redundant with the outcomes guard, which was
+    # binding in all 407 variants it tried. Kept, not counted as a second guard.
+    # An earlier revision asserted >= 50, carried from a larger corpus and never
+    # measured against this one -- it failed immediately at 42.
     assert generated_marker >= 35, generated_marker
     return 1 if divergences else 0
 

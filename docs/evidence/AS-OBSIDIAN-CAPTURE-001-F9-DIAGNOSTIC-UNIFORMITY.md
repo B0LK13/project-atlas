@@ -136,12 +136,10 @@ passed / 8 skipped / 4 xfailed; ruff and mypy clean (405 files). All five
 controls reproduce on `main` at 33 → 12/4/4/1/2, sources restored byte-identical.
 
 **Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py`
-compares both surfaces over a named corpus plus a generated sweep -- **135 shapes,
-125 refused, 135 byte-identical outcomes, 0 divergences**, across **17 distinct
-outcomes** of which **42 exercise a generated-marker diagnosis**. It reports refusal
+compares both surfaces over a named corpus plus a generated sweep -- **635 shapes, 616 refused, 635 byte-identical outcomes, 0 divergences**, across **27 distinct outcomes** of which **168 exercise a generated-marker diagnosis**. It reports refusal
 as well as message, so a change that widens or narrows what is refused shows as a
 policy delta rather than only a wording one. Controlled: reverting the count site to
-its bare message yields **24 divergences**; making the sweep inert trips the corpus
+its bare message yields **72 divergences**; making the sweep inert trips the corpus
 guard.
 
 An earlier revision cited 226, which verification showed was inflated roughly
@@ -162,6 +160,11 @@ this repository. No verdict is asserted here as fact -- an earlier revision said
 this seal rests on are reproducible by the committed script and by re-running the
 named suites; figures attributed to verification's own harnesses are marked as
 such and are not reproducible here.
+
+**A gap in this instrument:** nothing executes it -- not CI, not any test. It
+cannot live under `tests/` without breaking the byte-identity invariant this
+seal rests on, so wiring it up belongs to a follow-up; until then it is
+reproducible on demand and not continuously enforced.
 
 **A residual verification found, pre-existing and not F9's:** across a
 **20,314-case corpus**, **41** shapes where the two surfaces disagree on whether to
