@@ -14754,3 +14754,22 @@ AS_STUDIO_A1 = NOT_STARTED
 - Tests: 19 A2 adversarial + A0/A1 regression (59 total)
 - DISPATCH / STEAL_AUTO = NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
 
+
+
+## AS-STUDIO-A2-001 — Governed OWNERSHIP_CLAIM (lane)
+
+- Branch: `feat/as-studio-a2-001` on A1 tip `028157e2…` (#770)
+- Deliverables: intent/preview/decision schemas; `scripts/atlas_studio/action_intent.py`;
+  CLI `claim-candidates|claim-preview|claim-intent|claim-evaluate|claim-execute`;
+  doctor A2 checks; `docs/atlas-3/studio/a2/A2-EVIDENCE.md`
+- Emitter: evaluate-first; wet path uses `atlas_dag.emitter` `OWNER_CLAIMED` only when
+  `EXECUTE_ALLOWED`; dry-run never emits; preview never emits
+- Refusal vocabulary: EXECUTE_ALLOWED/EXECUTED + REFUSED_STALE/ALREADY_OWNED/
+  NOT_RUNNABLE/AGENT_INVALID/CAPABILITY/POLICY/TARGET_MISMATCH/
+  IDEMPOTENT_ALREADY_CLAIMED/SCHEMA
+- Validation: A0 15 + A1 15 + A1-semantic 10 + A2 19 = **59 passed**; ruff PASS;
+  doctor ok
+- Honesty: STUDIO_UI!=AUTHORITY; REQUESTED!=CLAIMED; PREVIEW!=EXECUTION;
+  CONTROL_PLANE_REVALIDATES_AT_EXECUTION; A1 MC does not import action_intent
+- Explicit: **DISPATCH/STEAL_AUTO = NOT_STARTED**; no merge/IV/worktree/PTY;
+  MERGE_AUTHORIZATION=NOT_GRANTED; FORMAL_IV=NOT_STARTED; no commit/push/PR
