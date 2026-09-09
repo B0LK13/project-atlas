@@ -14808,3 +14808,17 @@ Directive: `D-CODEX-ATLAS-STUDIO-A2-CERTIFIED-CONTINUATION-002`
 - Studio suite: 101 passed; doctor a2_002_* PASS.
 - Overlap avoided: #782 repo-binding, #781 visual shell.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`; A2-002 Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-003 — Task Context + Continuation (lane)
+
+- Branch: `feat/as-studio-a5-task-context-001` on #785 tip `cd4523fc` (A2-002 mission journey; unmerged)
+- Directive: G-ATLAS-12H-LIVE-BACKLOG-TO-USABLE-STUDIO §5 (mission attention → useful context)
+- Deliverables: `scripts/atlas_studio/task_context.py`; `ATLAS_STUDIO_TASK_CONTEXT_V1` schema;
+  CLI `task-context` (live via shared `_live_frontier`, or offline via JSON files); doctor check
+- Reuse: frontier matrix + stacks (lane state, blockers, dependencies, vs-main), A1 freshness +
+  attention, `project_atlas` state/decisions/unknown lenses (KNOWN/UNKNOWN/STALE/CONFLICT/
+  UNAVAILABLE), `export_agent_context` optional, handoff commands referenced not built
+- Honesty: TASK_CONTEXT!=AUTHORITY; NEXT_STEP!=AUTHORIZATION; CONTINUATION!=EXECUTION;
+  MISSING_SHOWN_EXPLICITLY; `merged` always UNKNOWN; no materialization of any vault lens
+- Not started: dispatch/IV/handoff-deliver/steal/merge/worktree; FORMAL_IV=NOT_STARTED;
+  MERGE_AUTHORIZATION=NOT_GRANTED

@@ -106,6 +106,7 @@ MERGE_AUTHORIZATION = NOT_GRANTED
 ## A2-002 Mission Journey (lane)
 
 See [`a2-002/`](./a2-002/).
+| [a2-003/](a2-003/README.md) | AS-STUDIO-A2-003 Task Context + Continuation (RO, one lane; composes A1 + A2-002 + Coder Alpha lenses) |
 
 ```text
 AS_STUDIO_A2_002 = IMPLEMENTED_IN_LANE (RO journey packet)
