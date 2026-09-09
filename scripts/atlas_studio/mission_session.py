@@ -35,6 +35,7 @@ from atlas_studio.action_evidence import (
     REFUSED,
     UNAVAILABLE as EVIDENCE_UNAVAILABLE_CLASS,
     build_action_evidence,
+    classify_decision,
 )
 from atlas_studio.intent_continuity import (
     ALREADY_DECIDED,
@@ -199,8 +200,17 @@ def _decisions_conflict(
         return False
     embedded = evidence_packet.get("decision")
     if not isinstance(embedded, dict):
-        return False
-    # Same object identity / exact match → ok
+        # Evidence without an embedded decision cannot be reconciled — fail closed.
+        return True
+    # Same object identity / exact match → check outcome_class still agrees.
+    expected_class = classify_decision(decision)
+    reported_class = evidence_packet.get("outcome_class")
+    if (
+        isinstance(reported_class, str)
+        and expected_class not in {None, EVIDENCE_UNAVAILABLE_CLASS}
+        and reported_class != expected_class
+    ):
+        return True
     if embedded == decision:
         return False
     for key in ("intent_id", "decision", "mutated", "evaluated_at_utc"):
@@ -208,6 +218,13 @@ def _decisions_conflict(
         right = embedded.get(key)
         if left is not None and right is not None and left != right:
             return True
+    left_ev = decision.get("evidence")
+    right_ev = embedded.get("evidence")
+    if isinstance(left_ev, dict) and isinstance(right_ev, dict):
+        for key in ("mutation_state", "repo", "lane"):
+            lv, rv = left_ev.get(key), right_ev.get(key)
+            if lv is not None and rv is not None and lv != rv:
+                return True
     return False
 
 

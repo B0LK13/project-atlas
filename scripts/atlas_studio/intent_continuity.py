@@ -403,6 +403,22 @@ def build_intent_continuity(
     intent_id = (loaded_intent or {}).get("intent_id") if isinstance(loaded_intent, dict) else None
     recovery = build_recovery(state, intent_id=intent_id if isinstance(intent_id, str) else None)
 
+    # Soft schema diagnostics: annotate without changing continuity_state unless strict.
+    if not strict_schema and not corrupt:
+        try:
+            from atlas_studio.action_intent import validate_decision, validate_intent
+
+            if isinstance(loaded_intent, dict):
+                ierrs = validate_intent(loaded_intent)
+                if ierrs:
+                    notes.append(f"intent_schema_warnings:{len(ierrs)}")
+            if isinstance(loaded_decision, dict):
+                derrs = validate_decision(loaded_decision)
+                if derrs:
+                    notes.append(f"decision_schema_warnings:{len(derrs)}")
+        except Exception as exc:  # noqa: BLE001
+            notes.append(f"schema_validate_skip:{type(exc).__name__}")
+
     packet: dict[str, Any] = {
         "schema": SCHEMA_CONST,
         "generated_at_utc": now_s,

@@ -26,7 +26,7 @@ AUTO_RETRY                = false
 | Tip at overnight start | `b9fd932d` |
 | Prior behavioral candidate | `1bca04e3` (CI cancelled by later pushes; **no SUCCESS exact-head**) |
 | Tip after empty-suite incident | `23a40333` (strict-schema) then **restored** at `dd68d9e5` |
-| Current tip | see `git rev-parse HEAD` on `feat/as-studio-a2-006-mission-session` |
+| Current tip | `eff7a556`+ (see `git rev-parse HEAD`; conflict harden / soft notes may tip further) |
 | Exact-head CI SUCCESS | **NONE** for tips after early Copilot-only success on `75ce849a` |
 | CI dependency | Recorded: successive pushes cancel prior runs; wait for one frozen tip |
 | Formal IV | NOT_STARTED — `iv/A2-006-FORMAL-IV-REQUEST-PACKET.md` |

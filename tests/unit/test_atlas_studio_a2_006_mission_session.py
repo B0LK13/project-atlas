@@ -288,6 +288,40 @@ def test_conflicting_evidence_same_intent_id():
     assert packet["lifecycle"]["evidence"]["conflicting_with_decision_file"] is True
 
 
+def test_outcome_class_disagrees_with_decision_is_conflict():
+    """Same embedded decision bytes but wrong outcome_class still fails closed."""
+    decision = _decision()
+    lying = {
+        "schema": "ATLAS_STUDIO_ACTION_EVIDENCE_V1",
+        "outcome_class": "REFUSED",
+        "decision": decision,
+        "recovery": {"actions": [], "auto_retry": False},
+        "honesty": {},
+        "provenance": {},
+        "generated_at_utc": FIXED,
+    }
+    packet = ms.build_mission_session(
+        intent=_intent(), decision=decision, evidence=lying, clock=clock
+    )
+    assert packet["session_state"] == ms.SESSION_CONFLICTING_EVIDENCE
+
+
+def test_evidence_missing_embedded_decision_is_conflict():
+    decision = _decision()
+    bare = {
+        "schema": "ATLAS_STUDIO_ACTION_EVIDENCE_V1",
+        "outcome_class": "CONFIRMED_SUCCESS",
+        "recovery": {"auto_retry": False},
+        "honesty": {},
+        "provenance": {},
+        "generated_at_utc": FIXED,
+    }
+    packet = ms.build_mission_session(
+        intent=_intent(), decision=decision, evidence=bare, clock=clock
+    )
+    assert packet["session_state"] == ms.SESSION_CONFLICTING_EVIDENCE
+
+
 def test_dry_run_not_refused():
     packet = ms.build_mission_session(
         intent=_intent(),
