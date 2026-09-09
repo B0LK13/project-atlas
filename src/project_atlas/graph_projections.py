@@ -590,7 +590,16 @@ def _promote(plan: dict[Path, bytes]) -> None:
     entries: list[_PromotionEntry] = []
     try:
         for path in sorted(plan):
-            path.parent.mkdir(parents=True, exist_ok=True)
+            # Same third failure site as `obsidian_projection._write_atomic`:
+            # a blocked or unwritable parent escaped as a raw OSError, outside
+            # `GraphProjectionError`, so a caller catching the domain error did
+            # not catch this at all.
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise GraphProjectionError(
+                    f"unwritable-note-directory:{type(exc).__name__}:{path.parent}"
+                ) from exc
             if path.exists() and not path.is_file():
                 raise GraphProjectionError(f"canonical-target-not-file:{path}")
             if path.is_file() and path.read_bytes() == plan[path]:
