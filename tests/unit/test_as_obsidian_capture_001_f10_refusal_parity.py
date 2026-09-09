@@ -23,10 +23,14 @@ accepts, graph refuses -- is F4's **disclosed and intentional** contract: graph
 refuses rather than silently discard the text outside the generated span. That
 asymmetry is deliberate and is asserted here so it cannot be removed by accident.
 
-Reachability, stated honestly. The rendered document is Atlas-generated, so this
-needs the renderer itself to emit malformed markers; today it does not. This is
-defence in depth at a writer boundary, not a live corruption path -- and it is
-worth having precisely because the canonical core already refuses these shapes.
+Reachability. An earlier revision of this docstring called this "defence in
+depth at a writer boundary, not a live corruption path", needing a broken
+renderer. That was wrong and is retracted: nothing in the render path escapes
+marker text, so a relationship field carrying HUMAN markers reaches the render
+verbatim, and against a prior note with no HUMAN regions the pre-fix writer
+persisted it and left the projection permanently unrefreshable. See
+``test_f10_a_poisoned_field_cannot_brick_the_projection`` below, which
+reproduces exactly that.
 """
 
 from __future__ import annotations

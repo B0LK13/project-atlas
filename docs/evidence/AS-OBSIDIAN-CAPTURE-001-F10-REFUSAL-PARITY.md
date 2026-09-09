@@ -88,8 +88,10 @@ reproduction settled it.
 Nothing in the render path escapes marker text. `_redact_text` strips secrets and
 truncates to 240 characters but never touches HTML comments, so a relationship
 field containing HUMAN marker text reaches the render **verbatim**. Measured:
-`source_entity_id`, `target_entity_id`, `relationship_type` and
-`relationship_id` all accept it and carry it into the bundle.
+**five** fields carry it into the bundle -- `source_entity_id`,
+`target_entity_id`, `relationship_type`, `relationship_id`, and
+`provenance.graphify_artifact_refs[].relative_path`, which bypasses
+`_redact_text` entirely. An earlier revision named only the first four.
 
 **The precondition, which neither my original claim nor verification's stated:**
 the prior note must have **no HUMAN regions**, because that is the branch which
@@ -98,7 +100,14 @@ HUMAN emission, is in that state. With a note that *does* carry HUMAN regions --
 the shape a fresh render produces -- the merge delegates to the canonical core
 and is correctly refused even before this fix.
 
-Given both, reproduced end to end through the real writer against a real vault:
+The precondition is **necessary but not sufficient**: verification measured that
+of five poison shapes written on the base, only three bricked -- the poison must
+also land **inside the generated span**, since the hand-splice carries only that
+span across. Relationship record fields land exactly there, so the real vector
+does brick; I reproduced it for two shapes through `source_entity_id`.
+
+Given all of that, reproduced end to end through the real writer against a real
+vault:
 
     BASE   poisoned refresh WRITTEN; the note now carries reversed markers;
            every later refresh -- including a clean one with zero
@@ -119,8 +128,12 @@ not established here.
 
 ## What is not claimed
 
-- **Not that a live corruption path was found.** It is unreachable through the
-  real renderer today.
+- **Not that upstream reachability is established.** A live corruption path
+  *is* demonstrated at the render and write layers -- see Blast radius above --
+  but whether a full `discover -> ingest -> graphify` run with attacker-controlled
+  sources can plant such a field value is not shown here. An earlier revision of
+  this bullet said no live corruption path was found, contradicting the section
+  above it in the same file; verification caught it.
 - **Not that the two surfaces now agree in all directions.** They deliberately
   do not: F4's disclosed contract is intact and asserted.
 - **Not that `ingestion.py` is covered.** It is a third writer, owner-gated
