@@ -80,6 +80,32 @@ def test_corrupt_json_file_is_corrupt_input(tmp_path: Path):
     assert ms.exit_code_for_session(packet) == 1
 
 
+def test_empty_and_non_utf8_intent_files_are_corrupt_input(tmp_path: Path):
+    empty = tmp_path / "empty.json"
+    empty.write_bytes(b"")
+    assert (
+        ms.build_mission_session(intent_file=empty, clock=clock)["session_state"]
+        == ms.SESSION_CORRUPT_INPUT
+    )
+    binary = tmp_path / "bin.json"
+    binary.write_bytes(b"\xff\xfe{\x00")
+    assert (
+        ms.build_mission_session(intent_file=binary, clock=clock)["session_state"]
+        == ms.SESSION_CORRUPT_INPUT
+    )
+
+
+def test_claim_path_loads_intent_via_snapshot(tmp_path: Path):
+    """claim-evaluate/execute share snapshot_load fail-closed semantics."""
+    path = tmp_path / "intent.json"
+    path.write_bytes(b"")
+    try:
+        studio_cli._load_intent_file(str(path))
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "corrupt or empty" in str(exc)
+
+
 def test_byte_hash_matches_file_bytes(tmp_path: Path):
     intent_path = tmp_path / "intent.json"
     decision_path = tmp_path / "decision.json"

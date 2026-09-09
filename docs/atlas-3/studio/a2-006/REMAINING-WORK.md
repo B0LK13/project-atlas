@@ -7,10 +7,13 @@ MERGE_AUTHORIZATION     = NOT_GRANTED
 
 ## Implemented (local)
 
-- Byte-accurate snapshot load; corrupt JSON → CORRUPT_INPUT
-- Binding / conflict / fingerprint / persistence / orphan-tmp (prior)
+- Byte-accurate snapshot load; corrupt/empty/non-UTF8 → CORRUPT_INPUT
+- Binding / conflict / fingerprint / persistence / orphan-tmp
 - CLI exit codes for mission-session
+- Optional `--strict-schema`
+- Claim evaluate/execute intent load via snapshot_load
 - Control-plane observation + task-context UNAVAILABLE explicit
+- ACCEPTANCE-DEMO.md (local / verifier prep)
 
 ## Not established
 
@@ -24,6 +27,6 @@ MERGE_AUTHORIZATION     = NOT_GRANTED
 
 ## Next engineering
 
-1. Soft schema validation on load (fail → MALFORMED/CORRUPT, no authority grant)
-2. Empty/non-UTF8 edge coverage if gaps remain
-3. After CI green: freeze SUBJECT once for Formal IV (owner dispatch)
+1. After exact-head CI green: freeze SUBJECT once for Formal IV (owner dispatch)
+2. #786 landing → flip task-context AVAILABLE (external)
+3. Stop manufacturing gaps when only external blockers remain

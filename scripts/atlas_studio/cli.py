@@ -137,11 +137,28 @@ def cmd_mission_control(args: argparse.Namespace) -> int:
 
 
 def _load_intent_file(path: str) -> dict[str, Any]:
-    raw = Path(path).read_text(encoding="utf-8")
-    data = json.loads(raw)
-    if not isinstance(data, dict):
+    """Load claim intent via the same byte→hash→parse snapshot path as continuity."""
+    from atlas_studio.snapshot_load import (
+        CORRUPT_JSON,
+        EMPTY,
+        MISSING,
+        NOT_OBJECT,
+        READ_ERROR,
+        load_json_snapshot,
+    )
+
+    snap = load_json_snapshot(path)
+    if snap.ok and snap.data is not None:
+        return snap.data
+    if snap.error == MISSING:
+        raise FileNotFoundError(f"intent file missing: {path}")
+    if snap.error in {CORRUPT_JSON, EMPTY}:
+        raise ValueError(f"intent file corrupt or empty: {path}")
+    if snap.error == NOT_OBJECT:
         raise ValueError("intent file must contain a JSON object")
-    return data
+    if snap.error == READ_ERROR:
+        raise OSError(f"intent file unreadable: {path}")
+    raise ValueError(f"intent file load failed ({snap.error}): {path}")
 
 
 def _live_claim_context(

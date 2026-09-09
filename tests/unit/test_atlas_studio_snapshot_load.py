@@ -11,7 +11,9 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from atlas_studio.snapshot_load import (  # noqa: E402
     CORRUPT_JSON,
+    EMPTY,
     MISSING,
+    NOT_OBJECT,
     load_json_snapshot,
 )
 
@@ -33,6 +35,31 @@ def test_corrupt_and_missing(tmp_path: Path):
     assert snap.error == CORRUPT_JSON
     assert snap.raw_sha256 == hashlib.sha256(b"{not json").hexdigest()
     assert load_json_snapshot(tmp_path / "nope.json").error == MISSING
+
+
+def test_empty_file(tmp_path: Path):
+    path = tmp_path / "empty.json"
+    path.write_bytes(b"")
+    snap = load_json_snapshot(path)
+    assert snap.error == EMPTY
+    assert snap.raw_sha256 == hashlib.sha256(b"").hexdigest()
+    assert snap.byte_length == 0
+
+
+def test_non_utf8_bytes(tmp_path: Path):
+    path = tmp_path / "bin.json"
+    raw = b"\xff\xfe{\x00"
+    path.write_bytes(raw)
+    snap = load_json_snapshot(path)
+    assert snap.error == CORRUPT_JSON
+    assert snap.raw_sha256 == hashlib.sha256(raw).hexdigest()
+
+
+def test_json_array_is_not_object(tmp_path: Path):
+    path = tmp_path / "arr.json"
+    path.write_text("[1, 2]", encoding="utf-8")
+    snap = load_json_snapshot(path)
+    assert snap.error == NOT_OBJECT
 
 
 def test_no_second_read_drift(tmp_path: Path):
