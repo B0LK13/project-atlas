@@ -67,10 +67,18 @@ Do **not** treat #762 as `MERGED_TO_MAIN`.
 
 | Severity | Item | Disposition |
 |---|---|---|
-| None Critical/Major | — | — |
-| Minor (A1) | Snapshot lacks explicit `freshness` / stale-after TTL fields | Own in A1 (`STALE_UI_STATE != CURRENT_TRUTH`) |
-| Minor (A1) | Mission Control human layout not productized (panels nested under F15) | Own in A1 |
-| Honest limit | Live seal scan often deferred (`skipped_for_latency`) | Inherit F14/F15 honesty; surface in A1 postmerge panel notes |
+| ~~Major~~ | Nested F15/F14 honesty could lie under outer OK | **Fixed** — `validate_studio_snapshot` + build-time `_assess_nested_body`; dishonest honesty raises `StudioSnapshotError` |
+| ~~Major~~ | Empty `panels.*` objects accepted | **Fixed** — `$defs/studio_panel` requires `status` + `notes` |
+| ~~Major~~ | No nested CV/telemetry validation tests | **Fixed** — builder-backed fixtures + fail-closed tests |
+| Policy (not defect) | Live seal/evidence often UNKNOWN by construction | Explicit notes `LIVE_SEAL_SCAN=DEFERRED_OR_SKIPPED`; owner **O6** / A1 |
+| Minor | Doctor `ATLAS_STUDIO_DOCTOR_V0` lacks schema file | Acceptable for A0 spike; optional A1 harden |
+| Minor | Plugin contracts | Stub: `PLUGIN-CONTRACTS.md` (deferred, fail-closed) |
+
+## Audit follow-up
+
+Independent audit challenged premature `TECHNICALLY_COMPLETE` on nested
+honesty/schema holes. Those contract holes are closed on this tip; seal/
+evidence live UNKNOWN remains an **honest policy**, not a silent success.
 
 ## A0_REMAINING_OWNER_DECISIONS (explicit)
 
@@ -111,6 +119,13 @@ verifiers. `CI_PASS != FORMAL_IV`.
 
 Production MDA normalize/route/receipt for intake
 `AS-STUDIO-INTAKE-20260908-01` remains owner/environment gated.
+
+### O6 — Seal/evidence cost for live Mission Control
+
+A0/F15 live paths often defer seal scan and omit evidence store (honest
+UNKNOWN). Owner chooses: A1 may ship with labeled UNKNOWN postmerge/evidence
+(**O6a**) or must pay seal/evidence collection cost before Mission Control
+(**O6b**).
 
 ### O5 — A1 shell preference (product, not A0 architecture)
 
