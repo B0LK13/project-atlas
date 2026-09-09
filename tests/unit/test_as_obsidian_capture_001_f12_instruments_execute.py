@@ -40,6 +40,7 @@ broader than the corpus behind it.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import pathlib
 import subprocess
@@ -52,6 +53,9 @@ SCRIPTS = pathlib.Path(__file__).resolve().parents[2] / "docs" / "scripts"
 
 #: Instruments cited by sealed evidence records, with the callable each record
 #: names. A rename or a broken import fails here rather than silently rotting.
+#: The one instrument that rewrites source files. Never executed from here.
+_MUTATING = "f8_near_miss_controls.py"
+
 CITED = {
     "f9_diagnostic_parity.py": ("main", "outcome", "NAMED", "FRAGMENTS"),
     "f8_near_miss_controls.py": ("main", "CONTROLS", "ANCHOR"),
@@ -110,6 +114,63 @@ def test_f12_the_parity_instrument_runs_as_a_script_too() -> None:
     assert "divergences            0" in result.stdout, result.stdout
 
 
+def _executing_references_to(source: str, script: str) -> list[str]:
+    """Every call site in ``source`` that would actually RUN ``script``.
+
+    Two shapes count as execution, and the distinction is the whole point:
+    reading ``module.main`` is an interface check, calling ``module.main()`` is
+    not. Analysed per function, because several tests here bind the name
+    ``module`` from ``_load`` for different scripts.
+    """
+    found: list[str] = []
+    for func in ast.walk(ast.parse(source)):
+        if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        loaded: set[str] = set()
+        for node in ast.walk(func):
+            if not (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)):
+                continue
+            call = node.value
+            if not (isinstance(call.func, ast.Name) and call.func.id == "_load"):
+                continue
+            if not any(
+                isinstance(arg, ast.Constant) and arg.value == script
+                for arg in call.args
+            ):
+                continue
+            loaded.update(
+                target.id for target in node.targets if isinstance(target, ast.Name)
+            )
+        for node in ast.walk(func):
+            if not isinstance(node, ast.Call):
+                continue
+            callee = node.func
+            if (
+                isinstance(callee, ast.Attribute)
+                and isinstance(callee.value, ast.Name)
+                and callee.value.id in loaded
+            ):
+                found.append(f"{func.name}:{node.lineno} {ast.unparse(callee)}()")
+            elif (
+                isinstance(callee, ast.Attribute)
+                and isinstance(callee.value, ast.Call)
+                and isinstance(callee.value.func, ast.Name)
+                and callee.value.func.id == "_load"
+                and any(
+                    isinstance(arg, ast.Constant) and arg.value == script
+                    for arg in callee.value.args
+                )
+            ):
+                found.append(f"{func.name}:{node.lineno} _load(...).{callee.attr}()")
+            elif ast.unparse(callee).split(".")[0] in {
+                "subprocess",
+                "runpy",
+                "os",
+            } and script in ast.unparse(node):
+                found.append(f"{func.name}:{node.lineno} {ast.unparse(callee)}(...)")
+    return found
+
+
 def test_f12_the_mutating_instrument_is_not_executed_by_this_suite() -> None:
     """Guard the deliberate scope choice above.
 
@@ -117,8 +178,35 @@ def test_f12_the_mutating_instrument_is_not_executed_by_this_suite() -> None:
     future edit made this suite run it, an interrupted CI job could leave a
     mutated tree. The exclusion is asserted so it stays a decision rather than
     becoming an accident.
+
+    An earlier revision asserted this by substring, searching for
+    ``'f8_near_miss_controls.py", ('`` in ``source.replace(" ", "")``. The
+    needle contains a space and the haystack had every space stripped, so it
+    could never match: the assertion was unconditionally true and would not have
+    noticed the execution path it existed to forbid. Two review bots caught it
+    independently, which is the third guard in this lane that passed by
+    construction rather than by coverage.
+
+    The replacement resolves call sites instead of matching text, and -- the
+    part that keeps it honest -- **proves the detector is live on this very
+    file** before trusting its silence: `f9_diagnostic_parity.py` IS executed
+    here, twice, so a detector reporting nothing for it is broken rather than
+    reassuring.
     """
-    source = (pathlib.Path(__file__)).read_text()
-    assert "f8_near_miss_controls.py\", (" not in source.replace(" ", "")
-    module = _load("f8_near_miss_controls.py")
+    source = pathlib.Path(__file__).read_text()
+
+    control = _executing_references_to(source, "f9_diagnostic_parity.py")
+    assert len(control) >= 2, (
+        "positive control: the parity instrument is executed here in-process and "
+        f"as a script, so the detector must find both; it found {control}"
+    )
+
+    running = _executing_references_to(source, _MUTATING)
+    assert not running, (
+        f"this suite would RUN the source-mutating instrument at: {running}. "
+        "It rewrites files under src/ and restores them; an interrupted CI job "
+        "would leave the tree mutated."
+    )
+
+    module = _load(_MUTATING)
     assert callable(module.main), "entry point kept, but not invoked here"
