@@ -14915,3 +14915,138 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-OBSIDIAN-CAPTURE-001-F16 -- human bytes across writes that SUCCEED
+
+Every protected-region test in this repository pins a **refusal**. Refusals are
+the safe direction. The dangerous case is a write that **succeeds** while
+altering bytes the operator owns, because by construction every marker, count and
+placement check has already passed on it.
+
+Measured on `b87b4a22` by parsing the test tree rather than reading it: **8**
+assertions across two modules touch extracted human regions, **all 8** compare an
+extraction against a literal, and **0** compare an extraction against another
+extraction. The invariant itself -- the human regions that come out are the
+human regions that went in -- was asserted nowhere.
+
+**A hypothesis discarded before writing anything.** I expected the existing
+assertions to be blind to whitespace and newline changes because they use
+`.strip()`. Measured: they are not. `.strip()` touches only the region's outer
+edges and the extracted region includes its BEGIN/END markers, so interior
+trailing runs and CRLF survive it. The existing assertions are byte-capable; what
+was missing is the invariant, a corpus, and the success path to disk. That is a
+narrower claim than the one issue #760 was filed with, and #760 has been
+corrected to it.
+
+**What this adds**: a corpus of 204 prior/rendered pairs -- tabs, leading and
+trailing runs, CRLF, blank lines, a no-break space, a zero-width space, emoji,
+non-ASCII, backslashes, marker-shaped text, a 300-character body, and two-region
+notes whose render lists the regions in the OPPOSITE order -- swept through every
+generated-span-preserving merge reachable without an owner-gated exception, then
+followed to disk through all three atomic writers and re-extracted.
+
+    accepted 366    refused 14    human bytes changed 0
+
+The 14 refusals matter as much as the 366: they are evidence the corpus still
+reaches the accept/refuse boundary, so `MIN_REFUSED` is asserted. **The counts
+moved from 332/12** when an inert name column was fixed -- an earlier revision
+included `"n o t e s"` and the marker grammar is `[^\s>]+`, so that entire
+column produced no region at all while still being counted in the corpus size.
+Twenty of the advertised pairs never reached a merger. Verification found it;
+a test now asserts every NAME actually parses, because an inert column inside a
+corpus is the same defect as an inert corpus, only harder to see. A corpus that
+drifted to all-accept would report the same zero while proving less.
+
+**Sixteen controls, each under an anchor assertion with the file restored
+byte-identical (`3f2f4cba`)**: baseline 8 passed; real merge normalising CRLF 1
+failed; real merge dropping a byte 1 failed; comparison neutered 2 failed; corpus
+truncated 2 failed; the only CRLF body removed 2 failed; refusal counting removed
+1 failed; an unparseable NAME reintroduced 1 failed; `capture_io` write path
+normalising CRLF 1 failed; a fifth splicing module dropped into `src/` 1 failed;
+import detection removed 1 failed; the re-export alias dropped 1 failed; the
+detector returning nothing 2 failed; restored 8 passed. **Two mutations initially
+reported green because their anchor did not match** -- shell escaping mangled a
+CRLF literal and a tuple element had no leading whitespace -- and an inert
+mutation reporting green is the same defect this module exists to catch, so both
+were re-applied through a file-based mutator before being counted.
+
+**Two controls were rewritten because they could not fail.** The first versions
+removed an assertion -- from the disk test and from the exclusion test -- and
+deleting an assertion can never make a test fail. The honest form is to break
+what each guard PROTECTS: corrupt the writer, and actually add the frozen writer
+to the sweep. Both then bit immediately. That is the fourth time in this lane a
+control has passed for a structural reason, and the first time the fix was to
+re-aim the control rather than to strengthen the code.
+
+The `ingestion` row is worth its own note: adding it fails the INVARIANT test as
+well as the exclusion test, which demonstrates the #759 CRLF defect through this
+harness. The exclusion protects the suite from a real, reproduced defect rather
+than a hypothetical one.
+
+**Owner-gated, not fixed**: `ingestion._generated_content` is the fourth writer
+and is excluded because `src/project_atlas/ingestion.py` sits on the frozen
+surface enumerated by `test_atlas3_demo_isolation_001`. Including it would fail
+this suite for a defect this package does not own; fixing it needs an
+owner-approved sha256-pinned exception under `docs/atlas-3/ARCHITECTURE.md` §9.1,
+which this lane cannot self-grant. The exclusion is asserted by a test that names
+the condition for reversing it.
+
+**Not claimed**: that the writers are correct in general (only that across this
+corpus no accepted write altered human bytes -- the corpus is finite and
+hand-chosen); that `HUMAN_CONTENT_INTEGRITY = CONTINUOUSLY_VERIFIED` holds for
+Atlas as a whole (three of the four generated-span-preserving writers are now
+continuously verified on the success path, the fourth is #759 and remains
+owner-gated, so the honest statement is *continuously verified for the writers
+this lane may touch, with the exact blocker identified*); that refusal coverage
+changed; or that any `src/` file is modified -- none is.
+
+**The writer set was wrong, and is now enforced rather than declared.** An
+earlier revision of this package swept two merge paths and two atomic writers and
+called that the full set. Derived mechanically from the source tree -- every
+module importing or calling `merge_protected_regions`, `read_note_text` or
+`_generated_content`, or a local alias they are re-exported under -- which are the
+ways this derivation can SEE, not the only ways such content can be reached; that
+stronger claim is retracted below -- there are FOUR: `graph_projections`,
+`obsidian_projection`, `obsidian_capture_note`, and the frozen `ingestion`.
+
+`obsidian_capture_note` was the miss. It shares the canonical merge but has its
+OWN atomic writer delegating to `capture_io.write_atomic_under_root`, so the
+previous disk round trip claimed coverage broader than the code behind it. It is
+now swept, and corrupting that write path to normalise CRLF fails the round-trip
+test.
+
+The set is enforced by derivation at test time: a module that can splice human
+regions and is neither swept nor explicitly excluded with a recorded reason fails
+`test_f16_every_splicing_writer_is_covered_or_explicitly_excluded`. Measured by
+dropping a hypothetical fifth splicing module into `src/` -- it fails
+immediately. The derivation keys on the ORIGINAL imported name, so renaming on import cannot
+hide a writer, and on the known local aliases too, so re-exporting through a
+third module cannot either. An earlier revision claimed alias-following was
+pinned by an assertion; it was not -- discovery filters on the un-aliased name,
+so that assertion passed just as readily on a derivation resolving no aliases at
+all. Verification measured it. It is replaced by feeding the detector synthetic
+modules and requiring the right verdict.
+
+**What the derivation does NOT close**, measured across two verification rounds
+rather than reasoned. A second round found a FIFTH evasion class in three
+idiomatic spellings -- a splicer reached as an attribute in non-call position
+(`_F = pr.merge_...` then `_F(...)`, `functools.partial`, `staticmethod`). Those
+are not route-arounds; they are what someone writes without thinking, which made
+them materially more reachable than the evasions already documented. Closed by an
+`ast.Attribute` clause, measured free: the discovered set is unchanged. The scan
+root widened from one package to all of `src/` in the same round, since
+`src/atlas_contracts/` is a real shipped package a writer could sit in.
+
+Three evasions survive and are stated rather than implied away:
+`importlib.import_module` plus `getattr` with split literals;
+`module.__dict__["merge_protected_regions"]`; and a hand-rolled splice using
+`Path.read_bytes` and its own regex, which mentions none of these names at all --
+that last one falsifying the premise directly. Two further limits are pinned
+rather than argued: a two-hop re-export under an unlisted name evades at the
+writer module, and the alias list itself ROTS if a writer renames its local
+alias, so a test now checks the list against the tree in both directions.
+
+The guard makes the ACCIDENTAL new writer hard to introduce. It does not close
+the set, and an earlier revision of this entry said it did.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F16-ACCEPTED-WRITE-INTEGRITY.md`.
