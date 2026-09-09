@@ -14,7 +14,8 @@ CI_PASS != FORMAL_IV · IMPLEMENTED != MERGED · TASK_CONTEXT != AUTHORITY
 | CLI | `atlas-studio task-context --lane pr/N [--agent] [--vault --project] [--with-agent-context] [--mc-file --matrix-file --stacks-file] [--json]` |
 | Schema | `schemas/atlas_studio_task_context_v1.schema.json` |
 | Doctor | `a2_003_task_context` |
-| Tests | `tests/unit/test_atlas_studio_a2_003_task_context.py` |
+| Tests | `tests/unit/test_atlas_studio_a2_003_task_context.py` (31) |
+| Demonstration | `A2-003-FIRST-WORK-PACKAGE.md` § Demonstration — live lane read, real vault, real conflict, stale/mismatch, cross-process continuation |
 
 ## Validation (lane)
 
@@ -26,6 +27,13 @@ CI_PASS != FORMAL_IV · IMPLEMENTED != MERGED · TASK_CONTEXT != AUTHORITY
   tests/unit/test_atlas_studio_a2_003_task_context.py
 .venv/bin/python scripts/atlas-studio.py doctor --json
 ```
+
+## Exact-object CI
+
+| Head | Run | Result |
+|---|---|---|
+| `924a4f88` (pre-repair) | 34386646378 | success 4/4 (control-plane, ubuntu 3.12/3.13, windows) |
+| successor with the live-path repairs | pending at time of writing | requires its own exact-head run |
 
 ## Non-claims
 

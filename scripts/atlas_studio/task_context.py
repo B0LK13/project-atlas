@@ -293,15 +293,30 @@ def _count(value: Any) -> int:
         return 0
 
 
+def _signal(entry: dict[str, Any], key: str) -> Any:
+    """Read a lens field from ``signals`` first, then the top level.
+
+    The real Coder Alpha lenses nest their counters under ``signals``
+    (``{"signals": {"unresolved_conflicts": 0, ...}}``); only some fields
+    (``decision_count``) sit at the top level. Reading one shape only made the
+    classifier blind to real conflicts — caught by running the real lenses over
+    a real vault, not by the injected-shape unit tests.
+    """
+    signals = entry.get("signals")
+    if isinstance(signals, dict) and key in signals:
+        return signals[key]
+    return entry.get(key)
+
+
 def _classify_lens(entry: dict[str, Any]) -> str:
-    if _count(entry.get("unresolved_conflicts")) > 0:
+    if _count(_signal(entry, "unresolved_conflicts")) > 0:
         return CONFLICT
-    if _count(entry.get("stale_claims")) > 0:
+    if _count(_signal(entry, "stale_claims")) > 0:
         return STALE
     counts = (
-        _count(entry.get("decision_count"))
-        + _count(entry.get("verified_claims"))
-        + _count(entry.get("unknown_items"))
+        _count(_signal(entry, "decision_count"))
+        + _count(_signal(entry, "verified_claims"))
+        + _count(_signal(entry, "unknown_items"))
     )
     if counts == 0 and str(entry.get("status") or "").lower() in {"", "unknown", "empty"}:
         return UNKNOWN
@@ -327,8 +342,8 @@ def _lens_summary(name: str, entry: dict[str, Any]) -> dict[str, Any]:
         "pending_reviews",
         "sources_failed",
     ):
-        if key in entry:
-            val = entry.get(key)
+        val = _signal(entry, key)
+        if val is not None:
             summary["counts"][key] = len(val) if isinstance(val, list) else val
     if name == "decisions":
         sample = []
@@ -343,14 +358,20 @@ def _lens_summary(name: str, entry: dict[str, Any]) -> dict[str, Any]:
                 )
         summary["decisions_sample"] = sample
     if name == "unknown":
+        raw_unknown = _signal(entry, "unknown_items")
         summary["unknown_items"] = [
             (u if isinstance(u, str) else json.dumps(u, sort_keys=True, default=str))[:160]
-            for u in list(entry.get("unknown_items") or [])[:10]
+            for u in (raw_unknown if isinstance(raw_unknown, list) else [])[:10]
         ]
-        summary["unresolved_conflicts"] = [
-            (c if isinstance(c, str) else json.dumps(c, sort_keys=True, default=str))[:160]
-            for c in list(entry.get("unresolved_conflicts") or [])[:10]
-        ]
+        raw_conflicts = _signal(entry, "unresolved_conflicts")
+        summary["unresolved_conflicts"] = (
+            [
+                (c if isinstance(c, str) else json.dumps(c, sort_keys=True, default=str))[:160]
+                for c in raw_conflicts[:10]
+            ]
+            if isinstance(raw_conflicts, list)
+            else _count(raw_conflicts)
+        )
     return summary
 
 

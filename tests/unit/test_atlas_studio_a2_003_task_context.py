@@ -605,3 +605,93 @@ def test_doctor_reports_task_context_check(capsys):
     checks = {c["name"]: c for c in report["checks"]}
     assert checks["a2_003_task_context"]["ok"] is True, checks["a2_003_task_context"]
     assert rc == 0
+
+
+# --- real-lens shape (regression: injected fixtures hid a nested-signals bug) --
+
+
+def _seed_conflict_vault(vault: Path, project: str = "harbor-api") -> None:
+    """Real shapes the Coder Alpha lenses read: review/conflicts/<p>.json entries."""
+    (vault / "review" / "conflicts").mkdir(parents=True, exist_ok=True)
+    (vault / "review" / "conflicts" / f"{project}.json").write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "conflict_id": "cf-1",
+                        "subject": "deployment target",
+                        "status": "pending",
+                        "positions": [
+                            {"source": "docs/plan.md", "value": "Kubernetes"},
+                            {"source": "README.md", "value": "bare metal"},
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_real_lens_nested_signals_are_classified_not_ignored(tmp_path):
+    """The real lenses nest counters under `signals`; a top-level-only reader is blind.
+
+    Uses the real project_atlas builders over a real vault, so an injected-shape
+    change in the lenses cannot silently make this pass again.
+    """
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _seed_conflict_vault(vault)
+    before = _tree_hash(vault)
+    p = tc.build_task_context(
+        lane="pr/900",
+        agent_id=AGENT,
+        mission_control=_mc_live(),
+        frontier_matrix=_matrix([_claim_action()]),
+        stacks=_stacks(),
+        vault=vault,
+        project_id="harbor-api",
+        clock=clock,
+    )
+    kn = p["knowledge"]
+    assert kn["state"] == "CONFLICT", kn
+    assert kn["lenses"]["unknown"]["state"] == "CONFLICT"
+    assert kn["lenses"]["unknown"]["counts"]["unresolved_conflicts"] == 1
+    assert any(r["condition"] == "KNOWLEDGE_CONFLICT" for r in p["recovery"])
+    assert _tree_hash(vault) == before
+    assert tc.validate_task_context(p) == []
+
+
+def test_signal_helper_prefers_signals_then_top_level():
+    assert tc._signal({"signals": {"x": 5}, "x": 1}, "x") == 5
+    assert tc._signal({"x": 1}, "x") == 1
+    assert tc._signal({"signals": {}}, "x") is None
+    assert tc._signal({"signals": "not-a-dict", "x": 2}, "x") == 2
+
+
+def test_live_frontier_never_passes_none_clock_to_builders(monkeypatch):
+    """Baseline defect: build_studio_snapshot calls clock() unconditionally."""
+    seen: dict = {}
+
+    def fake_mc(*, agent_id, live, repo, clock=None, **kw):
+        seen["mc_clock"] = clock
+        return _mc_live()
+
+    def fake_matrix(snapshot, *, agent_id=None, registry=None, stacks=None, clock=None, **kw):
+        seen["matrix_clock"] = clock
+        seen["positional_only_snapshot"] = snapshot
+        return _matrix([_claim_action()])
+
+    monkeypatch.setattr("atlas_studio.mission_control.build_mission_control", fake_mc)
+    monkeypatch.setattr("atlas_dag.frontier_matrix.build_frontier_matrix", fake_matrix)
+    monkeypatch.setattr(
+        "atlas_dag.model.build_snapshot", lambda client: {"nodes": [], "main_branch": "main"}
+    )
+    monkeypatch.setattr("atlas_dag.stack.build_stacks", lambda nodes, client, branch: _stacks())
+    monkeypatch.setattr("atlas_dag.agents.load_registry", lambda: object())
+    monkeypatch.setattr("atlas_dag.gh.GhClient", lambda repo=None: object())
+
+    studio_cli._live_frontier(AGENT, repo=REPO)
+    assert callable(seen["mc_clock"]), "None clock would raise inside build_studio_snapshot"
+    assert callable(seen["matrix_clock"])
+    assert isinstance(seen["positional_only_snapshot"], dict)

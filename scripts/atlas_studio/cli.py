@@ -150,19 +150,29 @@ def _live_frontier(
     repo: str | None,
     clock=None,
 ) -> tuple[dict[str, Any], dict[str, Any], Any, dict[str, Any]]:
-    """Build MC + frontier matrix + registry + stacks from live truth (fail closed)."""
+    """Build MC + frontier matrix + registry + stacks from live truth (fail closed).
+
+    ``clock=None`` must never reach the builders: ``build_studio_snapshot`` calls
+    ``clock()`` unconditionally, so a None clock raises
+    ``TypeError: 'NoneType' object is not callable`` deep inside the snapshot.
+    Reproduced on the base commit through the pre-existing claim path, so this
+    is a baseline defect on every live Studio command, repaired once here
+    because every live caller now routes through this helper.
+    """
     from atlas_dag import agents as agents_mod
     from atlas_dag import frontier_matrix as fm_mod
     from atlas_dag import model as model_mod
     from atlas_dag import stack as stack_mod
     from atlas_dag.gh import GhClient
     from atlas_studio.mission_control import build_mission_control
+    from atlas_studio.snapshot import utcnow as _snapshot_utcnow
 
+    tick = clock or _snapshot_utcnow
     mc = build_mission_control(
         agent_id=agent_id,
         live=True,
         repo=repo,
-        clock=clock,
+        clock=tick,
     )
     client = GhClient(repo=repo) if repo else GhClient()
     snap = model_mod.build_snapshot(client)
@@ -170,12 +180,15 @@ def _live_frontier(
         snap["nodes"], client, snap.get("main_branch") or "main"
     )
     registry = agents_mod.load_registry()
+    # build_frontier_matrix takes snapshot positionally and everything else
+    # keyword-only; the inherited positional call raised TypeError on every live
+    # invocation (second baseline defect, reproduced on the base commit).
     matrix = fm_mod.build_frontier_matrix(
         snap,
-        agent_id,
-        registry,
+        agent_id=agent_id,
+        registry=registry,
         stacks=stacks,
-        clock=clock,
+        clock=tick,
     )
     return mc, matrix, registry, stacks
 
