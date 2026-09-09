@@ -94,6 +94,16 @@ not claim success or claim that evidence was persisted.
 Whitespace-only or empty `expected_repo` is treated as missing and refused
 with `EXPECTED_REPO_REQUIRED_AT_EXECUTE` before live resolution.
 
+Repository identity is also **bound into the intent** at mint time
+(`target_repo`, part of the `intent_id` hash material; `claim-intent` binds
+the repository Mission Control observed). Evaluate refuses
+`REFUSED_TARGET_MISMATCH / INTENT_REPO_NE_LIVE_REPO` when the live Mission
+Control belongs to another repository; execute refuses
+`INTENT_REPO_NE_EXPECTED_REPO` when the operator's explicit pin disagrees with
+the bound identity. An unbound (legacy) intent still needs the explicit pin.
+`atlas-studio doctor` now checks that the decision-schema enum equals the
+substrate's decision vocabulary (`a2_decision_vocabulary_matches_schema`).
+
 Handlers must:
 
 1. `evaluate` — never mutate; return `EXECUTE_ALLOWED` or `REFUSED_*`

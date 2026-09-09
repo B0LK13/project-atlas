@@ -263,6 +263,9 @@ def cmd_claim_intent(args: argparse.Namespace) -> int:
             source_frontier_fingerprint=matrix.get("frontier_fingerprint"),
             candidate_action_id=preview.get("candidate_action_id"),
             target_head=preview.get("target_head"),
+            # Bind the repository MC actually observed; the explicit --repo
+            # is the fallback only when MC could not observe one.
+            target_repo=gc.normalise_repo(mc.get("repository")) or args.repo,
             max_age_seconds=int(args.max_age_seconds),
             notes="atlas-studio claim-intent (stdout only; not authorization)",
         )
@@ -505,6 +508,34 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         )
         futures_ok = all(
             by_type.get(name, {}).get("status") == "NOT_STARTED" for name in futures
+        )
+        # Docs-match-code loop: the decision schema enum must equal the
+        # substrate's decision vocabulary exactly (no silent drift).
+        schema_enum = set(
+            json.loads(
+                (gc.SCHEMA_DIR / gc.DECISION_SCHEMA_FILE).read_text(encoding="utf-8")
+            )["properties"]["decision"]["enum"]
+        )
+        code_vocab = {
+            v
+            for k, v in vars(gov).items()
+            if isinstance(v, str)
+            and (
+                k.startswith("REFUSED_")
+                or k in {"EXECUTE_ALLOWED", "EXECUTED", "EXECUTION_FAILED"}
+            )
+        }
+        add(
+            "a2_decision_vocabulary_matches_schema",
+            schema_enum == code_vocab,
+            (
+                "ok"
+                if schema_enum == code_vocab
+                else (
+                    f"schema_only={sorted(schema_enum - code_vocab)} "
+                    f"code_only={sorted(code_vocab - schema_enum)}"
+                )
+            ),
         )
         add(
             "a2_governance_substrate",

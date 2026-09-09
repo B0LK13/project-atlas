@@ -220,6 +220,16 @@ def _decision(
     return packet
 
 
+def normalise_repo(value: Any) -> str | None:
+    """owner/name or None. 'UNKNOWN', empty and whitespace are not identities."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.upper() == "UNKNOWN":
+        return None
+    return text
+
+
 def _find_claim_action(matrix: dict | None, *, lane: str, agent_id: str) -> dict | None:
     if not isinstance(matrix, dict):
         return None
@@ -502,8 +512,13 @@ def build_ownership_claim_intent(
     notes: str | None = None,
     clock: Callable[[], str] = utcnow,
     extra_fields: dict[str, Any] | None = None,
+    target_repo: str | None = None,
 ) -> dict[str, Any]:
-    """Typed intent bound to fingerprints/ids. No authorization fields."""
+    """Typed intent bound to fingerprints/ids/repository. No authorization fields.
+
+    ``target_repo`` (owner/name) is part of the intent identity: an intent
+    minted against one repository cannot be replayed against another.
+    """
     if extra_fields:
         bad = _reject_authz_fields(extra_fields)
         if bad:
@@ -523,6 +538,7 @@ def build_ownership_claim_intent(
         "target_lane": lane_s,
         "target_pr": pr,
         "target_head": target_head,
+        "target_repo": normalise_repo(target_repo),
         "source_mc_fingerprint": source_mc_fingerprint,
         "source_frontier_fingerprint": source_frontier_fingerprint,
         "candidate_action_id": candidate_action_id,
@@ -648,6 +664,20 @@ def evaluate_ownership_claim_intent(
             reasons=[f"TIMESTAMP_INVALID:{exc}"],
             clock=now_fn,
         )
+
+    # Repository identity: an intent minted for one repo must not evaluate
+    # as current against another repo's Mission Control.
+    intent_repo = normalise_repo(intent.get("target_repo"))
+    if mission_control is not None and intent_repo:
+        live_repo = normalise_repo(mission_control.get("repository"))
+        if live_repo and live_repo != intent_repo:
+            return _decision(
+                REFUSED_TARGET_MISMATCH,
+                intent_id=intent_id,
+                reasons=["INTENT_REPO_NE_LIVE_REPO"],
+                evidence={"intent_repo": intent_repo, "live_repo": live_repo},
+                clock=now_fn,
+            )
 
     # Fingerprint freshness against live MC when provided.
     live_mc_fp = None
@@ -955,6 +985,17 @@ def _emit_ownership_claim(
             clock=now_clock or clock,
         )
     expected_repo = pinned_repo
+    intent_repo = normalise_repo(intent.get("target_repo"))
+    if intent_repo and intent_repo != expected_repo:
+        # The operator's explicit pin and the intent's bound identity must
+        # agree; neither alone may redirect a mutation.
+        return _decision(
+            REFUSED_TARGET_MISMATCH,
+            intent_id=intent_id,
+            reasons=["INTENT_REPO_NE_EXPECTED_REPO"],
+            evidence={"intent_repo": intent_repo, "expected_repo": expected_repo},
+            clock=now_clock or clock,
+        )
 
     resolved = agents_mod.resolve_agent(registry, actor)
     profile = resolved.profile or {}
