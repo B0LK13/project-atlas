@@ -232,6 +232,7 @@ def classify_continuity(
     prior_decision: dict[str, Any] | None,
     prior_evidence: dict[str, Any] | None,
     now: datetime,
+    strict_schema: bool = False,
 ) -> str:
     if intent is None:
         return MISSING
@@ -242,6 +243,17 @@ def classify_continuity(
         return MALFORMED
     if not intent.get("intent_id") or not intent.get("action_type"):
         return MALFORMED
+
+    if strict_schema:
+        try:
+            from atlas_studio.action_intent import validate_decision, validate_intent
+
+            if validate_intent(intent):
+                return MALFORMED
+            if isinstance(prior_decision, dict) and validate_decision(prior_decision):
+                return MALFORMED
+        except Exception:
+            return MALFORMED
 
     intent_id = intent.get("intent_id")
     decision = prior_decision
@@ -292,9 +304,12 @@ def build_intent_continuity(
     evidence: dict[str, Any] | None = None,
     evidence_file: Path | str | None = None,
     clock: Callable[[], str] = utcnow,
+    strict_schema: bool = False,
 ) -> dict[str, Any]:
     """Build ATLAS_STUDIO_INTENT_CONTINUITY_V1. Never mutates."""
     notes = ["package:AS-STUDIO-A2-005", "inspect_ne_execute"]
+    if strict_schema:
+        notes.append("strict_schema=true")
     input_byte_hashes: dict[str, str] = {}
     corrupt = False
     loaded_intent = intent
@@ -383,6 +398,7 @@ def build_intent_continuity(
             prior_decision=loaded_decision,
             prior_evidence=loaded_evidence,
             now=now_dt,
+            strict_schema=strict_schema,
         )
     intent_id = (loaded_intent or {}).get("intent_id") if isinstance(loaded_intent, dict) else None
     recovery = build_recovery(state, intent_id=intent_id if isinstance(intent_id, str) else None)

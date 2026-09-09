@@ -320,10 +320,13 @@ def build_mission_session(
     journey: dict[str, Any] | None = None,
     persistence_failed_after_mutation: bool = False,
     expected_repository: str | None = None,
+    strict_schema: bool = False,
     clock: Callable[[], str] = utcnow,
 ) -> dict[str, Any]:
     """Build ATLAS_STUDIO_MISSION_SESSION_V1. Never mutates; never re-executes."""
     notes = [f"package:{PACKAGE_ID}", "session_ne_authority", "auto_retry_forbidden"]
+    if strict_schema:
+        notes.append("strict_schema=true")
 
     interrupted_atomic_write = False
     orphan_tmp_with_final = False
@@ -345,6 +348,7 @@ def build_mission_session(
         evidence=evidence,
         evidence_file=evidence_file,
         clock=clock,
+        strict_schema=strict_schema,
     )
     loaded_intent = continuity.get("intent")
     loaded_decision = continuity.get("prior_decision")

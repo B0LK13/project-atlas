@@ -506,6 +506,7 @@ def cmd_mission_session(args: argparse.Namespace) -> int:
         journey=journey,
         persistence_failed_after_mutation=bool(args.persistence_failed_after_mutation),
         expected_repository=args.repo,
+        strict_schema=bool(args.strict_schema),
     )
     errors = validate_mission_session(packet)
     if errors:
@@ -1107,6 +1108,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Operator flag: mutation may have occurred but decision persistence failed "
             "(never invents success)"
         ),
+    )
+    session.add_argument(
+        "--strict-schema",
+        action="store_true",
+        help="Fail closed when intent/decision fail ATLAS_STUDIO_* JSON Schema validation",
     )
     session.add_argument("--json", action="store_true")
     session.set_defaults(func=cmd_mission_session)
