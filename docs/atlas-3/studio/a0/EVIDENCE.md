@@ -47,3 +47,7 @@ See `REUSE-MAP.md`. New paths: `docs/atlas-3/studio/a0/`,
 `schemas/atlas_studio_*.schema.json`, `scripts/atlas_studio/`,
 `scripts/atlas-studio.py`, `tests/unit/test_atlas_studio_a0.py`.
 A0-BRIEF status → `IMPLEMENTED_IN_LANE`.
+
+## Closure follow-up
+
+See [A0-CLOSURE.md](./A0-CLOSURE.md). A1 package: [../a1/](../a1/).

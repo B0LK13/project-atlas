@@ -65,15 +65,27 @@ EXTERNAL_IV_GATED != VERIFIED
 
 ## A0 package (lane)
 
-See [`a0/`](./a0/) and [ADR-034](../../adr/ADR-034-studio-daemon-authority.md).
-Status: **IMPLEMENTED_IN_LANE** on `feat/as-studio-a0-001` — not merged;
-`MERGE_AUTHORIZATION = NOT_GRANTED`.
+See [`a0/`](./a0/), [A0-CLOSURE.md](./a0/A0-CLOSURE.md), and
+[ADR-034](../../adr/ADR-034-studio-daemon-authority.md).
+
+```text
+AS_STUDIO_A0_001 = TECHNICALLY_COMPLETE
+A0_REMAINING_OWNER_DECISIONS = EXPLICIT
+IMPLEMENTED != MERGED
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+## A1 preparation (not started)
+
+See [`a1/`](./a1/). Scope reconciled from repository truth; first package
+`AS-STUDIO-A1-001` is **READY**. Implementation waits on owner gate **O1**
+(daemon transport) unless waived — see A0-CLOSURE.
 
 ## Next
 
-1. Keep this package synchronized when #746 is amended.
-2. Owner review / IV of `AS-STUDIO-A0-001` exit evidence (`a0/EVIDENCE.md`).
-3. Do not start `AS-STUDIO-A1` until A0 is accepted.
+1. Owner answers O1–O5 in `a0/A0-CLOSURE.md` (especially O1).
+2. Owner merge/IV decisions remain separate from technical completeness.
+3. Do not start A1 implementation until O1 is closed or waived.
 
 ## A0 package
 

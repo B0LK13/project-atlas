@@ -4,7 +4,7 @@
 |---|---|
 | Package ID | `AS-STUDIO-A0-001` (proposed in #746; treat as allocated for Studio program unless registry collision found) |
 | Phase | A0 |
-| Status | **IMPLEMENTED_IN_LANE** (worktree `studio-a0` / `feat/as-studio-a0-001`; not merged; `MERGE_AUTHORIZATION = NOT_GRANTED`) |
+| Status | **TECHNICALLY_COMPLETE** (PR #763; see `a0/A0-CLOSURE.md`; not merged; `MERGE_AUTHORIZATION = NOT_GRANTED`) |
 | Epic | [#746](https://github.com/B0LK13/project-atlas/issues/746) |
 
 ## Objective

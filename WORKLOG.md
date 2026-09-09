@@ -14711,3 +14711,12 @@ AS_STUDIO_A1 = NOT_STARTED
 - Honesty: STUDIO_UI != AUTHORITY; MERGE_AUTHORIZATION = NOT_GRANTED; A1 NOT_STARTED
 - Evidence: `docs/atlas-3/studio/a0/EVIDENCE.md`
 
+
+## CLOSE_ATLAS_STUDIO_A0_AND_PREPARE_A1
+
+- A0 closure: `docs/atlas-3/studio/a0/A0-CLOSURE.md` → TECHNICALLY_COMPLETE
+- Owner decisions O1–O5 explicit (O1 = A1 start gate)
+- Canonical package #762 remains OPEN (not merged); vault MDA PENDING
+- A1 scope reconciled + AS-STUDIO-A1-001 READY under `docs/atlas-3/studio/a1/`
+- A1 implementation NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
+
