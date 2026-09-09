@@ -155,14 +155,25 @@ def _race_round(root: Path, n_contenders: int, hold_sec: float) -> dict[str, int
 def test_concurrency_matrix_at_most_one_winner(tmp_path, n_contenders, rounds):
     """CONTENDERS_2 / CONTENDERS_5 / CONTENDERS_10: for every round, exactly
     <= 1 of N genuinely separate OS processes racing `acquire_primary_lock()`
-    on the same root gets True."""
+    on the same root gets True.
+
+    Hardening mission: `hold_sec` is 2.0 here (not the module's usual 0.5-1.0)
+    -- a single observed-but-not-reproduced flake at n_contenders=10 (0/9
+    other attempts, isolated or combined with sibling test files) was
+    consistent with a slow straggler under heavy host load starting so late
+    it acquired only AFTER the original winner had already released and
+    exited, which `_race_round()`'s true/false tally cannot distinguish from
+    a genuine concurrent double-win. More hold headroom, not more
+    tolerance for the outcome, is the fix: it makes that misreading less
+    likely without weakening what double_winner_rounds == 0 actually means.
+    """
     double_winner_rounds = 0
     zero_winner_rounds = 0
     cleanup_failures = 0
     for r in range(rounds):
         round_dir = tmp_path / f"round-{r}"
         round_dir.mkdir()
-        outcome = _race_round(round_dir, n_contenders, hold_sec=1.0)
+        outcome = _race_round(round_dir, n_contenders, hold_sec=2.0)
         assert outcome["errors"] == 0, f"round {r}: worker(s) failed to report a result"
         assert outcome["timeouts"] == 0, f"round {r}: worker(s) exceeded the per-process timeout"
         if outcome["true"] > 1:
@@ -566,6 +577,105 @@ def test_turnover_race_never_claims_a_as_owner_after_a_releases(tmp_path):
         if a.poll() is None:
             a.kill()
             a.wait(timeout=5)
+
+
+def test_reader_race_bracket_rejects_receipt_from_before_a_gap(tmp_path, monkeypatch):
+    """Hardening mission
+    (D-CODEX-ATLAS-WINDOWS-PRIMARY-LOCK-HARDENING-AND-INTEGRATION-READINESS-002),
+    Workstream J: deliberately reconstruct the reader race the bracket
+    probe in `read_primary_lock_state()` exists to catch -- a receipt from
+    a PREVIOUS holder is still on disk; the lock was OBSERVABLY unheld at
+    some point before it was read (`held_before=False`); a NEW holder has
+    since acquired it (`held_after=True`). The old receipt must NEVER be
+    confirmed for the new holder just because it happens to parse and
+    reference a still-alive PID -- the honest answer here is
+    HELD/IDENTITY UNKNOWN, not a plausible-looking but wrong CONFIRMED.
+
+    A trailing-probe-only design (this function's earlier shape) cannot
+    distinguish this from the ordinary "receipt written, then probed"
+    happy path -- both look identical to a probe taken only at the end.
+    Injecting the exact `probe_is_locked()` sequence this way is what
+    makes this deterministic without needing to actually hit a
+    nanosecond-scale race in real wall-clock time."""
+    import project_atlas.orchestration.sdk.resident_driver as rd
+
+    root = tmp_path / "root"
+    receipt_path = _runtime(root) / RECEIPT_NAME
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    STALE_PREVIOUS_HOLDER_PID = os.getpid()  # syntactically valid AND alive
+    receipt_path.write_text(
+        json.dumps({"pid": STALE_PREVIOUS_HOLDER_PID, "at": 0}), encoding="utf-8"
+    )
+
+    probe_calls = {"n": 0}
+    real_probe = os_lock.probe_is_locked
+
+    def scripted_probe(path):
+        probe_calls["n"] += 1
+        # 1st call (held_before): the lock was observably free at that
+        # instant. 2nd call (held_after): a new holder has since acquired
+        # it. Real behavior otherwise (delegates for any further calls).
+        if probe_calls["n"] == 1:
+            return False
+        if probe_calls["n"] == 2:
+            return True
+        return real_probe(path)
+
+    monkeypatch.setattr(rd.os_lock, "probe_is_locked", scripted_probe)
+    state = read_primary_lock_state(root)
+    monkeypatch.undo()
+
+    assert probe_calls["n"] == 2, "must probe both before and after the receipt read"
+    assert state.held is True  # held_after=True -- someone genuinely holds it now
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert state.pid is None
+    assert state.pid != STALE_PREVIOUS_HOLDER_PID
+
+
+def test_kill_during_random_acquire_release_cycling(tmp_path):
+    """Hardening mission, Workstream H (crash matrix): rather than killing
+    a holder at one single fixed point (already covered by
+    `test_crash_recovery_no_permanent_deadlock`, which kills mid-hold),
+    kill a real process while it loops acquire -> tiny hold -> release
+    rapidly and repeatedly, so the kill lands at an effectively random
+    point across the full cycle -- including points a fixed-timing test
+    cannot reach: immediately post-acquire pre-publish, mid-release,
+    between release and the next acquire attempt. Across many independent
+    runs, this must never leave the lock permanently unacquirable."""
+    cycler = str(Path(__file__).with_name("_primary_lock_cycler.py"))
+    root = tmp_path / "root"
+    runs = 8
+    for i in range(runs):
+        go_file = tmp_path / f"go-{i}"
+        proc = subprocess.Popen(
+            [sys.executable, cycler, str(root), str(go_file)],
+            creationflags=no_window_creationflags(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            go_file.write_text("go", encoding="utf-8")
+            # Let it cycle acquire/hold/release a handful of times before
+            # killing at whatever point it happens to be at.
+            time.sleep(0.05 + 0.01 * i)
+            proc.kill()  # SIGKILL / TerminateProcess -- no graceful release
+            proc.wait(timeout=10)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+        # No permanent deadlock: a fresh acquisition must succeed promptly.
+        recovered = False
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            if acquire_primary_lock(root):
+                recovered = True
+                break
+            time.sleep(0.05)
+        assert recovered, f"run {i}: lock permanently unacquirable after kill mid-cycle"
+        assert read_primary_lock_pid(root) == os.getpid()
+        release_primary_lock(root)
 
 
 def test_no_process_leaks(tmp_path):

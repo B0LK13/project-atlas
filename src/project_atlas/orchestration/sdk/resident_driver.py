@@ -256,16 +256,50 @@ def read_primary_lock_state(root: Path) -> PrimaryLockState:
     -- see `_publish_receipt`), never fabricated as either "no holder" or
     a plausible-looking fake PID.
 
-    The receipt is read BEFORE the `held` probe, and `held` is what this
-    function returns last: it is the freshest ground truth this function
-    can obtain, checked as close as possible to the moment of return, so a
-    holder that released between the receipt read and the probe correctly
-    reports `held=False` rather than trusting a receipt that had already
-    gone stale by the time it was read. This narrows, though as with any
-    non-blocking snapshot API cannot fully eliminate, the turnover window
-    between "read a receipt" and "is anyone still actually holding it".
+    The receipt read is BRACKETED by two lock probes -- one immediately
+    before, one immediately after -- rather than a single probe checked
+    only at the end. A single trailing probe (this function's predecessor
+    shape) closes the "holder released, but a stale receipt is still on
+    disk" case, but leaves a DIFFERENT, real turnover race open: a NEW
+    holder can win the OS lock, and there is a real (if very small) window
+    between that win and its own `_publish_receipt()` call actually
+    replacing the previous receipt (see that function's own unlink-first
+    doc) during which the OLD holder's receipt is still readable. A reader
+    landing in exactly that window, using only a trailing probe, would
+    read the OLD holder's still-valid-looking receipt and then observe
+    `held=True` (correctly -- the NEW holder holds it) and wrongly
+    CONFIRM the OLD holder's identity for the NEW holder's lease.
+
+    Bracketing narrows this: if the lock was NOT held immediately before
+    the receipt was read (`held_before=False`), whatever the receipt says
+    cannot be trusted as describing whoever holds it now -- there was a
+    moment, provably, where nobody held it, so whoever holds it now (if
+    anyone, per `held_after`) has not necessarily published yet. This is
+    reported as `held=True/False (per held_after), identity=UNKNOWN`
+    rather than risking attribution to a receipt written by a holder who,
+    provably, is not the continuous, uninterrupted holder across this
+    entire observation.
+
+    This does NOT achieve full atomicity -- an adversarial-enough
+    interleaving (the previous holder releases and a new one re-acquires
+    within the sub-microsecond gap between the two probes, landing the
+    receipt read exactly in the new holder's own tiny unlink-to-publish
+    window) can still in principle slip through undetected. That residual
+    is accepted: it requires two independent, vanishingly narrow timing
+    coincidences to land simultaneously, it only ever misreports the
+    OBSERVABILITY `pid` field (never `held`, which is what actually
+    enforces ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1 -- see `acquire_primary_lock`),
+    and closing it fully would require binding identity to a lock-generation
+    token published atomically with the lock acquisition itself, which
+    `os_lock`'s handle-lifetime-based design (see its own module docstring)
+    deliberately does not carry, to keep the receipt genuinely optional and
+    the lock primitive itself content-agnostic.
     """
+    lock_path = _runtime(root) / LOCK_NAME
     receipt_path = _runtime(root) / RECEIPT_NAME
+
+    held_before = os_lock.probe_is_locked(lock_path)
+
     candidate_pid: int | None = None
     try:
         data = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -275,11 +309,10 @@ def read_primary_lock_state(root: Path) -> PrimaryLockState:
     except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError):
         candidate_pid = None
 
-    lock_path = _runtime(root) / LOCK_NAME
-    held = os_lock.probe_is_locked(lock_path)
-    if not held:
+    held_after = os_lock.probe_is_locked(lock_path)
+    if not held_after:
         return PrimaryLockState(held=False, pid=None, identity=PrimaryLockIdentity.UNKNOWN)
-    if candidate_pid is not None:
+    if held_before and candidate_pid is not None:
         return PrimaryLockState(
             held=True, pid=candidate_pid, identity=PrimaryLockIdentity.CONFIRMED
         )
