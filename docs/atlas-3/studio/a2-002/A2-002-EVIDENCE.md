@@ -36,7 +36,10 @@ PYTHONPATH=scripts .venv/bin/python scripts/atlas-studio.py doctor --json
 # → ok true (incl. a2_002_* checks)
 ```
 
-Fill FINAL_HEAD / FINAL_TREE after the implementation commit on this branch.
+FINAL_HEAD = c8ae7c1e6b177bdb11202e6a00c6b5cb2d96fa8d
+FINAL_TREE = 3ca62464d51fec14e39144d73ceae5799a4ab351
+STUDIO_SUITE = 101 passed
+DOCTOR = ok (a2_002_* PASS)
 
 ## Demonstrated paths
 
