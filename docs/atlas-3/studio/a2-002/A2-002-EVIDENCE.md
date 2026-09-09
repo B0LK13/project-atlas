@@ -36,10 +36,13 @@ PYTHONPATH=scripts .venv/bin/python scripts/atlas-studio.py doctor --json
 # → ok true (incl. a2_002_* checks)
 ```
 
-FINAL_HEAD = c8ae7c1e6b177bdb11202e6a00c6b5cb2d96fa8d
-FINAL_TREE = 3ca62464d51fec14e39144d73ceae5799a4ab351
-STUDIO_SUITE = 101 passed
-DOCTOR = ok (a2_002_* PASS)
+```text
+FINAL_HEAD                         = c53716d6422a6a94e4dbc54a48e35cbb38b2af9b
+FINAL_TREE                         = fa3d5d966776abb72ce3a8beabfb3d53ec56d610
+IMPL_COMMIT                        = c8ae7c1e6b177bdb11202e6a00c6b5cb2d96fa8d
+STUDIO_SUITE                       = 101 passed
+DOCTOR                             = ok (a2_002_* PASS)
+```
 
 ## Demonstrated paths
 
