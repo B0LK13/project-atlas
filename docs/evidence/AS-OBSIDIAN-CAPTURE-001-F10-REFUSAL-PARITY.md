@@ -1,6 +1,6 @@
 # AS-OBSIDIAN-CAPTURE-001-F10 — graph must not write what canonical refuses
 
-**Status:** implemented, awaiting independent verification. **Not sealed.**
+**Status:** integrated on `main` and **SEALED** (PR #753). See the post-merge seal at the end of this file.
 
 ## The defect
 
@@ -138,3 +138,96 @@ not established here.
   do not: F4's disclosed contract is intact and asserted.
 - **Not that `ingestion.py` is covered.** It is a third writer, owner-gated
   behind a frozen surface, and untouched here.
+
+## Post-merge seal — `06362807`
+
+Integrated as PR #753. **Merged unrebased at the verified object.**
+
+| | |
+|---|---|
+| merge commit | `06362807a65412e80506685df12f820ab2d7510a` |
+| first parent (base) | `a7adce4ed70ccbd89a8a7936d304db5b37095101` |
+| second parent (verified head) | `3b22f6d4a6bc0ea0c18ac6cc83718c4ecc1844fb` |
+| merge tree | `1b11d3a0281aa3df5c564d66cac44ba953f9d28e` |
+| PR head tree | `1b11d3a0281aa3df5c564d66cac44ba953f9d28e` — **identical** |
+| `git diff 3b22f6d4 06362807` | empty |
+| component trees | `src 8ec29893`, `tests 6aa392e7`, `docs f81c9855` |
+
+The merge tree being hash-identical to the head tree is the load-bearing fact:
+the exact-head CI that ran on `3b22f6d4` tested byte-for-byte what landed, so
+there is no gap between what was verified and what is on `main`. All four CI
+jobs were green at that head and both review threads were resolved.
+
+### Re-measured on the merge object, not carried forward
+
+The differential sweep was re-run against `06362807` at three depths, varying
+**both** sides of the merge:
+
+| depth | pairs | fail-open | disclosed (F4 contract) |
+|---|---|---|---|
+| 2 | 625 | **0** | 2 |
+| 3 | 15,625 | **0** | 12 |
+| 4 | 390,625 | **0** | 42 |
+| **total** | **406,875** | **0** | 56 |
+
+The disclosed direction — canonical accepts, graph refuses — is still present
+and grows with depth, so the corpus has not gone inert.
+
+**The sweep still bites.** With the fix removed from the merge object, the same
+corpus at the same three depths reports **1 / 3 / 54** fail-open, and the F10
+suite drops from 7 passed to **4 failed**:
+
+    test_f10_graph_refuses_a_render_canonical_refuses[crossed-a-b]
+    test_f10_graph_refuses_a_render_canonical_refuses[reversed-end-before-begin]
+    test_f10_a_poisoned_field_cannot_brick_the_projection
+    test_f10_no_fail_open_divergence_across_a_differential_sweep
+
+The mutation was applied under a sha256 assertion that it changed the file and
+the source restored byte-identical (`1d9c0f84` before and after).
+
+### Gates on the merge object
+
+| gate | result |
+|---|---|
+| F10 suite | 7 passed |
+| freeze guard + lifecycle sweep | 81 passed |
+| full suite | 5,733 passed, 8 skipped, 4 xfailed |
+| `ruff check .` | clean |
+| `mypy src` | clean, 405 source files |
+
+### What this seal does NOT claim
+
+- **Not that upstream reachability is established.** A live corruption path is
+  demonstrated at the render and write layers; whether a full
+  `discover -> ingest -> graphify` run with attacker-controlled sources can plant
+  such a field value is not shown.
+- **Not that the two surfaces agree in all directions.** They deliberately do
+  not; F4's disclosed contract is intact and asserted.
+- **Not that `ingestion.py` is covered.** A third writer, owner-gated behind a
+  frozen surface needing an owner-approved sha256-pinned exception under
+  `docs/atlas-3/ARCHITECTURE.md` §9.1.
+
+### Corrections this package needed before it could be sealed
+
+Three, all found by verification or by review, all in the **claim record**
+rather than the code — which held from the first reproduction:
+
+1. **Blast radius understated.** An earlier revision called the defect defence
+   in depth needing a broken renderer. Reproduction proved a durable
+   denial-of-refresh: the pre-fix writer *wrote* the poisoned note, after which
+   every later refresh, including a clean one with zero relationships, was
+   permanently refused.
+2. **Corrected in some copies, not all.** That retraction reached the WORKLOG,
+   the backlog and this receipt's Blast radius section — but not the test
+   module's docstring, nor this receipt's own `What is not claimed` list, whose
+   first bullet still asserted the retracted claim in the conclusion a reader
+   reaches last. `3b22f6d4` fixed both, explicitly rather than by silent swap.
+3. **A count that was wrong by one.** The receipt named four propagating
+   relationship fields; there are five. The fifth,
+   `provenance.graphify_artifact_refs[].relative_path`, is the one that bypasses
+   `_redact_text` entirely.
+
+A fourth, from the code side: the first version of the no-write test bound
+`before = NO_HUMAN_PRIOR` and asserted `before == NO_HUMAN_PRIOR` — two names for
+one immutable `str`. Both review bots and verification caught it independently.
+It was replaced by the end-to-end reproduction, which fails without the fix.
