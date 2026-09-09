@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   Bell,
   Bot,
@@ -74,19 +74,37 @@ export function AppShell({
   onMobileOpen: (open: boolean) => void;
   children: ReactNode;
 }) {
+  const navigation = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    navigation.current?.querySelector<HTMLButtonElement>(".mobile-close")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); onMobileOpen(false); }
+      if (event.key === "Tab") {
+        const controls = Array.from(navigation.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])
+          .filter(button => button.getClientRects().length > 0);
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, [mobileOpen, onMobileOpen]);
   const sourceClass = data.source.kind === "DESIGN_PREVIEW" ? "source-fixture" : data.source.current ? "source-live" : "source-degraded";
   return (
     <div className="studio-shell">
       <a className="skip-link" href="#studio-main" onClick={(event) => { event.preventDefault(); document.getElementById("studio-main")?.focus(); }}>
         Skip to project view
       </a>
-      <aside className={`side-rail ${mobileOpen ? "is-open" : ""}`} aria-label="Atlas Studio navigation">
+      <aside ref={navigation} className={`side-rail ${mobileOpen ? "is-open" : ""}`} aria-label="Atlas Studio navigation">
         <div className="brand-row">
           <AtlasMark />
           <div><strong>ATLAS</strong><span>STUDIO / 0.1</span></div>
           <button className="mobile-close" onClick={() => onMobileOpen(false)} aria-label="Close navigation"><X size={17} /></button>
         </div>
-        <button className="project-switcher" onClick={() => onNavigate("projects")}>
+        <button className="project-switcher" onClick={() => { onNavigate("projects"); onMobileOpen(false); }}>
           <span className="project-coordinate">A/01</span>
           <span><strong>Project workspace</strong><small>{data.projection.repository || "Unavailable"}</small></span>
           <ChevronDown size={14} aria-hidden="true" />
@@ -112,7 +130,7 @@ export function AppShell({
       </aside>
       <div className="studio-frame">
         <header className="top-bar">
-          <button className="mobile-menu" onClick={() => onMobileOpen(true)} aria-label="Open navigation"><Menu size={18} /></button>
+          <button className="mobile-menu" onClick={() => onMobileOpen(true)} aria-label="Open navigation" aria-expanded={mobileOpen}><Menu size={18} /></button>
           <button className="search-trigger" onClick={onPalette}>
             <Search size={15} aria-hidden="true" />
             <span>Navigate Studio screens…</span>
@@ -131,7 +149,7 @@ export function AppShell({
           <span className="source-glyph">{data.source.kind === "DESIGN_PREVIEW" ? "◇" : data.source.current ? "●" : "◌"}</span>
           <strong>{data.source.label}</strong>
           <span>{data.source.detail}</span>
-          {error ? <code>{error}</code> : null}
+          {error && error !== data.source.detail ? <code>{error}</code> : null}
         </div>
         <main id="studio-main" tabIndex={-1} className="studio-main">
           {children}

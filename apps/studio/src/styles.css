@@ -64,7 +64,7 @@
 
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; margin: 0; }
-body { min-width: 980px; overflow-x: hidden; }
+body { min-width: 320px; }
 button, input { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible, a:focus-visible, [tabindex]:focus-visible {
@@ -742,9 +742,9 @@ code, kbd, time, .mono { font-family: "SFMono-Regular", "Cascadia Code", "Libera
 }
 
 @media (max-width: 1050px) {
-  body { min-width: 720px; }
-  .side-rail { transform: translateX(-100%); transition: transform 160ms ease; box-shadow: 18px 0 45px rgba(0,0,0,.24); }
-  .side-rail.is-open { transform: translateX(0); }
+  body { min-width: 320px; }
+  .side-rail { visibility: hidden; transform: translateX(-100%); transition: transform 160ms ease; box-shadow: 18px 0 45px rgba(0,0,0,.24); }
+  .side-rail.is-open { visibility: visible; transform: translateX(0); }
   .studio-frame { margin-left: 0; }
   .mobile-menu, .mobile-close { display: grid; place-items: center; border: 0; background: transparent; color: var(--text-soft); cursor: pointer; }
   .mobile-menu { width: 31px; height: 31px; margin-right: 8px; }
@@ -793,3 +793,71 @@ code, kbd, time, .mono { font-family: "SFMono-Regular", "Cascadia Code", "Libera
 .side-rail { overflow-y: auto; }
 .command-palette { max-height: calc(100dvh - 48px); overflow-y: auto; }
 :focus-visible { outline: 3px solid #66cbd4; outline-offset: 3px; }
+
+/* Live A1 summaries: readable values first, source diagnostics on demand. */
+.projection-screen { max-width: 1600px; margin-inline: auto; }
+.projection-screen .panel-header h2 { font-size: 18px; text-transform: capitalize; }
+.projection-screen .panel-eyebrow { font-size: 11px; letter-spacing: .06em; }
+.projection-fields dt { text-transform: none; color: var(--text-soft); font-size: 13px; }
+.projection-fields dd { font-size: 15px; line-height: 1.5; }
+.projection-notes { margin-bottom: 12px; font-size: 12px; color: var(--text-soft); }
+.projection-notes summary, .projection-screen > details > summary { cursor: pointer; padding-block: 8px; }
+.projection-attention { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.projection-attention h3 { margin: 0 0 6px; font-size: 16px; }
+.projection-attention p { margin: 4px 0; max-width: 80ch; overflow-wrap: anywhere; }
+.projection-screen .panel { margin-bottom: 16px; }
+.projection-screen .panel-body { overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .search-trigger { min-width: 0; }
+  .source-ribbon { gap: 6px; }
+  .studio-main { padding: 16px 12px; }
+  .screen-header > strong { overflow-wrap: anywhere; }
+}
+
+/* D-CODEX-STUDIO-005: the source overview reads as one engineering console. */
+.projection-screen { font-family: Ubuntu, "Segoe UI", sans-serif; }
+.projection-screen .screen-header h1 { font-size: 30px; letter-spacing: -.035em; }
+.mission-orientation { display: flex; justify-content: space-between; gap: 28px; padding: 18px 0 24px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.context-label { color: var(--text-soft); font-size: 13px; }
+.mission-orientation h2 { font-size: 23px; font-weight: 500; margin: 6px 0; }
+.mission-orientation p { max-width: 66ch; margin: 0; color: var(--text-soft); }
+.mission-boundary { min-width: 190px; padding-left: 20px; border-left: 2px solid var(--cyan); display: flex; flex-direction: column; justify-content: center; gap: 8px; font-size: 13px; }
+.mission-boundary span { color: var(--text-soft); }
+.live-overview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; align-items: start; }
+.live-overview .attention-panel { border-top: 2px solid var(--amber); }
+.live-instruments { display: grid; gap: 0; border-top: 2px solid var(--cyan); }
+.signal-instrument { padding: 14px 4px; border-bottom: 1px solid var(--line); min-width: 0; }
+.signal-instrument header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.signal-instrument h2 { font-size: 17px; font-weight: 500; margin: 0; }
+.signal-instrument a { color: var(--cyan); font-size: 12px; text-underline-offset: 4px; }
+.signal-instrument p { color: var(--text-soft); font-size: 12px; margin: 8px 0 0; }
+.signal-reading { display: flex; align-items: baseline; gap: 12px; margin-top: 8px; }
+.signal-reading strong, .signal-pair strong { font-size: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.signal-reading span, .signal-pair span { color: var(--text-soft); font-size: 13px; }
+.signal-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
+.signal-pair > div { display: flex; flex-direction: column; }
+.signal-pair .projection-unknown { font-size: 20px; color: var(--amber); }
+.source-value-list { margin: 0; padding-left: 18px; }
+.agent-identities { color: var(--mint); margin-top: 6px; }
+.agent-identities .source-value-list { list-style: none; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.projection-attention details, .remaining-attention { font-size: 12px; color: var(--text-soft); }
+.projection-attention summary, .remaining-attention summary { cursor: pointer; padding-block: 6px; }
+.source-section-title { font-size: 20px; margin: 28px 0 14px; }
+.projection-fields > div { border-color: var(--line); }
+@media (max-width: 700px) {
+  .mission-orientation { flex-direction: column; gap: 16px; }
+  .live-overview { grid-template-columns: minmax(0, 1fr); }
+  .signal-instrument header { flex-wrap: wrap; }
+  .signal-pair { gap: 8px; }
+}
+
+/* Keep the verification reading on the first desktop screen. */
+.projection-screen .screen-header { min-height: 62px; margin-bottom: 6px; padding-bottom: 10px; }
+.mission-orientation { padding: 8px 0 12px; margin-bottom: 14px; }
+.mission-orientation h2 { font-size: 20px; margin: 4px 0; }
+.mission-orientation p { font-size: 13px; line-height: 1.4; }
+.signal-instrument { padding: 9px 4px; }
+.signal-instrument p { margin-top: 5px; line-height: 1.35; }
+.signal-reading strong, .signal-pair strong { font-size: 25px; }
+.live-overview .projection-attention { padding: 10px 0; }
+.live-overview .projection-attention h3 { font-size: 15px; }

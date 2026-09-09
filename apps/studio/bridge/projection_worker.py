@@ -74,7 +74,7 @@ class RequestClient(GhClient):
         prefix = f"repos/{self.repo}"
         if endpoint != prefix and not endpoint.startswith(prefix + "/"):
             return False
-        if any(part in endpoint for part in ("..", "\\", "\n", "\r")):
+        if ".." in endpoint.split("/") or any(part in endpoint for part in ("\\", "\n", "\r")):
             return False
         return len(rest) == 1 or rest[1:] in (["--jq", ".default_branch"], ["--jq", ".body"])
 
@@ -117,10 +117,20 @@ class RequestClient(GhClient):
             self.cache[key] = result.stdout
         return result.stdout
 
+    def _prefetch_repository(self):
+        branch = self.default_branch() or "main"
+        self.branch_head(branch)
+
+    def _prefetch_events(self):
+        issue = self.dag_issue()
+        if issue:
+            self.issue_comments(issue["number"])
+            self.issue_body(issue["number"])
+
     def prefetch(self):
         """Warm exactly the reads used by A1; no durable cross-request reuse."""
         prs = self.open_prs()
-        jobs = []
+        jobs = [(self._prefetch_repository, ()), (self._prefetch_events, ())]
         by_branch = {p["headRefName"]: p for p in prs}
         for pr in prs:
             head = pr.get("headRefOid")
@@ -130,7 +140,7 @@ class RequestClient(GhClient):
             parent = by_branch.get(pr.get("baseRefName"))
             if parent and parent.get("headRefOid") and head:
                 jobs.append((self.is_ancestor, (parent["headRefOid"], head)))
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with ThreadPoolExecutor(max_workers=16) as pool:
             futures = [pool.submit(fn, *args) for fn, args in jobs]
             for future in futures:
                 future.result()

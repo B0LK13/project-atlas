@@ -15,6 +15,8 @@ export function useStudioData() {
   const [error, setError] = useState<string | null>(null);
   const preferenceRef = useRef<SourcePreference>("projection");
   const request = useRef(0);
+  // D-005: wall-clock rollback cannot rejuvenate a received projection.
+  const ageClock = useRef({ wall: Date.now(), monotonic: performance.now() });
   const activeController = useRef<AbortController | null>(null);
 
   const cancelActiveRequest = useCallback(() => {
@@ -48,6 +50,7 @@ export function useStudioData() {
     try {
       const next = await loadProjection(controller.signal);
       if (request.current === token && preferenceRef.current === "projection") {
+        ageClock.current = { wall: Date.now(), monotonic: performance.now() };
         setData(next);
         setError(null);
       }
@@ -55,6 +58,8 @@ export function useStudioData() {
       if (request.current === token && preferenceRef.current === "projection") {
         const message = timedOut
           ? "Projection request timed out after 25 seconds"
+          : caught instanceof TypeError
+            ? "Bridge disconnected. Start the read adapter outside Studio, then refresh."
           : caught instanceof Error
             ? caught.message
             : "unknown bridge failure";
@@ -96,7 +101,11 @@ export function useStudioData() {
       setData((current) => {
         if (current.source.kind !== "PROJECTION"
             || current.projection.snapshot_fingerprint !== fingerprint) return current;
-        return envelopeFromProjection(current.projection);
+        if (current.source.localFreshness?.state === "UNKNOWN") return current;
+        const monotonic = performance.now();
+        const wall = Math.max(Date.now(), ageClock.current.wall + Math.max(0, monotonic - ageClock.current.monotonic));
+        ageClock.current = { wall, monotonic };
+        return envelopeFromProjection(current.projection, wall);
       });
     }, LOCAL_FRESHNESS_INTERVAL_MS);
     return () => window.clearInterval(interval);

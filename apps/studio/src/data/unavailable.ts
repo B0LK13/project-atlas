@@ -3,7 +3,7 @@ import type { StudioEnvelope } from "../types";
 // Local absence state, never a fabricated Atlas observation or fixture.
 export function unavailableEnvelope(reason: string): StudioEnvelope {
   return {
-    source: { kind: "UNAVAILABLE", label: "PROJECTION UNAVAILABLE", detail: reason, current: false },
+    source: { kind: "UNAVAILABLE", label: reason === "Loading A1 projection" ? "LOADING PROJECTION" : reason.startsWith("Bridge disconnected.") ? "BRIDGE DISCONNECTED" : "PROJECTION ERROR", detail: reason, current: false },
     projection: {
       schema: "ATLAS_STUDIO_MISSION_CONTROL_V1", repository: "", generated_at_utc: "",
       agent_status: "UNKNOWN", slice_status: "UNKNOWN", mission_status: "UNKNOWN",

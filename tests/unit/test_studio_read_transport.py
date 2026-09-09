@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
 import time
@@ -43,6 +44,7 @@ def test_read_failures_do_not_expose_stderr_or_cache_success():
     assert client.failed
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Linux desktop process-group lifecycle")
 def test_worker_deadline_kills_slow_process():
     spec = importlib.util.spec_from_file_location(
         "bridge_budget", ROOT / "apps/studio/bridge/atlas_studio_bridge.py"
@@ -55,6 +57,7 @@ def test_worker_deadline_kills_slow_process():
     assert time.monotonic() - start < 2
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Linux desktop process-group lifecycle")
 def test_worker_cancellation():
     spec = importlib.util.spec_from_file_location(
         "bridge_cancel", ROOT / "apps/studio/bridge/atlas_studio_bridge.py"
@@ -113,3 +116,54 @@ def test_worker_failure_stage_is_allowlisted(code):
     expected = code if code.startswith("PROJECTION_FAILED_") else "PROJECTION_UPSTREAM_UNAVAILABLE"
     with pytest.raises(RuntimeError, match=expected):
         bridge.run_worker([sys.executable, "-c", program, code])
+
+
+def test_http_boundary_rejects_write_methods_and_foreign_origins(monkeypatch):
+    import http.client
+    import threading
+
+    spec = importlib.util.spec_from_file_location(
+        "bridge_http", ROOT / "apps/studio/bridge/atlas_studio_bridge.py"
+    )
+    bridge = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bridge)
+    calls = []
+    monkeypatch.setattr(
+        bridge,
+        "build_current_projection",
+        lambda *args: calls.append(args) or {"test": "read-only"},
+    )
+    server = bridge.ReadOnlyStudioServer(("127.0.0.1", 0), "owner/repo", None)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for method, origin, expected in [
+            ("POST", "http://127.0.0.1:4420", 501),
+            ("PUT", "http://127.0.0.1:4420", 501),
+            ("DELETE", "http://127.0.0.1:4420", 501),
+            ("GET", "https://foreign.example", 403),
+            ("GET", "http://127.0.0.1:4420", 200),
+        ]:
+            connection = http.client.HTTPConnection(*server.server_address, timeout=2)
+            connection.request(method, "/v1/mission-control", headers={"Origin": origin})
+            response = connection.getresponse()
+            assert response.status == expected
+            response.read()
+            connection.close()
+        assert len(calls) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_compare_sha_separator_is_read_only_not_path_traversal():
+    # D-CODEX-STUDIO-005: GitHub's SHA...SHA compare path is required by A1.
+    def runner(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, '{"status":"ahead"}', '')
+
+    client = RequestClient("owner/repo", runner=runner)
+    assert client.is_ancestor("a" * 40, "b" * 40) is True
+    assert not client.failed
+    with pytest.raises(RuntimeError, match="READ_ONLY_BOUNDARY"):
+        client.run_gh(["api", "repos/owner/repo/../other"])

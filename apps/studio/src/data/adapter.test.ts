@@ -142,3 +142,19 @@ describe("Studio projection boundary", () => {
     expect(envelope.source.detail).toContain("Bridge returned 503");
   });
 });
+
+
+it("explains allowlisted bridge failures without reflecting untrusted diagnostic text", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:false,status:503,json:async()=>({reason:"PROJECTION_FAILED_UPSTREAM_READS"})}));
+  await expect(loadProjection()).rejects.toThrow("GitHub reads failed");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:false,status:503,json:async()=>({reason:"credential-canary"})}));
+  await expect(loadProjection()).rejects.toThrow("Bridge returned 503");
+  vi.unstubAllGlobals();
+});
+
+
+it("does not label a future source timestamp current", () => {
+  const envelope = envelopeFromProjection(projection(), Date.parse("2026-09-09T11:59:00Z"));
+  expect(envelope.source.current).toBe(false);
+  expect(envelope.source.localFreshness?.state).toBe("UNKNOWN");
+});

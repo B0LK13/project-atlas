@@ -1,7 +1,7 @@
 # Atlas Studio desktop recovery candidate
 
-This is an incomplete read-only desktop implementation. See
-[latest recovery](RECOVERY-003.md) for exact upstream observations and acceptance gaps.
+This is a read-only desktop review candidate. The live browser experience is validated; native Linux acceptance and canonical documentation synchronization remain incomplete. See
+[latest recovery](RECOVERY-005.md) for exact upstream observations and acceptance gaps.
 
 ## Linux development
 
@@ -46,3 +46,5 @@ source supplied. No local time is passed off as an Atlas observation.
 
 The Design Lab remains isolated design evidence. Rich preview pages are selected
 through Environment → Design fixture and never labeled live.
+
+Current acceptance: 36 frontend tests, 16 browser tests including real A1 input, nested-contract and clock-rollback regressions, automated accessibility and manual keyboard review. See RECOVERY-005 and its validation ledger for exact Python results and remaining blockers. Use the recovered checkout’s own `.venv`, including for subprocess tests; a shared venv can silently import another worktree.

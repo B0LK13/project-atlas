@@ -172,7 +172,7 @@ function localFreshness(
   localNowMs: number,
 ): NonNullable<StudioEnvelope["source"]["localFreshness"]> {
   const generatedMs = parseUtcMillis(packet.freshness.generated_at_utc);
-  const ageSeconds = generatedMs === null
+  const ageSeconds = generatedMs === null || generatedMs > localNowMs
     ? null
     : Math.round(Math.max(0, (localNowMs - generatedMs) / 1_000) * 1_000) / 1_000;
   let state: FreshnessState = packet.freshness.state;
@@ -219,7 +219,21 @@ export async function loadProjection(
     signal,
   });
   if (!response.ok) {
-    throw new ProjectionContractError(`Bridge returned ${response.status}`);
+    const explanations: Record<string, string> = {
+      PROJECTION_FAILED_AUTHENTICATION: "GitHub authentication unavailable. Check gh auth status outside Studio, then refresh.",
+      PROJECTION_FAILED_UPSTREAM_READS: "GitHub reads failed. Check network access and bridge timing diagnostics, then refresh.",
+      PROJECTION_FAILED_PROJECTION_CONSTRUCTION: "A1 projection construction failed. Inspect bridge diagnostics before retrying.",
+      PROJECTION_DEADLINE: "The read-only projection exceeded its 20 second budget. Check bridge timing diagnostics, then refresh.",
+      A1_SCHEMA_VALIDATION_FAILED: "A1 returned an unsupported contract. Update the matching bridge and Studio versions.",
+      BUSY: "The bridge is already serving its request limit. Wait for those reads to finish, then refresh.",
+    };
+    let reason: unknown;
+    try {
+      const body = await response.json();
+      reason = body?.reason ?? body?.status;
+    } catch { /* An absent diagnostic is not a successful projection. */ }
+    throw new ProjectionContractError(typeof reason === "string" && Object.hasOwn(explanations, reason)
+      ? explanations[reason] : `Bridge returned ${response.status}`);
   }
   const packet: unknown = await response.json();
   assertHonestProjection(packet);

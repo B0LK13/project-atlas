@@ -58,6 +58,31 @@ describe("useStudioData", () => {
     expect(result.current.data.projection.freshness.age_seconds).toBe(0);
   });
 
+  it("keeps expiry after host wall-clock rollback until a new read", async () => {
+    vi.useFakeTimers({toFake:["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date", "performance"]});
+    vi.setSystemTime("2026-09-09T12:00:00Z");
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(packet()))));
+    const { result, unmount } = renderHook(() => useStudioData());
+    await flush();
+    act(() => vi.advanceTimersByTime(121_000));
+    expect(result.current.data.source.localFreshness?.state).toBe("STALE");
+    vi.setSystemTime("2026-09-09T12:01:00Z");
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(result.current.data.source.localFreshness?.state).toBe("STALE");
+    expect(result.current.data.source.current).toBe(false);
+    unmount();
+  });
+
+  it("distinguishes a disconnected bridge from a projection error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const { result, unmount } = renderHook(() => useStudioData());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.data.source.label).toBe("BRIDGE DISCONNECTED");
+    expect(result.current.data.source.kind).toBe("UNAVAILABLE");
+    expect(result.current.error).toContain("read adapter");
+    unmount();
+  });
+
   it("clears operational state when a refresh fails", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse(packet()))

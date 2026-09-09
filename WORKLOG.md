@@ -14755,3 +14755,10 @@ Fixed palette Enter reopening; corrected history text assertions. Final checks:
 Chrome browser tests pass. Native dependencies, live-data latency, freshness aging,
 full nested schema checks and Vault synchronization remain open. See
 `docs/atlas-3/studio/desktop/RECOVERY-003.md`. No A2, merge, release or self-IV.
+
+
+## 2026-09-09 — D-CODEX-ATLAS-STUDIO-RESUME-AND-DELIVER-005
+
+Recovered the newer PR #781 worktree without replacing its unpublished commits or dirty source. Fixed read-only SHA comparison rejection and overlapped existing A1 metadata reads within the request budget. Added live Mission Control hierarchy with explicit missing objective, safe diagnostics and distinct connection states. Hardened nested projection/freshness validation, clock rollback, narrow keyboard containment and responsive verification visibility. Kept all design directions and isolated preview content; removed unused non-Linux icon outputs after archiving them.
+
+Evidence, source hashes, current validation and exact recovery diagnostics: `docs/atlas-3/studio/desktop/RECOVERY-005.md` and `evidence/recovery-005-validation.json`. 36 frontend tests and 16 browser tests pass, including real A1 response-to-render values and controlled changes. Native build is blocked by missing GTK/WebKit development packages and sudo authentication. Documentation events remain pending in the approved spool; normalizer environment repaired, provider credential still unavailable. PR remains draft. No A2, merge or self-IV.

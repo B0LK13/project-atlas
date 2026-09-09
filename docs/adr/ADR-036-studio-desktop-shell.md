@@ -1,11 +1,11 @@
 # ADR-036 — Linux read-only Studio desktop shell
 
-Status: proposed; recovery copy, not committed or released.
+Status: proposed; committed review candidate, not released.
 Date: 2026-09-09
 Mission: M-CODEX-ATLAS-STUDIO-LINUX-VISUAL-SHELL-001
 
 ADR-035 is occupied by upstream governed action intent. The current A1 ADR
-directory ends at 035; 036 must be checked again before committing.
+directory ends at 035; 036 was checked against the fetched A1 base and main during D-005 recovery.
 
 Use Tauri 2 for native window lifecycle and React with TypeScript for presentation.
 React reuses repository frontend experience and supports the existing component
@@ -25,7 +25,9 @@ This is product judgment, not a measured trust score.
 
 Real mode displays only supplied A1 fields. Rich agent cards, graph topology,
 knowledge cards, repository file detail and narrative history remain previews.
-Unavailable is the initial/error state. Fixture mode requires explicit selection.
+Loading, disconnected and projection errors have separate presentation labels; missing operational fields remain unavailable. Fixture mode requires explicit selection.
 Presentation settings and navigation cannot grant authority.
 
 No A2 implementation, independent verification, release or merge is claimed.
+
+Current recovery and acceptance evidence: [RECOVERY-005](../atlas-3/studio/desktop/RECOVERY-005.md).
