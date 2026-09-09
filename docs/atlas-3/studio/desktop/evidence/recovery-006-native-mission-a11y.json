@@ -563,7 +563,7 @@
   {
     "depth": 8,
     "role": "article",
-    "name": "Waiting on IV (54)",
+    "name": "Waiting on IV (55)",
     "text": "",
     "actions": [
       ""
@@ -572,8 +572,8 @@
   {
     "depth": 9,
     "role": "heading",
-    "name": "Waiting on IV (54)",
-    "text": "Waiting on IV (54)",
+    "name": "Waiting on IV (55)",
+    "text": "Waiting on IV (55)",
     "actions": [
       ""
     ]
@@ -852,7 +852,7 @@
     "depth": 9,
     "role": "unknown",
     "name": "",
-    "text": "54",
+    "text": "55",
     "actions": [
       ""
     ]
@@ -1338,7 +1338,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "54",
+    "text": "55",
     "actions": [
       ""
     ]
@@ -1374,7 +1374,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "54",
+    "text": "55",
     "actions": [
       ""
     ]
@@ -1644,7 +1644,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "39f5475c49a3b55255718c31b8c27ee505c6c7b51abfa7c08cd14a183333c052",
+    "text": "445875e66784b19fc8f03fa82ed8aeef8233614aca33bf9637d0872767f3c39b",
     "actions": [
       ""
     ]
@@ -1878,7 +1878,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "54",
+    "text": "55",
     "actions": [
       ""
     ]
@@ -1914,7 +1914,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "37",
+    "text": "38",
     "actions": [
       ""
     ]
@@ -2373,7 +2373,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "54",
+    "text": "55",
     "actions": [
       ""
     ]
@@ -2499,7 +2499,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "37",
+    "text": "38",
     "actions": [
       ""
     ]
@@ -2553,7 +2553,7 @@
     "depth": 9,
     "role": "description value",
     "name": "",
-    "text": "54",
+    "text": "55",
     "actions": [
       ""
     ]
@@ -2590,69 +2590,6 @@
     "role": "unknown",
     "name": "Projection provenance",
     "text": "\ufffcProjection provenance",
-    "actions": [
-      ""
-    ]
-  },
-  {
-    "depth": 9,
-    "role": "description list",
-    "name": "",
-    "text": "",
-    "actions": [
-      ""
-    ]
-  },
-  {
-    "depth": 10,
-    "role": "description term",
-    "name": "",
-    "text": "Generated at (source supplied)",
-    "actions": [
-      ""
-    ]
-  },
-  {
-    "depth": 10,
-    "role": "description value",
-    "name": "",
-    "text": "2026-09-09T16:49:37Z",
-    "actions": [
-      ""
-    ]
-  },
-  {
-    "depth": 10,
-    "role": "description term",
-    "name": "",
-    "text": "Fingerprint",
-    "actions": [
-      ""
-    ]
-  },
-  {
-    "depth": 10,
-    "role": "description value",
-    "name": "",
-    "text": "67750e904dfcaa9a88794bb63c99b314a59daa612a18b9da3b6dce8d5501d95e",
-    "actions": [
-      ""
-    ]
-  },
-  {
-    "depth": 10,
-    "role": "description term",
-    "name": "",
-    "text": "Generator",
-    "actions": [
-      ""
-    ]
-  },
-  {
-    "depth": 10,
-    "role": "description value",
-    "name": "",
-    "text": "atlas-studio mission-control (AS-STUDIO-A1-001)",
     "actions": [
       ""
     ]
