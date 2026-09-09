@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import inspect
 import os
 import pathlib
 import subprocess
@@ -75,19 +76,26 @@ _MUTATING = "f8_near_miss_controls.py"
 #: fails here rather than rotting silently.
 #:
 #: An earlier revision called these "the callable each record names". Measured
-#: against every file under ``docs/evidence/`` plus ``WORKLOG.md`` and
-#: ``docs/backlog.md``, that is false: of these ten attributes only ``main``
-#: appears at all, and only as ordinary prose (682 occurrences of the word).
-#: ``NAMED``, ``FRAGMENTS``, ``CONTROLS`` and ``RETRACTION`` appear zero times.
-#: The list is derived from the scripts, not from the records -- which still
-#: catches rot, but is a weaker thing than the earlier comment claimed.
+#: with word-boundary, case-sensitive matches across ``docs/evidence/*.md`` plus
+#: ``WORKLOG.md`` and ``docs/backlog.md`` -- the method is stated because the
+#: earlier revision gave a bare figure that no one else could reproduce, which is
+#: this lane's own failure mode:
 #:
-#: Measured at the same time, and worth recording rather than quietly fixing:
+#:     main 682   sweep 32   outcome 30   ANCHOR 5   CLAIMS 5
+#:     NAMED 0    FRAGMENTS 0   CONTROLS 0   RETRACTION 0
+#:
+#: So four of the ten appear nowhere, and the other six appear only as ordinary
+#: English prose -- never as a citation of the callable. An earlier revision said
+#: "only ``main`` appears at all", which is false and contradicted the very next
+#: sentence it wrote; verification caught it. The list is derived from the
+#: scripts, not from the records, which still catches rot but is a weaker thing
+#: than the original comment claimed.
+#:
+#: Measured at the same time, and recorded rather than quietly fixed:
 #: ``seal_retracted_claim_sweep.py`` is cited by **no** evidence record, backlog
 #: line or WORKLOG line anywhere in the repository. It was committed as
-#: reproducible evidence for a claim sweep and nothing refers to it. That is the
-#: same rot this module exists to catch, one level further out, and it is not in
-#: this package's scope to fix.
+#: reproducible evidence and nothing refers to it -- the same rot this module
+#: exists to catch, one level further out, and not in this package's scope.
 CITED = {
     "f9_diagnostic_parity.py": ("main", "outcome", "NAMED", "FRAGMENTS"),
     "f8_near_miss_controls.py": ("main", "CONTROLS", "ANCHOR"),
@@ -109,15 +117,20 @@ def _invalidate_cached_bytecode(path: pathlib.Path) -> None:
 def _fuse(module: types.ModuleType) -> None:
     """Replace the mutating instrument's entry point with a tripwire.
 
-    This is the load-bearing half of the exclusion, and it is **shape
-    independent**: every route through :func:`_load` is covered whatever the
-    call looks like -- the module-level ``_MUTATING`` constant, an alias, a
-    walrus, a tuple target, an annotated assignment, ``getattr``, a helper
-    function, a binding made at module level and called elsewhere. A static
-    check has to enumerate those; a fuse does not.
+    Shape independent: every route through :func:`_load_from` is covered
+    whatever the call looks like -- an alias, a walrus, a tuple target, an
+    annotated assignment, ``getattr``, a helper function, a name assembled at
+    runtime. A static check has to enumerate those; a fuse does not.
 
-    The real callable is asserted to exist before it is replaced, so the
-    interface check above still means what it says.
+    **The real callable is deliberately NOT published.** An earlier revision
+    stored it on ``tripwire.__wrapped__`` so the interface check could confirm
+    it survived. Verification found that this hands out a one-line bypass --
+    ``module.main.__wrapped__(root, ref)`` and ``inspect.unwrap(module.main)``
+    both reached the real mutating body -- and ``__wrapped__`` is the *standard*
+    unwrapping convention, so the bypass is the idiomatic thing for the next
+    maintainer to write. It survives only as a boolean marker now; the fuse
+    asserts the real entry point was callable at the moment it replaced it,
+    which is what the interface check actually needs.
     """
     real = getattr(module, "main", None)
     assert callable(real), f"{_MUTATING} lost its main() entry point"
@@ -125,36 +138,49 @@ def _fuse(module: types.ModuleType) -> None:
     def tripwire(*args: object, **kwargs: object) -> None:
         raise AssertionError(
             f"{_MUTATING} was EXECUTED by this suite. It rewrites files under "
-            "src/ and restores them in a finally block; an interrupted CI job "
-            "would leave the tree mutated. It is deliberately import- and "
-            "interface-checked here, never run."
+            "src/ and restores them in a finally block; a hard interrupt -- "
+            "SIGKILL, SIGTERM, os._exit, power loss; `finally` already covers "
+            "KeyboardInterrupt -- would leave the tree mutated. The exposure "
+            "that matters is a developer's local checkout, since a hosted CI "
+            "workspace is discarded either way. Import- and interface-checked "
+            "here, never run."
         )
 
-    tripwire.__wrapped__ = real  # type: ignore[attr-defined]
-    module.main = tripwire  # type: ignore[assignment]
+    tripwire.__fused__ = True  # type: ignore[attr-defined]
+    module.main = tripwire  # type: ignore[attr-defined]
 
 
-def _load(name: str) -> types.ModuleType:
-    path = SCRIPTS / name
-    # Force a fresh compile. `exec_module` accepts a cached .pyc whose header
-    # (mtime, size) still matches the source, so an edit that keeps the byte
-    # length and lands in the same second runs STALE bytecode. Verification
-    # demonstrated exactly that here, and I reproduced it: with the source
-    # patched and its mtime restored, the loaded module executed the OLD code
-    # while the file on disk said something else.
-    #
-    # That is inert in CI, which always has a fresh checkout, and live in the
-    # local edit-test loop -- which is precisely where the negative controls for
-    # this lane get run. A control that measures a file it is not executing is
-    # worse than no control, and this lane has already been misled by one.
-    _invalidate_cached_bytecode(path)
+def _load_from(path: pathlib.Path, *, invalidate: bool = True) -> types.ModuleType:
+    """The one loader. Everything that loads an instrument comes through here.
+
+    An earlier revision had two: :func:`_load` and a parameterised ``_load_from``
+    added for the bytecode test. Only the first fused, so
+    ``_load_from(SCRIPTS / _MUTATING).main(root, ref)`` returned an **unfused**
+    module and ran the real mutating body -- structurally the same defect this
+    guard exists to close, reintroduced by the fix, one line above the test that
+    motivated the helper. Verification caught it. There is now a single load
+    path and therefore a single place the fuse can be forgotten.
+
+    ``invalidate`` forces a fresh compile. ``exec_module`` accepts a cached
+    ``.pyc`` whose header ``(mtime, size)`` still matches, so an edit that keeps
+    the byte length and lands in the same second runs STALE bytecode -- inert in
+    CI, live in the local edit-test loop, which is exactly where this lane runs
+    its negative controls. It is a parameter only so the hazard can be
+    reproduced against a throwaway file.
+    """
+    if invalidate:
+        _invalidate_cached_bytecode(path)
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec and spec.loader, path
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    if name == _MUTATING:
+    if path.name == _MUTATING:
         _fuse(module)
     return module
+
+
+def _load(name: str) -> types.ModuleType:
+    return _load_from(SCRIPTS / name)
 
 
 @pytest.mark.parametrize("name", sorted(CITED))
@@ -201,45 +227,102 @@ def test_f12_the_parity_instrument_runs_as_a_script_too() -> None:
 
 #: Module roots whose callables start a process or execute code. Matched after
 #: resolving import aliases, so ``import subprocess as sp`` is not an escape.
-_EXEC_MODULES = frozenset({"subprocess", "runpy", "os", "importlib", "pty", "multiprocessing"})
+_EXEC_MODULES = frozenset(
+    {"subprocess", "runpy", "os", "importlib", "asyncio", "pty", "multiprocessing"}
+)
 
 #: Builtins that execute source directly.
 _EXEC_BUILTINS = frozenset({"exec", "eval", "compile", "__import__"})
 
 
-class _SubstituteConstants(ast.NodeTransformer):
-    """Replace names bound to string literals with those literals.
+def _script_spellings(script: str) -> tuple[str, ...]:
+    """Both ways the script gets named: as a filename and as a module name.
 
-    Without this the detector only sees ``ast.Constant`` arguments, so
-    ``_load(_MUTATING)`` -- the module's own constant, on the very line the
-    guard test writes -- reads as an unknown name and slips through. That was
-    the largest hole verification found, and it was the most idiomatic form
-    available to the next maintainer.
+    ``importlib.import_module("f8_near_miss_controls")`` and
+    ``runpy.run_module(...)`` name it without the ``.py``. An earlier revision
+    matched only the filename, so every module-name form went undetected while
+    sitting inside the coverage its docstring claimed.
     """
-
-    def __init__(self, consts: dict[str, str]) -> None:
-        self.consts = consts
-
-    def visit_Name(self, node: ast.Name) -> ast.AST:
-        value = self.consts.get(node.id)
-        return ast.Constant(value=value) if isinstance(value, str) else node
+    return (script, script.removesuffix(".py"))
 
 
-def _string_constants(tree: ast.AST) -> dict[str, str]:
-    """Every ``NAME = "literal"``, at any scope, including annotated targets."""
-    consts: dict[str, str] = {}
+def _names_naming(tree: ast.AST, script: str, *, seed: set[str] | None = None) -> set[str]:
+    """Identifiers ever bound to a value that mentions ``script``.
+
+    Deliberately conservative, and deliberately **not** a scoped constant model.
+    An earlier revision substituted the *last* binding of each name anywhere in
+    the tree, which verification showed cuts both ways: a later rebinding of a
+    name silently hid a real execution path, and an unrelated later binding
+    flagged a harmless one. Order- and scope-blindness is unavoidable without a
+    real dataflow pass, so this errs toward flagging: if a name is *ever* bound
+    to something mentioning the script, uses of that name are suspect.
+
+    Because it looks at the whole assigned subtree rather than a bare literal,
+    it also covers the forms that slipped past substitution -- a dict literal, a
+    list iterated by a for-loop, a class attribute, a parameter default.
+    """
+    spellings = _script_spellings(script)
+    names: set[str] = set(seed or ())
+
+    def mentions(node: ast.AST) -> bool:
+        """True if the value names the script, or a name already suspect.
+
+        The second half makes it transitive, and closes a real miss:
+        ``src = Path(_M).read_text()`` followed by ``exec(src, {})`` mentions the
+        script only through ``_M``, so a single pass left ``src`` unflagged while
+        the call really did execute it. Iterated to a fixpoint below.
+        """
+        rendered = ast.unparse(node)
+        if any(sp in rendered for sp in spellings):
+            return True
+        used = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+        used |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
+        return bool(used & names)
+
     for node in ast.walk(tree):
         targets: list[ast.expr] = []
         value: ast.expr | None = None
         if isinstance(node, ast.Assign):
             targets, value = list(node.targets), node.value
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
             targets, value = [node.target], node.value
-        if isinstance(value, ast.Constant) and isinstance(value.value, str):
-            for target in targets:
-                if isinstance(target, ast.Name):
-                    consts[target.id] = value.value
-    return consts
+        elif isinstance(node, (ast.For, ast.AsyncFor)):
+            targets, value = [node.target], node.iter
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            args = node.args
+            slots = list(args.posonlyargs) + list(args.args) + list(args.kwonlyargs)
+            defaults = list(args.defaults) + [d for d in args.kw_defaults if d]
+            # strict=False is correct: defaults align to the TAIL of the slot
+            # list, so the two sequences are deliberately different lengths.
+            for arg, default in zip(reversed(slots), reversed(defaults), strict=False):
+                if mentions(default):
+                    names.add(arg.arg)
+            continue
+        if value is None or not mentions(value):
+            continue
+        for target in targets:
+            for sub in ast.walk(target):
+                if isinstance(sub, ast.Name):
+                    names.add(sub.id)
+                elif isinstance(sub, ast.Attribute):
+                    names.add(sub.attr)
+    return names
+
+
+def _names_naming_closure(tree: ast.AST, script: str) -> set[str]:
+    """:func:`_names_naming` iterated until it stops growing.
+
+    One pass cannot see ``a = script; b = f(a); exec(b)``. The corpus is a single
+    test module, so a fixpoint over a handful of passes costs nothing; the bound
+    exists only so a pathological file cannot spin.
+    """
+    names: set[str] = set()
+    for _ in range(16):
+        grown = _names_naming(tree, script, seed=names)
+        if grown == names:
+            break
+        names = grown
+    return names
 
 
 def _exec_roots(tree: ast.AST) -> set[str]:
@@ -258,37 +341,40 @@ def _exec_roots(tree: ast.AST) -> set[str]:
 
 
 def _executing_references_to(source: str, script: str) -> list[str]:
-    """Call sites in ``source`` that would run ``script`` without going via ``_load``.
+    """Call sites in ``source`` that would run ``script`` without the loader.
 
-    Scope, stated precisely, because a guard whose limits are unstated invites
-    exactly the over-reading this package exists to prevent. This finds a call
-    to an execution primitive -- ``subprocess``/``runpy``/``os``/``importlib``,
-    or ``exec``/``eval``/``compile`` -- that mentions the script, after
-    resolving import aliases and substituting names bound to string literals.
+    The second layer. :func:`_fuse` is the load-bearing one and covers every
+    route through :func:`_load_from` whatever its shape; this covers the
+    primitives that bypass the loader entirely -- ``subprocess``, ``runpy``,
+    ``os``, ``importlib``, ``asyncio``, ``exec``/``eval``/``compile`` -- naming
+    the script either as a filename or as a module name, directly or through any
+    identifier ever bound to something that mentions it.
 
-    It does **not** find a path that neither routes through :func:`_load` nor
-    names the script through a resolvable constant: a filename assembled from
-    fragments at runtime, read from a file, or reached through a dynamically
-    built attribute. Those are covered, if at all, by :func:`_fuse`, which is
-    shape independent for everything that loads through :func:`_load` -- and by
-    nothing at all if a path does neither. That residue is real and is
-    deliberately recorded rather than papered over.
+    **Where it ends**, stated precisely because an earlier revision's boundary
+    claim was narrower than its actual misses, which is the over-reading this
+    package exists to prevent. It does not see: a name assembled or read at
+    runtime and never written literally in this file (from fragments, a file,
+    ``os.environ``, ``sys.argv``); a call routed through a helper defined in
+    another module; or an execution primitive reached by a root outside
+    ``_EXEC_MODULES``. Those are covered by :func:`_fuse` if they go through the
+    loader, and by nothing if they do not. That residue is real.
     """
     tree = ast.parse(source)
-    consts = _string_constants(tree)
     roots = _exec_roots(tree)
-    resolved = _SubstituteConstants(consts).visit(ast.parse(source))
-    ast.fix_missing_locations(resolved)
+    suspect = _names_naming_closure(tree, script)
+    spellings = _script_spellings(script)
 
     found: list[str] = []
-    for node in ast.walk(resolved):
+    for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         callee = ast.unparse(node.func)
-        root = callee.split(".")[0].split("(")[0]
-        if root not in roots:
+        if callee.split(".")[0] not in roots:
             continue
-        if script in ast.unparse(node):
+        rendered = ast.unparse(node)
+        names_used = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+        names_used |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
+        if any(sp in rendered for sp in spellings) or (names_used & suspect):
             found.append(f"line {node.lineno}: {callee}(... {script} ...)")
     return found
 
@@ -350,19 +436,24 @@ def test_f12_the_mutating_instrument_is_not_executed_by_this_suite() -> None:
     assert callable(module.main), "entry point kept, but not invoked here"
     with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
         module.main()
-    assert callable(module.main.__wrapped__), "the real entry point must survive the fuse"
+    assert getattr(module.main, "__fused__", False) is True
 
 
 def test_f12_the_fuse_survives_every_binding_shape() -> None:
-    """The shapes that defeated the static detector must now all raise.
+    """The shapes that defeated the static detector must all raise.
 
-    Each of these was measured passing the previous revision's guard. They are
-    exercised rather than pattern-matched, so this cannot rot into another
-    assertion about source text.
+    Exercised rather than pattern-matched, so this cannot rot into another
+    assertion about source text. Note what these do and do not prove: they vary
+    how the RESULT of the loader is bound, which is close to tautological
+    against a fuse that mutates the returned module. The load-bearing cases are
+    the two below them -- the unwrapping routes verification found reaching the
+    real body.
     """
     shapes: list[tuple[str, types.ModuleType]] = [
         ("module-level constant", _load(_MUTATING)),
         ("string literal", _load("f8_near_miss_controls.py")),
+        ("direct path load", _load_from(SCRIPTS / _MUTATING)),
+        ("direct path load, no invalidation", _load_from(SCRIPTS / _MUTATING, invalidate=False)),
     ]
     aliased = _load(_MUTATING)
     shapes.append(("alias", aliased))
@@ -370,29 +461,70 @@ def test_f12_the_fuse_survives_every_binding_shape() -> None:
         shapes.append(("walrus", walrus))
     annotated: types.ModuleType = _load(_MUTATING)
     shapes.append(("annotated assignment", annotated))
+    pair, _ = (_load(_MUTATING), None)
+    shapes.append(("tuple target", pair))
+    assembled = _load("f8_near_miss" + "_controls.py")
+    shapes.append(("name assembled at runtime", assembled))
+
+    def via_helper(module: types.ModuleType) -> types.ModuleType:
+        return module
+
+    shapes.append(("helper indirection", via_helper(_load(_MUTATING))))
 
     for label, module in shapes:
         with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
             module.main()
         with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
-            # B009 is suppressed deliberately: the constant getattr IS the shape
-            # under test. It defeated the previous revision's detector, which
-            # only matched `ast.Attribute` callees, so it has to be exercised
-            # literally rather than rewritten into the idiom ruff prefers.
+            # B009 suppressed deliberately: the constant getattr IS the shape
+            # under test. It defeated an earlier revision's detector, which only
+            # matched `ast.Attribute` callees, so it is exercised literally.
             getattr(module, "main")()  # noqa: B009
-        assert callable(module.main.__wrapped__), label
+        bound = module.main
+        with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
+            bound()
+        assert getattr(module.main, "__fused__", False) is True, label
+
+
+def test_f12_the_fuse_cannot_be_unwrapped(tmp_path: pathlib.Path) -> None:
+    """The two routes verification measured reaching the real mutating body.
+
+    An earlier revision stored the real callable on ``tripwire.__wrapped__`` so
+    the interface check could confirm it survived. Both of these then ran the
+    real body -- proved by pointing it at an empty root, where it raises
+    ``FileNotFoundError`` on its FIRST read, before any write:
+
+        _load(_MUTATING).main.__wrapped__(root, ref)   -> real body entered
+        inspect.unwrap(_load(_MUTATING).main)(root, ref) -> real body entered
+
+    ``__wrapped__`` is the standard unwrapping convention, so that bypass was
+    the idiomatic thing to write. It is gone. This test asserts it stays gone,
+    and does so by attempting the call rather than by inspecting attributes.
+    """
+    module = _load(_MUTATING)
+    assert not hasattr(module.main, "__wrapped__"), (
+        "the real entry point is published again; __wrapped__ is a one-line bypass"
+    )
+    assert inspect.unwrap(module.main) is module.main, "unwrap must not reach past the fuse"
+
+    for label, candidate in (
+        ("module.main", module.main),
+        ("inspect.unwrap(module.main)", inspect.unwrap(module.main)),
+    ):
+        with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
+            candidate(tmp_path, "origin/main")
+        assert label
 
 
 def test_f12_the_fuse_leaves_the_other_instruments_alone() -> None:
     """Negative side: only the mutating instrument is fused.
 
     Without this, a fuse that accidentally wrapped everything would make the
-    parity test's real execution silently impossible to distinguish from a
-    tripwire, and the module would still be green.
+    parity test's real execution indistinguishable from a tripwire, and the
+    module would still be green.
     """
     for name in sorted(CITED):
         module = _load(name)
-        fused = hasattr(getattr(module, "main", None), "__wrapped__")
+        fused = getattr(getattr(module, "main", None), "__fused__", False)
         assert fused == (name == _MUTATING), f"{name}: fused={fused}"
 
 
@@ -403,35 +535,65 @@ def test_f12_the_fuse_leaves_the_other_instruments_alone() -> None:
 #: "detector is live on this file" control could not reach these shapes.
 _MUST_DETECT = {
     "module-level constant": (
-        '_M = "f8_near_miss_controls.py"\n'
-        "import runpy\n"
-        "def f():\n"
-        "    runpy.run_path(_M)\n"
+        '_M = "f8_near_miss_controls.py"\nimport runpy\ndef f(): runpy.run_path(_M)\n'
     ),
     "aliased subprocess": (
-        "import subprocess as sp\n"
-        "def f():\n"
-        '    sp.run(["python", "f8_near_miss_controls.py"])\n'
+        'import subprocess as sp\ndef f(): sp.run(["py", "f8_near_miss_controls.py"])\n'
     ),
     "from-import of an exec primitive": (
-        "from runpy import run_path\n"
-        "def f():\n"
-        '    run_path("f8_near_miss_controls.py")\n'
+        'from runpy import run_path\ndef f(): run_path("f8_near_miss_controls.py")\n'
     ),
-    "exec of the file's text": (
-        "def f():\n"
-        '    exec(open("f8_near_miss_controls.py").read())\n'
-    ),
-    "os.system": (
-        "import os\n"
-        "def f():\n"
-        '    os.system("python f8_near_miss_controls.py")\n'
-    ),
+    "exec of the file's text": 'def f(): exec(open("f8_near_miss_controls.py").read())\n',
+    "os.system": 'import os\ndef f(): os.system("py f8_near_miss_controls.py")\n',
     "annotated constant": (
-        '_M: str = "f8_near_miss_controls.py"\n'
-        "import runpy\n"
-        "def f():\n"
-        "    runpy.run_path(_M)\n"
+        '_M: str = "f8_near_miss_controls.py"\nimport runpy\ndef f(): runpy.run_path(_M)\n'
+    ),
+    "import_module by MODULE name": (
+        '_M = "f8_near_miss_controls"\nimport importlib\n'
+        "def f(): importlib.import_module(_M)\n"
+    ),
+    "__import__ by module name": '_M = "f8_near_miss_controls"\ndef f(): __import__(_M)\n',
+    "runpy.run_module by module name": (
+        'import runpy\ndef f(): runpy.run_module("f8_near_miss_controls")\n'
+    ),
+    "dict-literal lookup": (
+        'import runpy\nN = {"m": "f8_near_miss_controls.py"}\n'
+        'def f(): runpy.run_path(N["m"])\n'
+    ),
+    "for-loop target": (
+        "import runpy\ndef f():\n"
+        '    for n in ["f8_near_miss_controls.py"]: runpy.run_path(n)\n'
+    ),
+    "class attribute": (
+        'import runpy\nclass C: M = "f8_near_miss_controls.py"\n'
+        "def f(): runpy.run_path(C.M)\n"
+    ),
+    "parameter default": (
+        'import runpy\ndef f(n="f8_near_miss_controls.py"): runpy.run_path(n)\n'
+    ),
+    "walrus binding": (
+        "import runpy\ndef f():\n"
+        '    if (m := "f8_near_miss_controls.py"): runpy.run_path(m)\n'
+    ),
+    "read_text then exec (transitive)": (
+        'import pathlib\n_M = "f8_near_miss_controls.py"\n'
+        "def f():\n    src = pathlib.Path(_M).read_text()\n    exec(src, {})\n"
+    ),
+    "two-hop transitive": (
+        'import pathlib\n_M = "f8_near_miss_controls.py"\n'
+        "def f():\n    a = pathlib.Path(_M)\n    b = a.read_text()\n    exec(b, {})\n"
+    ),
+    "asyncio subprocess": (
+        "import asyncio\n"
+        'def f(): asyncio.create_subprocess_exec("py", "f8_near_miss_controls.py")\n'
+    ),
+    "caller's own importlib spec": (
+        'import importlib.util as iu\n_M = "f8_near_miss_controls.py"\n'
+        'def f(): iu.spec_from_file_location("x", _M)\n'
+    ),
+    "later rebinding must not hide it": (
+        'import runpy\n_M = "f8_near_miss_controls.py"\n'
+        'def f(): runpy.run_path(_M)\n_M = "harmless.py"\n'
     ),
 }
 
@@ -440,14 +602,13 @@ _MUST_NOT_DETECT = {
     "a bare mention in a string": '_M = "f8_near_miss_controls.py"\n',
     "a non-executing call": (
         "import pathlib\n"
-        "def f():\n"
-        '    pathlib.Path("f8_near_miss_controls.py").read_text()\n'
+        'def f(): pathlib.Path("f8_near_miss_controls.py").read_text()\n'
     ),
     "a different script": (
-        "import runpy\n"
-        "def f():\n"
-        '    runpy.run_path("f9_diagnostic_parity.py")\n'
+        'import runpy\ndef f(): runpy.run_path("f9_diagnostic_parity.py")\n'
     ),
+    "an unrelated exec": 'def f(): exec("print(1)", {})\n',
+    "an unrelated subprocess": 'import subprocess\ndef f(): subprocess.run(["ls"])\n',
 }
 
 
@@ -465,6 +626,10 @@ def test_f12_the_detector_finds_the_shapes_that_defeated_its_predecessor() -> No
     This also makes a *targeted* blinding of the detector fail. Stubbing it to
     return `[]` only for `_MUTATING` passed every other assertion in this module.
     """
+    assert len(_MUST_DETECT) >= 19 and len(_MUST_NOT_DETECT) >= 5, (
+        "the corpora are the pin; emptying either left the suite green, so their "
+        f"size is asserted: detect={len(_MUST_DETECT)} reject={len(_MUST_NOT_DETECT)}"
+    )
     missed = [
         label
         for label, source in _MUST_DETECT.items()
@@ -480,17 +645,16 @@ def test_f12_the_detector_finds_the_shapes_that_defeated_its_predecessor() -> No
     assert not flagged, f"the detector flags shapes that do not execute: {flagged}"
 
 
-def _load_from(path: pathlib.Path, *, invalidate: bool) -> types.ModuleType:
-    """The loader body, parameterised, so the cache behaviour can be measured."""
-    if invalidate:
-        _invalidate_cached_bytecode(path)
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    assert spec and spec.loader, path
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
+@pytest.mark.skipif(
+    sys.dont_write_bytecode,
+    reason=(
+        "the negative control needs a .pyc to go stale; with bytecode writing "
+        "disabled (PYTHONDONTWRITEBYTECODE=1, python -B, read-only or container "
+        "filesystems) the hazard cannot reproduce and the test would fail for "
+        "the wrong reason. Verification measured exactly that: 1 failed under "
+        "each of the three."
+    ),
+)
 def test_f12_a_stale_pyc_cannot_make_an_instrument_report_the_wrong_thing(
     tmp_path: pathlib.Path,
 ) -> None:
