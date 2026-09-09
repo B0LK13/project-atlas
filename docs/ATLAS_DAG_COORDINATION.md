@@ -56,10 +56,29 @@ python scripts/atlas-dag.py owners
 python scripts/atlas-dag.py gate 709    # exit 0 = PASS, 1 = FAIL, 2 = unknown PR
 python scripts/atlas-dag.py evidence-ingest ev.json   # validate + store ATLAS_EVIDENCE_V1
 python scripts/atlas-dag.py evidence 709              # reuse classification vs live head/tree
+python scripts/atlas-dag.py lane-guard --agent ubuntu-main --branch feat/x   # exit 0 only if I own the lane
+python scripts/atlas-dag.py lane-guard --agent ubuntu-main --install-hook ~/wt/feat-x  # pre-commit guard
 ```
 
 Fail-closed: unavailable GitHub data => `UNKNOWN`; ownership ambiguity =>
 `AMBIGUOUS` (never last-writer-wins, never write authorization).
+
+### Lane guard (`ATLAS_LANE_GUARD_V1`)
+
+`lane-guard` answers one question read-only: *may this agent write to this
+lane right now?* It resolves the lane from `--pr` or from the open PR whose
+head is `--branch`, reads ownership from the bus, and exits `0` only when the
+lane is `OWNED` by `--agent`. Everything else refuses (exit `1`):
+`LANE_UNOWNED_CLAIM_FIRST` (unowned is not permitted — claim through the
+control plane first), `LANE_OWNED_BY_OTHER:<agent>`, `OWNERSHIP_AMBIGUOUS`,
+`NO_OPEN_PR_FOR_BRANCH`, `DAG_CONTROL_ISSUE_NOT_FOUND`, `AGENT_IDENTITY_UNSET`.
+
+`--install-hook WORKTREE` writes a `pre-commit` hook that runs the guard for
+the worktree's current branch, so an agent physically cannot commit into a
+lane it does not own. The hook refuses to overwrite a foreign pre-commit
+hook, is idempotent over its own, and has no bypass switch: uninstall by
+deleting the file. `GUARD != AUTHORIZATION` — a passing guard grants nothing;
+it only stops the two-writers-one-worktree failure observed on 2026-09-09.
 
 ## Conservative evidence cache (D-009)
 

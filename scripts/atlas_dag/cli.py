@@ -16,6 +16,7 @@ from . import evidence as evidence_mod
 from . import evidence_graph as evidence_graph_mod
 from . import frontier_matrix as frontier_matrix_mod
 from . import handoff as handoff_mod
+from . import lane_guard as lane_guard_mod
 from . import receipts as receipts_mod
 from . import residuals as residuals_mod
 from . import router as router_mod
@@ -855,6 +856,37 @@ def cmd_owners(args) -> int:
     if not result:
         print("no active owner claims")
     return 0
+
+
+def cmd_lane_guard(args) -> int:
+    """May --agent write to this lane now? exit 0 only when it owns the lane."""
+    if args.install_hook:
+        try:
+            target = lane_guard_mod.install_hook(
+                Path(args.install_hook), agent_id=args.agent,
+                dag_script=Path(__file__).resolve().parents[1] / "atlas-dag.py",
+                repo=args.repo)
+        except lane_guard_mod.LaneGuardError as exc:
+            print(f"lane-guard: FAIL {exc}", file=sys.stderr)
+            return 1
+        print(f"lane-guard: installed {target}")
+        return 0
+    if args.pr is None and not args.branch:
+        print("lane-guard: one of --pr or --branch is required", file=sys.stderr)
+        return 2
+    client = _client(args)
+    packet = lane_guard_mod.guard_live(client, agent_id=args.agent, pr=args.pr,
+                                       branch=args.branch)
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(f"lane-guard {packet['decision']} agent={packet['agent']} "
+              f"lane={packet['lane']} ownership={packet['ownership']} "
+              f"claimants={packet['claimants']}")
+        for r in packet["reasons"]:
+            print(f"  reason: {r}")
+        print("HONESTY: GUARD!=AUTHORIZATION / UNOWNED!=PERMITTED / AMBIGUOUS!=OWNED")
+    return lane_guard_mod.exit_code(packet)
 
 
 def cmd_agents(args) -> int:
@@ -1870,6 +1902,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_inspect.add_argument("pr", type=int)
     sub.add_parser("events", help="validated event + receipt stream from DAG Control issue")
     sub.add_parser("owners", help="current ownership map (ambiguity => UNKNOWN)")
+    p_guard = sub.add_parser(
+        "lane-guard",
+        help="fail-closed: exit 0 only if --agent owns the lane on the bus (no bypass)")
+    p_guard.add_argument("--agent", required=True, help="agent_id as registered")
+    p_guard.add_argument("--pr", type=int, default=None)
+    p_guard.add_argument("--branch", default=None, help="resolve lane from open PR head")
+    p_guard.add_argument("--install-hook", default=None, metavar="WORKTREE",
+                         help="write a pre-commit hook into WORKTREE that runs this guard")
+    p_guard.add_argument("--json", action="store_true")
     sub.add_parser("verifiers", help="verifier trust pool with resolved status (FEATURE_05)")
     p_verifier = sub.add_parser("verifier",
                                 help="inspect one verifier pool entry (FEATURE_05, fail closed)")
@@ -1952,6 +1993,7 @@ COMMANDS = {
     "inspect": cmd_inspect,
     "events": cmd_events,
     "owners": cmd_owners,
+    "lane-guard": cmd_lane_guard,
     "verifiers": cmd_verifiers,
     "verifier": cmd_verifier,
     "iv-eligibility": cmd_iv_eligibility,

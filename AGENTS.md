@@ -216,3 +216,11 @@ When implementing, follow these rules from the specification:
 - `atlas-vault-documentation/` is a sibling deliverable, not part of the `project-atlas` package. Do not import it from Core code, and do not expect the main ruff/mypy config to cover it.
 - For governed work in this repository, follow `AGENT-BOOTSTRAP.md` and the canonical skill in `atlas-vault-documentation/skill/SKILL.md`. Use `atlas_agent.py` for session lifecycle management and `document_work.py`/`capture_event.py` for recording meaningful work.
 - Update `docs/backlog.md` checkboxes and append to `WORKLOG.md` as work packages complete.
+- **Before writing to a PR-branch worktree, prove you own the lane.** Run
+  `python scripts/atlas-dag.py lane-guard --agent <your agent_id> --branch <branch>`;
+  proceed only on exit `0` (`OWNED` by you on the DAG bus). `UNOWNED` is not
+  permission — claim the lane through the control plane first. Install the
+  guard as a pre-commit hook in every worktree you open
+  (`lane-guard --agent <id> --install-hook <worktree>`) so a commit into a lane
+  you do not own is refused mechanically. Two agents editing one worktree at
+  once (2026-09-09) is the failure this prevents. `GUARD != AUTHORIZATION`.
