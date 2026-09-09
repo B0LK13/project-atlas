@@ -69,3 +69,16 @@ def test_no_second_read_drift(tmp_path: Path):
     snap = load_json_snapshot(path)
     path.write_text(json.dumps({"v": 2}), encoding="utf-8")
     assert snap.data == {"v": 1}
+
+
+def test_unreadable_file(tmp_path: Path):
+    from atlas_studio.snapshot_load import READ_ERROR
+
+    path = tmp_path / "locked.json"
+    path.write_text("{}", encoding="utf-8")
+    path.chmod(0)
+    try:
+        snap = load_json_snapshot(path)
+        assert snap.error == READ_ERROR
+    finally:
+        path.chmod(0o644)

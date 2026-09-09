@@ -40,18 +40,19 @@ Path('/tmp/a2-006-decision.json').write_text(json.dumps(decision,indent=2))
 print(intent['intent_id'])
 PY
 
-PYTHONPATH=scripts python -m atlas_studio.cli mission-session \
+PYTHONPATH=scripts python -m atlas_studio mission-session \
   --intent-file /tmp/a2-006-intent.json \
   --decision-file /tmp/a2-006-decision.json \
   --json
 # expect: session_state=CONFIRMED_SUCCESS, exit 0, auto_retry=false
+# expect: lifecycle.snapshot_consistency.status=COHERENT when both files load
 ```
 
 ## Demo 2 — corrupt input
 
 ```bash
 printf '{"schema":' >/tmp/a2-006-corrupt.json
-PYTHONPATH=scripts python -m atlas_studio.cli mission-session \
+PYTHONPATH=scripts python -m atlas_studio mission-session \
   --intent-file /tmp/a2-006-corrupt.json --json
 # expect: session_state=CORRUPT_INPUT, exit 1, recovery.auto_retry=false
 ```
@@ -59,11 +60,21 @@ PYTHONPATH=scripts python -m atlas_studio.cli mission-session \
 ## Demo 3 — persistence-failed signal (no replay)
 
 ```bash
-PYTHONPATH=scripts python -m atlas_studio.cli mission-session \
+PYTHONPATH=scripts python -m atlas_studio mission-session \
   --intent-file /tmp/a2-006-intent.json \
   --decision-file /tmp/a2-006-decision.json \
   --persistence-failed-after-mutation --json
 # expect: exit 3; resume.do_not forbids claim-execute replay
+```
+
+## Demo 4 — snapshot inconsistent (decision before intent request)
+
+```bash
+# Build fixtures where evaluated_at_utc < requested_at_utc (mixed-generation risk)
+PYTHONPATH=scripts python -m atlas_studio mission-session \
+  --intent-file /tmp/a2-006-intent-late.json \
+  --decision-file /tmp/a2-006-decision-early.json --json
+# expect: session_state=SNAPSHOT_INCONSISTENT, exit 1
 ```
 
 ## Verifier notes
@@ -71,3 +82,5 @@ PYTHONPATH=scripts python -m atlas_studio.cli mission-session \
 - Pin the exact tip SHA under Formal IV; tip drift requires a new cycle.
 - `#788` Formal IV PASS on `4904125f` does **not** transfer to #791.
 - `#786` task-context remains UNAVAILABLE until present on this stack.
+- Process-based cross-process tests ≠ power-loss durability.
+- Byte hashes ≠ multi-file filesystem transaction.

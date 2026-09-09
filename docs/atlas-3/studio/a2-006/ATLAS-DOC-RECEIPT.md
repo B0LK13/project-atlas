@@ -1,25 +1,25 @@
-# ATLAS-DOC-RECEIPT — A2-006 overnight continuation
+# ATLAS-DOC-RECEIPT — A2-006 mission lifecycle reliability goal
 
 ```text
 PACKAGE                 = AS-STUDIO-A2-006
-DIRECTIVE               = ATLAS-STUDIO-OVERNIGHT-CONTINUATION-001
-TIP                     = e32e2c7e228b2b059f75ac3062e59e88a534da13
-BRANCH                  = feat/as-studio-a2-006-mission-session
+GOAL                    = mission lifecycle reliable (malformed/binding/persistence/uncertain/resume)
 PR                      = https://github.com/B0LK13/project-atlas/pull/791
-DOC_WRITES              = OVERNIGHT-HANDOFF.md, REMAINING-WORK.md, ACCEPTANCE-DEMO.md, this receipt
-CODE_WRITES             = snapshot_load; continuity/evidence/session/cli; --strict-schema;
-                          claim intent via snapshot; evidence outcome_class conflict harden;
-                          soft schema warning notes; suite restore after empty tip
-LOCAL_SUITE             = 150 passed (studio A* + snapshot_load) at tip
-CI_EXACT_HEAD_SUCCESS   = NOT_ESTABLISHED
+BRANCH                  = feat/as-studio-a2-006-mission-session
+TIP                     = (set at commit: git rev-parse HEAD)
+PRIOR_REPORTED          = behavioral 1bca04e3; docs tip b9fd932d (superseded; CI cancelled)
+BASE_FREEZE             = 10df59fb
+PRIOR_IV_788            = 4904125f PASS — DOES_NOT_TRANSFER
+LOCAL_SUITE             = studio A* + snapshot_load + cross-process (see commit validation)
+CI_EXACT_HEAD_SUCCESS   = NOT_ESTABLISHED (record once when green; no poll-loop)
 FORMAL_IV               = NOT_STARTED
 MERGE_AUTHORIZATION     = NOT_GRANTED
-INDEPENDENT_VERIFICATION= NOT_STARTED
 AUTO_RETRY              = false
-SESSION_NE_EXECUTE      = true
-INPUT_BYTE_HASH         = parsed-bytes provenance only (not multi-file FS snapshot)
-POWER_LOSS_DURABILITY   = NOT claimed by process tests
-TASK_CONTEXT_786        = UNAVAILABLE
 OBSERVATION_API         = UNAVAILABLE
-STOP_REASON             = remaining actionable work requires external CI / Formal IV / merge / #786
+TASK_CONTEXT_786        = UNAVAILABLE
+INPUT_BYTE_HASH         = parsed-bytes only
+SNAPSHOT_CONSISTENCY    = identifier-bounded (COHERENT|INCOHERENT|UNPROVEN); not FS transaction
+POWER_LOSS_DURABILITY   = NOT claimed by process tests
+DOC_WRITES              = REMAINING-WORK.md, OVERNIGHT-HANDOFF.md, ACCEPTANCE-DEMO.md, this receipt
+CODE_WRITES             = intent_continuity unbound intent_id; mission_session snapshot_consistency;
+                          SNAPSHOT_INCONSISTENT; atlas_studio __main__; cross-process tests
 ```

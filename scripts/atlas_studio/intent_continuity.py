@@ -262,12 +262,17 @@ def classify_continuity(
 
     if isinstance(decision, dict) and decision.get("intent_id") not in (None, intent_id):
         return MISMATCHED_BINDING
+    if isinstance(decision, dict) and decision.get("intent_id") is None and intent_id:
+        # Unbound decision must not attach to a fresh intent as pending/success.
+        return MISMATCHED_BINDING
     if isinstance(prior_evidence, dict):
         ev_decision = prior_evidence.get("decision")
         if isinstance(ev_decision, dict) and ev_decision.get("intent_id") not in (
             None,
             intent_id,
         ):
+            return MISMATCHED_BINDING
+        if isinstance(ev_decision, dict) and ev_decision.get("intent_id") is None and intent_id:
             return MISMATCHED_BINDING
 
     if isinstance(decision, dict) and decision.get("intent_id") == intent_id:

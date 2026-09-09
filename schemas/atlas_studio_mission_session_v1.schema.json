@@ -36,6 +36,7 @@
         "PERSISTENCE_FAILED_SIGNAL",
         "INTERRUPTED_ATOMIC_WRITE",
         "CORRUPT_INPUT",
+        "SNAPSHOT_INCONSISTENT",
         "INCOMPLETE",
         "UNAVAILABLE"
       ]

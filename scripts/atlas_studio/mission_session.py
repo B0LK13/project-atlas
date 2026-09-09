@@ -70,8 +70,14 @@ SESSION_EVIDENCE_UNAVAILABLE = "EVIDENCE_UNAVAILABLE"
 SESSION_PERSISTENCE_FAILED_SIGNAL = "PERSISTENCE_FAILED_SIGNAL"
 SESSION_INTERRUPTED_ATOMIC_WRITE = "INTERRUPTED_ATOMIC_WRITE"
 SESSION_CORRUPT_INPUT = "CORRUPT_INPUT"
+SESSION_SNAPSHOT_INCONSISTENT = "SNAPSHOT_INCONSISTENT"
 SESSION_INCOMPLETE = "INCOMPLETE"
 SESSION_UNAVAILABLE = "UNAVAILABLE"
+
+# Bounded multi-file consistency (not a filesystem transaction).
+SNAP_COHERENT = "COHERENT"
+SNAP_INCOHERENT = "INCOHERENT"
+SNAP_UNPROVEN = "UNPROVEN"
 
 
 def honesty_block() -> dict[str, bool]:
@@ -192,6 +198,88 @@ def _extract_lane(obj: dict[str, Any] | None) -> str | None:
     return None
 
 
+def _assess_snapshot_consistency(
+    *,
+    intent: dict[str, Any] | None,
+    decision: dict[str, Any] | None,
+    evidence_packet: dict[str, Any] | None,
+    input_hashes: dict[str, str],
+    conflicting_evidence: bool,
+) -> dict[str, Any]:
+    """Bounded multi-file coherence using established identifiers only.
+
+    Byte hashes identify parsed bytes per file. They do not prove an atomic
+    multi-file filesystem snapshot. When cross-record identifiers disagree,
+    status is INCOHERENT. When only one record is present, status is UNPROVEN.
+    """
+    checks: list[str] = []
+    notes = [
+        "byte_hashes_identify_parsed_bytes_only",
+        "not_a_filesystem_transaction",
+        "mixed_generation_detected_via_identifier_disagreement",
+    ]
+    ids: dict[str, str] = {}
+    if isinstance(intent, dict) and isinstance(intent.get("intent_id"), str):
+        ids["intent"] = intent["intent_id"]
+    if isinstance(decision, dict) and isinstance(decision.get("intent_id"), str):
+        ids["decision"] = decision["intent_id"]
+    elif isinstance(decision, dict) and decision.get("intent_id") is None and ids.get("intent"):
+        checks.append("DECISION_INTENT_ID_MISSING")
+    if isinstance(evidence_packet, dict):
+        emb = evidence_packet.get("decision")
+        if isinstance(emb, dict) and isinstance(emb.get("intent_id"), str):
+            ids["evidence"] = emb["intent_id"]
+        elif isinstance(emb, dict) and emb.get("intent_id") is None and ids.get("intent"):
+            checks.append("EVIDENCE_DECISION_INTENT_ID_MISSING")
+
+    distinct = sorted(set(ids.values()))
+    if len(distinct) > 1:
+        checks.append(f"INTENT_ID_DISAGREEMENT:{','.join(distinct)}")
+
+    # Optional temporal sanity: decision before intent request → mixed generation risk.
+    if isinstance(intent, dict) and isinstance(decision, dict):
+        req = intent.get("requested_at_utc")
+        ev = decision.get("evaluated_at_utc")
+        if isinstance(req, str) and isinstance(ev, str) and ev < req:
+            checks.append("DECISION_BEFORE_INTENT_REQUEST")
+
+    # source_mc_fingerprint only on intent today; if decision carries one, compare.
+    if isinstance(intent, dict) and isinstance(decision, dict):
+        i_fp = intent.get("source_mc_fingerprint")
+        d_fp = decision.get("source_mc_fingerprint")
+        if isinstance(i_fp, str) and isinstance(d_fp, str) and i_fp and d_fp and i_fp != d_fp:
+            checks.append("SOURCE_MC_FINGERPRINT_DISAGREEMENT")
+
+    if conflicting_evidence:
+        checks.append("EVIDENCE_CONFLICTS_WITH_DECISION")
+
+    file_hash_count = sum(
+        1 for k in ("intent", "decision", "evidence") if k in input_hashes
+    )
+    record_count = sum(
+        1
+        for obj in (intent, decision, evidence_packet)
+        if isinstance(obj, dict)
+    )
+
+    if checks:
+        status = SNAP_INCOHERENT
+    elif record_count <= 1 or file_hash_count <= 1:
+        status = SNAP_UNPROVEN
+        notes.append("insufficient_cross_records_to_prove_multi_file_coherence")
+    else:
+        status = SNAP_COHERENT
+        checks.append("intent_id_alignment_ok")
+
+    return {
+        "status": status,
+        "checks": checks,
+        "notes": notes,
+        "intent_ids_observed": ids,
+        "input_byte_hash_keys": sorted(input_hashes.keys()),
+    }
+
+
 def _decisions_conflict(
     decision: dict[str, Any] | None, evidence_packet: dict[str, Any] | None
 ) -> bool:
@@ -235,6 +323,7 @@ def _derive_session_state(
     persistence_failed_after_mutation: bool,
     interrupted_atomic_write: bool,
     conflicting_evidence: bool,
+    snapshot_inconsistent: bool,
     has_intent: bool,
     has_decision: bool,
 ) -> str:
@@ -248,6 +337,8 @@ def _derive_session_state(
         return SESSION_MISMATCHED_BINDING
     if conflicting_evidence:
         return SESSION_CONFLICTING_EVIDENCE
+    if snapshot_inconsistent:
+        return SESSION_SNAPSHOT_INCONSISTENT
     if continuity_state == STALE_INTENT:
         return SESSION_STALE_INTENT
     if continuity_state == CONTINUITY_MALFORMED or outcome_class == EVIDENCE_MALFORMED:
@@ -453,12 +544,34 @@ def build_mission_session(
         continuity_state = MISMATCHED_BINDING
         notes.extend(binding_notes)
 
+    snapshot_consistency = _assess_snapshot_consistency(
+        intent=loaded_intent if isinstance(loaded_intent, dict) else None,
+        decision=loaded_decision if isinstance(loaded_decision, dict) else None,
+        evidence_packet=evidence_packet if isinstance(evidence_packet, dict) else None,
+        input_hashes=input_hashes,
+        conflicting_evidence=conflicting_evidence,
+    )
+    snapshot_inconsistent = snapshot_consistency["status"] == SNAP_INCOHERENT
+    # Binding mismatch already owns unbound intent_id; avoid double-label unless
+    # remaining checks are pure temporal/fingerprint mixed-generation.
+    if snapshot_inconsistent and continuity_state == MISMATCHED_BINDING:
+        id_only = all(
+            c.startswith("DECISION_INTENT_ID_MISSING")
+            or c.startswith("EVIDENCE_DECISION_INTENT_ID_MISSING")
+            or c.startswith("INTENT_ID_DISAGREEMENT")
+            for c in snapshot_consistency["checks"]
+        )
+        if id_only:
+            snapshot_inconsistent = False
+    notes.append(f"snapshot_consistency={snapshot_consistency['status']}")
+
     session_state = _derive_session_state(
         continuity_state=continuity_state,
         outcome_class=str(outcome_class) if outcome_class else None,
         persistence_failed_after_mutation=persistence_failed_after_mutation,
         interrupted_atomic_write=interrupted_atomic_write,
         conflicting_evidence=conflicting_evidence,
+        snapshot_inconsistent=snapshot_inconsistent,
         has_intent=isinstance(loaded_intent, dict),
         has_decision=isinstance(loaded_decision, dict),
     )
@@ -526,6 +639,18 @@ def build_mission_session(
                 ),
             },
         )
+    if session_state == SESSION_SNAPSHOT_INCONSISTENT:
+        recovery_actions.insert(
+            0,
+            {
+                "id": "snapshot_inconsistent",
+                "summary": (
+                    "Multi-file inputs disagree on established identifiers or ordering — "
+                    "retain uncertainty; do not treat as coherent snapshot or success; "
+                    "replace mixed-generation records"
+                ),
+            },
+        )
 
     # Strip any recovery text that could be read as replay permission.
     for action in recovery_actions:
@@ -565,6 +690,7 @@ def build_mission_session(
             "treat MISMATCHED_BINDING as success",
             "treat PERSISTENCE_FAILED_SIGNAL as confirmed mutation",
             "treat CONFLICTING_EVIDENCE as confirmed success",
+            "treat SNAPSHOT_INCONSISTENT as coherent multi-file success",
             "treat uncertain mutation as nothing-changed",
             "promote decision.json.tmp to authoritative success",
         ],
@@ -572,6 +698,7 @@ def build_mission_session(
             "RESUME_NE_REEXECUTE",
             "another process loads the same files and re-derives this packet",
             "fingerprint excludes generated_at_utc",
+            "byte_hashes_ne_filesystem_transaction",
         ],
     }
 
@@ -614,6 +741,7 @@ def build_mission_session(
             "persistence_failed_after_mutation": persistence_failed_after_mutation,
             "interrupted_atomic_write": interrupted_atomic_write,
             "orphan_tmp_with_final": orphan_tmp_with_final,
+            "snapshot_consistency": snapshot_consistency,
         },
         "dependencies": {
             "task_context": _task_context_dependency(),

@@ -61,6 +61,58 @@ def _decision(**overrides):
     return base
 
 
+def test_null_intent_id_decision_not_pending_execute():
+    """Unbound decision must not become PENDING_EXECUTE against a fresh intent."""
+    packet = ms.build_mission_session(
+        intent=_intent(),
+        decision=_decision(intent_id=None, decision="EXECUTE_ALLOWED", mutated=False),
+        clock=clock,
+    )
+    assert packet["session_state"] == ms.SESSION_MISMATCHED_BINDING
+    assert packet["session_state"] != ms.SESSION_PENDING_EXECUTE
+    assert packet["recovery"]["auto_retry"] is False
+
+
+def test_snapshot_consistency_coherent_for_aligned_files(tmp_path: Path):
+    intent_path = tmp_path / "intent.json"
+    decision_path = tmp_path / "decision.json"
+    intent_path.write_text(json.dumps(_intent()), encoding="utf-8")
+    decision_path.write_text(json.dumps(_decision()), encoding="utf-8")
+    packet = ms.build_mission_session(
+        intent_file=intent_path, decision_file=decision_path, clock=clock
+    )
+    snap = packet["lifecycle"]["snapshot_consistency"]
+    assert snap["status"] == ms.SNAP_COHERENT
+    assert packet["session_state"] == ms.SESSION_CONFIRMED_SUCCESS
+
+
+def test_snapshot_consistency_decision_before_intent():
+    packet = ms.build_mission_session(
+        intent=_intent(requested_at_utc="2026-09-09T20:00:00Z"),
+        decision=_decision(evaluated_at_utc="2026-09-09T19:00:00Z"),
+        clock=clock,
+    )
+    snap = packet["lifecycle"]["snapshot_consistency"]
+    assert snap["status"] == ms.SNAP_INCOHERENT
+    assert "DECISION_BEFORE_INTENT_REQUEST" in snap["checks"]
+    assert packet["session_state"] == ms.SESSION_SNAPSHOT_INCONSISTENT
+    assert ms.exit_code_for_session(packet) == 1
+
+
+def test_unsupported_schema_version_not_success():
+    packet = ms.build_mission_session(
+        intent=_intent(schema="ATLAS_STUDIO_ACTION_INTENT_V99"),
+        decision=_decision(),
+        clock=clock,
+    )
+    assert packet["session_state"] not in {
+        ms.SESSION_CONFIRMED_SUCCESS,
+        ms.SESSION_PENDING_EXECUTE,
+        ms.READY_TO_EVALUATE,
+    }
+    assert packet["lifecycle"]["continuity"]["state"] == ic.MALFORMED
+
+
 def test_input_content_hashes_snapshot_point_in_time():
     """Injected objects get canonical hashes; file loads get byte hashes."""
     packet = ms.build_mission_session(

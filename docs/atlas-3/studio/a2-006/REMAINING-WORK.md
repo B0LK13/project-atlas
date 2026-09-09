@@ -1,29 +1,30 @@
 # Remaining work — mission-session production readiness
 
 ```text
-GOAL_STATUS             = BLOCKED_EXTERNAL (engineering queue drained)
+GOAL_STATUS             = ACTIVE → drain then BLOCKED_EXTERNAL
 MERGE_AUTHORIZATION     = NOT_GRANTED
-TIP                     = e32e2c7e228b2b059f75ac3062e59e88a534da13
+PRIOR_BEHAVIORAL_NOTE   = 1bca04e3 / docs tip b9fd932d superseded; do not reclaim
+PRESERVE_UNDER_VERIFY   = tip at push time (see ATLAS-DOC-RECEIPT)
 ```
 
-## Implemented (local)
+## Implemented (local this cycle)
 
-- Byte-accurate snapshot load; corrupt/empty/non-UTF8 → CORRUPT_INPUT
-- Binding / conflict / fingerprint / persistence / orphan-tmp
-- CLI exit codes for mission-session
-- Optional `--strict-schema` + soft schema warning notes
-- Claim evaluate/execute intent load via snapshot_load
-- Evidence outcome_class / embedded-decision conflict fail-closed
-- Control-plane observation + task-context UNAVAILABLE explicit
-- ACCEPTANCE-DEMO.md
+- Unbound decision (`intent_id` null) → MISMATCHED_BINDING (not PENDING_EXECUTE)
+- Bounded `lifecycle.snapshot_consistency` (COHERENT / INCOHERENT / UNPROVEN)
+- `SNAPSHOT_INCONSISTENT` session state + recovery guidance
+- Cross-process CLI acceptance (subprocess `-m atlas_studio`) with labeled fixtures
+- Package `__main__` + `cli.py` `__main__` so module invocation actually runs
+- Unreadable-file READ_ERROR coverage
 
-## External only
+## External only (do not poll-loop)
 
 | Claim | Status |
 |---|---|
-| Exact-head CI SUCCESS on tip | PENDING |
-| Formal IV | NOT_STARTED (owner) |
+| Exact-head CI SUCCESS | PENDING on tip after push |
+| Formal IV | NOT_STARTED (owner; prior #788 IV does not transfer) |
 | Merge | NOT_GRANTED |
 | #786 task-context | UNAVAILABLE |
+| Power-loss durability | NOT claimed |
+| Multi-file FS atomic snapshot | NOT claimed (identifier-bounded check only) |
 
-Do not invent further defects to consume time.
+Stop manufacturing gaps once only this table remains.
