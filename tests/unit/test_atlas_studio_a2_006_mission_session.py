@@ -121,6 +121,23 @@ def test_continuity_mismatched_binding_state():
     assert packet["continuity_state"] == ic.MISMATCHED_BINDING
 
 
+def test_interrupted_atomic_write_orphan_tmp(tmp_path: Path):
+    intent_path = tmp_path / "intent.json"
+    decision_path = tmp_path / "decision.json"
+    tmp_path_file = decision_path.with_suffix(".json.tmp")
+    intent_path.write_text(json.dumps(_intent()), encoding="utf-8")
+    tmp_path_file.write_text(json.dumps(_decision()), encoding="utf-8")
+    # Final decision.json absent → interrupted replace
+    packet = ms.build_mission_session(
+        intent_file=intent_path, decision_file=decision_path, clock=clock
+    )
+    assert packet["session_state"] == ms.SESSION_INTERRUPTED_ATOMIC_WRITE
+    assert packet["lifecycle"]["interrupted_atomic_write"] is True
+    ids = {a["id"] for a in packet["recovery"]["actions"]}
+    assert "interrupted_atomic_write" in ids
+    assert packet["recovery"]["auto_retry"] is False
+
+
 def test_cross_process_resume(tmp_path: Path):
     """Fresh process loads persisted files and does not re-execute."""
     intent_path = tmp_path / "intent.json"

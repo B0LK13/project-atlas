@@ -3,7 +3,7 @@
 ```text
 PACKAGE_ID              = AS-STUDIO-A2-006
 BRANCH                  = feat/as-studio-a2-006-mission-session
-PR                      = PENDING
+PR                      = #791
 BASE_BRANCH             = feat/as-studio-a2-004-action-evidence
 BASE_FREEZE_HEAD        = 10df59fb0d0241bb8bc117b37df4fd205642ac32
 BASE_FREEZE_TREE        = 1e17bddc30cecff2070c2b0b24a4cf57012d0027

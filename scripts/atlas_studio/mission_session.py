@@ -60,6 +60,7 @@ SESSION_MISMATCHED_BINDING = "MISMATCHED_BINDING"
 SESSION_DECISION_MISSING = "DECISION_MISSING"
 SESSION_EVIDENCE_UNAVAILABLE = "EVIDENCE_UNAVAILABLE"
 SESSION_PERSISTENCE_FAILED_SIGNAL = "PERSISTENCE_FAILED_SIGNAL"
+SESSION_INTERRUPTED_ATOMIC_WRITE = "INTERRUPTED_ATOMIC_WRITE"
 SESSION_INCOMPLETE = "INCOMPLETE"
 SESSION_UNAVAILABLE = "UNAVAILABLE"
 
@@ -131,11 +132,14 @@ def _derive_session_state(
     continuity_state: str,
     outcome_class: str | None,
     persistence_failed_after_mutation: bool,
+    interrupted_atomic_write: bool,
     has_intent: bool,
     has_decision: bool,
 ) -> str:
     if persistence_failed_after_mutation:
         return SESSION_PERSISTENCE_FAILED_SIGNAL
+    if interrupted_atomic_write:
+        return SESSION_INTERRUPTED_ATOMIC_WRITE
     if continuity_state == MISMATCHED_BINDING:
         return SESSION_MISMATCHED_BINDING
     if continuity_state == STALE_INTENT:
@@ -184,6 +188,14 @@ def build_mission_session(
 ) -> dict[str, Any]:
     """Build ATLAS_STUDIO_MISSION_SESSION_V1. Never mutates; never re-executes."""
     notes = [f"package:{PACKAGE_ID}", "session_ne_authority", "auto_retry_forbidden"]
+
+    interrupted_atomic_write = False
+    if decision_file is not None:
+        dpath = Path(decision_file)
+        tmp_sibling = dpath.with_suffix(dpath.suffix + ".tmp")
+        if tmp_sibling.is_file() and not dpath.is_file():
+            interrupted_atomic_write = True
+            notes.append(f"orphan_tmp:{tmp_sibling}")
 
     continuity = build_intent_continuity(
         intent=intent,
@@ -243,6 +255,7 @@ def build_mission_session(
         continuity_state=continuity_state,
         outcome_class=str(outcome_class) if outcome_class else None,
         persistence_failed_after_mutation=persistence_failed_after_mutation,
+        interrupted_atomic_write=interrupted_atomic_write,
         has_intent=isinstance(loaded_intent, dict),
         has_decision=isinstance(loaded_decision, dict),
     )
@@ -255,6 +268,17 @@ def build_mission_session(
         if isinstance(action, dict) and action.get("id") not in seen:
             recovery_actions.append(action)
             seen.add(action.get("id"))
+    if interrupted_atomic_write:
+        recovery_actions.insert(
+            0,
+            {
+                "id": "interrupted_atomic_write",
+                "summary": (
+                    "Found decision.json.tmp without final decision.json — treat write as "
+                    "interrupted; inspect control plane before any retry; do not assume success"
+                ),
+            },
+        )
     if persistence_failed_after_mutation:
         recovery_actions.insert(
             0,
@@ -333,6 +357,7 @@ def build_mission_session(
                 else None,
             },
             "persistence_failed_after_mutation": persistence_failed_after_mutation,
+            "interrupted_atomic_write": interrupted_atomic_write,
         },
         "dependencies": {
             "task_context": _task_context_dependency(),
