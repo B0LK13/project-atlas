@@ -89,21 +89,24 @@ CI_PASS != FORMAL_IV
 MERGE_AUTHORIZATION = NOT_GRANTED
 ```
 
-## A2 governed intents (docs only)
+## A2 governed OWNERSHIP_CLAIM (lane)
 
 See [`a2/`](./a2/) and [ADR-035](../../adr/ADR-035-studio-governed-action-intent.md).
 
 ```text
-AS_STUDIO_A2 = SCOPE_READY / IMPLEMENTATION_NOT_STARTED
-AS_STUDIO_A2_001 = READY (governed OWNERSHIP_CLAIM)
+AS_STUDIO_A2_001 = IMPLEMENTED_IN_LANE
+DISPATCH_STEAL_AUTO = NOT_STARTED
 BUTTON != MUTATION
+REQUESTED != CLAIMED
+PREVIEW != EXECUTION
+FORMAL_IV = NOT_STARTED
 ```
 
 ## Next
 
-1. Owner merge/IV decisions for A0/A1 remain separate from technical completeness.
-2. Do not implement A2 mutation paths until `AS-STUDIO-A2-001` starts under ADR-035.
-3. Formal IV / verifier bind remains `EXTERNAL_IV_GATED`.
+1. Owner merge/IV decisions for A0/A1/A2-001 remain separate from technical completeness.
+2. Later A2.x: dispatch / steal-auto / handoff delivery / worktree behind the same intent bridge.
+3. Formal IV / verifier bind remains `EXTERNAL_IV_GATED` / NOT_STARTED for A2.
 
 ## A0 package
 

@@ -14745,3 +14745,12 @@ AS_STUDIO_A1 = NOT_STARTED
 - A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
   governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
 - Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added
+
+## AS-STUDIO-A2-001 — governed OWNERSHIP_CLAIM
+
+- Module: `scripts/atlas_studio/action_intent.py`
+- CLI: claim-candidates/preview/intent/evaluate/execute
+- Schemas: ATLAS_STUDIO_ACTION_{INTENT,PREVIEW,DECISION}_V1
+- Tests: 19 A2 adversarial + A0/A1 regression (59 total)
+- DISPATCH / STEAL_AUTO = NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
+

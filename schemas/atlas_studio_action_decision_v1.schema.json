@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_ACTION_DECISION_V1",
+  "description": "AS-STUDIO-A2-001 control-plane decision + evidence for OWNERSHIP_CLAIM. CONTROL_PLANE_REVALIDATES_AT_EXECUTION; Studio never self-authorizes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "decision",
+    "action_type",
+    "intent_id",
+    "mutated",
+    "reasons",
+    "evidence",
+    "honesty",
+    "evaluated_at_utc"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_ACTION_DECISION_V1"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "EXECUTE_ALLOWED",
+        "EXECUTED",
+        "REFUSED_STALE",
+        "REFUSED_ALREADY_OWNED",
+        "REFUSED_NOT_RUNNABLE",
+        "REFUSED_AGENT_INVALID",
+        "REFUSED_CAPABILITY",
+        "REFUSED_POLICY",
+        "REFUSED_TARGET_MISMATCH",
+        "REFUSED_IDEMPOTENT_ALREADY_CLAIMED",
+        "REFUSED_SCHEMA"
+      ]
+    },
+    "action_type": {
+      "const": "OWNERSHIP_CLAIM"
+    },
+    "intent_id": {
+      "type": ["string", "null"]
+    },
+    "mutated": {
+      "type": "boolean"
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "emit_status": {
+      "type": ["string", "null"]
+    },
+    "event_id": {
+      "type": ["string", "null"]
+    },
+    "reasons": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "evaluated_at_utc": {
+      "type": "string"
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "studio_ui_ne_authority",
+        "requested_ne_claimed",
+        "preview_ne_execution",
+        "control_plane_revalidates_at_execution",
+        "studio_never_self_authorizes"
+      ],
+      "properties": {
+        "studio_ui_ne_authority": { "const": true },
+        "requested_ne_claimed": { "const": true },
+        "preview_ne_execution": { "const": true },
+        "control_plane_revalidates_at_execution": { "const": true },
+        "studio_never_self_authorizes": { "const": true },
+        "stale_intent_ne_current_permission": { "const": true }
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"""Atlas Studio — A0 snapshot + A1 Mission Control (AS-STUDIO-A0/A1).
+"""Atlas Studio — A0 snapshot + A1 Mission Control + A2 governed claim bridge.
 
 STUDIO_UI != AUTHORITY
 ATLAS_DAEMON = AUTHORITATIVE_RUNTIME
@@ -11,13 +11,15 @@ STUDIO_CRASH != AGENT_TASK_TERMINATION
 ATTENTION != AUTHORIZATION
 STALE != CURRENT
 UNKNOWN != HEALTHY
+REQUESTED != CLAIMED
+PREVIEW != EXECUTION
 
-Read-only only: no claim / dispatch / emit / merge / vault write APIs.
-O1: in-process atlas_dag builders are authoritative RO runtime for A1.
-O6: seal/evidence may be UNKNOWN/deferred — never promote to healthy.
+Package root remains free of mutation helpers. Governed OWNERSHIP_CLAIM lives
+in ``atlas_studio.action_intent`` and is invoked only via explicit claim-*
+CLI commands after control-plane revalidation.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # Honesty design laws (must remain True; mirrored in snapshot/MC honesty blocks).
 STUDIO_UI_NE_AUTHORITY = True
@@ -35,3 +37,5 @@ UNKNOWN_NE_HEALTHY = True
 NESTED_HONESTY_FAIL_CLOSED = True
 O1_IN_PROCESS_ATLAS_DAG_RO_RUNTIME = True
 O6_SEAL_EVIDENCE_MAY_BE_UNKNOWN = True
+# A2 honesty consts live on atlas_studio.action_intent (not package root):
+# REQUESTED_NE_CLAIMED / PREVIEW_NE_EXECUTION — keep root free of mutation API names.

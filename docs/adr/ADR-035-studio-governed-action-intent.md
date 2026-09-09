@@ -1,6 +1,7 @@
 # ADR-035 — Studio governed action intent (not self-authorization)
 
-**Status:** proposed for AS-STUDIO-A2 scope (docs only; implementation NOT_STARTED)
+**Status:** accepted for AS-STUDIO-A2-001 lane implementation (OWNERSHIP_CLAIM);
+broader A2.x surfaces remain NOT_STARTED
 **Date:** 2026-09-09
 **Package:** `AS-STUDIO-A2` / `AS-STUDIO-A2-001`
 **Related:** [ADR-034](./ADR-034-studio-daemon-authority.md) (Studio projection; daemon authority)
@@ -47,9 +48,9 @@ primitives; Studio must not reimplement or bypass them.
 ## Honesty
 
 ```text
-PREP != IMPLEMENTED for A2 code
-SCOPE_READY != IMPLEMENTATION_STARTED
+AS_STUDIO_A2_001 = IMPLEMENTED_IN_LANE
+DISPATCH_STEAL_AUTO = NOT_STARTED
 CI_PASS != FORMAL_IV
 MERGE_AUTHORIZATION = NOT_GRANTED by this ADR alone
-STUDIO_MUTATION_AUTHORITY = NONE
+STUDIO_MUTATION_AUTHORITY = NONE (Studio never self-authorizes)
 ```

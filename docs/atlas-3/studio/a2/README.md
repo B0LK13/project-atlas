@@ -22,6 +22,7 @@ Studio never self-authorizes.
 | [A2-SCOPE.md](./A2-SCOPE.md) | Reconciled scope; challenges BUTTON→MUTATION |
 | [A2-ACTION-INTENT-MODEL.md](./A2-ACTION-INTENT-MODEL.md) | Typed intent schema sketch |
 | [A2-AUTHORITY-BOUNDARY.md](./A2-AUTHORITY-BOUNDARY.md) | Studio vs control-plane authority |
+| [A2-EVIDENCE.md](./A2-EVIDENCE.md) | Lane evidence |
 | [A2-FIRST-WORK-PACKAGE.md](./A2-FIRST-WORK-PACKAGE.md) | `AS-STUDIO-A2-001 READY` — first governed CLAIM |
 | ADR | [ADR-035](../../../adr/ADR-035-studio-governed-action-intent.md) |
 

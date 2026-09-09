@@ -1,13 +1,17 @@
-"""atlas-studio CLI — A0 snapshot + A1 Mission Control.
+"""atlas-studio CLI — A0 snapshot + A1 Mission Control + A2 governed claim.
 
 STUDIO_UI != AUTHORITY
 MISSION_CONTROL = PROJECTION_OF_ATLAS_TRUTH
 ATTENTION != AUTHORIZATION
 STALE != CURRENT
 UNKNOWN != HEALTHY
-NO_MUTATION_API_IN_A1
+REQUESTED != CLAIMED
+PREVIEW != EXECUTION
+CONTROL_PLANE_REVALIDATES_AT_EXECUTION
 
-Commands: snapshot | mission-control (mc) | doctor. No mutation surfaces.
+A0/A1 commands remain read-only. A2 claim-* commands produce intents /
+previews / evaluations; only claim-execute may mutate via atlas_dag emitter
+after revalidation — never BUTTON→OWNER_CLAIMED. Dispatch/steal-auto = NOT.
 """
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ import argparse
 import json
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from atlas_studio import (
@@ -129,6 +134,213 @@ def cmd_mission_control(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print("\nmission-control watch stopped", file=sys.stderr)
         return 0
+
+
+def _load_intent_file(path: str) -> dict[str, Any]:
+    raw = Path(path).read_text(encoding="utf-8")
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise ValueError("intent file must contain a JSON object")
+    return data
+
+
+def _live_claim_context(
+    agent_id: str,
+    *,
+    repo: str | None,
+    clock=None,
+) -> tuple[dict[str, Any], dict[str, Any], Any]:
+    """Build MC + frontier matrix + registry for claim commands (fail closed)."""
+    from atlas_dag import agents as agents_mod
+    from atlas_dag import frontier_matrix as fm_mod
+    from atlas_dag import model as model_mod
+    from atlas_dag import stack as stack_mod
+    from atlas_dag.gh import GhClient
+    from atlas_studio.mission_control import build_mission_control
+
+    mc = build_mission_control(
+        agent_id=agent_id,
+        live=True,
+        repo=repo,
+        clock=clock,
+    )
+    client = GhClient(repo=repo) if repo else GhClient()
+    snap = model_mod.build_snapshot(client)
+    stacks = stack_mod.build_stacks(
+        snap["nodes"], client, snap.get("main_branch") or "main"
+    )
+    registry = agents_mod.load_registry()
+    matrix = fm_mod.build_frontier_matrix(
+        snap,
+        agent_id,
+        registry,
+        stacks=stacks,
+        clock=clock,
+    )
+    return mc, matrix, registry
+
+
+def cmd_claim_candidates(args: argparse.Namespace) -> int:
+    from atlas_studio import action_intent as gc
+
+    if args.agent:
+        try:
+            mc, matrix, _registry = _live_claim_context(args.agent, repo=args.repo)
+        except Exception as exc:  # noqa: BLE001
+            print(f"atlas-studio claim-candidates: FAIL {exc}", file=sys.stderr)
+            return 1
+        packet = gc.list_claim_candidates(
+            agent_id=args.agent,
+            frontier_matrix=matrix,
+            mission_control=mc,
+        )
+    else:
+        packet = gc.list_claim_candidates(agent_id=None, frontier_matrix={"actions": []})
+        packet["notes"] = list(packet.get("notes") or []) + ["AGENT_REQUIRED_FOR_LIVE"]
+
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(
+            f"claim-candidates agent={packet.get('agent')} "
+            f"n={len(packet.get('candidates') or [])}"
+        )
+        for c in packet.get("candidates") or []:
+            print(
+                f"  {c.get('lane')} action_id={c.get('action_id')} "
+                f"head={(c.get('head') or '')[:12]}"
+            )
+        print("HONESTY: REQUESTED!=CLAIMED / RANKING!=AUTHORIZATION / PREVIEW!=EXECUTION")
+    return 0
+
+
+def cmd_claim_preview(args: argparse.Namespace) -> int:
+    from atlas_studio import action_intent as gc
+
+    try:
+        mc, matrix, _registry = _live_claim_context(args.agent, repo=args.repo)
+        preview = gc.preview_ownership_claim(
+            agent_id=args.agent,
+            lane=args.lane,
+            frontier_matrix=matrix,
+            mission_control=mc,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"atlas-studio claim-preview: FAIL {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(preview, indent=2, sort_keys=True))
+    else:
+        print(
+            f"claim-preview status={preview.get('preview_status')} "
+            f"lane={preview.get('target_lane')} "
+            f"runnable={preview.get('runnable_state')} "
+            f"eligible={preview.get('agent_eligible')}"
+        )
+        for line in preview.get("why") or []:
+            print(f"  why: {line}")
+        for line in preview.get("impact") or []:
+            print(f"  impact: {line}")
+        print("HONESTY: PREVIEW!=EXECUTION / REQUESTED!=CLAIMED")
+    return 0 if preview.get("preview_status") != "UNKNOWN" else 1
+
+
+def cmd_claim_intent(args: argparse.Namespace) -> int:
+    from atlas_studio import action_intent as gc
+
+    try:
+        mc, matrix, _registry = _live_claim_context(args.agent, repo=args.repo)
+        preview = gc.preview_ownership_claim(
+            agent_id=args.agent,
+            lane=args.lane,
+            frontier_matrix=matrix,
+            mission_control=mc,
+        )
+        intent = gc.build_ownership_claim_intent(
+            agent_id=args.agent,
+            lane=args.lane,
+            source_mc_fingerprint=str(mc.get("snapshot_fingerprint")),
+            source_frontier_fingerprint=matrix.get("frontier_fingerprint"),
+            candidate_action_id=preview.get("candidate_action_id"),
+            target_head=preview.get("target_head"),
+            max_age_seconds=int(args.max_age_seconds),
+            notes="atlas-studio claim-intent (stdout only; not authorization)",
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"atlas-studio claim-intent: FAIL {exc}", file=sys.stderr)
+        return 1
+    # Intent JSON to stdout only — never auto-execute.
+    print(json.dumps(intent, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_claim_evaluate(args: argparse.Namespace) -> int:
+    from atlas_studio import action_intent as gc
+
+    try:
+        intent = _load_intent_file(args.intent_file)
+        agent_id = str(intent.get("actor_agent_id") or "")
+        mc, matrix, registry = _live_claim_context(agent_id, repo=args.repo)
+        decision = gc.evaluate_ownership_claim_intent(
+            intent,
+            frontier_matrix=matrix,
+            mission_control=mc,
+            registry=registry,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"atlas-studio claim-evaluate: FAIL {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(decision, indent=2, sort_keys=True))
+    else:
+        print(
+            f"claim-evaluate decision={decision.get('decision')} "
+            f"mutated={decision.get('mutated')} "
+            f"intent={decision.get('intent_id')}"
+        )
+        for r in decision.get("reasons") or []:
+            print(f"  reason: {r}")
+        print("HONESTY: EVALUATE!=EXECUTE / CONTROL_PLANE_REVALIDATES")
+    return 0 if decision.get("decision") == gc.EXECUTE_ALLOWED else 1
+
+
+def cmd_claim_execute(args: argparse.Namespace) -> int:
+    from atlas_dag.gh import GhClient
+    from atlas_studio import action_intent as gc
+
+    try:
+        intent = _load_intent_file(args.intent_file)
+        agent_id = str(intent.get("actor_agent_id") or "")
+        mc, matrix, registry = _live_claim_context(agent_id, repo=args.repo)
+        client = GhClient(repo=args.repo) if args.repo else GhClient()
+        decision = gc.execute_ownership_claim(
+            intent,
+            client=client,
+            registry=registry,
+            frontier_matrix=matrix,
+            mission_control=mc,
+            dry_run=bool(args.dry_run),
+            expected_repo=args.repo,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"atlas-studio claim-execute: FAIL {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(decision, indent=2, sort_keys=True))
+    else:
+        print(
+            f"claim-execute decision={decision.get('decision')} "
+            f"mutated={decision.get('mutated')} dry_run={decision.get('dry_run')} "
+            f"emit={decision.get('emit_status')}"
+        )
+        for r in decision.get("reasons") or []:
+            print(f"  reason: {r}")
+        print(
+            "HONESTY: CONTROL_PLANE_REVALIDATES_AT_EXECUTION / "
+            "STUDIO_NEVER_SELF_AUTHORIZES"
+        )
+    ok = decision.get("decision") == gc.EXECUTED
+    return 0 if ok else 1
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -253,6 +465,41 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001
         add("mc_schema_validate", False, f"{type(exc).__name__}:{exc}")
 
+    # A2: governed claim modules + schemas; no general mutation surface.
+    try:
+        from atlas_studio import action_intent as gc
+
+        ok_schemas, detail = gc.schemas_loadable()
+        add("a2_action_intent_import", True, "action_intent importable")
+        add("a2_schemas_load", ok_schemas, detail)
+        add(
+            "a2_dispatch_steal_auto_not_started",
+            gc.DISPATCH_STEAL_AUTO_NOT_STARTED is True,
+            "DISPATCH/STEAL_AUTO=NOT_STARTED",
+        )
+        # Confirm mission_control does not import governed claim (A1 boundary).
+        import atlas_studio.mission_control as mc_mod
+
+        mc_src = Path(mc_mod.__file__).read_text(encoding="utf-8")
+        add(
+            "a1_mc_no_action_intent_import",
+            "action_intent" not in mc_src,
+            "mission_control does not import action_intent",
+        )
+        # No general dispatch/merge mutation helpers on package root.
+        import atlas_studio as studio_pkg
+
+        root_names = {n.lower() for n in dir(studio_pkg) if not n.startswith("_")}
+        general_mutation = {"dispatch", "merge", "force_merge", "steal_write"}
+        leaked = sorted(general_mutation & root_names)
+        add(
+            "no_general_mutation_surface_on_package",
+            not leaked,
+            "ok" if not leaked else f"leaked:{leaked}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        add("a2_action_intent_import", False, f"{type(exc).__name__}:{exc}")
+
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -262,7 +509,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print(f"  {mark} {check['name']}: {check['detail'][:120]}")
         print(
             "HONESTY: STUDIO_UI!=AUTHORITY / ATTENTION!=AUTHORIZATION / "
-            "STALE!=CURRENT / UNKNOWN!=HEALTHY"
+            "STALE!=CURRENT / UNKNOWN!=HEALTHY / REQUESTED!=CLAIMED"
         )
     return 0 if report["ok"] else 1
 
@@ -271,8 +518,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="atlas-studio",
         description=(
-            "Atlas Studio A0/A1 read-only projection "
-            "(STUDIO_UI!=AUTHORITY; no mutation)."
+            "Atlas Studio A0/A1 RO projection + A2 governed OWNERSHIP_CLAIM "
+            "(STUDIO_UI!=AUTHORITY; preview!=execution)."
         ),
     )
     parser.add_argument("--version", action="version", version=__version__)
@@ -310,6 +557,64 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mc.add_argument("--json", action="store_true")
     mc.set_defaults(func=cmd_mission_control)
+
+    # --- A2 governed OWNERSHIP_CLAIM (preview/intent/evaluate/execute separated) ---
+    cc = sub.add_parser(
+        "claim-candidates",
+        help="List F12 OWNERSHIP_CLAIM candidates (RO projection)",
+    )
+    cc.add_argument("--agent", default=None, help="Agent id")
+    cc.add_argument("--repo", default=None)
+    cc.add_argument("--json", action="store_true")
+    cc.set_defaults(func=cmd_claim_candidates)
+
+    cp = sub.add_parser(
+        "claim-preview",
+        help="Preview ownership claim why/impact (RO; never mutates)",
+    )
+    cp.add_argument("--agent", required=True)
+    cp.add_argument("--lane", required=True, help="Lane id, e.g. pr/123")
+    cp.add_argument("--repo", default=None)
+    cp.add_argument("--json", action="store_true")
+    cp.set_defaults(func=cmd_claim_preview)
+
+    ci = sub.add_parser(
+        "claim-intent",
+        help="Build ATLAS_STUDIO_ACTION_INTENT_V1 JSON on stdout (no execute)",
+    )
+    ci.add_argument("--agent", required=True)
+    ci.add_argument("--lane", required=True)
+    ci.add_argument("--repo", default=None)
+    ci.add_argument(
+        "--max-age-seconds",
+        type=int,
+        default=DEFAULT_MAX_AGE_SECONDS,
+    )
+    ci.add_argument("--json", action="store_true", help="Ignored; intent is always JSON")
+    ci.set_defaults(func=cmd_claim_intent)
+
+    ce = sub.add_parser(
+        "claim-evaluate",
+        help="Revalidate intent against live truth (no mutate)",
+    )
+    ce.add_argument("--intent-file", required=True)
+    ce.add_argument("--repo", default=None)
+    ce.add_argument("--json", action="store_true")
+    ce.set_defaults(func=cmd_claim_evaluate)
+
+    cx = sub.add_parser(
+        "claim-execute",
+        help="Revalidate then emit OWNER_CLAIMED via atlas_dag emitter if allowed",
+    )
+    cx.add_argument("--intent-file", required=True)
+    cx.add_argument("--repo", default=None)
+    cx.add_argument("--json", action="store_true")
+    cx.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Evaluate and allow path without emit_event",
+    )
+    cx.set_defaults(func=cmd_claim_execute)
 
     doc = sub.add_parser("doctor", help="Import/honesty/schema diagnostics")
     doc.add_argument("--json", action="store_true")
