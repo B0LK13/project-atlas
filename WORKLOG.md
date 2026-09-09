@@ -14544,7 +14544,11 @@ emit malformed markers. False, and verification challenged it. Nothing in the
 render path escapes marker text -- `_redact_text` strips secrets and truncates
 but never touches HTML comments -- so a relationship field holding HUMAN marker
 text reaches the render verbatim; `source_entity_id`, `target_entity_id`,
-`relationship_type` and `relationship_id` all carry it.
+`relationship_type`, `relationship_id` and
+`provenance.graphify_artifact_refs[].relative_path` all carry it. **An earlier
+revision of this paragraph named only the first four.** The fifth is the one
+that bypasses `_redact_text` entirely; the correction was made in the receipt
+at `3b22f6d4` and did not reach this copy until the seal.
 
 The precondition neither my claim nor verification's stated: the prior note must
 have **no HUMAN regions**, which is the branch that splices by hand. An operator
