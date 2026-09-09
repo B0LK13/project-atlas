@@ -205,6 +205,112 @@ def _view_from_cv_panel(
     }
 
 
+def _agent_directory(registry: Any) -> dict[str, Any]:
+    """Presentation-only agent id directory from registry (not authority)."""
+    if registry is None:
+        return {}
+    raw = getattr(registry, "registry", None)
+    if not isinstance(raw, dict):
+        return {}
+    agents = list(raw.get("agents") or [])
+    active: list[str] = []
+    inactive: list[str] = []
+    for agent in agents:
+        if not isinstance(agent, dict):
+            continue
+        aid = str(agent.get("agent_id") or agent.get("id") or "").strip()
+        if not aid:
+            continue
+        if agent.get("active", False):
+            active.append(aid)
+        else:
+            inactive.append(aid)
+    return {
+        "active_agent_ids": sorted(set(active)),
+        "inactive_agent_ids": sorted(set(inactive)),
+    }
+
+
+def _enrich_views_for_humans(
+    views: dict,
+    *,
+    studio_snapshot: dict,
+    registry: Any = None,
+    agent_id: str | None = None,
+    frontier_matrix: dict | None = None,
+) -> dict:
+    """Add discoverability fields so humans need not reconstruct from other tools."""
+    out = dict(views)
+    agents = dict(out.get("agents_lanes") or {})
+    summary = dict(agents.get("summary") or {})
+    directory = _agent_directory(registry)
+    if directory:
+        summary.update(directory)
+    if agent_id is None and not frontier_matrix:
+        summary["action_classes_hint"] = (
+            "pass --agent <id> to unlock F12 action classes and rankings"
+        )
+    agents["summary"] = summary
+    agents["notes"] = list(
+        dict.fromkeys(
+            [
+                *(agents.get("notes") or []),
+                "agent_directory_presentation_only",
+            ]
+        )
+    )
+    out["agents_lanes"] = agents
+
+    # Efficiency metrics rollup into telemetry summary when present.
+    metrics_panel = (studio_snapshot.get("panels") or {}).get("efficiency_metrics") or {}
+    metrics_body = metrics_panel.get("body") if isinstance(metrics_panel, dict) else None
+    if isinstance(metrics_body, dict):
+        tel = dict(out.get("telemetry") or {})
+        tsum = dict(tel.get("summary") or {})
+        eff = metrics_body.get("summary")
+        if isinstance(eff, dict):
+            for key in (
+                "waiting_human",
+                "waiting_ci",
+                "waiting_iv",
+                "owned_lane_count",
+                "unowned_lane_count",
+                "open_residual_count",
+            ):
+                if key in eff:
+                    tsum[key] = eff[key]
+        tel["summary"] = tsum
+        out["telemetry"] = tel
+
+    # Residuals: prefer registry counts when A0 wrap only has residual_count.
+    res = dict(out.get("residuals") or {})
+    rsum = dict(res.get("summary") or {})
+    res_body = (studio_snapshot.get("panels") or {}).get("residuals") or {}
+    registry_body = None
+    if isinstance(res_body, dict) and isinstance(res_body.get("body"), dict):
+        registry_body = res_body["body"].get("registry")
+    if isinstance(registry_body, dict):
+        for key in ("open_count", "runnable_count", "blocked_count"):
+            if registry_body.get(key) is not None:
+                rsum[key] = registry_body.get(key)
+        residuals = registry_body.get("residuals")
+        if isinstance(residuals, list):
+            open_ids = sorted(
+                str(r.get("residual_id"))
+                for r in residuals
+                if isinstance(r, dict)
+                and r.get("disposition") == "OPEN"
+                and r.get("residual_id")
+            )
+            rsum["open_residual_ids"] = open_ids[:20]
+            res["references"] = [
+                {"kind": "residual_id", "id": rid} for rid in open_ids[:20]
+            ]
+    res["summary"] = rsum
+    out["residuals"] = res
+    return out
+
+
 def _frontier_view(matrix: dict | None, cv_frontier: dict | None) -> dict:
     """Project F12 matrix action classes / rankings; UNKNOWN when matrix absent."""
     cv_status = _panel_status(cv_frontier)
@@ -765,7 +871,7 @@ def build_mission_control(
     snap = studio_snapshot
 
     if live and snap is None and control_view is None:
-        snap, matrix, offline, live_notes = _build_live_mc(
+        snap, matrix, offline, live_notes, live_registry = _build_live_mc(
             agent_id=agent_id,
             repo=repo,
             verifier_pool_path=verifier_pool_path,
@@ -774,6 +880,8 @@ def build_mission_control(
         )
         notes.extend(live_notes)
         repository = (snap or {}).get("repository") or repo or repository
+        if registry is None:
+            registry = live_registry
     elif snap is None:
         snap = build_studio_snapshot(
             repository=repository,
@@ -820,6 +928,13 @@ def build_mission_control(
     slice_status = str(snap.get("slice_status") or UNKNOWN)
 
     views = _build_views(studio_snapshot=snap, frontier_matrix=matrix)
+    views = _enrich_views_for_humans(
+        views,
+        studio_snapshot=snap,
+        registry=registry,
+        agent_id=agent_id if agent_id is not None else snap.get("agent"),
+        frontier_matrix=matrix,
+    )
     attention = build_attention(
         studio_snapshot=snap, views=views, frontier_matrix=matrix
     )
@@ -940,9 +1055,13 @@ def _build_live_mc(
     verifier_pool_path: Path | str | None,
     weights_path: Path | str | None,
     clock: Callable[[], str],
-) -> tuple[dict, dict | None, bool, list[str]]:
-    """Live RO path via GhClient + atlas_dag builders (O1). Returns offline flag."""
+) -> tuple[dict, dict | None, bool, list[str], Any]:
+    """Live RO path via GhClient + atlas_dag builders (O1).
+
+    Returns ``(snapshot, matrix, offline, notes, registry)``.
+    """
     notes: list[str] = ["live_mode", "o1_in_process_atlas_dag"]
+    registry: Any = None
     try:
         from atlas_dag import agents as agents_mod
         from atlas_dag import control_view as control_view_mod
@@ -962,7 +1081,7 @@ def _build_live_mc(
             agent_id=agent_id,
             clock=clock,
         )
-        return snap, None, False, notes
+        return snap, None, False, notes, None
 
     try:
         client = GhClient(repo=repo)
@@ -1056,7 +1175,7 @@ def _build_live_mc(
         notes.append("seal_scan:skipped_for_latency")
         notes.append("LIVE_SEAL_SCAN=DEFERRED_OR_SKIPPED")
         notes.append("LIVE_EVIDENCE_STORE_MAY_BE_ABSENT")
-        return snap, matrix, False, notes
+        return snap, matrix, False, notes, registry
     except GhError as exc:
         notes.append(f"gh_unavailable:{exc}")
         snap = build_studio_snapshot(
@@ -1064,7 +1183,7 @@ def _build_live_mc(
             agent_id=agent_id,
             clock=clock,
         )
-        return snap, None, True, notes
+        return snap, None, True, notes, registry
     except Exception as exc:  # noqa: BLE001
         notes.append(f"live_degraded:{type(exc).__name__}:{exc}")
         snap = build_studio_snapshot(
@@ -1072,7 +1191,7 @@ def _build_live_mc(
             agent_id=agent_id,
             clock=clock,
         )
-        return snap, None, False, notes
+        return snap, None, False, notes, registry
 
 
 def format_mission_control_tui(packet: dict) -> str:
@@ -1094,6 +1213,40 @@ def format_mission_control_tui(packet: dict) -> str:
         "STALE!=CURRENT · UNKNOWN!=HEALTHY · NO_MUTATION"
     )
     lines.append("")
+
+    attention = packet.get("attention") or []
+    lines.append("=== WHAT MATTERS NEXT (attention ≠ authorization) ===")
+    if not attention:
+        lines.append("  (none)")
+    else:
+        for item in attention[:5]:
+            lines.append(
+                f"  tier={item.get('tier'):<3} [{item.get('kind')}] {item.get('title')}"
+            )
+        if len(attention) > 5:
+            lines.append(f"  … +{len(attention) - 5} more (see ATTENTION)")
+    lines.append("")
+
+    agents_view = (packet.get("views") or {}).get("agents_lanes") or {}
+    agents_sum = agents_view.get("summary") if isinstance(agents_view, dict) else None
+    if isinstance(agents_sum, dict):
+        active_ids = agents_sum.get("active_agent_ids") or []
+        inactive_ids = agents_sum.get("inactive_agent_ids") or []
+        lines.append("=== AGENTS ===")
+        lines.append(
+            f"  active={agents_sum.get('active_count')}  "
+            f"inactive={agents_sum.get('inactive_count')}  "
+            f"total={agents_sum.get('total_count')}"
+        )
+        if active_ids:
+            lines.append(f"  active_ids: {', '.join(active_ids)}")
+        if inactive_ids:
+            lines.append(f"  inactive_ids: {', '.join(inactive_ids[:8])}")
+        hint = agents_sum.get("action_classes_hint")
+        if hint:
+            lines.append(f"  hint: {hint}")
+        lines.append("")
+
     lines.append("=== VIEWS ===")
     for name, view in sorted((packet.get("views") or {}).items()):
         if not isinstance(view, dict):
@@ -1104,7 +1257,7 @@ def format_mission_control_tui(packet: dict) -> str:
         if isinstance(summary, dict) and summary:
             compact = ", ".join(
                 f"{k}={v}"
-                for k, v in list(summary.items())[:6]
+                for k, v in list(summary.items())[:8]
                 if not isinstance(v, (dict, list))
             )
             if compact:
@@ -1115,9 +1268,12 @@ def format_mission_control_tui(packet: dict) -> str:
             lines.append(
                 f"      action_classes={ac.get('status')}  rankings={rk.get('status')}"
             )
+            if ac.get("status") == UNKNOWN and not packet.get("agent"):
+                lines.append(
+                    "      tip: atlas-studio mc --agent <active_id> for F12 classes/ranks"
+                )
     lines.append("")
-    lines.append("=== ATTENTION (not authorization) ===")
-    attention = packet.get("attention") or []
+    lines.append("=== ATTENTION (full; not authorization) ===")
     if not attention:
         lines.append("  (none)")
     else:

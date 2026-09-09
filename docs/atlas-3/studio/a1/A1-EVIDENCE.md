@@ -65,3 +65,10 @@ When matrix is absent: action_classes/rankings status = UNKNOWN (not fake empty 
 ## Non-claims
 
 - Not merged to main; not formal IV; no Tauri; no A2 mutations; no atlasd binary.
+
+## Human-coherence follow-up
+
+- Agent directory (`active_agent_ids`) + `--agent` tip when F12 matrix absent
+- TUI leads with **WHAT MATTERS NEXT**
+- Telemetry/residuals summary enrichment for fewer tool hops
+- Tests: 15 A0 + 15 A1

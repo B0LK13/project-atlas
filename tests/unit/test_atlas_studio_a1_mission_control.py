@@ -350,5 +350,36 @@ def test_freshness_live_when_age_within_max():
 def test_tui_formatter_includes_badges():
     text = mc.format_mission_control_tui(build_mc(frontier_matrix=injected_matrix()))
     assert "MISSION CONTROL" in text
+    assert "WHAT MATTERS NEXT" in text
     assert "ATTENTION" in text
     assert "action_classes=" in text
+
+
+class _Reg:
+    def __init__(self, agents):
+        self.registry = {"agents": agents}
+        self.valid = True
+
+
+def test_agent_directory_and_action_class_hint_without_matrix():
+    registry = _Reg(
+        [
+            {"agent_id": "ubuntu-main", "active": True},
+            {"agent_id": "idle-bot", "active": False},
+        ]
+    )
+    packet = build_mc(registry=registry, frontier_matrix=None)
+    summary = packet["views"]["agents_lanes"]["summary"]
+    assert summary["active_agent_ids"] == ["ubuntu-main"]
+    assert "idle-bot" in summary["inactive_agent_ids"]
+    assert "action_classes_hint" in summary
+    text = mc.format_mission_control_tui(packet)
+    assert "ubuntu-main" in text
+    assert "WHAT MATTERS NEXT" in text
+    assert "--agent" in text
+
+
+def test_enrich_does_not_invent_action_classes_without_matrix():
+    packet = build_mc(frontier_matrix=None)
+    assert packet["views"]["frontier"]["action_classes"]["status"] == "UNKNOWN"
+    assert packet["views"]["frontier"]["rankings"]["status"] == "UNKNOWN"
