@@ -513,3 +513,41 @@ def test_cli_proof_observation_flag_links_a_stored_receipt(
         "--json",
     )
     assert code == EXIT_ERROR and payload["error"] == "PROOF_V2_INPUTS_INCOMPLETE"
+
+
+def test_filter_driver_defined_only_in_global_config_is_still_refused(
+    cloned: Path, tmp_path: Path
+) -> None:
+    """ULT-01b-1-T (W20): the driver scan must read every config level. A
+    driver defined only in HOME (the git-lfs shape) and bound in the repo would
+    otherwise reach `git status` and execute."""
+    marker = tmp_path / "RAN-global-clean-filter"
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {**_ENV, "HOME": str(home), "USERPROFILE": str(home)}
+    _git(
+        "config",
+        "--global",
+        "filter.globalprobe.clean",
+        _marker_command(marker) + " && cat",
+        cwd=cloned,
+        env=env,
+    )
+    _git("config", "--global", "filter.globalprobe.required", "true", cwd=cloned, env=env)
+    assert "globalprobe" in (home / ".gitconfig").read_text(encoding="utf-8")
+    assert "globalprobe" not in (cloned / ".git" / "config").read_text(encoding="utf-8")
+    (cloned / ".gitattributes").write_text("*.bin filter=globalprobe\n", encoding="utf-8")
+    (cloned / "blob.bin").write_bytes(b"\x00payload")
+    _git("add", ".", cwd=cloned, env=env)
+    _git("commit", "-q", "-m", "filtered", cwd=cloned, env=env)
+    if not marker.exists():
+        pytest.skip("global clean filter did not fire on this platform")
+    marker.unlink()
+    os.utime(cloned / "blob.bin", None)
+    with pytest.raises(ObservationError) as excinfo:
+        observe_execution(cloned, project_id="harbor-api", runner=SubprocessRunner(environ=env))
+    assert excinfo.value.code == "REPO_CONTENT_FILTERS_CONFIGURED"
+    assert "globalprobe" not in str(excinfo.value)
+    assert not marker.exists()
+    _git("status", "--porcelain", cwd=cloned, env=env)
+    assert marker.exists()

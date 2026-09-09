@@ -20,6 +20,7 @@ from project_atlas.execution_observation import (
     CommandResult,
     EnvironmentObservation,
     ObservationError,
+    SubprocessRunner,
     ToolchainObservation,
     build_child_env,
     load_stored_receipt,
@@ -823,3 +824,255 @@ def test_receipt_helper_seal_mode_does_not_bypass_identity_verification(repo: Pa
     with pytest.raises(Exception) as excinfo:
         seal_observation_receipt(body)
     assert "IDENTITY_DIGEST_MISMATCH" in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# ULT-01b-1-T (proposed): behavioural tests for guards whose mutants survived
+# the ADV harnesses (round 3: W12, W20; rounds 1-2: U03, U04, U14, U19, U21,
+# U27, U28, U41, U45, U68, U69, U74, U80, U81, U87). Every guard held on
+# probe; these tests make the controls script prove it.
+
+
+class RegexpAwareRunner(ScriptedRunner):
+    """Applies the observer's own `--get-regexp` pattern to a fake config listing,
+    as git would, so a narrowed pattern really hides drivers."""
+
+    def __init__(self, root: Path, config_keys: dict[str, str], **overrides: Any) -> None:
+        super().__init__(root, **overrides)
+        self.config_keys = config_keys
+
+    def run(self, argv: Sequence[str], *, cwd: Path, timeout: float) -> CommandResult:
+        if "--get-regexp" in argv:
+            self.calls.append(list(argv))
+            pattern = re.compile(argv[-1])
+            hits = [f"{k}\n{v}\0" for k, v in self.config_keys.items() if pattern.search(k)]
+            return CommandResult(returncode=0 if hits else 1, stdout="".join(hits))
+        return super().run(argv, cwd=cwd, timeout=timeout)
+
+
+@pytest.mark.parametrize("key", ["process", "smudge", "clean"])
+def test_every_filter_driver_kind_is_scanned_not_only_clean(repo: Path, key: str) -> None:
+    # W12: the scan regexp must cover clean|smudge|process; a process-only
+    # (long-running) driver would otherwise reach `git status` and run
+    runner = RegexpAwareRunner(
+        repo, {f"filter.only.{key}": "some-command"}, **{"ls-files": "bound.bin\0"}
+    )
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, runner)
+    assert excinfo.value.code == "REPO_CONTENT_FILTERS_CONFIGURED"
+    assert "some-command" not in str(excinfo.value)
+    assert not any("status" in call for call in runner.calls)
+
+
+def test_filter_driver_scan_reads_every_config_level(repo: Path) -> None:
+    # W20: `git config --get-regexp` without --local/--global/--system so a
+    # driver defined only in HOME or system config (git-lfs) is seen
+    runner = ScriptedRunner(repo)
+    observe(repo, runner)
+    scan = next(call for call in runner.calls if "--get-regexp" in call)
+    assert not any(part in scan for part in ("--local", "--global", "--system", "--worktree"))
+    assert scan[3:6] == ["config", "-z", "--get-regexp"]
+
+
+def test_subprocess_runner_closes_stdin(tmp_path: Path) -> None:
+    # U03
+    import subprocess
+    import sys
+
+    py = Path(sys.executable).resolve()
+    # run the runner inside a process whose own stdin carries data; the
+    # child the runner launches must see nothing (stdin is DEVNULL, not inherited)
+    outer = subprocess.run(
+        [
+            sys.executable,  # this interpreter (the venv), so project_atlas imports
+            "-c",
+            "from pathlib import Path\n"
+            "from project_atlas.execution_observation import SubprocessRunner\n"
+            f"r = SubprocessRunner(environ={{'PATH': {str(py.parent)!r}}})\n"
+            f"res = r.run([{str(py)!r}, '-c', 'import sys; print(len(sys.stdin.read()))'],"
+            f" cwd=Path({str(tmp_path)!r}), timeout=30)\n"
+            "print(res.returncode, res.stdout.strip())",
+        ],
+        input=b"secret-bytes-on-the-parent-stdin",
+        capture_output=True,
+        timeout=120,
+        check=True,
+    )
+    assert outer.stdout.decode().strip() == "0 0", outer.stdout
+
+
+def test_subprocess_runner_caps_stdout(tmp_path: Path) -> None:
+    # U04
+    import sys
+
+    from project_atlas.execution_observation.runner import MAX_STDOUT_BYTES
+
+    py = Path(sys.executable).resolve()
+    runner = SubprocessRunner(environ={"PATH": str(py.parent)})
+    flood = runner.run(
+        [str(py), "-c", f"import sys; sys.stdout.write('x' * ({MAX_STDOUT_BYTES} * 4))"],
+        cwd=tmp_path,
+        timeout=30,
+    )
+    assert flood.returncode == 0 and len(flood.stdout) == MAX_STDOUT_BYTES
+
+
+@pytest.mark.parametrize("answer", ["true x\n", "TRUE\n", "true\ntrue\n", " yes\n"])
+def test_is_inside_work_tree_must_be_exactly_true(repo: Path, answer: str) -> None:
+    # U14
+    runner = ScriptedRunner(repo, **{"--is-inside-work-tree": answer})
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, runner)
+    assert excinfo.value.code == "GIT_UNOBSERVABLE"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/b0lk13/project-atlas\nhttps://evil.example/x",  # U19 newline
+        "git@github.com:x@y/z",  # U21 second @
+        "ssh://git@github.com/x@y/z",
+        "https://git@github.com/b0lk13/a@b",
+    ],
+)
+def test_remote_urls_with_newlines_or_a_second_at_sign_are_refused(url: str) -> None:
+    with pytest.raises(ObservationError) as excinfo:
+        _normalize_remote(url)
+    assert excinfo.value.code == "REPO_IDENTITY_UNVERIFIABLE"
+    assert "evil" not in str(excinfo.value) and "x@y" not in str(excinfo.value)
+
+
+def test_status_argv_and_executable_digest_are_pinned(repo: Path) -> None:
+    # U27 / U28
+    import hashlib
+
+    runner = ScriptedRunner(repo)
+    out = observe(repo, runner)
+    status = next(call for call in runner.calls if "status" in call)
+    assert "--untracked-files=all" in status and "--porcelain" in status
+    assert "--no-optional-locks" in status
+    digest = out.receipt.observed.source.git_executable_path_digest
+    assert digest == hashlib.sha256(str(GIT).encode("utf-8")).hexdigest()
+    assert str(GIT) not in json.dumps(out.receipt.to_record())
+
+
+def test_receipt_secret_scan_covers_dict_keys(repo: Path) -> None:
+    # U41: keys are scanned, not only values
+    from project_atlas.execution_observation.observe import _scan_for_secrets
+
+    with pytest.raises(ObservationError) as excinfo:
+        _scan_for_secrets({"AKIAIOSFODNN7EXAMPLE": "value"})
+    assert excinfo.value.code == "OBSERVATION_SECRET_FORBIDDEN"
+    assert "AKIA" not in str(excinfo.value)
+    _scan_for_secrets({"plain": "value"})
+
+
+def test_default_git_executable_comes_from_resolve_executable(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # U45: when no git_executable is passed, the resolved one is used for
+    # every command (never a bare "git" name)
+    import project_atlas.execution_observation.observe as observe_module
+
+    resolved = repo.parent / "resolved-git"
+    monkeypatch.setattr(observe_module, "resolve_executable", lambda name: resolved)
+    seen: list[str] = []
+
+    class Recording(ScriptedRunner):
+        def run(self, argv: Sequence[str], *, cwd: Path, timeout: float) -> CommandResult:
+            seen.append(argv[0])
+            assert argv[1] == "-C" and cwd == self.root
+            for key, answer in self.answers.items():
+                if key in argv:
+                    if isinstance(answer, CommandResult):
+                        return answer
+                    return CommandResult(returncode=0, stdout=str(answer))
+            return CommandResult(returncode=128, stdout="")
+
+    observe_execution(
+        repo,
+        project_id="harbor-api",
+        runner=Recording(repo),
+        environment=ENV,
+        toolchain=TOOLS,
+        observer_version=("2.0.0", "OBSERVED"),
+    )
+    assert seen and set(seen) == {str(resolved)}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("shallow", "false"), ("shallow", 0), ("worktree_clean", 1), ("worktree_clean", "true")],
+)
+def test_receipt_git_scalars_are_strict_bools(repo: Path, field: str, value: object) -> None:
+    # U68 / U69
+    out = observe(repo)
+    record = out.receipt.to_record()
+    record["observed"]["source"][field] = value
+    for key in ("content_hash", "observation_id"):
+        record.pop(key, None)
+    with pytest.raises(Exception) as excinfo:  # pydantic or contract error
+        seal_observation_receipt(record)
+    text = str(excinfo.value)
+    assert "boolean" in text.lower() or "GIT_OBSERVATION_INCOMPLETE" in text
+
+
+def test_store_refuses_a_directory_or_fifo_at_the_locator(repo: Path, vault: Path) -> None:
+    # U74
+    import os
+
+    out = observe(repo)
+    locator = vault / receipt_locator("harbor-api", out.identity.identity_digest)
+    locator.mkdir(parents=True)
+    with pytest.raises(ObservationError) as excinfo:
+        store_observation_receipt(vault, out.receipt)
+    assert excinfo.value.code == "OBSERVATION_LOCATOR_UNSAFE"
+    assert locator.is_dir() and not any(locator.iterdir())
+    locator.rmdir()
+    if hasattr(os, "mkfifo"):
+        os.mkfifo(locator)
+        with pytest.raises(ObservationError) as excinfo:
+            store_observation_receipt(vault, out.receipt)
+        assert excinfo.value.code == "OBSERVATION_LOCATOR_UNSAFE"
+
+
+def test_proof_v2_revalidates_receipt_instances(repo: Path, vault: Path) -> None:
+    # U80: an instance is re-validated from its record, never trusted
+    out = observe(repo)
+    forged = out.receipt.model_copy(update={"content_hash": "0" * 64})
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault,
+            "X",
+            project_id="harbor-api",
+            identity=out.identity,
+            attestations=[],
+            observation_receipt=forged,
+        )
+    assert excinfo.value.code in {"RECEIPT_HASH_MISMATCH", "OBSERVATION_ID_MISMATCH"}
+
+
+def test_proof_v2_scans_sealed_receipts_for_secret_shaped_tokens(repo: Path, vault: Path) -> None:
+    # U81: a sealed receipt whose method refs carry a secret-shaped token is
+    # refused by proof v2's own scan (the contract pattern allows the token)
+    out = observe(repo)
+    record = out.receipt.to_record()
+    record["observed"]["source"]["method_refs"] = [
+        *record["observed"]["source"]["method_refs"],
+        "git AKIAIOSFODNN7EXAMPLE",
+    ]
+    for key in ("content_hash", "observation_id"):
+        record.pop(key, None)
+    leaking = seal_observation_receipt(record)
+    with pytest.raises(Atlas3Error) as excinfo:
+        evaluate_proof_v2(
+            vault,
+            "X",
+            project_id="harbor-api",
+            identity=out.identity,
+            attestations=[],
+            observation_receipt=leaking,
+        )
+    assert "SECRET" in excinfo.value.code
+    assert "AKIA" not in str(excinfo.value)
+    assert not (vault / "generated" / "ops" / "atlas3" / "proof").exists()
