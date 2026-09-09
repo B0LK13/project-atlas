@@ -153,3 +153,72 @@ def test_doctor_includes_a2_004(capsys):
     assert "a2_004_action_evidence_schema" in names
     assert "a2_004_no_auto_retry" in names
     assert report["ok"] is True
+
+
+def test_claim_execute_write_decision(tmp_path: Path, monkeypatch, capsys):
+    """Durable decision path for action-evidence without granting mutation."""
+    intent_path = tmp_path / "intent.json"
+    intent_path.write_text(
+        json.dumps(
+            {
+                "schema": "ATLAS_STUDIO_ACTION_INTENT_V1",
+                "intent_id": "intent-test-write",
+                "action_type": "OWNERSHIP_CLAIM",
+                "actor_agent_id": "agent-alpha",
+                "requested_at_utc": FIXED,
+                "max_age_seconds": 3600,
+            }
+        ),
+        encoding="utf-8",
+    )
+    decision_out = tmp_path / "decision.json"
+    canned = _decision(decision="REFUSED_POLICY", mutated=False)
+
+    monkeypatch.setattr(
+        studio_cli,
+        "_load_intent_file",
+        lambda p: json.loads(Path(p).read_text(encoding="utf-8")),
+    )
+    monkeypatch.setattr(
+        studio_cli,
+        "_live_claim_context",
+        lambda agent_id, repo=None: ({}, None, object()),
+    )
+
+    class _FakeGh:
+        def __init__(self, repo=None):
+            self.repo = repo
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "atlas_dag.gh",
+        type("M", (), {"GhClient": _FakeGh})(),
+    )
+
+    import atlas_studio.action_intent as gc
+
+    monkeypatch.setattr(
+        gc,
+        "execute_ownership_claim",
+        lambda *a, **k: canned,
+    )
+
+    rc = studio_cli.main(
+        [
+            "claim-execute",
+            "--intent-file",
+            str(intent_path),
+            "--repo",
+            "B0LK13/project-atlas",
+            "--json",
+            "--write-decision",
+            str(decision_out),
+        ]
+    )
+    assert rc == 1  # refused → non-zero
+    assert decision_out.is_file()
+    written = json.loads(decision_out.read_text(encoding="utf-8"))
+    assert written["decision"] == "REFUSED_POLICY"
+    evidence = ae.build_action_evidence(decision_file=decision_out, clock=clock)
+    assert evidence["outcome_class"] == ae.REFUSED
+    assert evidence["recovery"]["auto_retry"] is False

@@ -355,6 +355,14 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
             "(AUTO_RETRY=FORBIDDEN); after interrupt use "
             "`atlas-studio intent-continuity --intent-file … --decision-file …`"
         )
+    if args.write_decision:
+        out_path = Path(args.write_decision)
+        tmp = out_path.with_suffix(out_path.suffix + ".tmp")
+        tmp.write_text(
+            json.dumps(decision, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        tmp.replace(out_path)
+        print(f"decision_written={out_path}", file=sys.stderr)
     outcome = decision.get("decision")
     if args.dry_run:
         ok = outcome == gc.EXECUTE_ALLOWED and decision.get("dry_run") is True
@@ -874,6 +882,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Evaluate and allow path without emit_event",
+    )
+    cx.add_argument(
+        "--write-decision",
+        default=None,
+        metavar="PATH",
+        help="Atomically write decision JSON for action-evidence / continuity",
     )
     cx.set_defaults(func=cmd_claim_execute)
 
