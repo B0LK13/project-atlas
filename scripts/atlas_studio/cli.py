@@ -115,24 +115,25 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     )
     add("design_law_consts", consts_ok, "module honesty consts")
 
-    # Minimal injected snapshot validates
+    # Builder-backed snapshot validates (nested honesty + schemas)
     try:
+        from atlas_dag import control_view as cv_mod
+        from atlas_dag import telemetry as tel_mod
+
+        fixed = "2026-09-09T00:00:00Z"
         packet = build_studio_snapshot(
             repository="doctor/local",
-            control_view={
-                "schema": "ATLAS_GLOBAL_CONTROL_VIEW_V1",
-                "view_fingerprint": "a" * 64,
-                "agent_status": "NONE",
-                "repository": "doctor/local",
-                "panels": {},
-            },
-            telemetry_packet={
-                "schema": "ATLAS_COORDINATION_TELEMETRY_V1",
-                "telemetry_fingerprint": "b" * 64,
-                "agent_status": "NONE",
-                "categories": {},
-            },
-            clock=lambda: "2026-09-09T00:00:00Z",
+            control_view=cv_mod.build_global_control_view(
+                repository="doctor/local",
+                clock=lambda: fixed,
+                seal_scan="skipped_for_latency",
+            ),
+            telemetry_packet=tel_mod.build_coordination_telemetry(
+                repository="doctor/local",
+                clock=lambda: fixed,
+                seal_projection="deferred_or_skipped",
+            ),
+            clock=lambda: fixed,
         )
         errors = validate_studio_snapshot(packet)
         add(
