@@ -44,20 +44,12 @@ def test_bridge_exposes_only_read_methods_and_fixed_repository_input() -> None:
         assert mutation not in bridge
     assert 'default="B0LK13/project-atlas"' in bridge
     assert "shell=True" not in bridge
-    assert "subprocess" not in bridge
+    assert "start_new_session=True" in bridge
 
 
-def test_bridge_fails_closed_before_building_projection(monkeypatch) -> None:
+def test_bridge_fails_closed_before_rendering_projection(monkeypatch) -> None:
     bridge = _bridge_module()
-    monkeypatch.setattr(
-        bridge,
-        "github_read_available",
-        lambda repository: (False, "GITHUB_READ_UNAVAILABLE"),
-    )
-
-    try:
+    monkeypatch.setattr(bridge, "run_worker", lambda *args, **kwargs: {"schema": "INVALID"})
+    import pytest
+    with pytest.raises(RuntimeError, match="A1_SCHEMA_VALIDATION_FAILED"):
         bridge.build_current_projection("B0LK13/project-atlas", None)
-    except RuntimeError as exc:
-        assert str(exc) == "GITHUB_READ_UNAVAILABLE"
-    else:
-        raise AssertionError("unavailable GitHub state must fail closed")
