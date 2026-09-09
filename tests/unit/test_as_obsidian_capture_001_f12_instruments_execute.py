@@ -28,8 +28,9 @@ do not have the same contract:
 **How the exclusion is enforced, and what it does not reach.** Two layers, after
 two weaker revisions. :func:`_fuse` replaces the mutating instrument's ``main``
 with a tripwire at load time; that is the load-bearing layer and it is shape
-independent — every route through :func:`_load` raises, whatever the call looks
-like. :func:`_executing_references_to` is the second layer, a static scan for the
+independent **for the call** — every *shape* of call through :func:`_load` raises
+— but coverage is exactly what the identity predicate matches, and that has a
+stated residue. :func:`_executing_references_to` is the second layer, a static scan for the
 primitives that bypass :func:`_load` altogether (``subprocess``, ``runpy``,
 ``os``, ``importlib``, ``exec``), resolved through import aliases and through
 names bound to string literals.
@@ -168,10 +169,17 @@ def _mutating_digest() -> str:
 def _fuse(module: types.ModuleType) -> None:
     """Replace the mutating instrument's entry point with a tripwire.
 
-    Shape independent: every route through :func:`_load_from` is covered
-    whatever the call looks like -- an alias, a walrus, a tuple target, an
-    annotated assignment, ``getattr``, a helper function, a name assembled at
-    runtime. A static check has to enumerate those; a fuse does not.
+    Shape independent **for the call**, which is the half a static check cannot
+    do: an alias, a walrus, a tuple target, an annotated assignment,
+    ``getattr``, a helper function, a name assembled at runtime -- all covered,
+    because the fuse acts on the module object rather than on the syntax.
+
+    It is **not** independent of *which file* is loaded. Coverage is exactly
+    what :func:`_is_the_mutating_instrument` matches, and that predicate has a
+    stated residue. An earlier revision of this paragraph said "every route ...
+    whatever the call looks like" with no such qualifier -- the
+    boundary-narrower-than-reality failure this package exists to prevent,
+    asserted a few lines from the paragraph that qualifies it.
 
     **The real callable is deliberately NOT published.** An earlier revision
     stored it on ``tripwire.__wrapped__`` so the interface check could confirm
@@ -408,8 +416,9 @@ def _executing_references_to(source: str, script: str) -> list[str]:
     """Call sites in ``source`` that would run ``script`` without the loader.
 
     The second layer. :func:`_fuse` is the load-bearing one and covers every
-    route through :func:`_load_from` whatever its shape; this covers the
-    primitives that bypass the loader entirely -- ``subprocess``, ``runpy``,
+    *call shape* through :func:`_load_from`, for the files
+    :func:`_is_the_mutating_instrument` matches; this covers the primitives that
+    bypass the loader entirely -- ``subprocess``, ``runpy``,
     ``os``, ``importlib``, ``asyncio``, ``exec``/``eval``/``compile`` -- naming
     the script either as a filename or as a module name, directly or through any
     identifier ever bound to something that mentions it.
@@ -467,10 +476,12 @@ def test_f12_the_mutating_instrument_is_not_executed_by_this_suite() -> None:
 
     So the load-bearing layer is no longer static. :func:`_fuse` replaces the
     instrument's ``main`` with a tripwire at load time, which is **shape
-    independent**: aliasing, a walrus, a tuple target, ``getattr``, a helper
-    function, a module-level binding -- every route through :func:`_load` raises,
-    whatever it looks like. :func:`_executing_references_to` is now the second
-    layer, covering the primitives that bypass :func:`_load` entirely.
+    independent for the call**: aliasing, a walrus, a tuple target, ``getattr``,
+    a helper function, a module-level binding -- every such shape through
+    :func:`_load` raises. It is not independent of WHICH FILE is loaded; see
+    :func:`_is_the_mutating_instrument` for the residue.
+    :func:`_executing_references_to` is now the second layer, covering the
+    primitives that bypass :func:`_load` entirely.
 
     Each layer carries its own positive control, because a guard that cannot be
     shown to fire is indistinguishable from one that is broken.
@@ -585,9 +596,11 @@ def test_f12_the_fuse_follows_the_bytes_not_the_filename(tmp_path: pathlib.Path)
     An earlier revision keyed the fuse on ``path.name == _MUTATING``, so both of
     these loaded UNFUSED through :func:`_load_from` -- the one loader -- and ran
     the real mutating body. Verification measured it; the static layer missed the
-    same spellings, so both layers failed together. Identity is now the content
-    hash, which closes copies, symlinks, renames and case-differing names on a
-    case-insensitive filesystem in one stroke.
+    same spellings, so both layers failed together. A second revision then keyed
+    on the content hash alone, which opened the opposite case. **Identity is now
+    the union of the two**, closing copies, symlinks, hardlinks, renames,
+    case-differing names, and edits that keep the name -- and both halves are
+    asserted below, because either alone leaves a column open.
     """
     real = SCRIPTS / _MUTATING
     disguises = [("copy", tmp_path / "harmless_helper.py")]
