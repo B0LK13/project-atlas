@@ -56,7 +56,7 @@ blockers for `TECHNICALLY_COMPLETE`.
 
 | Object | Status |
 |---|---|
-| Docs PR #762 vs `main` | **OPEN**, CI PASS, `MERGEABLE` — **not** merged |
+| Docs PR #762 vs `main` | **OPEN** @ `ff9af182221fc7847f732e8c65366337ad88dc8c`; exact-head CI **PASS** `34330650940`; **not** merged |
 | Package path | `docs/atlas-3/studio/` (also present on A0 tip via merge) |
 | Vault MDA normalize/route/receipt | **PENDING** (production `mda` unavailable; not fabricated) |
 | Stamp | `STUDIO_CANONICAL_PACKAGE_STATUS = REPO_SYNCHRONIZED_PR_OPEN` |
