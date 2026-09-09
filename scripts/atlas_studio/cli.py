@@ -483,13 +483,22 @@ def cmd_mission_session(args: argparse.Namespace) -> int:
     """AS-STUDIO-A2-006 coherent mission session — never re-executes."""
     from atlas_studio.mission_session import (
         build_mission_session,
+        exit_code_for_session,
         format_mission_session_tui,
         validate_mission_session,
     )
+    from atlas_studio.snapshot_load import load_json_snapshot
 
     journey = None
     if args.journey_file:
-        journey = json.loads(Path(args.journey_file).read_text(encoding="utf-8"))
+        snap = load_json_snapshot(args.journey_file)
+        if not snap.ok:
+            print(
+                f"atlas-studio mission-session: FAIL JOURNEY_{snap.error}",
+                file=sys.stderr,
+            )
+            return 1
+        journey = snap.data
     packet = build_mission_session(
         intent_file=args.intent_file,
         decision_file=args.decision_file,
@@ -507,7 +516,7 @@ def cmd_mission_session(args: argparse.Namespace) -> int:
         print(json.dumps(packet, indent=2, sort_keys=True))
     else:
         print(format_mission_session_tui(packet))
-    return 0
+    return exit_code_for_session(packet)
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:

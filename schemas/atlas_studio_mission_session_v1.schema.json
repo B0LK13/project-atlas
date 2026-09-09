@@ -35,6 +35,7 @@
         "EVIDENCE_UNAVAILABLE",
         "PERSISTENCE_FAILED_SIGNAL",
         "INTERRUPTED_ATOMIC_WRITE",
+        "CORRUPT_INPUT",
         "INCOMPLETE",
         "UNAVAILABLE"
       ]

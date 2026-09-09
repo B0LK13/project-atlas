@@ -74,13 +74,18 @@ def _canonical_sha256(payload: Any) -> str:
 
 
 def load_decision_file(path: Path | str) -> dict[str, Any]:
-    p = Path(path)
-    if not p.is_file():
-        raise FileNotFoundError(f"DECISION_FILE_MISSING:{p}")
-    data = json.loads(p.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
+    from atlas_studio.snapshot_load import load_json_snapshot
+
+    snap = load_json_snapshot(path)
+    if snap.ok and snap.data is not None:
+        return snap.data
+    if snap.error == "MISSING":
+        raise FileNotFoundError(f"DECISION_FILE_MISSING:{path}")
+    if snap.error in {"CORRUPT_JSON", "EMPTY"}:
+        raise ValueError(f"CORRUPT_JSON:{path}")
+    if snap.error == "NOT_OBJECT":
         raise ValueError("DECISION_NOT_OBJECT")
-    return data
+    raise ValueError(f"DECISION_LOAD_FAILED:{snap.error}")
 
 
 def classify_decision(decision: dict[str, Any] | None) -> str:

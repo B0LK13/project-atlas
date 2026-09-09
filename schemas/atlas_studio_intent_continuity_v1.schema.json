@@ -27,7 +27,8 @@
         "INTERRUPTED_UNCERTAIN",
         "MISMATCHED_BINDING",
         "MISSING",
-        "MALFORMED"
+        "MALFORMED",
+        "CORRUPT"
       ]
     },
     "intent": {"type": ["object", "null"]},

@@ -49,6 +49,7 @@ INTERRUPTED_UNCERTAIN = "INTERRUPTED_UNCERTAIN"
 MISMATCHED_BINDING = "MISMATCHED_BINDING"
 MISSING = "MISSING"
 MALFORMED = "MALFORMED"
+CORRUPT = "CORRUPT"
 
 
 def honesty_block() -> dict[str, bool]:
@@ -95,13 +96,28 @@ def _parse_utc(value: str | None) -> datetime | None:
 
 
 def load_json_object(path: Path | str) -> dict[str, Any]:
-    p = Path(path)
-    if not p.is_file():
-        raise FileNotFoundError(f"FILE_MISSING:{p}")
-    data = json.loads(p.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
+    """Load a JSON object; prefer load_json_snapshot for byte-hash provenance."""
+    from atlas_studio.snapshot_load import (
+        CORRUPT_JSON,
+        EMPTY,
+        MISSING as SNAP_MISSING,
+        NOT_OBJECT,
+        READ_ERROR,
+        load_json_snapshot,
+    )
+
+    snap = load_json_snapshot(path)
+    if snap.ok and snap.data is not None:
+        return snap.data
+    if snap.error == SNAP_MISSING:
+        raise FileNotFoundError(f"FILE_MISSING:{path}")
+    if snap.error in {CORRUPT_JSON, EMPTY}:
+        raise ValueError(f"CORRUPT_JSON:{path}")
+    if snap.error == NOT_OBJECT:
         raise ValueError("NOT_OBJECT")
-    return data
+    if snap.error == READ_ERROR:
+        raise OSError(f"READ_ERROR:{path}")
+    raise ValueError(f"LOAD_FAILED:{snap.error}")
 
 
 def build_recovery(state: str, *, intent_id: str | None) -> dict[str, Any]:
@@ -115,6 +131,13 @@ def build_recovery(state: str, *, intent_id: str | None) -> dict[str, Any]:
             {
                 "id": "mint_or_supply_intent",
                 "summary": "Supply --intent-file or mint a fresh claim-intent",
+            }
+        )
+    elif state == CORRUPT:
+        actions.append(
+            {
+                "id": "replace_corrupt_record",
+                "summary": "Persisted JSON is corrupt/truncated; replace from known-good source; do not execute",
             }
         )
     elif state == MALFORMED:
@@ -272,48 +295,95 @@ def build_intent_continuity(
 ) -> dict[str, Any]:
     """Build ATLAS_STUDIO_INTENT_CONTINUITY_V1. Never mutates."""
     notes = ["package:AS-STUDIO-A2-005", "inspect_ne_execute"]
+    input_byte_hashes: dict[str, str] = {}
+    corrupt = False
     loaded_intent = intent
+    if loaded_intent is not None and intent_file is None:
+        from atlas_studio.snapshot_load import snapshot_from_object
+
+        snap = snapshot_from_object(loaded_intent, label="intent_injected")
+        if snap.raw_sha256:
+            input_byte_hashes["intent"] = snap.raw_sha256
     if loaded_intent is None and intent_file is not None:
         try:
-            loaded_intent = load_json_object(intent_file)
-            notes.append(f"intent_loaded:{intent_file}")
-        except FileNotFoundError:
-            loaded_intent = None
-            notes.append("INTENT_FILE_MISSING")
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            from atlas_studio.snapshot_load import load_json_snapshot
+
+            snap = load_json_snapshot(intent_file)
+            if snap.raw_sha256:
+                input_byte_hashes["intent"] = snap.raw_sha256
+            if snap.ok and snap.data is not None:
+                loaded_intent = snap.data
+                notes.append(f"intent_loaded:{intent_file}")
+            elif snap.error == "MISSING":
+                loaded_intent = None
+                notes.append("INTENT_FILE_MISSING")
+            else:
+                loaded_intent = None
+                corrupt = True
+                notes.append(f"INTENT_CORRUPT:{snap.error}")
+        except Exception as exc:  # noqa: BLE001
             loaded_intent = None
             notes.append(f"INTENT_LOAD_ERROR:{type(exc).__name__}")
 
     loaded_decision = decision
+    if loaded_decision is not None and decision_file is None:
+        from atlas_studio.snapshot_load import snapshot_from_object
+
+        snap = snapshot_from_object(loaded_decision, label="decision_injected")
+        if snap.raw_sha256:
+            input_byte_hashes["decision"] = snap.raw_sha256
     if loaded_decision is None and decision_file is not None:
         try:
-            loaded_decision = load_json_object(decision_file)
-            notes.append(f"decision_loaded:{decision_file}")
-        except FileNotFoundError:
-            notes.append("DECISION_FILE_MISSING")
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            from atlas_studio.snapshot_load import load_json_snapshot
+
+            snap = load_json_snapshot(decision_file)
+            if snap.raw_sha256:
+                input_byte_hashes["decision"] = snap.raw_sha256
+            if snap.ok and snap.data is not None:
+                loaded_decision = snap.data
+                notes.append(f"decision_loaded:{decision_file}")
+            elif snap.error == "MISSING":
+                notes.append("DECISION_FILE_MISSING")
+            else:
+                loaded_decision = None
+                corrupt = True
+                notes.append(f"DECISION_CORRUPT:{snap.error}")
+        except Exception as exc:  # noqa: BLE001
             notes.append(f"DECISION_LOAD_ERROR:{type(exc).__name__}")
             loaded_decision = None
 
     loaded_evidence = evidence
     if loaded_evidence is None and evidence_file is not None:
         try:
-            loaded_evidence = load_json_object(evidence_file)
-            notes.append(f"evidence_loaded:{evidence_file}")
-        except FileNotFoundError:
-            notes.append("EVIDENCE_FILE_MISSING")
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            from atlas_studio.snapshot_load import load_json_snapshot
+
+            snap = load_json_snapshot(evidence_file)
+            if snap.raw_sha256:
+                input_byte_hashes["evidence"] = snap.raw_sha256
+            if snap.ok and snap.data is not None:
+                loaded_evidence = snap.data
+                notes.append(f"evidence_loaded:{evidence_file}")
+            elif snap.error == "MISSING":
+                notes.append("EVIDENCE_FILE_MISSING")
+            else:
+                loaded_evidence = None
+                corrupt = True
+                notes.append(f"EVIDENCE_CORRUPT:{snap.error}")
+        except Exception as exc:  # noqa: BLE001
             notes.append(f"EVIDENCE_LOAD_ERROR:{type(exc).__name__}")
             loaded_evidence = None
 
     now_s = clock()
     now_dt = _parse_utc(now_s) or datetime.now(tz=timezone.utc)
-    state = classify_continuity(
-        intent=loaded_intent,
-        prior_decision=loaded_decision,
-        prior_evidence=loaded_evidence,
-        now=now_dt,
-    )
+    if corrupt:
+        state = CORRUPT
+    else:
+        state = classify_continuity(
+            intent=loaded_intent,
+            prior_decision=loaded_decision,
+            prior_evidence=loaded_evidence,
+            now=now_dt,
+        )
     intent_id = (loaded_intent or {}).get("intent_id") if isinstance(loaded_intent, dict) else None
     recovery = build_recovery(state, intent_id=intent_id if isinstance(intent_id, str) else None)
 
@@ -331,10 +401,18 @@ def build_intent_continuity(
             "presentation_only": True,
             "grants_no_mutation": True,
             "notes": notes,
+            "input_byte_hashes": input_byte_hashes,
             "continuity_fingerprint": None,
         },
     }
-    material = {k: v for k, v in packet.items() if k != "provenance"}
+    # Fingerprint excludes generated_at_utc for wall-clock stability.
+    material = {
+        k: v
+        for k, v in packet.items()
+        if k not in {"provenance", "generated_at_utc"}
+    }
+    material["provenance_notes"] = notes
+    material["input_byte_hashes"] = input_byte_hashes
     packet["provenance"]["continuity_fingerprint"] = _canonical_sha256(material)
     return packet
 

@@ -1,28 +1,29 @@
-# Remaining work — mission-session dependability
+# Remaining work — mission-session production readiness
 
 ```text
-GOAL_STATUS             = ACTIVE
+GOAL_STATUS             = ACTIVE (overnight continuation)
 MERGE_AUTHORIZATION     = NOT_GRANTED
 ```
 
-## Operational now
+## Implemented (local)
 
-- #791 hardening: fingerprint stability, binding fail-closed, conflicting evidence,
-  orphan tmp semantics, persistence-failed no-replay, observation UNAVAILABLE.
-- Formal IV request packet prepared (owner dispatch only).
-- #786 task-context still UNAVAILABLE on this stack.
+- Byte-accurate snapshot load; corrupt JSON → CORRUPT_INPUT
+- Binding / conflict / fingerprint / persistence / orphan-tmp (prior)
+- CLI exit codes for mission-session
+- Control-plane observation + task-context UNAVAILABLE explicit
 
-## Engineering (this lane)
+## Not established
 
-1. Exact-head CI SUCCESS on hardening tip → pin `CI_EXACT_HEAD` / freeze SUBJECT for IV.
-2. Corrupt/truncated JSON load paths (if any gap remains after continuity MALFORMED).
-3. Load-vs-build TOCTOU: document that session is a point-in-time projection over files
-   provided at call time (no live watcher); optional mtime/hash snapshot in provenance.
-4. When #786 lands: flip task-context dependency to AVAILABLE without reimplementing.
+| Claim | Status |
+|---|---|
+| Exact-head CI | PENDING / prior cancels |
+| Formal IV | NOT_STARTED |
+| Merge | NOT_GRANTED |
+| Power-loss durability | NOT claimed by process tests |
+| Multi-file FS atomic snapshot | NOT claimed (binding checks only) |
 
-## Owner actions
+## Next engineering
 
-- Formal IV dispatch using `iv/A2-006-FORMAL-IV-REQUEST-PACKET.md`
-- Merge authorization
-- Bugbot usage limits / review tooling (external)
-- Stack consolidation / #781 UI
+1. Soft schema validation on load (fail → MALFORMED/CORRUPT, no authority grant)
+2. Empty/non-UTF8 edge coverage if gaps remain
+3. After CI green: freeze SUBJECT once for Formal IV (owner dispatch)

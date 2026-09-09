@@ -14864,3 +14864,13 @@ repeated inspection / uncertain outcomes.
 - Repaired mission_session + intent_continuity MALFORMED path; expanded tests (134 suite).
 - Control-plane observation: explicit UNAVAILABLE (no invented API).
 - Formal IV request packet prepared (owner dispatch). MERGE not granted.
+
+## Overnight — snapshot load + corrupt JSON + session exit codes (2026-09-09)
+
+Directive: ATLAS-STUDIO-OVERNIGHT-CONTINUATION-001
+
+- Recorded #791: tip b9fd932d; no exact-head CI SUCCESS yet (dependency noted; no poll loop).
+- Added `atlas_studio.snapshot_load` (bytes→hash→parse same buffer).
+- Continuity CORRUPT; session CORRUPT_INPUT; CLI exit 0/1/3 for mission-session.
+- Honesty: byte hashes ≠ multi-file FS snapshot; process tests ≠ power-loss IV.
+- Local suite: 141 passed. Formal IV / merge not claimed.

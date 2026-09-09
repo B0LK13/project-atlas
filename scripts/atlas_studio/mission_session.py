@@ -38,6 +38,7 @@ from atlas_studio.action_evidence import (
 )
 from atlas_studio.intent_continuity import (
     ALREADY_DECIDED,
+    CORRUPT as CONTINUITY_CORRUPT,
     DUPLICATE_SUBMIT_RISK,
     FRESH,
     INTERRUPTED_UNCERTAIN,
@@ -67,6 +68,7 @@ SESSION_DECISION_MISSING = "DECISION_MISSING"
 SESSION_EVIDENCE_UNAVAILABLE = "EVIDENCE_UNAVAILABLE"
 SESSION_PERSISTENCE_FAILED_SIGNAL = "PERSISTENCE_FAILED_SIGNAL"
 SESSION_INTERRUPTED_ATOMIC_WRITE = "INTERRUPTED_ATOMIC_WRITE"
+SESSION_CORRUPT_INPUT = "CORRUPT_INPUT"
 SESSION_INCOMPLETE = "INCOMPLETE"
 SESSION_UNAVAILABLE = "UNAVAILABLE"
 
@@ -223,6 +225,8 @@ def _derive_session_state(
         return SESSION_PERSISTENCE_FAILED_SIGNAL
     if interrupted_atomic_write:
         return SESSION_INTERRUPTED_ATOMIC_WRITE
+    if continuity_state == CONTINUITY_CORRUPT:
+        return SESSION_CORRUPT_INPUT
     if continuity_state == MISMATCHED_BINDING:
         return SESSION_MISMATCHED_BINDING
     if conflicting_evidence:
@@ -320,7 +324,6 @@ def build_mission_session(
 ) -> dict[str, Any]:
     """Build ATLAS_STUDIO_MISSION_SESSION_V1. Never mutates; never re-executes."""
     notes = [f"package:{PACKAGE_ID}", "session_ne_authority", "auto_retry_forbidden"]
-    input_hashes: dict[str, str] = {}
 
     interrupted_atomic_write = False
     orphan_tmp_with_final = False
@@ -347,13 +350,21 @@ def build_mission_session(
     loaded_decision = continuity.get("prior_decision")
     loaded_evidence_packet = continuity.get("prior_evidence")
 
-    # Point-in-time input hashes (TOCTOU: session is a snapshot, not a live watcher).
-    if isinstance(loaded_intent, dict):
-        input_hashes["intent"] = _canonical_sha256(loaded_intent)
-    if isinstance(loaded_decision, dict):
-        input_hashes["decision"] = _canonical_sha256(loaded_decision)
-    if isinstance(loaded_evidence_packet, dict):
-        input_hashes["evidence"] = _canonical_sha256(loaded_evidence_packet)
+    # Point-in-time hashes: prefer byte hashes of files actually parsed.
+    input_hashes: dict[str, str] = {}
+    byte_hashes = (continuity.get("provenance") or {}).get("input_byte_hashes") or {}
+    if isinstance(byte_hashes, dict):
+        input_hashes.update({k: str(v) for k, v in byte_hashes.items() if v})
+    if isinstance(loaded_intent, dict) and "intent" not in input_hashes:
+        input_hashes["intent_canonical"] = _canonical_sha256(loaded_intent)
+    if isinstance(loaded_decision, dict) and "decision" not in input_hashes:
+        input_hashes["decision_canonical"] = _canonical_sha256(loaded_decision)
+    if isinstance(loaded_evidence_packet, dict) and "evidence" not in input_hashes:
+        input_hashes["evidence_canonical"] = _canonical_sha256(loaded_evidence_packet)
+    notes.append(
+        "input_byte_hashes_identify_parsed_bytes;"
+        "multi_file_consistency_is_binding_checks_not_a_single_fs_snapshot"
+    )
 
     conflicting_evidence = False
     if loaded_evidence_packet is None and loaded_decision is not None:
@@ -480,6 +491,17 @@ def build_mission_session(
                 "summary": (
                     "Evidence packet contradicts decision file (shared intent_id, different "
                     "attempt fields) — do not treat as confirmed success; do not replay"
+                ),
+            },
+        )
+    if session_state == SESSION_CORRUPT_INPUT:
+        recovery_actions.insert(
+            0,
+            {
+                "id": "corrupt_input",
+                "summary": (
+                    "Corrupt/truncated JSON among intent/decision/evidence — replace from "
+                    "known-good source; do not execute"
                 ),
             },
         )
@@ -638,3 +660,24 @@ def format_mission_session_tui(packet: dict) -> str:
         "FINGERPRINT_STABLE"
     )
     return "\n".join(lines)
+
+
+def exit_code_for_session(packet: dict) -> int:
+    """CLI exit codes for mission-session (inspect-only; never mutation).
+
+    0 — clear terminal inspect outcomes / ready-to-evaluate
+    1 — recovery / uncertainty / mismatch / incomplete
+    3 — persistence interrupted or failed after possible mutation
+    """
+    state = packet.get("session_state")
+    if state in {
+        SESSION_CONFIRMED_SUCCESS,
+        SESSION_REFUSED,
+        SESSION_DRY_RUN,
+        READY_TO_EVALUATE,
+        SESSION_FAILED_CONFIRMED_NO_MUTATION,
+    }:
+        return 0
+    if state in {SESSION_PERSISTENCE_FAILED_SIGNAL, SESSION_INTERRUPTED_ATOMIC_WRITE}:
+        return 3
+    return 1

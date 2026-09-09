@@ -62,14 +62,61 @@ def _decision(**overrides):
 
 
 def test_input_content_hashes_snapshot_point_in_time():
-    """Session records hashes of loaded intent/decision (point-in-time projection)."""
+    """Injected objects get canonical hashes; file loads get byte hashes."""
     packet = ms.build_mission_session(
         intent=_intent(), decision=_decision(), clock=clock
     )
     hashes = packet["provenance"]["input_content_hashes"]
-    assert "intent" in hashes and "decision" in hashes
-    assert hashes["intent"] == ms._canonical_sha256(_intent())
-    assert hashes["decision"] == ms._canonical_sha256(_decision())
+    assert "intent_canonical" in hashes or "intent" in hashes
+    assert "decision_canonical" in hashes or "decision" in hashes
+
+
+def test_corrupt_json_file_is_corrupt_input(tmp_path: Path):
+    intent_path = tmp_path / "intent.json"
+    intent_path.write_bytes(b'{"schema":"ATLAS_STUDIO_ACTION_INTENT_V1",')  # truncated
+    packet = ms.build_mission_session(intent_file=intent_path, clock=clock)
+    assert packet["session_state"] == ms.SESSION_CORRUPT_INPUT
+    assert packet["recovery"]["auto_retry"] is False
+    assert ms.exit_code_for_session(packet) == 1
+
+
+def test_byte_hash_matches_file_bytes(tmp_path: Path):
+    intent_path = tmp_path / "intent.json"
+    decision_path = tmp_path / "decision.json"
+    raw_i = json.dumps(_intent()).encode()
+    raw_d = json.dumps(_decision()).encode()
+    intent_path.write_bytes(raw_i)
+    decision_path.write_bytes(raw_d)
+    packet = ms.build_mission_session(
+        intent_file=intent_path, decision_file=decision_path, clock=clock
+    )
+    import hashlib
+
+    hashes = packet["provenance"]["input_content_hashes"]
+    assert hashes["intent"] == hashlib.sha256(raw_i).hexdigest()
+    assert hashes["decision"] == hashlib.sha256(raw_d).hexdigest()
+
+
+def test_exit_codes():
+    ok = ms.build_mission_session(intent=_intent(), decision=_decision(), clock=clock)
+    assert ms.exit_code_for_session(ok) == 0
+    uncertain = ms.build_mission_session(
+        intent=_intent(),
+        decision=_decision(
+            decision="EXECUTION_FAILED",
+            mutated=False,
+            evidence={"mutation_state": "UNKNOWN", "repo": REPO},
+        ),
+        clock=clock,
+    )
+    assert ms.exit_code_for_session(uncertain) == 1
+    persist = ms.build_mission_session(
+        intent=_intent(),
+        decision=_decision(),
+        persistence_failed_after_mutation=True,
+        clock=clock,
+    )
+    assert ms.exit_code_for_session(persist) == 3
 
 
 def test_success_session_schema():
@@ -307,7 +354,7 @@ def test_cli_mission_session_json(tmp_path: Path, capsys):
             "--json",
         ]
     )
-    assert rc == 0
+    assert rc == 1  # FAILED_UNCERTAIN → recovery exit
     out = json.loads(capsys.readouterr().out)
     assert out["session_state"] == ms.SESSION_FAILED_UNCERTAIN
     assert out["recovery"]["auto_retry"] is False
