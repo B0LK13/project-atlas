@@ -1,8 +1,9 @@
 # Remaining work — mission-session production readiness
 
 ```text
-GOAL_STATUS             = ACTIVE (overnight continuation)
+GOAL_STATUS             = BLOCKED_EXTERNAL (engineering queue drained)
 MERGE_AUTHORIZATION     = NOT_GRANTED
+TIP                     = e32e2c7e228b2b059f75ac3062e59e88a534da13
 ```
 
 ## Implemented (local)
@@ -10,23 +11,19 @@ MERGE_AUTHORIZATION     = NOT_GRANTED
 - Byte-accurate snapshot load; corrupt/empty/non-UTF8 → CORRUPT_INPUT
 - Binding / conflict / fingerprint / persistence / orphan-tmp
 - CLI exit codes for mission-session
-- Optional `--strict-schema`
+- Optional `--strict-schema` + soft schema warning notes
 - Claim evaluate/execute intent load via snapshot_load
+- Evidence outcome_class / embedded-decision conflict fail-closed
 - Control-plane observation + task-context UNAVAILABLE explicit
-- ACCEPTANCE-DEMO.md (local / verifier prep)
+- ACCEPTANCE-DEMO.md
 
-## Not established
+## External only
 
 | Claim | Status |
 |---|---|
-| Exact-head CI | PENDING / prior cancels |
-| Formal IV | NOT_STARTED |
+| Exact-head CI SUCCESS on tip | PENDING |
+| Formal IV | NOT_STARTED (owner) |
 | Merge | NOT_GRANTED |
-| Power-loss durability | NOT claimed by process tests |
-| Multi-file FS atomic snapshot | NOT claimed (binding checks only) |
+| #786 task-context | UNAVAILABLE |
 
-## Next engineering
-
-1. After exact-head CI green: freeze SUBJECT once for Formal IV (owner dispatch)
-2. #786 landing → flip task-context AVAILABLE (external)
-3. Stop manufacturing gaps when only external blockers remain
+Do not invent further defects to consume time.
