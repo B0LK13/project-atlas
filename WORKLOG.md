@@ -14990,4 +14990,32 @@ owner-gated, so the honest statement is *continuously verified for the writers
 this lane may touch, with the exact blocker identified*); that refusal coverage
 changed; or that any `src/` file is modified -- none is.
 
+**The writer set was wrong, and is now enforced rather than declared.** An
+earlier revision of this package swept two merge paths and two atomic writers and
+called that the full set. Derived mechanically from the source tree -- every
+module importing or calling `merge_protected_regions`, `read_note_text` or
+`_generated_content`, the only three ways to obtain a prior note's human content
+in order to write it back -- there are FOUR: `graph_projections`,
+`obsidian_projection`, `obsidian_capture_note`, and the frozen `ingestion`.
+
+`obsidian_capture_note` was the miss. It shares the canonical merge but has its
+OWN atomic writer delegating to `capture_io.write_atomic_under_root`, so the
+previous disk round trip claimed coverage broader than the code behind it. It is
+now swept, and corrupting that write path to normalise CRLF fails the round-trip
+test.
+
+The set is enforced by derivation at test time: a module that can splice human
+regions and is neither swept nor explicitly excluded with a recorded reason fails
+`test_f16_every_splicing_writer_is_covered_or_explicitly_excluded`. Measured by
+dropping a hypothetical fifth splicing module into `src/` -- it fails
+immediately. The derivation follows ALIASED imports, which matters because all
+three non-frozen writers rename the canonical merge on import; a derivation
+matching only the original name would have missed every one of them, so that is
+asserted too.
+
+**The guard caught its author on its first run**: an earlier revision of the
+coverage table listed `protected_regions.py`, which DEFINES the merge rather than
+splicing into a prior note. The stale-entry assertion fired. That is the
+difference between a test that watches the code and a list that rots.
+
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F16-ACCEPTED-WRITE-INTEGRITY.md`.

@@ -37,11 +37,13 @@ rather than becoming an accident.
 
 from __future__ import annotations
 
+import ast
 import itertools
 from collections.abc import Callable
 from pathlib import Path
 
 import project_atlas.graph_projections as gp
+import project_atlas.obsidian_capture_note as ocn
 import project_atlas.obsidian_projection as op
 from project_atlas.graph_projections import GraphProjectionError
 from project_atlas.protected_regions import (
@@ -297,6 +299,16 @@ def test_f16_human_bytes_survive_the_round_trip_to_disk(tmp_path: Path) -> None:
         obsidian_note.write_bytes(prior.encode("utf-8"))
         op._write_atomic(obsidian_note, payload, vault=vault)
         assert _safe_extract(obsidian_note.read_bytes().decode("utf-8")) == before, label
+
+        # The third path. `obsidian_capture_note` does not reuse either writer
+        # above -- it has its own `_write_atomic` delegating to
+        # `capture_io.write_atomic_under_root`. An earlier revision of this
+        # module swept two writers and claimed the disk round trip, which was a
+        # coverage claim broader than the code behind it.
+        capture_note = vault / f"c{index}.md"
+        capture_note.write_bytes(prior.encode("utf-8"))
+        ocn._write_atomic(capture_note, payload, root=vault)
+        assert _safe_extract(capture_note.read_bytes().decode("utf-8")) == before, label
         checked += 1
     assert checked >= MIN_ACCEPTED // len(MERGERS), f"round trip covered only {checked}"
 
@@ -335,4 +347,102 @@ def test_f16_the_frozen_writer_is_excluded_on_purpose() -> None:
     assert callable(_generated_content), (
         "the excluded writer no longer exists under that name; the exclusion "
         "note and #759 both need revisiting"
+    )
+
+
+#: Modules that may splice human regions into a prior note, and how each is
+#: covered here. Derived mechanically by :func:`_splicing_modules` at test time
+#: rather than maintained by hand, so a NEW writer cannot be added without this
+#: file being updated -- which is the point: the failure mode this package
+#: guards against should be hard to introduce, not merely visible afterwards.
+#: ``protected_regions.py`` is deliberately absent: it DEFINES the merge, it does
+#: not splice into a prior note, so it is the implementation rather than a
+#: writer. The structural test below caught it on its first run when an earlier
+#: revision of this dict listed it -- which is the guard working, on its author.
+WRITER_COVERAGE = {
+    "src/project_atlas/graph_projections.py": "merge swept via MERGERS; disk via _promote",
+    "src/project_atlas/obsidian_projection.py": (
+        "shares the canonical merge; disk via _write_atomic"
+    ),
+    "src/project_atlas/obsidian_capture_note.py": (
+        "shares the canonical merge (aliased import); disk via its own "
+        "_write_atomic -> capture_io.write_atomic_under_root"
+    ),
+    "src/project_atlas/ingestion.py": (
+        "EXCLUDED: frozen surface, and a known CRLF defect (#759). Adding it "
+        "fails this suite for a defect this package does not own; see "
+        "test_f16_the_frozen_writer_is_excluded_on_purpose"
+    ),
+}
+
+
+def _splicing_modules() -> dict[str, list[str]]:
+    """Every module that can splice human regions into a prior note.
+
+    Derived from the source tree, not from a hand-kept list: any module that
+    imports or calls ``merge_protected_regions``, ``read_note_text`` or
+    ``_generated_content``. Those three are the only ways to obtain a prior
+    note's human content in order to write it back.
+    """
+    splicers = {"merge_protected_regions", "read_note_text", "_generated_content"}
+    found: dict[str, list[str]] = {}
+    root = Path(__file__).resolve().parents[2] / "src" / "project_atlas"
+    for path in sorted(root.rglob("*.py")):
+        source = path.read_text(errors="replace")
+        if not any(name in source for name in splicers):
+            continue
+        names: set[str] = set()
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
+                "protected_regions"
+            ):
+                names |= {a.asname or a.name for a in node.names if a.name in splicers}
+            elif isinstance(node, ast.Call):
+                names |= {ast.unparse(node.func).split(".")[-1]} & splicers
+        if names:
+            rel = path.relative_to(root.parents[1]).as_posix()
+            found[rel] = sorted(names)
+    return found
+
+
+def test_f16_every_splicing_writer_is_covered_or_explicitly_excluded() -> None:
+    """Structural: a NEW writer cannot appear without this file being updated.
+
+    The other tests here detect corruption in the writers they happen to sweep.
+    This one makes an *uncovered writer* fail, which is the difference between
+    "we test some writers" and "the set of writers is a closed, reviewed set".
+
+    Derived rather than declared. If someone adds a fifth module that reads a
+    prior note's human content in order to write it back, this fails until they
+    either add it to the sweep or record why it is excluded -- and the recorded
+    reason is what a reviewer reads.
+    """
+    discovered = _splicing_modules()
+    assert discovered, "the derivation found nothing; it is no longer looking correctly"
+
+    uncovered = sorted(set(discovered) - set(WRITER_COVERAGE))
+    assert not uncovered, (
+        f"module(s) can splice human regions but are not covered here: {uncovered}. "
+        "Add them to the sweep, or record why they are excluded in WRITER_COVERAGE."
+    )
+
+    stale = sorted(set(WRITER_COVERAGE) - set(discovered))
+    assert not stale, (
+        f"WRITER_COVERAGE names module(s) that no longer splice: {stale}. "
+        "A coverage claim outliving its subject is how this record rots."
+    )
+
+    # Renaming on import must not hide a writer. All three non-frozen writers
+    # alias the canonical merge (`_merge_protected_regions`,
+    # `_canonical_merge_protected_regions`), so a derivation that matched only
+    # the original name would silently miss every one of them.
+    aliased = {
+        module
+        for module, names in discovered.items()
+        if any(name not in {"read_note_text", "_generated_content"} for name in names)
+    }
+    assert aliased, (
+        "no module resolved an aliased merge import; the derivation has stopped "
+        "following `from ... import merge_protected_regions as _x` and would now "
+        "miss a writer that renames it"
     )

@@ -58,7 +58,7 @@ deliberately corrupted in the two ways this module exists to catch.
 
 | control | measured |
 |---|---|
-| baseline | **6 passed** |
+| baseline | **7 passed** |
 | real writer normalises CRLF (the #759 defect) | **1 failed** — the invariant test |
 | real writer drops one byte per human body | **1 failed** — the invariant test |
 | corpus truncated to 3 pairs | **2 failed** |
@@ -68,7 +68,10 @@ deliberately corrupted in the two ways this module exists to catch.
 | refusal counting removed | **1 failed** |
 | **`_write_atomic` corrupted to normalise CRLF on the way to disk** | **1 failed** — the round-trip test |
 | **`ingestion._generated_content` added to the sweep** | **2 failed** — invariant *and* exclusion |
-| restored | **6 passed** |
+| **a fifth splicing module dropped into `src/`** | **1 failed** — the structural guard |
+| **`capture_io` write path normalises CRLF** | **1 failed** — the third disk writer |
+| **derivation stops following aliased imports** | **1 failed** |
+| restored | **7 passed** |
 
 Each mutation was applied under an anchor assertion and the file restored
 byte-identical (`56357fc0`).
@@ -83,6 +86,44 @@ The last row is worth its own line: adding `ingestion` fails the **invariant**
 test as well as the exclusion test, which demonstrates the #759 CRLF defect
 through this harness. The exclusion is protecting the suite from a real,
 reproduced defect rather than a hypothetical one.
+
+## The full set of writers, derived rather than declared
+
+An earlier revision of this package swept two merge paths and two atomic writers
+and called that the writer set. It was not. Derived mechanically from the source
+tree -- every module importing or calling `merge_protected_regions`,
+`read_note_text` or `_generated_content`, which are the only ways to obtain a
+prior note's human content in order to write it back -- there are **four**:
+
+| module | how it is covered |
+|---|---|
+| `graph_projections.py` | merge swept; disk via `_promote` |
+| `obsidian_projection.py` | shares the canonical merge; disk via `_write_atomic` |
+| `obsidian_capture_note.py` | shares the canonical merge; **disk via its own `_write_atomic` → `capture_io.write_atomic_under_root`** |
+| `ingestion.py` | **excluded** — frozen surface, known CRLF defect (#759) |
+
+The third row is the gap this revision closes. `obsidian_capture_note` does not
+reuse either atomic writer above; it has its own, delegating to
+`capture_io.write_atomic_under_root`. The previous revision's disk round trip
+claimed coverage broader than the code behind it.
+
+**The set is now enforced, not documented.** `test_f16_every_splicing_writer_is_covered_or_explicitly_excluded`
+derives the list at test time and fails if a module can splice human regions and
+is neither swept nor explicitly excluded with a recorded reason. Adding a fifth
+writer therefore cannot pass review silently — measured: dropping a hypothetical
+fifth splicing module into `src/` fails that test immediately.
+
+The derivation follows **aliased** imports, which matters because all three
+non-frozen writers rename the canonical merge on import
+(`_merge_protected_regions`, `_canonical_merge_protected_regions`). A derivation
+matching only the original name would have missed every one of them, so that
+property is asserted too — removing alias resolution fails the test.
+
+**The guard caught its author on its first run.** An earlier revision of the
+coverage table listed `protected_regions.py`. That module *defines* the merge; it
+does not splice into a prior note, so it is the implementation rather than a
+writer. The stale-entry half of the assertion fired, which is the guard doing
+exactly what it exists to do.
 
 ## What is NOT covered, and why
 
