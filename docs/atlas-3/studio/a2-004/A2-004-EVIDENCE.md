@@ -7,18 +7,21 @@ BASE_BRANCH             = feat/as-studio-a2-002-mission-journey
 BASE_HEAD               = cd4523fc588ac941b13ad75731624039e572ba71
 BASE_TREE               = 4226ac274a86ea7ee702c6c1c422eef06934f3b0
 CERTIFIED_A2_PRESERVED  = 2debb7784746228c55503a60e55293929a5f5b1c
-HEAD                    = PENDING_COMMIT
-TREE                    = PENDING_COMMIT
+IMPL_HEAD               = 9d00bd5d3bfbc37a21125b5c33b77fd94871a4fc
+IMPL_TREE               = 70601ab52f88436e9b9789354e88dd08fffe0f0a
+HEAD                    = 9d00bd5d3bfbc37a21125b5c33b77fd94871a4fc
+TREE                    = 70601ab52f88436e9b9789354e88dd08fffe0f0a
+CI_CANDIDATE_HEAD       = 9d00bd5d3bfbc37a21125b5c33b77fd94871a4fc
 CI_EXACT_HEAD           = PENDING
 FORMAL_IV               = NOT_STARTED
 MERGE_AUTHORIZATION     = NOT_GRANTED
 ```
 
-## Local validation (pre-push)
+## Local validation
 
 ```text
 Studio unit suite (A0–A2 + A2-002 + A2-004): 109 passed
-Doctor: a2_004_* checks present (via PYTHONPATH=scripts)
+Doctor: a2_004_evidence_honesty / a2_004_action_evidence_schema / a2_004_no_auto_retry PASS
 ```
 
 ## Honesty
