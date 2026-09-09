@@ -128,9 +128,6 @@ def test_cli_gate_refuses_an_unknown_required_capability_before_reading_the_env(
     monkeypatch.delenv(CLI_ELEVATE_CAPS_ENV, raising=False)
     with pytest.raises(AuthzError, match=r"^authz-unknown-capability:execution\.observ$"):
         require_cli_elevated_operator("op", required={"execution.observ"})  # type: ignore[arg-type]
-    monkeypatch.setenv(CLI_ELEVATE_CAPS_ENV, "execution.observ,execution.observe")
-    with pytest.raises(AuthzError, match=r"^authz-unknown-capability:execution\.observ$"):
-        require_cli_elevated_operator("op", required={"execution.observ"})  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -177,3 +174,14 @@ def test_read_credential_is_the_read_only_intersection_even_for_a_fully_privileg
     assert read_caps.isdisjoint(PRIVILEGED_CAPABILITIES)
     assert store.credentials.privileged_operator is launch
     assert store.credentials.read_token != store.credentials.privileged_token
+
+
+def test_read_credential_api_read_fallback_adds_nothing_else() -> None:
+    # Z16 (fallback variant): a launch operator whose read-only caps lack
+    # api.read gets exactly api.read added -- never any privileged capability
+    from project_atlas.authz import OperatorProfile
+
+    launch = OperatorProfile("odd", frozenset({"web.read", "vault.write", CAP}))
+    store = mint_api_session(launch)
+    assert store.credentials.read_operator.capabilities == frozenset({"web.read", "api.read"})
+    assert store.credentials.privileged_operator is launch

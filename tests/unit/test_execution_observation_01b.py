@@ -828,9 +828,13 @@ def test_receipt_helper_seal_mode_does_not_bypass_identity_verification(repo: Pa
 
 # ---------------------------------------------------------------------------
 # ULT-01b-1-T (proposed): behavioural tests for guards whose mutants survived
-# the ADV harnesses (round 3: W12, W20; rounds 1-2: U03, U04, U14, U19, U21,
-# U27, U28, U41, U45, U68, U69, U74, U80, U81, U87). Every guard held on
-# probe; these tests make the controls script prove it.
+# the ADV harnesses (round 3: W12, W20; rounds 1-2: U03, U04, U14, U27, U28,
+# U41, U45, U68, U69, U74, U80, U81; U87 lives in the live suite because it
+# needs the CLI). Every guard held on probe; these tests make the controls
+# script prove it. U19 (newline) and U21 (second `@`) in `_normalize_remote`
+# are REDUNDANT guards: `normalize_repository_identity` refuses both inputs
+# on its own, so no mutation of them is observable and no control exists;
+# the refusals are pinned as behaviour below regardless.
 
 
 class RegexpAwareRunner(ScriptedRunner):
@@ -929,8 +933,8 @@ def test_is_inside_work_tree_must_be_exactly_true(repo: Path, answer: str) -> No
 @pytest.mark.parametrize(
     "url",
     [
-        "https://github.com/b0lk13/project-atlas\nhttps://evil.example/x",  # U19 newline
-        "git@github.com:x@y/z",  # U21 second @
+        "https://github.com/b0lk13/project-atlas\nhttps://evil.example/x",  # newline (U19)
+        "git@github.com:x@y/z",  # second @ (U21)
         "ssh://git@github.com/x@y/z",
         "https://git@github.com/b0lk13/a@b",
     ],
@@ -1005,7 +1009,7 @@ def test_default_git_executable_comes_from_resolve_executable(
     [("shallow", "false"), ("shallow", 0), ("worktree_clean", 1), ("worktree_clean", "true")],
 )
 def test_receipt_git_scalars_are_strict_bools(repo: Path, field: str, value: object) -> None:
-    # U68 / U69
+    # U69
     out = observe(repo)
     record = out.receipt.to_record()
     record["observed"]["source"][field] = value
@@ -1015,6 +1019,21 @@ def test_receipt_git_scalars_are_strict_bools(repo: Path, field: str, value: obj
         seal_observation_receipt(record)
     text = str(excinfo.value)
     assert "boolean" in text.lower() or "GIT_OBSERVATION_INCOMPLETE" in text
+
+
+@pytest.mark.parametrize("value", ["1", 1.0, True, 0, 2, None])
+def test_receipt_schema_version_is_a_strict_int_pinned_to_one(repo: Path, value: object) -> None:
+    # U68: `schema_version` is StrictInt in [1, 1]; strings, floats, bools and
+    # other integers are refused even though they would coerce or compare equal
+    out = observe(repo)
+    record = out.receipt.to_record()
+    for key in ("content_hash", "observation_id"):
+        record.pop(key, None)
+    record["schema_version"] = value
+    with pytest.raises(Exception) as excinfo:  # pydantic validation error
+        seal_observation_receipt(record)
+    text = str(excinfo.value).lower()
+    assert "schema_version" in text
 
 
 def test_store_refuses_a_directory_or_fifo_at_the_locator(repo: Path, vault: Path) -> None:

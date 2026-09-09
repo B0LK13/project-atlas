@@ -119,13 +119,14 @@ CONTROLS = {
    "        raw = completed.stdout if completed.stdout else b\"\"\n"),
  "OC-AV is-inside-work-tree accepted by prefix (U14)": ("src/project_atlas/execution_observation/git.py",
    "    if inside != \"true\":", "    if not inside.lower().startswith(\"true\"):"),
- # (U21 "second @ in tail" is a redundant guard: normalize_repository_identity refuses it too; no control)
+ # (U19 newline and U21 "second @ in tail" in _normalize_remote are redundant guards:
+ #  normalize_repository_identity refuses both on its own; no observable mutation, no control)
  "OC-AX receipt secret scan skips dict keys (U41)": ("src/project_atlas/execution_observation/observe.py",
    "            found.append(str(key))\n", ""),
  "OC-AY default git executable is a bare name (U45)": ("src/project_atlas/execution_observation/observe.py",
    "    git = git_executable if git_executable is not None else resolve_executable(\"git\")",
    "    git = git_executable if git_executable is not None else Path(\"git\")"),
- "OC-AZ receipt git scalars not strict (U68/U69)": ("src/atlas_contracts/observation_receipt.py",
+ "OC-AZ receipt git scalars not strict (U69)": ("src/atlas_contracts/observation_receipt.py",
    "    worktree_clean: StrictBool | None = None\n    shallow: StrictBool | None = None\n",
    "    worktree_clean: bool | None = None\n    shallow: bool | None = None\n"),
  "OC-BA proof v2 trusts receipt instances (U80)": ("src/project_atlas/atlas3/proof.py",
@@ -133,6 +134,13 @@ CONTROLS = {
    "    if isinstance(receipt, ObservationReceipt):\n        return receipt\n"),
  "OC-BB proof v2 receipt secret scan dropped (U81)": ("src/project_atlas/atlas3/proof.py",
    "        _scan_for_secrets(observation.to_record())\n", ""),
+ "OC-BC receipt schema_version not strict (U68)": ("src/atlas_contracts/observation_receipt.py",
+   "    schema_version: StrictInt = Field(default=1, ge=1, le=1)\n", "    schema_version: int = Field(default=1)\n"),
+ "OC-BD CLI --observation reader size cap dropped (U87)": ("src/project_atlas/atlas3/cli.py",
+   "    if path.stat().st_size > _MAX_PROOF_INPUT_BYTES:\n", "    if False:\n"),
+ "OC-BE read credential api.read fallback widened (Z16 variant)": ("src/project_atlas/authz.py",
+   "            capabilities=frozenset(set(read_op.capabilities) | {\"api.read\"}),\n",
+   "            capabilities=frozenset(set(base.capabilities) | {\"api.read\"}),\n"),
 }
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def failing():

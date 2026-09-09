@@ -551,3 +551,42 @@ def test_filter_driver_defined_only_in_global_config_is_still_refused(
     assert not marker.exists()
     _git("status", "--porcelain", cwd=cloned, env=env)
     assert marker.exists()
+
+
+def test_cli_proof_observation_reader_is_size_bounded(
+    cloned: Path, vault: Path, tmp_path: Path
+) -> None:
+    """ULT-01b-1-T (U87): the `--observation` reader refuses a file over the
+    1 MiB cap before parsing it, so an oversized receipt cannot reach proof v2."""
+    from project_atlas.atlas3.cli import _MAX_PROOF_INPUT_BYTES
+
+    out = observe_execution(cloned, project_id="harbor-api")
+    identity_file = tmp_path / "identity.json"
+    identity_file.write_text(json.dumps(out.identity.to_record()), encoding="utf-8")
+    padded = dict(out.receipt.to_record())
+    big = tmp_path / "big-receipt.json"
+    big.write_text(
+        json.dumps(padded)[:-1] + ', "pad": "' + "x" * (_MAX_PROOF_INPUT_BYTES + 1) + '"}',
+        encoding="utf-8",
+    )
+    assert big.stat().st_size > _MAX_PROOF_INPUT_BYTES
+    attestations = tmp_path / "attestations.json"
+    attestations.write_text("[]", encoding="utf-8")
+    code, payload = _cli(
+        "proof",
+        "T1",
+        "--vault",
+        str(vault),
+        "--project",
+        "harbor-api",
+        "--identity",
+        str(identity_file),
+        "--attestations",
+        str(attestations),
+        "--observation",
+        str(big),
+        "--json",
+    )
+    assert code == EXIT_ERROR and payload["error"] == "PROOF_INPUT_INVALID"
+    assert "size cap" in str(payload["detail"])
+    assert not (vault / "generated").exists()
