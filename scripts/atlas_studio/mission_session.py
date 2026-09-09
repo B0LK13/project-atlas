@@ -798,6 +798,7 @@ def format_mission_session_tui(packet: dict) -> str:
         f"continuity={((lifecycle.get('continuity') or {}).get('state'))} "
         f"outcome={((lifecycle.get('evidence') or {}).get('outcome_class'))} "
         f"persistence_failed={lifecycle.get('persistence_failed_after_mutation')}",
+        f"snapshot_consistency={((lifecycle.get('snapshot_consistency') or {}).get('status'))}",
         f"task_context={tc.get('state')} observation={obs.get('state')}",
         f"auto_retry={recovery.get('auto_retry')}",
     ]

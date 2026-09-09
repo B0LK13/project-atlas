@@ -6,6 +6,7 @@ GOAL                    = mission lifecycle reliable (malformed/binding/persiste
 PR                      = https://github.com/B0LK13/project-atlas/pull/791
 BRANCH                  = feat/as-studio-a2-006-mission-session
 TIP                     = df1c0be792f086ff64254434d16e01e6db6569ab
+DOCS_HEAD_NOTE          = later docs-only commits may tip HEAD; pin Formal IV to CI-green SHA
 PRIOR_REPORTED          = behavioral 1bca04e3; docs tip b9fd932d (superseded; CI cancelled)
 BASE_FREEZE             = 10df59fb
 PRIOR_IV_788            = 4904125f PASS — DOES_NOT_TRANSFER
