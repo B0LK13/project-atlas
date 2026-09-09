@@ -27,6 +27,12 @@ from atlas_contracts.execution_identity import (
     load_execution_identity,
     seal_execution_identity,
 )
+from atlas_contracts.observation_receipt import (
+    ObservationReceipt,
+    ObservationReceiptError,
+    load_observation_receipt,
+    seal_observation_receipt,
+)
 from atlas_contracts.provenance import ProvenanceRecord
 from atlas_contracts.receipts import PipelineState, ReceiptReference
 
@@ -41,6 +47,8 @@ __all__ = [
     "EvidenceAttestation",
     "ExecutionIdentity",
     "ExecutionIdentityError",
+    "ObservationReceipt",
+    "ObservationReceiptError",
     "PackageValidationError",
     "PipelineState",
     "ProvenanceRecord",
@@ -53,7 +61,9 @@ __all__ = [
     "load_event_package",
     "load_evidence_attestation",
     "load_execution_identity",
+    "load_observation_receipt",
     "seal_evidence_attestation",
     "seal_execution_identity",
+    "seal_observation_receipt",
     "sha256_hex",
 ]

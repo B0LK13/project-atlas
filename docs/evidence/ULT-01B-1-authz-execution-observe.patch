@@ -1,0 +1,30 @@
+diff --git a/src/project_atlas/authz.py b/src/project_atlas/authz.py
+index c6dd713a..4fd84eb4 100644
+--- a/src/project_atlas/authz.py
++++ b/src/project_atlas/authz.py
+@@ -44,6 +44,7 @@ Capability = Literal[
+     "collab.session",
+     "web.action",
+     "provider.live",
++    "execution.observe",
+ ]
+ 
+ ALL_CAPABILITIES: Final[frozenset[Capability]] = frozenset(
+@@ -62,6 +63,7 @@ ALL_CAPABILITIES: Final[frozenset[Capability]] = frozenset(
+         "collab.session",
+         "web.action",
+         "provider.live",
++        "execution.observe",
+     }
+ )
+ 
+@@ -104,6 +106,9 @@ PRIVILEGED_CAPABILITIES: Final[frozenset[Capability]] = frozenset(
+         "autonomy.l3",
+         "scheduler.dispatch",
+         "provider.live",
++        # ULT-01b-1: live execution observation launches git and writes a
++        # receipt under the vault; dedicated capability, default off (O3).
++        "execution.observe",
+     }
+ )
+ 

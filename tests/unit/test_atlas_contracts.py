@@ -31,6 +31,7 @@ def test_contract_json_schemas_are_present_and_lockstep_versioned() -> None:
         "event-package.schema.json",
         "evidence-attestation.schema.json",
         "execution-identity.schema.json",
+        "observation-receipt.schema.json",
         "provenance.schema.json",
         "receipt-reference.schema.json",
     }
