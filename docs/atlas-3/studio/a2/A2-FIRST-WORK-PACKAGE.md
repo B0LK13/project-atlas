@@ -1,12 +1,14 @@
-# AS-STUDIO-A2-001 — first work package (READY / NOT_STARTED)
+# AS-STUDIO-A2-001 — first work package (IMPLEMENTED_IN_LANE)
 
 ```text
-AS_STUDIO_A2_001 = READY
-IMPLEMENTATION = NOT_STARTED
+AS_STUDIO_A2_001 = IMPLEMENTED_IN_LANE
+IMPLEMENTATION = OWNERSHIP_CLAIM_GOVERNED_PATH
 FIRST_GOVERNED_ACTION = OWNERSHIP_CLAIM (eligible unowned/runnable lane)
-STUDIO_MUTATION_AUTHORITY = NONE
+DISPATCH_STEAL_AUTO = NOT_STARTED
+STUDIO_MUTATION_AUTHORITY = NONE (Studio never self-authorizes; emitter decides)
 MERGE_AUTHORIZATION = NOT_GRANTED
 BUTTON != MUTATION
+FORMAL_IV = NOT_STARTED
 ```
 
 ## Mandatory analysis — claim / dispatch / handoff / steal maturity
@@ -46,7 +48,7 @@ Rejected as first action (with evidence):
 - **Steal-branded first** — conflates ranking policy with authority; prefer
   CLAIM intent that *may* be filled from steal-plan candidates later.
 
-## Target flow (AS-STUDIO-A2-001)
+## Implemented flow (AS-STUDIO-A2-001)
 
 ```text
 MC state (A1)
@@ -55,19 +57,36 @@ MC state (A1)
   → policy (capability_claims, freshness, max_age)
   → governed REQUEST (ATLAS_STUDIO_ACTION_INTENT_V1)
   → control plane evaluate (emitter/registry/live ownership)
-  → EXECUTE (OWNER_CLAIMED) or REFUSE + evidence
+  → EXECUTE (OWNER_CLAIMED via atlas_dag.emitter) or REFUSE + evidence
 ```
 
-## Exit evidence (when implemented — not claimed now)
+CLI (preview and execute are separate commands):
 
-- Denial tests: stale MC fingerprint, foreign agent, inactive agent,
-  already owned, missing capability.
-- Idempotency: already-present OWNER_CLAIMED.
-- No Studio self-authorization fields.
+```text
+atlas-studio claim-candidates [--agent ID] [--json]
+atlas-studio claim-preview --agent ID --lane pr/N [--json]
+atlas-studio claim-intent --agent ID --lane pr/N   # stdout intent JSON only
+atlas-studio claim-evaluate --intent-file PATH [--json]
+atlas-studio claim-execute --intent-file PATH --repo OWNER/NAME [--json] [--dry-run]
+```
+
+`claim-execute` always revalidates internally even if evaluate was skipped.
+`--repo` is mandatory: execution is pinned to an explicit repository identity
+and refuses (`EXPECTED_REPO_REQUIRED_AT_EXECUTE`) without it. A dry run
+reports `EXECUTE_ALLOWED` with `dry_run=true`, never `EXECUTED`.
+
+## Exit evidence (lane)
+
+- Denial tests: stale MC fingerprint / max_age, foreign/inactive agent,
+  already owned, missing capability, target mismatch, ranking≠authz.
+- Idempotency: already-owned-by-self → `REFUSED_IDEMPOTENT_ALREADY_CLAIMED`.
+- No Studio self-authorization fields on intents.
 - Audit/receipt: intent id + decision + evidence refs.
-- A1 honesty preserved: attention still ≠ authorization.
+- A1 honesty preserved: attention still ≠ authorization; MC does not import
+  `action_intent`.
+- See `A2-EVIDENCE.md`.
 
-## Non-goals for A2-001
+## Non-goals for A2-001 (still true)
 
 - Dispatch / IV write / merge / worktree / PTY.
 - Steal auto-execute without CLAIM intent.
@@ -77,6 +96,8 @@ MC state (A1)
 
 ```text
 SCOPE = READY
-IMPLEMENTATION = NOT_STARTED
+IMPLEMENTATION = IMPLEMENTED_IN_LANE
+DISPATCH_STEAL_AUTO = NOT_STARTED
 FORMAL_IV = NOT_STARTED
+MERGE_AUTHORIZATION = NOT_GRANTED
 ```

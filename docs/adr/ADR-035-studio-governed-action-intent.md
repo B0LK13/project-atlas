@@ -1,6 +1,7 @@
 # ADR-035 — Studio governed action intent (not self-authorization)
 
-**Status:** proposed for AS-STUDIO-A2 scope (docs only; implementation NOT_STARTED)
+**Status:** accepted for AS-STUDIO-A2-001 lane implementation (OWNERSHIP_CLAIM);
+broader A2.x surfaces remain NOT_STARTED
 **Date:** 2026-09-09
 **Package:** `AS-STUDIO-A2` / `AS-STUDIO-A2-001`
 **Related:** [ADR-034](./ADR-034-studio-daemon-authority.md) (Studio projection; daemon authority)
@@ -32,24 +33,34 @@ primitives; Studio must not reimplement or bypass them.
    Mission Control fingerprint and freshness window.
 2. **Atlas control plane evaluates** validity, authorization, freshness, and
    TOCTOU; then executes or refuses. Studio never sets authorization grants.
-3. **First work package** (`AS-STUDIO-A2-001`) is governed **OWNERSHIP_CLAIM**
-   of an eligible unowned/runnable lane, reusing F12 + F04 emitter — not
-   dispatch-first, not UI-direct steal.
-4. **Attention / ranking / availability remain non-authoritative** (A1 laws).
+3. **Reusable governance substrate** (`atlas_studio.governance`) owns the
+   evaluate→(dry-run|apply_authorized)→evidence loop and action registry. Future
+   Studio actions register handlers; unknown/NOT_STARTED types fail closed
+   with `REFUSED_UNSUPPORTED_ACTION`. Registration refuses silent takeover of
+   an IMPLEMENTED handler; dry-run is labelled `EXECUTE_ALLOWED` (never
+   `EXECUTED`); executor failure is `EXECUTION_FAILED` with
+   `mutation_state=UNKNOWN`, never success. See
+   `docs/atlas-3/studio/a2/A2-GOVERNANCE-SUBSTRATE.md`.
+4. **First work package** (`AS-STUDIO-A2-001`) is governed **OWNERSHIP_CLAIM**
+   as the first registered instance — reusing F12 + F04 emitter — not
+   dispatch-first, not UI-direct steal, not a claim-only shortcut.
+5. **Attention / ranking / availability remain non-authoritative** (A1 laws).
 
 ## Consequences
 
 - A2 implementation starts only after intent schema + denial tests land.
-- Steal/dispatch/handoff/worktree attach as later packages on the same bridge.
+- Steal/dispatch/handoff/worktree attach as later packages on the same
+  substrate (register handler; widen schema enum; attack tests).
 - ADR-034 remains binding: Studio crash still ≠ agent task termination;
   Studio process still grants no mutation authority by presence alone.
+- Interface / Mission Control never becomes the source of authority.
 
 ## Honesty
 
 ```text
-PREP != IMPLEMENTED for A2 code
-SCOPE_READY != IMPLEMENTATION_STARTED
+AS_STUDIO_A2_001 = IMPLEMENTED_IN_LANE
+DISPATCH_STEAL_AUTO = NOT_STARTED
 CI_PASS != FORMAL_IV
 MERGE_AUTHORIZATION = NOT_GRANTED by this ADR alone
-STUDIO_MUTATION_AUTHORITY = NONE
+STUDIO_MUTATION_AUTHORITY = NONE (Studio never self-authorizes)
 ```

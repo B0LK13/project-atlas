@@ -14745,3 +14745,53 @@ AS_STUDIO_A1 = NOT_STARTED
 - A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
   governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
 - Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added
+
+## AS-STUDIO-A2-001 — governed OWNERSHIP_CLAIM
+
+- Module: `scripts/atlas_studio/action_intent.py`
+- CLI: claim-candidates/preview/intent/evaluate/execute
+- Schemas: ATLAS_STUDIO_ACTION_{INTENT,PREVIEW,DECISION}_V1
+- Tests: 19 A2 adversarial + A0/A1 regression (59 total)
+- DISPATCH / STEAL_AUTO = NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
+
+
+
+## AS-STUDIO-A2-001 — Governed OWNERSHIP_CLAIM (lane)
+
+- Branch: `feat/as-studio-a2-001` on A1 tip `028157e2…` (#770)
+- Deliverables: intent/preview/decision schemas; `scripts/atlas_studio/action_intent.py`;
+  CLI `claim-candidates|claim-preview|claim-intent|claim-evaluate|claim-execute`;
+  doctor A2 checks; `docs/atlas-3/studio/a2/A2-EVIDENCE.md`
+- Emitter: evaluate-first; wet path uses `atlas_dag.emitter` `OWNER_CLAIMED` only when
+  `EXECUTE_ALLOWED`; dry-run never emits; preview never emits
+- Refusal vocabulary: EXECUTE_ALLOWED/EXECUTED + REFUSED_STALE/ALREADY_OWNED/
+  NOT_RUNNABLE/AGENT_INVALID/CAPABILITY/POLICY/TARGET_MISMATCH/
+  IDEMPOTENT_ALREADY_CLAIMED/SCHEMA
+- Validation: A0 15 + A1 15 + A1-semantic 10 + A2 19 = **59 passed**; ruff PASS;
+  doctor ok
+- Honesty: STUDIO_UI!=AUTHORITY; REQUESTED!=CLAIMED; PREVIEW!=EXECUTION;
+  CONTROL_PLANE_REVALIDATES_AT_EXECUTION; A1 MC does not import action_intent
+- Explicit: **DISPATCH/STEAL_AUTO = NOT_STARTED**; no merge/IV/worktree/PTY;
+  MERGE_AUTHORIZATION=NOT_GRANTED; FORMAL_IV=NOT_STARTED; no commit/push/PR
+
+## AS-STUDIO-A2-001 — review-closure hardening (lane, PR #776)
+
+- Directive: D-CODEX-ATLAS-STUDIO-A2-001-END-TO-END-CLOSURE (executed by the
+  Claude Code implementation session, not by Codex; CODEX_VALIDATED = NO)
+- Baseline: frozen `6ff336cd` (exact-head CI run 34360705782 PASS); freeze
+  lifted only for confirmed A2-001 defects + tests + required docs
+- Reproduced and fixed: `--repo` omission skipped repo pinning → refuse
+  `EXPECTED_REPO_REQUIRED_AT_EXECUTE`, CLI `--repo` required; dead
+  `if True` comprehension removed; `register_action` silent overwrite →
+  `DUPLICATE_REGISTRATION` refusal (`replace=True` explicit); executor
+  exception / invalid return → `EXECUTION_FAILED` + `mutation_state=UNKNOWN`;
+  dry-run label `EXECUTED` → `EXECUTE_ALLOWED` + `dry_run=true`
+- Schema: `EXECUTION_FAILED` added to `ATLAS_STUDIO_ACTION_DECISION_V1` enum;
+  `mutated` / `dry_run` semantics documented
+- Tests: `tests/unit/test_atlas_studio_a2_review_closure.py` (18) + 3 existing
+  assertions updated; A1 `mission_control.py` untouched, still free of
+  governance/action_intent imports
+- Not changed: dispatch/IV/handoff/steal/merge/worktree intents (still
+  NOT_STARTED); A0/A1 modules; no force-push; no merge; no self-IV
+- Review threads: replied with fix pointers; resolution left to human reviewer
+- FORMAL_IV = PENDING on the new exact head; MERGE_AUTHORIZATION = NOT_GRANTED

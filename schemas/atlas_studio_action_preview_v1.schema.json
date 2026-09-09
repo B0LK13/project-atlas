@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_ACTION_PREVIEW_V1",
+  "description": "AS-STUDIO-A2-001 ownership-claim preview/why/impact (presentation only). PREVIEW!=EXECUTION; never mutates.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "action_type",
+    "preview_status",
+    "agent_id",
+    "target_lane",
+    "target_pr",
+    "why",
+    "impact",
+    "blockers",
+    "honesty",
+    "source_mc_fingerprint"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_ACTION_PREVIEW_V1"
+    },
+    "action_type": {
+      "const": "OWNERSHIP_CLAIM"
+    },
+    "preview_status": {
+      "type": "string",
+      "enum": [
+        "CANDIDATE_ELIGIBLE",
+        "CANDIDATE_INELIGIBLE",
+        "CANDIDATE_ABSENT",
+        "UNKNOWN"
+      ]
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "target_lane": {
+      "type": "string"
+    },
+    "target_pr": {
+      "type": "integer"
+    },
+    "target_head": {
+      "type": ["string", "null"]
+    },
+    "candidate_action_id": {
+      "type": ["string", "null"]
+    },
+    "runnable_state": {
+      "type": ["string", "null"]
+    },
+    "agent_eligible": {
+      "type": ["boolean", "null"]
+    },
+    "ownership": {
+      "type": ["string", "null"]
+    },
+    "owner": {
+      "type": ["string", "null"]
+    },
+    "why": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "impact": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_mc_fingerprint": {
+      "type": ["string", "null"]
+    },
+    "source_frontier_fingerprint": {
+      "type": ["string", "null"]
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "preview_ne_execution",
+        "requested_ne_claimed",
+        "studio_ui_ne_authority",
+        "attention_ne_authorization"
+      ],
+      "properties": {
+        "preview_ne_execution": { "const": true },
+        "requested_ne_claimed": { "const": true },
+        "studio_ui_ne_authority": { "const": true },
+        "attention_ne_authorization": { "const": true },
+        "grants_no_mutation": { "const": true }
+      }
+    }
+  }
+}

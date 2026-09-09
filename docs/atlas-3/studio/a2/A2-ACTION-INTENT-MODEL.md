@@ -13,7 +13,7 @@ a receipt of execution and not a grant of authority.
 
 ## Proposed schema const
 
-`ATLAS_STUDIO_ACTION_INTENT_V1` (sketch only — **not implemented**).
+`ATLAS_STUDIO_ACTION_INTENT_V1` — **implemented** (`schemas/atlas_studio_action_intent_v1.schema.json`).
 
 ## Fields
 
