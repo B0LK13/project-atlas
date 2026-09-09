@@ -5,18 +5,20 @@ This is a development bridge, not an Atlas daemon or authority surface. It
 imports the typed A1 builder directly; it never parses CLI text, accepts no
 mutation methods, and exposes no UI-controlled process or filesystem input.
 """
+
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import select
 import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
-import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -44,8 +46,9 @@ ALLOWED_ORIGINS = frozenset(
 
 def run_worker(command, *, timeout=20, cancelled=lambda: False):
     """Own the worker and its gh descendants; reap them on timeout/disconnect."""
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               text=True, start_new_session=True)
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True
+    )
     deadline = time.monotonic() + timeout
     try:
         while True:
@@ -54,32 +57,51 @@ def run_worker(command, *, timeout=20, cancelled=lambda: False):
             if time.monotonic() >= deadline:
                 raise RuntimeError("PROJECTION_DEADLINE")
             try:
-                out, diagnostic = process.communicate(timeout=max(.001, min(.1, deadline-time.monotonic())))
+                out, diagnostic = process.communicate(
+                    timeout=max(0.001, min(0.1, deadline - time.monotonic()))
+                )
                 # Worker emits only stage names/counts/durations, never gh stderr.
                 if diagnostic:
                     try:
                         report = json.loads(diagnostic)
-                        print(json.dumps({"projection_timing": report}), file=sys.stderr, flush=True)
+                        print(
+                            json.dumps({"projection_timing": report}), file=sys.stderr, flush=True
+                        )
                     except ValueError:
                         pass
                 packet = json.loads(out)
                 if process.returncode:
-                    raise RuntimeError("PROJECTION_UPSTREAM_UNAVAILABLE")
+                    allowed = {
+                        "PROJECTION_FAILED_AUTHENTICATION",
+                        "PROJECTION_FAILED_UPSTREAM_READS",
+                        "PROJECTION_FAILED_PROJECTION_CONSTRUCTION",
+                    }
+                    code = packet.get("error") if isinstance(packet, dict) else None
+                    raise RuntimeError(
+                        code if code in allowed else "PROJECTION_UPSTREAM_UNAVAILABLE"
+                    )
                 return packet
             except subprocess.TimeoutExpired:
                 continue
     finally:
         if process.poll() is None:
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
             process.communicate()
 
 
-def build_current_projection(repository: str, agent_id: str | None, cancelled=lambda: False) -> dict[str, Any]:
-    packet = run_worker([sys.executable, str(Path(__file__).with_name("projection_worker.py")),
-                         repository, agent_id or ""], cancelled=cancelled)
+def build_current_projection(
+    repository: str, agent_id: str | None, cancelled=lambda: False
+) -> dict[str, Any]:
+    packet = run_worker(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("projection_worker.py")),
+            repository,
+            agent_id or "",
+        ],
+        cancelled=cancelled,
+    )
     if validate_mission_control(packet):
         raise RuntimeError("A1_SCHEMA_VALIDATION_FAILED")
     return packet
@@ -144,10 +166,14 @@ class ReadOnlyStudioHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.NOT_FOUND, {"schema": SCHEMA, "status": "UNKNOWN"})
             return
         if not self.config.slots.acquire(blocking=False):
-            self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"status": "BUSY", "fixture_served": False})
+            self._send_json(
+                HTTPStatus.TOO_MANY_REQUESTS, {"status": "BUSY", "fixture_served": False}
+            )
             return
         try:
-            packet = build_current_projection(self.config.repository, self.config.agent_id, self._disconnected)
+            packet = build_current_projection(
+                self.config.repository, self.config.agent_id, self._disconnected
+            )
         except (RuntimeError, ValueError, OSError) as exc:
             if self._disconnected():
                 return
@@ -156,7 +182,9 @@ class ReadOnlyStudioHandler(BaseHTTPRequestHandler):
                 {
                     "schema": SCHEMA,
                     "status": "OFFLINE",
-                    "reason": str(exc) if isinstance(exc, RuntimeError) else "PROJECTION_UNAVAILABLE",
+                    "reason": str(exc)
+                    if isinstance(exc, RuntimeError)
+                    else "PROJECTION_UNAVAILABLE",
                     "unknown_ne_healthy": True,
                     "fixture_served": False,
                 },
