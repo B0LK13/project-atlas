@@ -139,7 +139,18 @@ def _is_the_mutating_instrument(path: pathlib.Path) -> bool:
     Neither rule is a superset of the other, so the guard takes **both**. A
     false fuse costs nothing: nothing in this suite legitimately loads a file
     named like the mutating instrument, and if one ever does, fusing it is the
-    safe direction.
+    safe direction. Recorded so it is not rediscovered as a surprise: a future
+    fixture named ``f8_near_miss_controls.py`` with harmless content, loaded
+    through :func:`_load_from` and then called, will raise.
+
+    **What the union still does not reach**, since a table showing only the two
+    columns each single rule missed reads as though the pair covers everything:
+    a copy that changes **both** -- a different name *and* edited content --
+    matches neither half and loads unfused. Measured. The static layer misses
+    that source shape too, so it is the intersection of both layers' residues,
+    it has been open in every revision of this guard, and it is not closed here.
+    Nothing plausible produces it by accident, which is the argument for leaving
+    it rather than an argument that it is absent.
     """
     if path.name == _MUTATING:
         return True
