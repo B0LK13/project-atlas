@@ -30,6 +30,77 @@ export type WorkflowState =
   | "SEALED"
   | "UNKNOWN";
 
+export type HonestyBlock = Record<string, true>;
+
+export interface NestedOperationalProjection {
+  schema: string;
+  honesty: HonestyBlock;
+  [key: string]: unknown;
+}
+
+export interface ControlViewProjection extends NestedOperationalProjection {
+  schema: "ATLAS_GLOBAL_CONTROL_VIEW_V1";
+  view_fingerprint: string;
+  panels: Record<string, Record<string, unknown>>;
+}
+
+export interface TelemetryProjection extends NestedOperationalProjection {
+  schema: "ATLAS_COORDINATION_TELEMETRY_V1";
+  truth_fingerprint: string;
+  telemetry_fingerprint: string;
+  categories: Record<string, Record<string, unknown>>;
+}
+
+export interface EfficiencyMetricsProjection extends NestedOperationalProjection {
+  schema: "ATLAS_EFFICIENCY_METRICS_V1";
+  source_telemetry_fingerprint: string;
+  summary: Record<string, number | null>;
+}
+
+export interface StudioPanel<TBody = Record<string, unknown>> {
+  status: "OK" | "DEGRADED" | "UNKNOWN";
+  notes: string[];
+  body?: TBody | null;
+}
+
+export interface StudioObservationEvent {
+  schema: "ATLAS_STUDIO_EVENT_V1";
+  event_id: string;
+  timestamp_utc: string;
+  kind: "OBSERVATION" | "SLICE_STATUS" | "PANEL_STATUS";
+  honesty: HonestyBlock;
+  payload: Record<string, unknown>;
+  panel?: string | null;
+  message?: string;
+  [key: string]: unknown;
+}
+
+export interface StudioSnapshot {
+  schema: "ATLAS_STUDIO_SNAPSHOT_V1";
+  generated_at_utc: string;
+  repository: string;
+  agent?: string | null;
+  agent_status?: string;
+  slice_status: "OK" | "DEGRADED" | "UNKNOWN";
+  snapshot_fingerprint: string;
+  honesty: HonestyBlock;
+  panels: {
+    control_view: StudioPanel<ControlViewProjection>;
+    telemetry: StudioPanel<TelemetryProjection>;
+    efficiency_metrics: StudioPanel<EfficiencyMetricsProjection>;
+    residuals: StudioPanel<Record<string, unknown>>;
+  };
+  observation_events?: StudioObservationEvent[];
+  provenance: {
+    generator: string;
+    presentation_only: true;
+    truth_sources?: string[];
+    notes?: string[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface MissionControlView {
   status: ViewStatus;
   notes: string[];
@@ -47,6 +118,7 @@ export interface AttentionItem {
   detail?: string;
   attention_ne_authorization: true;
   references?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
 }
 
 export interface MissionControlProjection {
@@ -73,11 +145,13 @@ export interface MissionControlProjection {
     state: FreshnessState;
     notes?: string[];
   };
-  honesty: Record<string, boolean>;
+  honesty: HonestyBlock;
   views: Record<string, MissionControlView>;
   attention: AttentionItem[];
-  studio_snapshot: Record<string, unknown>;
-  observation_events?: Array<Record<string, unknown>>;
+  // Fixture/unavailable envelopes intentionally carry non-operational placeholders.
+  // The adapter narrows live packets to StudioSnapshot after schema validation.
+  studio_snapshot: StudioSnapshot | Record<string, unknown>;
+  observation_events?: StudioObservationEvent[];
   provenance: {
     generator: string;
     presentation_only: true;
@@ -190,6 +264,12 @@ export interface StudioEnvelope {
     label: string;
     detail: string;
     current: boolean;
+    localFreshness?: {
+      state: FreshnessState;
+      ageSeconds: number | null;
+      checkedAtUtc: string;
+      label: "LOCAL AGE CHECK";
+    };
   };
   projection: MissionControlProjection;
   preview?: StudioPreviewCatalog;

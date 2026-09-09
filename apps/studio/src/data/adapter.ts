@@ -1,86 +1,217 @@
-import type { MissionControlProjection, StudioEnvelope } from "../types";
+import Ajv2020, { type ValidateFunction } from "ajv/dist/2020.js";
+import missionControlSchema from "../../../../schemas/atlas_studio_mission_control_v1.schema.json";
+import studioSnapshotSchema from "../../../../schemas/atlas_studio_snapshot_v1.schema.json";
+import studioEventSchema from "../../../../schemas/atlas_studio_event_v1.schema.json";
+import controlViewSchema from "../../../../schemas/atlas_global_control_view_v1.schema.json";
+import telemetrySchema from "../../../../schemas/atlas_coordination_telemetry_v1.schema.json";
+import efficiencyMetricsSchema from "../../../../schemas/atlas_efficiency_metrics_v1.schema.json";
+import type {
+  FreshnessState,
+  MissionControlProjection,
+  StudioEnvelope,
+  StudioSnapshot,
+} from "../types";
 export { unavailableEnvelope } from "./unavailable";
 
 export const BRIDGE_URL =
   import.meta.env.VITE_ATLAS_STUDIO_BRIDGE_URL ?? "http://127.0.0.1:47631/v1/mission-control";
 
-const REQUIRED_HONESTY = [
-  "studio_ui_ne_authority",
-  "ui_state_is_projection",
-  "grants_no_mutation",
-  "no_cli_text_parsing_as_protocol",
-  "attention_ne_authorization",
-  "stale_ne_current",
-  "unknown_ne_healthy",
-  "nested_honesty_fail_closed",
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+const validateMissionControl = ajv.compile(missionControlSchema);
+const validateStudioSnapshot = ajv.compile(studioSnapshotSchema);
+const validateStudioEvent = ajv.compile(studioEventSchema);
+const validateControlView = ajv.compile(controlViewSchema);
+const validateTelemetry = ajv.compile(telemetrySchema);
+const validateEfficiencyMetrics = ajv.compile(efficiencyMetricsSchema);
+
+const ATTENTION_AUTHORITY_KEYS = [
+  "authorized",
+  "permitted",
+  "executable",
+  "authorization_granted",
+  "mutation_authorized",
 ] as const;
 
 export class ProjectionContractError extends Error {}
 
-export function assertHonestProjection(value: unknown): asserts value is MissionControlProjection {
-  if (!value || typeof value !== "object") {
-    throw new ProjectionContractError("Projection payload is not an object");
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function validationMessage(label: string, validate: ValidateFunction): string {
+  const details = (validate.errors ?? [])
+    .slice(0, 5)
+    .map((error) => `${error.instancePath || "<root>"} ${error.message ?? "is invalid"}`)
+    .join("; ");
+  return `${label} contract failed: ${details}`;
+}
+
+function assertSchema(label: string, validate: ValidateFunction, value: unknown): void {
+  if (validate(value)) return;
+  const message = validationMessage(label, validate);
+  if (label === "A1" && validate.errors?.some((error) => error.instancePath.startsWith("/views/"))) {
+    throw new ProjectionContractError(`Malformed projection view: ${message}`);
   }
-  const packet = value as Partial<MissionControlProjection>;
-  if (packet.schema !== "ATLAS_STUDIO_MISSION_CONTROL_V1") {
-    throw new ProjectionContractError("Unsupported or missing projection schema");
-  }
-  if (!packet.honesty || REQUIRED_HONESTY.some((key) => packet.honesty?.[key] !== true)) {
-    throw new ProjectionContractError("Projection honesty contract failed closed");
-  }
-  if (!packet.freshness || !["LIVE", "STALE", "OFFLINE", "UNKNOWN"].includes(packet.freshness.state)) {
-    throw new ProjectionContractError("Projection freshness is missing or invalid");
-  }
-  if (!packet.views || !Array.isArray(packet.attention)) {
-    throw new ProjectionContractError("Projection views are incomplete");
-  }
-  if (typeof packet.repository !== "string" || typeof packet.generated_at_utc !== "string"
-      || typeof packet.snapshot_fingerprint !== "string"
-      || !packet.provenance || typeof packet.provenance.generator !== "string"
-      || packet.provenance.presentation_only !== true
-      || !["HEALTHY", "DEGRADED", "UNKNOWN", "STALE", "OFFLINE", "BLOCKED", "HUMAN_ATTENTION_REQUIRED"].includes(packet.mission_status ?? "")) {
-    throw new ProjectionContractError("Projection identity or provenance is invalid");
-  }
-  for (const view of Object.values(packet.views)) {
-    if (!view || typeof view !== "object" || !Array.isArray(view.notes)
-        || view.notes.some(note => typeof note !== "string")
-        || !["OK", "DEGRADED", "UNKNOWN", "BLOCKED", "STALE", "OFFLINE"].includes(view.status)
-        || (view.summary != null && (typeof view.summary !== "object" || Array.isArray(view.summary)))) {
-      throw new ProjectionContractError("Malformed projection view");
-    }
-  }
-  for (const item of packet.attention) {
-    if (!item || typeof item.attention_id !== "string" || typeof item.title !== "string"
-        || typeof item.kind !== "string" || typeof item.tier !== "number"
-        || (item.detail != null && typeof item.detail !== "string")
-        || item.attention_ne_authorization !== true
-        || ["authorized", "permitted", "executable", "authorization_granted", "mutation_authorized"]
-          .some(key => (item as unknown as Record<string, unknown>)[key] === true)) {
-      throw new ProjectionContractError("Malformed or authority-bearing attention");
-    }
-  }
-  if (packet.mission_status === "HEALTHY" && (packet.freshness.state !== "LIVE"
-      || Object.values(packet.views).some(view => view.status === "UNKNOWN"))) {
-    throw new ProjectionContractError("Unknown or stale projection cannot be healthy");
+  throw new ProjectionContractError(message);
+}
+
+function assertHonesty(label: string, value: unknown): void {
+  if (!isRecord(value) || Object.values(value).some((flag) => flag !== true)) {
+    throw new ProjectionContractError(`${label} honesty contract failed closed`);
   }
 }
 
-export function envelopeFromProjection(packet: MissionControlProjection): StudioEnvelope {
-  const current = packet.freshness.state === "LIVE";
+function assertNestedBody(
+  label: string,
+  value: unknown,
+  schema: string,
+  validate: ValidateFunction,
+): void {
+  if (!isRecord(value) || value.schema !== schema) {
+    throw new ProjectionContractError(`${label} uses an unsupported or malformed schema`);
+  }
+  assertSchema(label, validate, value);
+  assertHonesty(label, value.honesty);
+}
+
+function parseUtcMillis(value: string): number | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(raw)
+    ? `${raw}Z`
+    : raw;
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function assertEmbeddedSnapshot(packet: MissionControlProjection): void {
+  const snapshot = packet.studio_snapshot as StudioSnapshot;
+  assertSchema("embedded A0 snapshot", validateStudioSnapshot, snapshot);
+  assertHonesty("embedded A0 snapshot", snapshot.honesty);
+
+  const { control_view: controlView, telemetry, efficiency_metrics: metrics } = snapshot.panels;
+  if (controlView.body != null) {
+    assertNestedBody(
+      "embedded A0 control_view",
+      controlView.body,
+      "ATLAS_GLOBAL_CONTROL_VIEW_V1",
+      validateControlView,
+    );
+  }
+  if (telemetry.body != null) {
+    assertNestedBody(
+      "embedded A0 telemetry",
+      telemetry.body,
+      "ATLAS_COORDINATION_TELEMETRY_V1",
+      validateTelemetry,
+    );
+  }
+  if (metrics.body != null) {
+    assertNestedBody(
+      "embedded A0 efficiency_metrics",
+      metrics.body,
+      "ATLAS_EFFICIENCY_METRICS_V1",
+      validateEfficiencyMetrics,
+    );
+  }
+
+  for (const event of snapshot.observation_events ?? []) {
+    assertSchema("embedded A0 observation event", validateStudioEvent, event);
+    assertHonesty("embedded A0 observation event", event.honesty);
+  }
+
+  if (snapshot.slice_status === "OK") {
+    for (const [name, panel] of Object.entries(snapshot.panels)) {
+      if (panel.status === "DEGRADED" || panel.status === "UNKNOWN") {
+        throw new ProjectionContractError(
+          `embedded A0 slice_status cannot be OK while panels/${name}/status=${panel.status}`,
+        );
+      }
+    }
+  }
+}
+
+export function assertHonestProjection(value: unknown): asserts value is MissionControlProjection {
+  assertSchema("A1", validateMissionControl, value);
+  const packet = value as MissionControlProjection;
+  assertHonesty("A1", packet.honesty);
+  assertEmbeddedSnapshot(packet);
+
+  for (const event of packet.observation_events ?? []) {
+    assertSchema("A1 observation event", validateStudioEvent, event);
+    assertHonesty("A1 observation event", event.honesty);
+  }
+  for (const [index, item] of packet.attention.entries()) {
+    if (ATTENTION_AUTHORITY_KEYS.some((key) => item[key] === true)) {
+      throw new ProjectionContractError(`A1 attention/${index} carries forbidden authority`);
+    }
+  }
+
+  if (packet.freshness.state === "LIVE" && parseUtcMillis(packet.freshness.generated_at_utc) === null) {
+    throw new ProjectionContractError("A1 LIVE freshness timestamp is invalid");
+  }
+  if (packet.mission_status === "HEALTHY") {
+    if (packet.freshness.state !== "LIVE") {
+      throw new ProjectionContractError("A1 mission_status HEALTHY requires freshness.state=LIVE");
+    }
+    for (const name of ["postmerge_seal", "evidence"] as const) {
+      if (packet.views[name].status === "UNKNOWN") {
+        throw new ProjectionContractError(
+          `A1 mission_status cannot be HEALTHY while views/${name}=UNKNOWN`,
+        );
+      }
+    }
+    if (packet.views.frontier.notes.includes("AGENT_MATRIX_MISMATCH")) {
+      throw new ProjectionContractError("A1 mission_status cannot be HEALTHY under AGENT_MATRIX_MISMATCH");
+    }
+  }
+}
+
+function localFreshness(
+  packet: MissionControlProjection,
+  localNowMs: number,
+): NonNullable<StudioEnvelope["source"]["localFreshness"]> {
+  const generatedMs = parseUtcMillis(packet.freshness.generated_at_utc);
+  const ageSeconds = generatedMs === null
+    ? null
+    : Math.round(Math.max(0, (localNowMs - generatedMs) / 1_000) * 1_000) / 1_000;
+  let state: FreshnessState = packet.freshness.state;
+  if (state === "LIVE" && (ageSeconds === null || ageSeconds > packet.freshness.max_age_seconds)) {
+    state = ageSeconds === null ? "UNKNOWN" : "STALE";
+  }
+  return {
+    state,
+    ageSeconds,
+    checkedAtUtc: new Date(localNowMs).toISOString(),
+    label: "LOCAL AGE CHECK",
+  };
+}
+
+export function envelopeFromProjection(
+  packet: MissionControlProjection,
+  localNowMs = Date.now(),
+): StudioEnvelope {
+  const local = localFreshness(packet, localNowMs);
+  const current = packet.freshness.state === "LIVE" && local.state === "LIVE";
+  const effectiveState = current ? "CURRENT" : local.state;
   return {
     source: {
       kind: "PROJECTION",
-      label: current ? "CURRENT READ-ONLY PROJECTION" : `${packet.freshness.state} READ-ONLY PROJECTION`,
+      label: `${effectiveState} READ-ONLY PROJECTION · LOCAL AGE CHECK`,
       detail: current
-        ? "Rebuilt from the Atlas A1 typed projection. This view grants no authority."
-        : "Projection data is not current; UNKNOWN and STALE are never promoted to healthy.",
+        ? `Source generated ${packet.freshness.generated_at_utc}; local age ${local.ageSeconds ?? "unknown"}s. This view grants no authority.`
+        : "Projection data is not current; UNKNOWN and STALE are never promoted to healthy. Age is checked locally from the source-supplied timestamp.",
       current,
+      localFreshness: local,
     },
     projection: packet,
   };
 }
 
-export async function loadProjection(signal?: AbortSignal): Promise<StudioEnvelope> {
+export async function loadProjection(
+  signal?: AbortSignal,
+  localNowMs?: number,
+): Promise<StudioEnvelope> {
   const response = await fetch(BRIDGE_URL, {
     method: "GET",
     headers: { Accept: "application/json" },
@@ -92,5 +223,5 @@ export async function loadProjection(signal?: AbortSignal): Promise<StudioEnvelo
   }
   const packet: unknown = await response.json();
   assertHonestProjection(packet);
-  return envelopeFromProjection(packet);
+  return envelopeFromProjection(packet, localNowMs ?? Date.now());
 }
