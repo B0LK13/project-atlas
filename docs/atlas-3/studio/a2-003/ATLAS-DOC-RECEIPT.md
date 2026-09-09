@@ -19,6 +19,9 @@ out_of_tree_evidence:
   - ~/Projects/atlas-handoffs/INTEGRATION-SEQUENCE-AND-OWNER-ACTIONS.md
   - ~/Projects/atlas-handoffs/OWNER-DECISION-PACKET-2026-09-09.md
   - ~/Projects/atlas-handoffs/ATLAS-REMAINING-WORK-MAP-2026-09-09.md
+  - ~/Projects/atlas-handoffs/CORRECTIONS-AND-DEPENDENCY-BOUNDARIES.md
+  - ~/Projects/atlas-handoffs/INTEGRATION-SEQUENCE-AND-OWNER-ACTIONS.md
+  - ~/Projects/atlas-handoffs/atlas-integration-rehearse.sh  (executable rehearsal, runs the repo's own gates)
 validation:
   studio_suite: 148 passed
   package_tests: 47
@@ -33,7 +36,8 @@ validation:
     - head: 924a4f88, run: 34386646378, conclusion: success
     - head: e0f50f69, run: 34390138198, conclusion: success
     - head: 2f89b26e, run: 34394357024, conclusion: success
-    - head: 19aa31b6, run: pending at receipt time (parent-merge successor)
+    - head: 19aa31b6, run: superseded (cancelled by the next push)
+    - head: 054ca32c, run: 34399234573, conclusion: success
 sync_state: not_run
 blockers:
   - "Vault/mda-cli normalization NOT run; this receipt covers raw in-repo docs only and claims no vault sync"
