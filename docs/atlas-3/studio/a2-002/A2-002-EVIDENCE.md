@@ -38,12 +38,14 @@ PYTHONPATH=scripts .venv/bin/python scripts/atlas-studio.py doctor --json
 
 ```text
 IMPLEMENTATION_HEAD                = c8ae7c1e6b177bdb11202e6a00c6b5cb2d96fa8d
-BRANCH_TIP                         = 62da717a0728cfabe8e139005efe7d05510cb5a2
-BRANCH_TREE                        = 426c15cbe1bd6ebb53388a84358c335a51eafad6
+BRANCH_TIP                         = cd4523fc588ac941b13ad75731624039e572ba71
+BRANCH_TREE                        = 4226ac274a86ea7ee702c6c1c422eef06934f3b0
 NOTE                               = docs-only commits after IMPLEMENTATION_HEAD
                                      do not change runtime behavior; validate at BRANCH_TIP
 STUDIO_SUITE                       = 101 passed (at implementation + docs tip)
 DOCTOR                             = ok (a2_002_* PASS)
+CI_EXACT_HEAD                      = 34384775782 SUCCESS on cd4523fc
+CI_URL                             = https://github.com/B0LK13/project-atlas/actions/runs/34384775782
 ```
 
 ## Demonstrated paths
@@ -65,7 +67,7 @@ DOCTOR                             = ok (a2_002_* PASS)
 
 ```text
 FORMAL_IV                          = NOT_STARTED
-CI_EXACT_HEAD                      = PENDING_AFTER_PUSH
+CI_EXACT_HEAD                      = 34384775782 SUCCESS (cd4523fc)
 UI_BROWSER_VALIDATION              = NOT_APPLICABLE (CLI-first; no UI change in apps/web)
 MERGE_AUTHORIZATION                = NOT_GRANTED
 A2_001_CERTIFICATION_REUSED        = NO
