@@ -59,7 +59,9 @@ class ScriptedRunner:
             "HEAD^{tree}": f"{HTREE}\n",
             "origin/main^{commit}": f"{BASE}\n",
             "origin/main^{tree}": f"{BTREE}\n",
-            "--get": "https://github.com/B0LK13/project-atlas.git\n",
+            "--get-all": "https://github.com/B0LK13/project-atlas.git\0",
+            "--get-regexp": CommandResult(returncode=1, stdout=""),
+            "ls-files": "",
         }
         self.answers.update(overrides)
 
@@ -107,11 +109,16 @@ def observe(repo: Path, runner: ScriptedRunner | None = None, **kw: Any) -> Any:
 # ------------------------------------------------------------------ runner
 
 
-def test_child_env_disables_global_and_system_git_config() -> None:
-    import os
-
-    env = build_child_env({"PATH": "/usr/bin", "HOME": "/h"})
-    assert env["GIT_CONFIG_GLOBAL"] == os.devnull and env["GIT_CONFIG_NOSYSTEM"] == "1"
+def test_child_env_pins_fsmonitor_off_and_reads_git_config_as_git_does() -> None:
+    env = build_child_env({"PATH": "/usr/bin", "HOME": "/h", "GIT_CONFIG_COUNT": "7"})
+    # environment-level config overrides every file level, so no repo-local or
+    # global core.fsmonitor command can run under `git status`
+    assert env["GIT_CONFIG_COUNT"] == "1"
+    assert env["GIT_CONFIG_KEY_0"] == "core.fsmonitor" and env["GIT_CONFIG_VALUE_0"] == "false"
+    # content configuration (core.autocrlf, core.symlinks, safe.directory) is
+    # git's own view of the checkout and is NOT bypassed (round-3 lesson:
+    # bypassing it made honest Windows checkouts observe as dirty)
+    assert "GIT_CONFIG_GLOBAL" not in env and "GIT_CONFIG_NOSYSTEM" not in env
 
 
 def test_child_env_is_constructed_not_inherited() -> None:
@@ -131,8 +138,9 @@ def test_child_env_is_constructed_not_inherited() -> None:
     allowed = {
         "GIT_TERMINAL_PROMPT",
         "GIT_OPTIONAL_LOCKS",
-        "GIT_CONFIG_GLOBAL",
-        "GIT_CONFIG_NOSYSTEM",
+        "GIT_CONFIG_COUNT",
+        "GIT_CONFIG_KEY_0",
+        "GIT_CONFIG_VALUE_0",
     }
     assert not any(key.startswith("GIT_") and key not in allowed for key in env)
     assert "AWS_SECRET_ACCESS_KEY" not in env and "BAD" not in env
@@ -179,13 +187,17 @@ def test_git_observation_happy_path_records_methods_not_urls(repo: Path) -> None
     argv_flat = [part for call in runner.calls for part in call]
     assert "--end-of-options" in argv_flat and "--no-optional-locks" in argv_flat
     assert not any(part.startswith("--force") for part in argv_flat)
-    # the remote is read raw (config --get), never through `remote get-url`
-    assert [part for call in runner.calls if "config" in call for part in call[3:]] == [
-        "config",
-        "--get",
-        "remote.origin.url",
-    ]
-    assert "get-url" not in argv_flat
+    # the remote is read raw (config --get-all), never through `remote get-url`
+    config_calls = [call[3:] for call in runner.calls if "config" in call]
+    assert config_calls[-1] == ["config", "-z", "--get-all", "remote.origin.url"]
+    assert "get-url" not in argv_flat and "--get" not in argv_flat
+    # no command that could execute repository-configured code runs before the
+    # content-filter scan, and submodule work trees are not observed
+    status_call = next(call for call in runner.calls if "status" in call)
+    assert "--ignore-submodules=dirty" in status_call
+    assert runner.calls.index(next(c for c in runner.calls if "--get-regexp" in c)) < (
+        runner.calls.index(status_call)
+    )
 
 
 def test_dirty_worktree_refuses_before_any_pin_is_read(repo: Path) -> None:
@@ -290,11 +302,61 @@ def test_remote_urls_with_userinfo_or_junk_are_refused_without_echo(url: str) ->
 
 def test_secret_shaped_remote_url_never_reaches_an_error_or_a_receipt(repo: Path) -> None:
     secret_url = "https://AKIAIOSFODNN7EXAMPLE@github.com/b0lk13/project-atlas.git\n"
-    runner = ScriptedRunner(repo, **{"--get": secret_url})
+    runner = ScriptedRunner(repo, **{"--get-all": secret_url})
     with pytest.raises(ObservationError) as excinfo:
         observe(repo, runner)
     assert excinfo.value.code == "REPO_IDENTITY_UNVERIFIABLE"
     assert "AKIA" not in str(excinfo.value)
+
+
+def test_multi_valued_remote_url_is_ambiguous_not_last_wins(repo: Path) -> None:
+    # `git config --get` returns the LAST value; a fetch contacts the FIRST.
+    two = "https://github.com/B0LK13/project-atlas.git\0https://evil.example/x/y\0"
+    runner = ScriptedRunner(repo, **{"--get-all": two})
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, runner)
+    assert excinfo.value.code == "REMOTE_URL_AMBIGUOUS"
+    assert "evil" not in str(excinfo.value)
+    empty = ScriptedRunner(repo, **{"--get-all": ""})
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, empty)
+    assert excinfo.value.code == "REPO_IDENTITY_UNVERIFIABLE"
+
+
+def test_bound_content_filter_is_refused_before_status_runs(repo: Path) -> None:
+    drivers = "filter.lfs.clean\ngit-lfs clean -- %f\0filter.lfs.process\ngit-lfs filter-process\0"
+    runner = ScriptedRunner(repo, **{"--get-regexp": drivers, "ls-files": "assets/big.bin\0"})
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, runner)
+    assert excinfo.value.code == "REPO_CONTENT_FILTERS_CONFIGURED"
+    assert "big.bin" not in str(excinfo.value) and "git-lfs" not in str(excinfo.value)
+    assert not any("status" in call for call in runner.calls)
+    scan = next(call for call in runner.calls if "ls-files" in call)
+    assert scan[-1] == ":(attr:filter=lfs)" and "--others" in scan and "--cached" in scan
+    # drivers configured (git-lfs installed globally) but bound to nothing: fine
+    unbound = ScriptedRunner(repo, **{"--get-regexp": drivers})
+    obs = observe(repo, unbound)
+    assert obs.identity.source.candidate_head == HEAD
+    assert any("attr filter=lfs" in ref for ref in obs.receipt.observed.source.method_refs)
+
+
+def test_filter_driver_scan_is_bounded_and_fails_closed(repo: Path) -> None:
+    weird = "filter.we ird).clean\nsh -c evil\0"
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, ScriptedRunner(repo, **{"--get-regexp": weird}))
+    assert excinfo.value.code == "REPO_CONFIG_UNSCANNABLE"
+    assert "evil" not in str(excinfo.value)
+    many = "".join(f"filter.d{i}.clean\ncat\0" for i in range(17))
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, ScriptedRunner(repo, **{"--get-regexp": many}))
+    assert excinfo.value.code == "REPO_CONFIG_UNSCANNABLE"
+    broken = ScriptedRunner(repo, **{"--get-regexp": CommandResult(returncode=2, stdout="")})
+    with pytest.raises(ObservationError) as excinfo:
+        observe(repo, broken)
+    assert excinfo.value.code == "REPO_CONFIG_UNSCANNABLE"
+    # `required`-only keys name no executable and are ignored
+    harmless = ScriptedRunner(repo, **{"--get-regexp": "filter.lfs.required\ntrue\0"})
+    assert observe(repo, harmless).identity.source.candidate_head == HEAD
 
 
 # ------------------------------------------------------------------ host

@@ -51,10 +51,10 @@ CONTROLS = {
    "    kind: Literal[\"tool\"]", "    kind: Literal[\"tool\", \"model\", \"agent\", \"human\", \"ci\"]"),
  "OC-T unsafe project id accepted": ("src/project_atlas/execution_observation/observe.py",
    "        pid = safe_relative_component(project_id, label=\"project id\")", "        pid = project_id"),
- "OC-U global git config not disabled": ("src/project_atlas/execution_observation/runner.py",
-   "    \"GIT_CONFIG_GLOBAL\": os.devnull,\n    \"GIT_CONFIG_NOSYSTEM\": \"1\",\n", ""),
+ "OC-U core.fsmonitor pin dropped (repo/global hook command would run)": ("src/project_atlas/execution_observation/runner.py",
+   "    \"GIT_CONFIG_COUNT\": \"1\",\n    \"GIT_CONFIG_KEY_0\": \"core.fsmonitor\",\n    \"GIT_CONFIG_VALUE_0\": \"false\",\n", ""),
  "OC-V remote read through get-url (insteadOf applied)": ("src/project_atlas/execution_observation/git.py",
-   "        [\"config\", \"--get\", f\"remote.{remote}.url\"],", "        [\"remote\", \"get-url\", remote],"),
+   "        [\"config\", \"-z\", \"--get-all\", f\"remote.{remote}.url\"],", "        [\"remote\", \"get-url\", remote],"),
  "OC-W hostless/local-path remote accepted": ("src/project_atlas/execution_observation/git.py",
    "    if \".\" not in host or not rest or url.lower().startswith(\"file:\") or url.startswith(\"/\"):", "    if False:"),
  "OC-X same-identity different receipt overwritten": ("src/project_atlas/execution_observation/store.py",
@@ -67,6 +67,14 @@ CONTROLS = {
    "    if not isinstance(identity_digest, str) or not _DIGEST_RE.fullmatch(identity_digest):", "    if False:"),
  "OC-AB base-ref length ceiling dropped": ("src/project_atlas/execution_observation/git.py",
    "        or len(base_ref) > MAX_BASE_REF_LENGTH\n", ""),
+ "OC-AC multi-valued remote url accepted (first taken)": ("src/project_atlas/execution_observation/git.py",
+   "    if len(urls) != 1:", "    if not urls:"),
+ "OC-AD bound content filter scan dropped": ("src/project_atlas/execution_observation/git.py",
+   "        if bound:\n            raise ObservationError(\n                \"REPO_CONTENT_FILTERS_CONFIGURED\",", "        if False:\n            raise ObservationError(\n                \"REPO_CONTENT_FILTERS_CONFIGURED\","),
+ "OC-AE submodule work trees observed (nested git status spawned)": ("src/project_atlas/execution_observation/git.py",
+   "            \"--ignore-submodules=dirty\",\n        ],", "        ],"),
+ "OC-AF filter driver name not validated": ("src/project_atlas/execution_observation/git.py",
+   "        if not _FILTER_DRIVER_RE.fullmatch(name):", "        if False:"),
 }
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def failing():

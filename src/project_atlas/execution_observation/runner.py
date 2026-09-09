@@ -46,12 +46,16 @@ FIXED_ENV: Final[dict[str, str]] = {
     "LANG": "C",
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_OPTIONAL_LOCKS": "0",
-    # The operator's global/system git configuration must not shape an
-    # observation (url.<base>.insteadOf rewrites, core.fsmonitor commands,
-    # aliases). HOME still passes through for the platform, but git reads no
-    # config from it.
-    "GIT_CONFIG_GLOBAL": os.devnull,
-    "GIT_CONFIG_NOSYSTEM": "1",
+    # Git reads its configuration files exactly as it would for the operator:
+    # content interpretation (core.autocrlf, core.symlinks, safe.directory,
+    # ...) is part of how git sees a checkout, and bypassing it made honest
+    # Windows checkouts look dirty. What configuration must NOT do is execute
+    # a command or rewrite the identity: core.fsmonitor is pinned off here
+    # (environment config overrides every file level), the remote is read raw
+    # (git.py), and bound content filters are refused before `git status`.
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "core.fsmonitor",
+    "GIT_CONFIG_VALUE_0": "false",
 }
 WINDOWS_EXECUTABLE_SUFFIX: Final[str] = ".exe"
 

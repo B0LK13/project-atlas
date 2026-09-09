@@ -8,17 +8,26 @@ anything:
    would describe the wrong object); a symlinked root is resolved first and
    the resolved path is what is observed — the identity names the real tree;
 3. shallow-ness (recorded, not refused);
-4. ``git status --porcelain`` must be empty — a candidate pair observed on a
+4. no configured content filter (``filter.<driver>.clean|smudge|process``) is
+   bound to any tracked or untracked path — ``git status`` would execute it,
+   and observation never executes repository-configured commands
+   (``core.fsmonitor`` is pinned off through the child environment);
+5. ``git status --porcelain`` must be empty — a candidate pair observed on a
    dirty tree would name an object that did not run
-   (``DIRTY_WORKTREE != VALID_CANDIDATE_OBSERVATION``);
-5. ``HEAD``, ``HEAD^{tree}``, ``<base_ref>``, ``<base_ref>^{tree}`` — each a
+   (``DIRTY_WORKTREE != VALID_CANDIDATE_OBSERVATION``); submodule work trees
+   are not observed (their pinned gitlink commits are);
+6. ``HEAD``, ``HEAD^{tree}``, ``<base_ref>``, ``<base_ref>^{tree}`` — each a
    40-hex lowercase pin, validated with the existing ``require_full_pin``;
-6. the remote URL, normalized with the existing
-   ``normalize_repository_identity`` — the raw URL is never persisted, logged
-   or placed in an error, because it may embed a credential.
+7. the remote URL, read raw (``git config --get-all``; exactly one value, so
+   what is recorded is what a fetch would contact) and normalized with the
+   existing ``normalize_repository_identity`` — the raw URL is never
+   persisted, logged or placed in an error, because it may embed a credential.
 
-Configuration chooses *what* to observe (``base_ref``, ``remote_name``) and
-is recorded in the receipt as configuration; it never supplies a value.
+Git's configuration files are read as git reads them (content interpretation
+is part of the checkout); no configuration can rewrite the identity or run a
+command during observation. Configuration chooses *what* to observe
+(``base_ref``, ``remote_name``) and is recorded in the receipt as
+configuration; it never supplies a value.
 """
 
 from __future__ import annotations
@@ -51,6 +60,11 @@ _VERSION_RE: Final[re.Pattern[str]] = re.compile(
     r"^git version (\d+(?:\.\d+)+(?:[.\-][A-Za-z0-9.\-]+)?)$"
 )
 _BOOL: Final[dict[str, bool]] = {"true": True, "false": False}
+_FILTER_KEY_RE: Final[re.Pattern[str]] = re.compile(
+    r"^filter\.(.+)\.(clean|smudge|process)$", re.DOTALL
+)
+_FILTER_DRIVER_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+MAX_FILTER_DRIVERS: Final[int] = 16
 
 
 @dataclass(frozen=True)
@@ -104,14 +118,16 @@ class _Git:
         self._timeout = timeout
         self.method_refs: list[str] = []
 
-    def run(self, args: Sequence[str], *, ref: str, code: str) -> str:
+    def run(
+        self, args: Sequence[str], *, ref: str, code: str, ok_codes: Sequence[int] = (0,)
+    ) -> str:
         self.method_refs.append(ref)
         result = self._runner.run(
             [self._git, "-C", str(self._root), *args], cwd=self._root, timeout=self._timeout
         )
         if result.timed_out:
             raise ObservationError("GIT_OBSERVATION_TIMEOUT", f"{ref}: timed out")
-        if result.returncode != 0:
+        if result.returncode not in ok_codes:
             raise ObservationError(code, f"{ref}: git exited {result.returncode}")
         return result.stdout.strip()
 
@@ -127,6 +143,54 @@ class _Git:
             raise ObservationError(
                 "PIN_INVALID", f"{ref}: not a 40-char lowercase git SHA"
             ) from exc
+
+
+def _configured_filter_drivers(g: _Git) -> list[str]:
+    """Names of every filter driver git could execute (all config levels)."""
+    listing = g.run(
+        ["config", "-z", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$"],
+        ref="git config --get-regexp filter",
+        code="REPO_CONFIG_UNSCANNABLE",
+        ok_codes=(0, 1),
+    )
+    names: set[str] = set()
+    for entry in listing.split("\0"):
+        if not entry:
+            continue
+        key = entry.split("\n", 1)[0]
+        match = _FILTER_KEY_RE.match(key)
+        if match is None:
+            continue
+        name = match.group(1)
+        if not _FILTER_DRIVER_RE.fullmatch(name):
+            raise ObservationError(
+                "REPO_CONFIG_UNSCANNABLE", "a filter driver name is not an identifier"
+            )
+        names.add(name)
+    if len(names) > MAX_FILTER_DRIVERS:
+        raise ObservationError("REPO_CONFIG_UNSCANNABLE", "too many filter drivers configured")
+    return sorted(names)
+
+
+def _refuse_bound_content_filters(g: _Git) -> None:
+    """Refuse before ``git status`` if any path would run a configured filter.
+
+    Git evaluates the attribute sources itself (every ``.gitattributes``,
+    ``info/attributes``, the global attributes file, macros), tracked and
+    untracked paths alike. Nothing is executed by this check.
+    """
+    for name in _configured_filter_drivers(g):
+        bound = g.run(
+            ["ls-files", "-z", "--cached", "--others", "--", f":(attr:filter={name})"],
+            ref=f"git ls-files --cached --others attr filter={name}",
+            code="GIT_UNOBSERVABLE",
+        )
+        if bound:
+            raise ObservationError(
+                "REPO_CONTENT_FILTERS_CONFIGURED",
+                "a configured content filter is bound to paths in this checkout; "
+                "observation would execute it",
+            )
 
 
 def _resolve_root(repo_root: Path | str) -> Path:
@@ -224,9 +288,17 @@ def observe_git(
         raise ObservationError("GIT_UNOBSERVABLE", "shallow state unobservable")
     shallow = _BOOL[shallow_out]
 
+    _refuse_bound_content_filters(g)
+
     status = g.run(
-        ["--no-optional-locks", "status", "--porcelain", "--untracked-files=all"],
-        ref="git status --porcelain --untracked-files=all",
+        [
+            "--no-optional-locks",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--ignore-submodules=dirty",
+        ],
+        ref="git status --porcelain --untracked-files=all --ignore-submodules=dirty",
         code="GIT_UNOBSERVABLE",
     )
     if status:
@@ -249,12 +321,20 @@ def observe_git(
     # The RAW configured value: `git remote get-url` would apply any
     # url.<base>.insteadOf rewrite (repo-local config is repository state, but
     # the identity must name what is configured, not what a rewrite produces).
-    remote_url = g.run(
-        ["config", "--get", f"remote.{remote}.url"],
-        ref=f"git config --get remote.{remote}.url",
+    # `--get` would return the LAST value of a multi-valued key while a fetch
+    # contacts the FIRST; only an unambiguous single value is recorded.
+    remote_urls = g.run(
+        ["config", "-z", "--get-all", f"remote.{remote}.url"],
+        ref=f"git config --get-all remote.{remote}.url",
         code="REPO_IDENTITY_UNVERIFIABLE",
     )
-    repository = _normalize_remote(remote_url)
+    urls = [value for value in remote_urls.split("\0") if value]
+    if len(urls) != 1:
+        raise ObservationError(
+            "REMOTE_URL_AMBIGUOUS" if urls else "REPO_IDENTITY_UNVERIFIABLE",
+            "remote must have exactly one configured url",
+        )
+    repository = _normalize_remote(urls[0])
 
     return GitObservation(
         repository=repository,

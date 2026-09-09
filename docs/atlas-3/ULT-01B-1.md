@@ -7,9 +7,19 @@ and produces a content-bound `atlas.observation-receipt.v1`. Does not mutate
 certified 2.x surfaces; `src/project_atlas/atlas3/` stays subprocess- and
 clock-free (this package is the only place observation launches a process).
 
-- Observed (git, argv-only, bounded, child env constructed from nothing with
-  the operator's global/system git config disabled; the remote is read raw via
-  `git config --get`, so an `insteadOf` rewrite cannot shape the identity;
+- Observed (git, argv-only, bounded, child env constructed from nothing —
+  no inherited `GIT_*`; git's configuration files are read as git reads them
+  because content interpretation (`core.autocrlf`, `core.symlinks`,
+  `safe.directory`) is part of the checkout, while no configuration can
+  rewrite the identity or execute a command: `core.fsmonitor` is pinned off
+  through environment-level config, the remote is read raw via
+  `git config --get-all` and must be exactly one value (`--get` would report
+  the last url while a fetch contacts the first → `REMOTE_URL_AMBIGUOUS`),
+  and a checkout with any configured content filter bound to a path is
+  refused before `git status` (`REPO_CONTENT_FILTERS_CONFIGURED`; git-lfs
+  checkouts are therefore not observable in this slice); submodule work
+  trees are not observed (`--ignore-submodules=dirty`; a moved gitlink is
+  dirty, a dirty submodule work tree is not part of the observed object);
   local-path/hostless remotes refused; a symlinked root is resolved and the
   real tree is what is observed):
   repository identity (remote URL normalized, never persisted), base head +

@@ -32,12 +32,23 @@ _ENV = {
 }
 
 
-def _git(*args: str, cwd: Path) -> str:
+def _git(*args: str, cwd: Path, env: dict[str, str] | None = None) -> str:
     assert GIT is not None
     done = subprocess.run(
-        [GIT, *args], cwd=str(cwd), env=_ENV, capture_output=True, text=True, timeout=60, check=True
+        [GIT, *args],
+        cwd=str(cwd),
+        env=_ENV if env is None else env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
     )
     return done.stdout.strip()
+
+
+def _marker_command(marker: Path) -> str:
+    """A command git can run (via its shell) that leaves a marker file behind."""
+    return f"\"{Path(sys.executable).as_posix()}\" -c \"open('{marker.as_posix()}', 'w').close()\""
 
 
 @pytest.fixture
@@ -192,9 +203,11 @@ def test_global_git_config_cannot_rewrite_the_repository_identity(
 ) -> None:
     home = tmp_path / "home"
     home.mkdir()
+    marker = tmp_path / "RAN-global-fsmonitor"
     (home / ".gitconfig").write_text(
         '[url "https://github.com/evil/"]\n\tinsteadOf = https://github.com/B0LK13/\n'
-        "[alias]\n\trev-parse = !echo 0000000000000000000000000000000000000000\n",
+        "[alias]\n\trev-parse = !echo 0000000000000000000000000000000000000000\n"
+        f"[core]\n\tfsmonitor = {_marker_command(marker)}\n",
         encoding="utf-8",
     )
     poisoned = {**os.environ, "HOME": str(home), "USERPROFILE": str(home)}
@@ -203,11 +216,129 @@ def test_global_git_config_cannot_rewrite_the_repository_identity(
     )
     assert out.identity.source.repository == "github.com/b0lk13/project-atlas"
     assert out.identity.source.candidate_head == _git("rev-parse", "HEAD", cwd=cloned)
+    assert not marker.exists()
     _git(
         "config", "url.https://github.com/evil/.insteadOf", "https://github.com/B0LK13/", cwd=cloned
     )
     local = observe_execution(cloned, project_id="harbor-api")
     assert local.identity.source.repository == "github.com/b0lk13/project-atlas"
+
+
+def test_multi_url_remote_is_refused_as_ambiguous(cloned: Path) -> None:
+    # `git config --get` would report the LAST url; a fetch contacts the FIRST
+    _git("config", "--add", "remote.origin.url", "https://evil.example/second/url", cwd=cloned)
+    with pytest.raises(ObservationError) as excinfo:
+        observe_execution(cloned, project_id="harbor-api")
+    assert excinfo.value.code == "REMOTE_URL_AMBIGUOUS"
+    assert "evil" not in str(excinfo.value)
+
+
+def test_repo_local_fsmonitor_command_is_never_executed(cloned: Path, tmp_path: Path) -> None:
+    marker = tmp_path / "RAN-local-fsmonitor"
+    _git("config", "core.fsmonitor", _marker_command(marker), cwd=cloned)
+    # positive control: plain `git status` under the operator's environment
+    # does run the configured command
+    _git("status", "--porcelain", cwd=cloned)
+    if not marker.exists():
+        pytest.skip("core.fsmonitor hook command did not fire on this platform")
+    marker.unlink()
+    out = observe_execution(cloned, project_id="harbor-api")
+    assert out.identity.source.candidate_head == _git("rev-parse", "HEAD", cwd=cloned)
+    assert not marker.exists()
+
+
+def test_bound_content_filter_is_refused_and_never_executed(cloned: Path, tmp_path: Path) -> None:
+    marker = tmp_path / "RAN-clean-filter"
+    _git("config", "filter.probe.clean", _marker_command(marker) + " && cat", cwd=cloned)
+    _git("config", "filter.probe.required", "true", cwd=cloned)
+    (cloned / ".gitattributes").write_text("*.bin filter=probe\n", encoding="utf-8")
+    (cloned / "blob.bin").write_bytes(b"\x00\x01payload")
+    _git("add", ".", cwd=cloned)
+    _git("commit", "-q", "-m", "filtered", cwd=cloned)
+    if not marker.exists():
+        pytest.skip("clean filter command did not fire on this platform")
+    marker.unlink()
+    # make the filtered path stat-dirty so `git status` would re-run the filter
+    os.utime(cloned / "blob.bin", None)
+    with pytest.raises(ObservationError) as excinfo:
+        observe_execution(cloned, project_id="harbor-api")
+    assert excinfo.value.code == "REPO_CONTENT_FILTERS_CONFIGURED"
+    assert "blob.bin" not in str(excinfo.value) and "probe" not in str(excinfo.value)
+    assert not marker.exists()
+    # the refusal is load-bearing: the operator's own `git status` runs it
+    _git("status", "--porcelain", cwd=cloned)
+    assert marker.exists()
+
+
+def test_git_content_configuration_is_honoured_not_bypassed(tmp_path: Path) -> None:
+    """Round-3 lesson from Windows CI: a checkout made under core.autocrlf=true
+    is clean only when git reads that configuration; bypassing the operator's
+    config made honest checkouts observe as dirty."""
+    if GIT is None:
+        pytest.skip("git unavailable")
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    _git("init", "-q", "-b", "main", cwd=seed)
+    (seed / "a.txt").write_bytes(b"a\nb\n")
+    _git("add", ".", cwd=seed)
+    _git("commit", "-q", "-m", "init", cwd=seed)
+    bare = tmp_path / "origin.git"
+    _git("clone", "-q", "--bare", str(seed), str(bare), cwd=tmp_path)
+    crlf_home = tmp_path / "crlf-home"
+    crlf_home.mkdir()
+    (crlf_home / ".gitconfig").write_text("[core]\n\tautocrlf = true\n", encoding="utf-8")
+    crlf_env = {**_ENV, "HOME": str(crlf_home), "USERPROFILE": str(crlf_home)}
+    repo = tmp_path / "repo"
+    _git("clone", "-q", str(bare), str(repo), cwd=tmp_path, env=crlf_env)
+    _git("remote", "set-url", "origin", "https://github.com/B0LK13/project-atlas.git", cwd=repo)
+    assert b"\r\n" in (repo / "a.txt").read_bytes()
+    os.utime(repo / "a.txt", None)  # stat-dirty: git must compare content
+    out = observe_execution(
+        repo, project_id="harbor-api", runner=SubprocessRunner(environ=crlf_env)
+    )
+    assert out.identity.source.candidate_head == _git("rev-parse", "HEAD", cwd=repo)
+    lf_home = tmp_path / "lf-home"
+    lf_home.mkdir()
+    (lf_home / ".gitconfig").write_text("[core]\n\tautocrlf = false\n", encoding="utf-8")
+    lf_env = {**_ENV, "HOME": str(lf_home), "USERPROFILE": str(lf_home)}
+    with pytest.raises(ObservationError) as excinfo:
+        observe_execution(repo, project_id="harbor-api", runner=SubprocessRunner(environ=lf_env))
+    assert excinfo.value.code == "WORKTREE_NOT_CLEAN"
+
+
+def test_submodule_work_trees_are_not_observed_but_gitlink_moves_are(
+    cloned: Path, tmp_path: Path
+) -> None:
+    sub_seed = tmp_path / "sub-seed"
+    sub_seed.mkdir()
+    _git("init", "-q", "-b", "main", cwd=sub_seed)
+    (sub_seed / "q.txt").write_text("q\n", encoding="utf-8")
+    _git("add", ".", cwd=sub_seed)
+    _git("commit", "-q", "-m", "sub", cwd=sub_seed)
+    _git(
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        str(sub_seed),
+        "smod",
+        cwd=cloned,
+    )
+    _git("commit", "-q", "-m", "add submodule", cwd=cloned)
+    clean = observe_execution(cloned, project_id="harbor-api")
+    assert clean.identity.source.candidate_head == _git("rev-parse", "HEAD", cwd=cloned)
+    # a dirty submodule work tree is outside the observed object (no nested
+    # `git status` is spawned, so no submodule-configured command can run)
+    (cloned / "smod" / "q.txt").write_text("changed\n", encoding="utf-8")
+    (cloned / "smod" / "untracked.txt").write_text("u\n", encoding="utf-8")
+    dirty_sub = observe_execution(cloned, project_id="harbor-api")
+    assert dirty_sub.identity.identity_digest == clean.identity.identity_digest
+    # the pinned gitlink commit is part of the tree: a moved submodule HEAD is dirty
+    _git("commit", "-q", "-am", "move", cwd=cloned / "smod")
+    with pytest.raises(ObservationError) as excinfo:
+        observe_execution(cloned, project_id="harbor-api")
+    assert excinfo.value.code == "WORKTREE_NOT_CLEAN"
 
 
 def test_local_path_remote_is_refused_not_persisted(tmp_path: Path) -> None:
