@@ -21,8 +21,9 @@ IMPLEMENTED != MERGED
 | Package | `AS-STUDIO-A2-001` |
 | Branch | `feat/as-studio-a2-001` |
 | Base | A1 tip / PR #770 |
-| HEAD | `64fe1afa079fe0de50139b85211609a943da89b4` |
+| HEAD | `3e0fc72339bbef502013587e2fde677352981769` |
 | Local tests | 68 passed (A0+A1+A2+substrate); ruff PASS; doctor PASS |
+| Exact-head CI | PASS — run `34358065961` on tip `3e0fc723` (substrate `64fe1afa`) |
 | Modules | `scripts/atlas_studio/governance.py`, `action_intent.py` |
 | Schemas | `atlas_studio_action_{intent,preview,decision}_v1.schema.json` |
 | CLI | `claim-candidates`, `claim-preview`, `claim-intent`, `claim-evaluate`, `claim-execute` |
