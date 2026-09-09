@@ -9,6 +9,17 @@ MERGE_AUTHORIZATION = NOT_GRANTED
 Filled after validation commands in the `studio-a0` worktree
 (`feat/as-studio-a0-001`, 2026-09-09).
 
+| Field | Value |
+|---|---|
+| PR | https://github.com/B0LK13/project-atlas/pull/763 |
+| Base | `feat/atlas-dag-e2e-harden` (#751) |
+| HEAD | `4c0077cd25e4149cfd3cecdbaf0537bac6b7d4ed` |
+| Docs PR (main) | https://github.com/B0LK13/project-atlas/pull/762 |
+| Epic | https://github.com/B0LK13/project-atlas/issues/746 |
+| Merge | `MERGE_AUTHORIZATION = NOT_GRANTED` |
+| A1 | `ATLAS_STUDIO_A1 = NOT_STARTED` |
+| Vault MDA | `PENDING` (production `mda` not on PATH; no fabricated receipt) |
+
 ## Commands
 
 ```bash
