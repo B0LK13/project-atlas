@@ -37,10 +37,12 @@ PYTHONPATH=scripts .venv/bin/python scripts/atlas-studio.py doctor --json
 ```
 
 ```text
-FINAL_HEAD                         = e03b496b6d3b9118ed13eec2f1722f5f933676ec
-FINAL_TREE                         = 7004c0affdebe3761bab55f9e2e5b53eaaf010f5
-IMPL_COMMIT                        = c8ae7c1e6b177bdb11202e6a00c6b5cb2d96fa8d
-STUDIO_SUITE                       = 101 passed
+IMPLEMENTATION_HEAD                = c8ae7c1e6b177bdb11202e6a00c6b5cb2d96fa8d
+BRANCH_TIP                         = 62da717a0728cfabe8e139005efe7d05510cb5a2
+BRANCH_TREE                        = 426c15cbe1bd6ebb53388a84358c335a51eafad6
+NOTE                               = docs-only commits after IMPLEMENTATION_HEAD
+                                     do not change runtime behavior; validate at BRANCH_TIP
+STUDIO_SUITE                       = 101 passed (at implementation + docs tip)
 DOCTOR                             = ok (a2_002_* PASS)
 ```
 
