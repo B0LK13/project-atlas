@@ -25,7 +25,7 @@ module's own exception type did not catch this at all.
 An earlier revision of this receipt, its commit message and its PR body all said
 this package "finds the same defect at a second site the register did not name".
 **That is false and is retracted.** `AS-OBSIDIAN-CAPTURE-001-F6-ERROR-BOUNDARY.md`
-records it explicitly, eight lines above the bullet this package quoted:
+records it explicitly, thirteen lines above the bullet this package quoted:
 
 > **Three raw `OSError`s still escape `write_projection_outputs`** from the
 > unguarded `_promote`: **an ancestor directory replaced by a file**, a read-only
@@ -56,7 +56,7 @@ needs no malformed input and no unusual permissions.
 An earlier revision said the failure "surfaces today as an unhandled traceback
 rather than an Atlas diagnostic". **Not true at either production surface**, and
 retracted: `cli.py:4264` catches `(ObsidianProjectionError, OSError, ValueError)`
-and logs `obsidian projection failed: …` with `EXIT_ERROR`; `connect.py:785`
+and logs `obsidian projection failed: …` with `EXIT_ERROR`; `connect.py:786`
 catches `(OSError, ValueError, KeyError, TypeError)` and re-raises `ConnectError`.
 Both already contained the raw error on base. The one unguarded caller is
 `demo_readiness.py:162`, an internal harness. What this fix buys is therefore
@@ -65,7 +65,7 @@ traceback and a diagnostic.
 
 Reachability of the graph half is weaker still, and was omitted before:
 `graph_projections.write_projection_outputs` has **no caller anywhere in
-`src/`** — only six test modules reach it. The graph guard is not reachable from
+`src/`** — only seven test modules reach it. The graph guard is not reachable from
 any Atlas command today.
 
 ## Negative controls
@@ -82,7 +82,8 @@ with `git restore --source=HEAD --staged --worktree` under a `git status
 | graph guard removed | **3 failed** | graph_mkdir, not_coupled, nothing_left_behind |
 | **both guards swallow and raise nothing** | **4 failed, 1 passed** | all but the positive control |
 | **guard reports a generic `OSError`** | **3 failed** | the three that assert the class |
-| fixture made inert (blocker is a directory) | `AssertionError` from `_mkdir_error_name` | — |
+| fixture made inert, one fixture | **3 failed** | projection_mkdir, graph_mkdir, nothing_left_behind |
+| fixture made inert, both fixtures | **4 failed** | all but the positive control |
 | restored | **5 passed** | — |
 
 **Read the table honestly.** The 3/3 rows are each carried by *one*
@@ -132,12 +133,19 @@ The other two remain raw at this head, pre-existing and reproduced here:
 
 | condition | escapes as | at |
 |---|---|---|
-| read-only output directory | `PermissionError` | `graph_projections.py:609` `staged.write_bytes(plan[path])` |
-| existing target unreadable | `PermissionError` | `graph_projections.py:605` `path.read_bytes()` |
-| `ENAMETOOLONG` filename | `OSError` | `graph_projections.py:603` `path.exists()` |
+| read-only output directory | `PermissionError` | `graph_projections.py:620` `staged.write_bytes(plan[path])` |
+| existing target unreadable | `PermissionError` | `graph_projections.py:616` `path.read_bytes()` |
+| `ENAMETOOLONG` filename | `OSError` | `graph_projections.py:614` `path.exists()` |
 
-The third is not in the register. Different sites, different failure modes,
-different guards — tracked separately, not folded in here.
+The escape table's line numbers are stated **at the merged base `06362807`**. An
+earlier revision cited 609/605/603, which were correct at the pre-merge head and
+went stale by 11 lines when F10 landed -- and line 609 there is now the guarded
+`mkdir` itself, so those numbers pointed a reader at the fix rather than at an
+escape. Verification caught it. The durable anchors are the code expressions,
+which is why they are quoted alongside.
+
+These three are filed as **#757** so they are explicitly owned, and deliberately
+not folded in here: different sites, different failure modes, different guards.
 
 ## What is not claimed
 
