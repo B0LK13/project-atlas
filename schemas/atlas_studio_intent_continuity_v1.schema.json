@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_INTENT_CONTINUITY_V1",
+  "description": "AS-STUDIO-A2-005 read-only intent continuity / interrupted-session inspect. STALE_INTENT!=PERMISSION; DUPLICATE_SUBMIT_RISK!=AUTO_RETRY; INSPECT!=EXECUTE.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "continuity_state",
+    "recovery",
+    "honesty",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_INTENT_CONTINUITY_V1"
+    },
+    "generated_at_utc": {"type": "string"},
+    "continuity_state": {
+      "type": "string",
+      "enum": [
+        "FRESH",
+        "STALE_INTENT",
+        "ALREADY_DECIDED",
+        "DUPLICATE_SUBMIT_RISK",
+        "INTERRUPTED_UNCERTAIN",
+        "MISSING",
+        "MALFORMED"
+      ]
+    },
+    "intent": {"type": ["object", "null"]},
+    "prior_decision": {"type": ["object", "null"]},
+    "prior_evidence": {"type": ["object", "null"]},
+    "recovery": {
+      "type": "object",
+      "required": ["actions", "auto_retry"],
+      "properties": {
+        "actions": {"type": "array"},
+        "auto_retry": {"type": "boolean"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "honesty": {"type": "object"},
+    "provenance": {"type": "object"}
+  }
+}

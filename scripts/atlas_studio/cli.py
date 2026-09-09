@@ -349,6 +349,20 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
             "HONESTY: CONTROL_PLANE_REVALIDATES_AT_EXECUTION / "
             "STUDIO_NEVER_SELF_AUTHORIZES / DRY_RUN!=EXECUTED"
         )
+        print(
+            "NEXT: save this decision JSON, then "
+            "`atlas-studio action-evidence --decision-file <path>` "
+            "(AUTO_RETRY=FORBIDDEN); after interrupt use "
+            "`atlas-studio intent-continuity --intent-file … --decision-file …`"
+        )
+    if args.write_decision:
+        out_path = Path(args.write_decision)
+        tmp = out_path.with_suffix(out_path.suffix + ".tmp")
+        tmp.write_text(
+            json.dumps(decision, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        tmp.replace(out_path)
+        print(f"decision_written={out_path}", file=sys.stderr)
     outcome = decision.get("decision")
     if args.dry_run:
         ok = outcome == gc.EXECUTE_ALLOWED and decision.get("dry_run") is True
@@ -392,6 +406,57 @@ def cmd_mission_journey(args: argparse.Namespace) -> int:
         print(json.dumps(packet, indent=2, sort_keys=True))
     else:
         print(format_mission_journey_tui(packet))
+    return 0
+
+
+def cmd_action_evidence(args: argparse.Namespace) -> int:
+    """AS-STUDIO-A2-004 RO action evidence + recovery — never re-executes."""
+    from atlas_studio.action_evidence import (
+        build_action_evidence,
+        format_action_evidence_tui,
+        validate_action_evidence,
+    )
+
+    packet = build_action_evidence(
+        decision_file=args.decision_file,
+        spool_dir=args.spool_dir,
+        write_spool=bool(args.write_spool),
+    )
+    errors = validate_action_evidence(packet)
+    if errors:
+        for err in errors:
+            print(f"  SCHEMA: {err}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(format_action_evidence_tui(packet))
+    # Exit 0 for inspect success; outcome_class is in the packet (not a mutation gate).
+    return 0
+
+
+def cmd_intent_continuity(args: argparse.Namespace) -> int:
+    """AS-STUDIO-A2-005 RO intent continuity — never executes."""
+    from atlas_studio.intent_continuity import (
+        build_intent_continuity,
+        format_intent_continuity_tui,
+        validate_intent_continuity,
+    )
+
+    packet = build_intent_continuity(
+        intent_file=args.intent_file,
+        decision_file=args.decision_file,
+        evidence_file=args.evidence_file,
+    )
+    errors = validate_intent_continuity(packet)
+    if errors:
+        for err in errors:
+            print(f"  SCHEMA: {err}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(format_intent_continuity_tui(packet))
     return 0
 
 
@@ -625,6 +690,81 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001
         add("a2_002_mission_journey", False, f"{type(exc).__name__}:{exc}")
 
+    # A2-004: action evidence + recovery (monitor != re-execute).
+    try:
+        from atlas_studio import action_evidence as ae
+
+        honesty = ae.honesty_block()
+        add(
+            "a2_004_evidence_honesty",
+            honesty.get("auto_retry_forbidden") is True
+            and honesty.get("uncertain_mutation_ne_nothing_changed") is True
+            and honesty.get("capture_ne_authority") is True,
+            json.dumps(honesty, sort_keys=True),
+        )
+        failed = {
+            "schema": "ATLAS_STUDIO_ACTION_DECISION_V1",
+            "decision": "EXECUTION_FAILED",
+            "action_type": "OWNERSHIP_CLAIM",
+            "intent_id": "intent-test",
+            "mutated": False,
+            "reasons": ["executor raised"],
+            "evidence": {"mutation_state": "UNKNOWN"},
+            "honesty": {},
+            "evaluated_at_utc": "2026-09-09T12:00:00Z",
+        }
+        packet = ae.build_action_evidence(
+            decision=failed, clock=lambda: "2026-09-09T12:00:00Z"
+        )
+        errs = ae.validate_action_evidence(packet)
+        add(
+            "a2_004_action_evidence_schema",
+            not errs
+            and packet.get("outcome_class") == ae.FAILED_UNCERTAIN
+            and packet["recovery"]["auto_retry"] is False,
+            "ok" if not errs else "; ".join(errs[:5]),
+        )
+        add(
+            "a2_004_no_auto_retry",
+            packet["recovery"]["auto_retry"] is False,
+            "recovery.auto_retry must stay false",
+        )
+    except Exception as exc:  # noqa: BLE001
+        add("a2_004_action_evidence", False, f"{type(exc).__name__}:{exc}")
+
+    # A2-005: intent continuity / interrupted session inspect.
+    try:
+        from atlas_studio import intent_continuity as ic
+
+        honesty = ic.honesty_block()
+        add(
+            "a2_005_continuity_honesty",
+            honesty.get("inspect_ne_execute") is True
+            and honesty.get("stale_intent_ne_permission") is True
+            and honesty.get("auto_retry_forbidden") is True,
+            json.dumps(honesty, sort_keys=True),
+        )
+        intent = {
+            "schema": "ATLAS_STUDIO_ACTION_INTENT_V1",
+            "intent_id": "intent-test",
+            "action_type": "OWNERSHIP_CLAIM",
+            "requested_at_utc": "2026-09-09T10:00:00Z",
+            "max_age_seconds": 60,
+        }
+        packet = ic.build_intent_continuity(
+            intent=intent, clock=lambda: "2026-09-09T12:00:00Z"
+        )
+        errs = ic.validate_intent_continuity(packet)
+        add(
+            "a2_005_intent_continuity_schema",
+            not errs
+            and packet.get("continuity_state") == ic.STALE_INTENT
+            and packet["recovery"]["auto_retry"] is False,
+            "ok" if not errs else "; ".join(errs[:5]),
+        )
+    except Exception as exc:  # noqa: BLE001
+        add("a2_005_intent_continuity", False, f"{type(exc).__name__}:{exc}")
+
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -743,6 +883,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Evaluate and allow path without emit_event",
     )
+    cx.add_argument(
+        "--write-decision",
+        default=None,
+        metavar="PATH",
+        help="Atomically write decision JSON for action-evidence / continuity",
+    )
     cx.set_defaults(func=cmd_claim_execute)
 
     journey = sub.add_parser(
@@ -776,6 +922,54 @@ def build_parser() -> argparse.ArgumentParser:
     journey.add_argument("--weights", default=None)
     journey.add_argument("--json", action="store_true")
     journey.set_defaults(func=cmd_mission_journey)
+
+    evidence = sub.add_parser(
+        "action-evidence",
+        aliases=["evidence"],
+        help=(
+            "AS-STUDIO-A2-004 inspect decision evidence + recovery "
+            "(never re-executes; optional non-canonical spool)"
+        ),
+    )
+    evidence.add_argument(
+        "--decision-file",
+        default=None,
+        help="Path to ATLAS_STUDIO_ACTION_DECISION_V1 JSON",
+    )
+    evidence.add_argument(
+        "--write-spool",
+        action="store_true",
+        help="Write non-canonical knowledge spool (CAPTURE!=AUTHORITY)",
+    )
+    evidence.add_argument(
+        "--spool-dir",
+        default=None,
+        help="Directory for optional knowledge spool write",
+    )
+    evidence.add_argument("--json", action="store_true")
+    evidence.set_defaults(func=cmd_action_evidence)
+
+    continuity = sub.add_parser(
+        "intent-continuity",
+        aliases=["continuity"],
+        help=(
+            "AS-STUDIO-A2-005 inspect intent continuity after interrupt/stale/duplicate "
+            "(never executes)"
+        ),
+    )
+    continuity.add_argument("--intent-file", default=None, help="Intent JSON path")
+    continuity.add_argument(
+        "--decision-file",
+        default=None,
+        help="Optional prior ATLAS_STUDIO_ACTION_DECISION_V1",
+    )
+    continuity.add_argument(
+        "--evidence-file",
+        default=None,
+        help="Optional prior ATLAS_STUDIO_ACTION_EVIDENCE_V1",
+    )
+    continuity.add_argument("--json", action="store_true")
+    continuity.set_defaults(func=cmd_intent_continuity)
 
     doc = sub.add_parser("doctor", help="Import/honesty/schema diagnostics")
     doc.add_argument("--json", action="store_true")

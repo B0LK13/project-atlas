@@ -383,10 +383,56 @@ def build_mission_journey(
         "next_actions": {
             "claim_candidates": listing,
             "preview": attached_preview,
+            "monitoring": {
+                "command": (
+                    "atlas-studio action-evidence --decision-file <decision.json> [--json]"
+                ),
+                "optional_spool": (
+                    "atlas-studio action-evidence --decision-file <decision.json> "
+                    "--write-spool --spool-dir <dir>"
+                ),
+                "package": "AS-STUDIO-A2-004",
+                "auto_retry": False,
+                "notes": [
+                    "MONITOR!=RE-EXECUTE",
+                    "AUTO_RETRY=FORBIDDEN",
+                    "CAPTURE!=AUTHORITY",
+                    "inspect EXECUTION_FAILED before any fresh intent",
+                    "use intent-continuity after interrupt/stale/duplicate risk",
+                ],
+            },
+            "continuity": {
+                "command": (
+                    "atlas-studio intent-continuity --intent-file <intent.json> "
+                    "[--decision-file <decision.json>]"
+                ),
+                "package": "AS-STUDIO-A2-005",
+                "auto_retry": False,
+                "notes": [
+                    "STALE_INTENT!=PERMISSION",
+                    "DUPLICATE_SUBMIT!=AUTO_RETRY",
+                    "INSPECT!=EXECUTE",
+                ],
+            },
+            "task_context": {
+                "command": (
+                    "atlas-studio task-context --lane <lane> --agent <agent> "
+                    "--repo <owner/name> [--vault <vault> --project <id>]"
+                ),
+                "package": "AS-STUDIO-A2-003",
+                "ownership": "PR_786_DRAFT",
+                "built_here": False,
+                "notes": [
+                    "lane-scoped preparation owned by A2-003; journey does not reimplement",
+                    "KNOWLEDGE!=PERMISSION",
+                    "AUTHORIZATION=NOT_GRANTED_BY_THIS_PACKET",
+                ],
+            },
             "notes": [
                 "PREVIEW!=EXECUTION",
                 "AVAILABLE!=AUTHORIZED",
                 "use claim-evaluate/claim-execute for gated mutation",
+                "use action-evidence after evaluate/execute to monitor/recover",
             ],
         },
         "honesty": honesty_block(),
@@ -429,8 +475,9 @@ def format_mission_journey_tui(packet: dict) -> str:
         f"missing={list(development.get('missing_prerequisites') or [])}",
         f"claim_candidates={len(candidates)} "
         f"preview_attached={next_actions.get('preview') is not None}",
+        f"monitoring={((next_actions.get('monitoring') or {}).get('command') or 'none')}",
         "HONESTY: STUDIO_UI!=AUTHORITY / KNOWLEDGE!=PERMISSION / "
-        "PREVIEW!=EXECUTION / JOURNEY!=MUTATION",
+        "PREVIEW!=EXECUTION / JOURNEY!=MUTATION / MONITOR!=RE-EXECUTE",
     ]
     for item in (knowledge.get("items") or [])[:5]:
         lines.append(f"  knowledge: [{item.get('kind')}] {item.get('path')}")
