@@ -14730,3 +14730,18 @@ AS_STUDIO_A1 = NOT_STARTED
 - Honesty: STUDIO_UI!=AUTHORITY; ATTENTION!=AUTHORIZATION; STALE!=CURRENT; UNKNOWN!=HEALTHY; NO_MUTATION; A0 nested honesty preserved
 - Non-goals: Tauri, A2 mutations, commit/push/PR/merge, formal IV
 - Evidence: `docs/atlas-3/studio/a1/A1-EVIDENCE.md`
+
+
+## CLOSE_ATLAS_STUDIO_A1_AND_DEFINE_A2
+
+- Branch: `feat/as-studio-a1-001` @ `3d76fa0e…` (+ semantic-boundary / A2-docs tip)
+- A1 closure: `docs/atlas-3/studio/a1/A1-CLOSURE.md` → **TECHNICALLY_COMPLETE / EXTERNAL_IV_GATED**
+  (honest: CI PASS ≠ FORMAL_IV; verifiers unbound → not CERTIFIED)
+- Adversarial suite: `tests/unit/test_atlas_studio_a1_semantic_boundaries.py` (10 attacks) — all PASS
+- Combined gate: 15 A0 + 15 A1 + 10 semantic = **40 passed**; ruff PASS
+- Fail-closed narrowed: `AGENT_MATRIX_MISMATCH` suppresses foreign frontier rankings/attention
+- Live mc: `mission_status=HUMAN_ATTENTION_REQUIRED`, `freshness=LIVE`, `attention_count=8`
+- `MISSION_CONTROL_HUMAN_COHERENCE = PROVEN`; `STUDIO_MUTATION_AUTHORITY = NONE`
+- A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
+  governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
+- Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added

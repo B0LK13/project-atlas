@@ -311,8 +311,21 @@ def _enrich_views_for_humans(
     return out
 
 
-def _frontier_view(matrix: dict | None, cv_frontier: dict | None) -> dict:
-    """Project F12 matrix action classes / rankings; UNKNOWN when matrix absent."""
+def _frontier_view(
+    matrix: dict | None,
+    cv_frontier: dict | None,
+    *,
+    expected_agent_id: str | None = None,
+) -> dict:
+    """Project F12 matrix action classes / rankings; UNKNOWN when matrix absent.
+
+    Fail-closed agent binding (AS-STUDIO-A1 semantic boundary):
+    when ``expected_agent_id`` is set and the injected matrix declares a
+    different ``agent``, do **not** project that foreign frontier as OK for
+    the requested agent. Status becomes DEGRADED, rankings/action_classes
+    are cleared (None), and notes include ``AGENT_MATRIX_MISMATCH``.
+    Foreign agent_id injection must not fabricate another agent's frontier.
+    """
     cv_status = _panel_status(cv_frontier)
     cv_summary = (cv_frontier or {}).get("summary") if isinstance(cv_frontier, dict) else None
     if matrix is None or not isinstance(matrix, dict):
@@ -335,6 +348,44 @@ def _frontier_view(matrix: dict | None, cv_frontier: dict | None) -> dict:
                 "status": UNKNOWN,
                 "typed_rankings": None,
                 "notes": ["MATRIX_ABSENT", "no_invented_eligibility"],
+            },
+            "human_gate_action_ids": [],
+            "owner_decision_action_ids": [],
+            "frontier_fingerprint": None,
+            "references": [],
+        }
+
+    matrix_agent = str(matrix.get("agent") or "").strip()
+    expected = (expected_agent_id or "").strip() or None
+    if expected and matrix_agent and matrix_agent != expected:
+        return {
+            "status": DEGRADED,
+            "notes": [
+                "AGENT_MATRIX_MISMATCH",
+                f"expected_agent={expected}",
+                f"matrix_agent={matrix_agent}",
+                "foreign_frontier_not_projected",
+                "PRESENTATION_ONLY",
+                "ACTION_RANK_NE_AUTHORITY",
+            ],
+            "summary": {
+                **(cv_summary or {}),
+                "eligible_count": None,
+                "blocked_count": None,
+                "ineligible_count": None,
+                "action_count": None,
+                "agent_matrix_mismatch": True,
+            },
+            "source_panel": "frontier",
+            "action_classes": {
+                "status": DEGRADED,
+                "by_action_class": None,
+                "notes": ["AGENT_MATRIX_MISMATCH", "foreign_frontier_suppressed"],
+            },
+            "rankings": {
+                "status": DEGRADED,
+                "typed_rankings": None,
+                "notes": ["AGENT_MATRIX_MISMATCH", "no_fabricated_foreign_rankings"],
             },
             "human_gate_action_ids": [],
             "owner_decision_action_ids": [],
@@ -688,6 +739,15 @@ def _derive_mission_status(
     return DEGRADED
 
 
+_ATTENTION_AUTH_FALSE_KEYS = (
+    "authorized",
+    "permitted",
+    "executable",
+    "authorization_granted",
+    "mutation_authorized",
+)
+
+
 def validate_mission_control(packet: dict) -> list[str]:
     """Validate MC schema + embedded A0 snapshot nested honesty fail-closed."""
     validator = validator_for(SCHEMA_FILE)
@@ -729,12 +789,34 @@ def validate_mission_control(packet: dict) -> list[str]:
             elif "status" not in view or "notes" not in view:
                 errors.append(f"views/{name}: status+notes required")
 
+    attention = packet.get("attention")
+    if isinstance(attention, list):
+        for idx, item in enumerate(attention):
+            if not isinstance(item, dict):
+                errors.append(f"attention/{idx}: must be object")
+                continue
+            if item.get("attention_ne_authorization") is not True:
+                errors.append(
+                    f"attention/{idx}: attention_ne_authorization must be true"
+                )
+            for key in _ATTENTION_AUTH_FALSE_KEYS:
+                if item.get(key) is True:
+                    errors.append(
+                        f"attention/{idx}: {key}=true refused "
+                        f"(ATTENTION_NE_AUTHORIZATION)"
+                    )
+
     if packet.get("mission_status") == HEALTHY and isinstance(views, dict):
         for name in ("postmerge_seal", "evidence"):
             if (views.get(name) or {}).get("status") == UNKNOWN:
                 errors.append(
                     f"mission_status: cannot be HEALTHY while views/{name}=UNKNOWN"
                 )
+        frontier = views.get("frontier") or {}
+        if "AGENT_MATRIX_MISMATCH" in (frontier.get("notes") or []):
+            errors.append(
+                "mission_status: cannot be HEALTHY under AGENT_MATRIX_MISMATCH"
+            )
 
     if packet.get("mission_status") == HEALTHY and (
         (packet.get("freshness") or {}).get("state") != LIVE
@@ -744,13 +826,33 @@ def validate_mission_control(packet: dict) -> list[str]:
     return sorted(set(errors))
 
 
+def _effective_frontier_matrix(
+    matrix: dict | None,
+    *,
+    expected_agent_id: str | None,
+) -> dict | None:
+    """Drop foreign-agent matrices so attention cannot invent another frontier."""
+    if matrix is None or not isinstance(matrix, dict):
+        return None
+    expected = (expected_agent_id or "").strip() or None
+    matrix_agent = str(matrix.get("agent") or "").strip()
+    if expected and matrix_agent and matrix_agent != expected:
+        return None
+    return matrix
+
+
 def _build_views(
     *,
     studio_snapshot: dict,
     frontier_matrix: dict | None,
+    expected_agent_id: str | None = None,
 ) -> dict:
     panels = _cv_panels(studio_snapshot)
-    frontier = _frontier_view(frontier_matrix, panels.get("frontier"))
+    frontier = _frontier_view(
+        frontier_matrix,
+        panels.get("frontier"),
+        expected_agent_id=expected_agent_id,
+    )
     human_gates = _human_gates_view(frontier, panels)
 
     tel_panel = (studio_snapshot.get("panels") or {}).get("telemetry") or {}
@@ -926,17 +1028,39 @@ def build_mission_control(
     repository = str(snap.get("repository") or repository)
     agent_status = str(snap.get("agent_status") or "UNKNOWN")
     slice_status = str(snap.get("slice_status") or UNKNOWN)
+    bound_agent = agent_id if agent_id is not None else snap.get("agent")
+    if isinstance(bound_agent, str):
+        bound_agent = bound_agent.strip() or None
+    else:
+        bound_agent = None
+    # Suppress foreign-agent matrix for attention (fail-closed; views also degrade).
+    attention_matrix = _effective_frontier_matrix(
+        matrix, expected_agent_id=bound_agent
+    )
+    if (
+        isinstance(matrix, dict)
+        and attention_matrix is None
+        and bound_agent
+        and str(matrix.get("agent") or "").strip()
+        and str(matrix.get("agent") or "").strip() != bound_agent
+    ):
+        notes.append("AGENT_MATRIX_MISMATCH")
+        notes.append("foreign_frontier_suppressed")
 
-    views = _build_views(studio_snapshot=snap, frontier_matrix=matrix)
+    views = _build_views(
+        studio_snapshot=snap,
+        frontier_matrix=matrix,
+        expected_agent_id=bound_agent,
+    )
     views = _enrich_views_for_humans(
         views,
         studio_snapshot=snap,
         registry=registry,
-        agent_id=agent_id if agent_id is not None else snap.get("agent"),
-        frontier_matrix=matrix,
+        agent_id=bound_agent,
+        frontier_matrix=attention_matrix,
     )
     attention = build_attention(
-        studio_snapshot=snap, views=views, frontier_matrix=matrix
+        studio_snapshot=snap, views=views, frontier_matrix=attention_matrix
     )
     views["attention"] = {
         "status": OK,
@@ -955,14 +1079,15 @@ def build_mission_control(
         "slice_status": slice_status,
         "a0_fingerprint": snap.get("snapshot_fingerprint"),
         "frontier_fingerprint": (
-            (matrix or {}).get("frontier_fingerprint")
-            if isinstance(matrix, dict)
+            (attention_matrix or {}).get("frontier_fingerprint")
+            if isinstance(attention_matrix, dict)
             else None
         ),
         "views_status": {k: v.get("status") for k, v in sorted(views.items())},
         "attention_ids": [a["attention_id"] for a in attention],
-        "agent": agent_id or snap.get("agent"),
+        "agent": bound_agent,
         "repository": repository,
+        "agent_matrix_mismatch": "AGENT_MATRIX_MISMATCH" in notes,
     }
     snapshot_fp = _canonical_sha256(fp_body)
 
@@ -986,7 +1111,7 @@ def build_mission_control(
         "schema": SCHEMA_CONST,
         "generated_at_utc": generated_at,
         "repository": repository,
-        "agent": agent_id if agent_id is not None else snap.get("agent"),
+        "agent": bound_agent,
         "agent_status": agent_status,
         "slice_status": slice_status,
         "mission_status": mission_status,
