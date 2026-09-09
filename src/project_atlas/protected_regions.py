@@ -112,6 +112,20 @@ def _reserved_marker_inside_human_region(text: str) -> bool:
     return False
 
 
+def generated_marker_diagnosis(text: str, *, reason: str) -> str:
+    """Public form of :func:`_generated_marker_diagnosis`.
+
+    Exported so other generated-span-preserving writers can emit the *same*
+    diagnosis rather than their own weaker message. Before
+    AS-OBSIDIAN-CAPTURE-001-F9 the identical corrupt note produced
+    ``malformed-generated-markers:count,begin=2,end=1,expected=1,no-write:n.md``
+    from the canonical core and a bare ``malformed-generated-markers:n.md``
+    from ``graph_projections`` -- the operator's diagnosis depended on which
+    writer happened to hit the note first.
+    """
+    return _generated_marker_diagnosis(text, reason=reason)
+
+
 def _generated_marker_diagnosis(text: str, *, reason: str) -> str:
     """Observable facts about a generated-marker failure.
 
