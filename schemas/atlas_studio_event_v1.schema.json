@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_EVENT_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "event_id",
+    "timestamp_utc",
+    "kind",
+    "honesty",
+    "payload"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_EVENT_V1"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp_utc": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["OBSERVATION", "SLICE_STATUS", "PANEL_STATUS"]
+    },
+    "panel": {
+      "type": ["string", "null"]
+    },
+    "message": {
+      "type": "string"
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "observation_ne_authority",
+        "studio_ui_ne_authority"
+      ],
+      "properties": {
+        "observation_ne_authority": {
+          "const": true
+        },
+        "studio_ui_ne_authority": {
+          "const": true
+        },
+        "grants_no_mutation": {
+          "const": true
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

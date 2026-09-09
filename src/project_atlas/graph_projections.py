@@ -35,6 +35,9 @@ from project_atlas.graph_quarantine import GraphHealthSnapshot, HealthState
 from project_atlas.graph_relationships import LinkQuality, RelationshipRecord
 from project_atlas.protected_regions import (
     ProtectedRegionError,
+    generated_marker_diagnosis,
+    read_note_text,
+    reject_ambiguous_region_identity,
 )
 from project_atlas.protected_regions import (
     merge_protected_regions as _canonical_merge_protected_regions,
@@ -150,15 +153,19 @@ def _validate_protected_markers(text: str, *, path: str) -> None:
         raise GraphProjectionError(f"malformed-protected-markers:{path}")
     start_count = text.count(_GENERATED_START)
     end_count = text.count(_GENERATED_END)
-    if start_count != end_count:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
-    if start_count > 1:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
+    if start_count != end_count or start_count > 1:
+        raise GraphProjectionError(
+            f"malformed-generated-markers:"
+            f"{generated_marker_diagnosis(text, reason='count')}:{path}"
+        )
     if start_count == 1:
         start_index = text.index(_GENERATED_START)
         end_index = text.index(_GENERATED_END)
         if end_index < start_index:
-            raise GraphProjectionError(f"malformed-generated-markers:{path}")
+            raise GraphProjectionError(
+                f"malformed-generated-markers:"
+                f"{generated_marker_diagnosis(text, reason='end-before-begin')}:{path}"
+            )
 
 
 def _generated_span(text: str, *, path: str) -> tuple[int, int] | None:
@@ -176,7 +183,13 @@ def _generated_span(text: str, *, path: str) -> tuple[int, int] | None:
     if start < 0 and end < 0:
         return None
     if start < 0 or end < 0 or end < start:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
+        # `end < start` is a distinct condition from a missing marker, and the
+        # operator can act on the difference, so report which one it was.
+        reason = "end-before-begin" if (start >= 0 and end >= 0) else "count"
+        raise GraphProjectionError(
+            f"malformed-generated-markers:"
+            f"{generated_marker_diagnosis(text, reason=reason)}:{path}"
+        )
     return start, end + len(_GENERATED_END)
 
 
@@ -207,6 +220,16 @@ def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) 
         # render in this case, which would discard that text.
         _validate_protected_markers(existing, path=path)
         _validate_protected_markers(rendered, path=path)
+        # This branch splices by hand instead of delegating to the canonical
+        # core, so it never reaches the core's structural parse -- and the
+        # marker validation above compares counts and names, never ORDER. A
+        # rendered document whose HUMAN markers are reversed or crossed
+        # therefore passed here and was WRITTEN, while the canonical core
+        # refuses it as `unpaired`. Graph accepted what canonical rejected.
+        try:
+            reject_ambiguous_region_identity(rendered, path=path)
+        except ProtectedRegionError as exc:
+            raise GraphProjectionError(str(exc)) from exc
         existing_span = _generated_span(existing, path=path)
         if existing_span is None:
             return rendered
@@ -216,7 +239,17 @@ def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) 
             # render offers none. Refuse rather than fall back to overwriting
             # the whole document, which would discard the outside text this
             # branch exists to preserve.
-            raise GraphProjectionError(f"malformed-generated-markers:{path}")
+            # The counts must name the artifact they describe. Borrowing the
+            # note-shaped vocabulary here reported `begin=0,end=0` against the
+            # OPERATOR'S path, telling them their note had no markers when it
+            # has one of each -- the render is what lacks a span. Found by
+            # verification.
+            raise GraphProjectionError(
+                f"malformed-generated-markers:rendered-has-no-generated-span,"
+                f"rendered-begin={rendered.count(_GENERATED_START)},"
+                f"rendered-end={rendered.count(_GENERATED_END)},"
+                f"expected=1,no-write:{path}"
+            )
         return (
             existing[: existing_span[0]]
             + rendered[rendered_span[0] : rendered_span[1]]
@@ -641,7 +674,16 @@ def write_projection_outputs(
     plan: dict[Path, bytes] = {}
     for relative, rendered in sorted(mapping.items()):
         path = _safe_vault_relative(vault, relative)
-        existing = path.read_text(encoding="utf-8") if path.is_file() else None
+        try:
+            existing = read_note_text(path) if path.is_file() else None
+        except (OSError, UnicodeError) as exc:
+            # Same boundary as above: the read happens while building `plan`,
+            # before `_promote`, so nothing has been written yet -- but a raw
+            # exception here escaped `GraphProjectionError`, so a caller
+            # catching that did not catch this at all.
+            raise GraphProjectionError(
+                f"unreadable-existing-note:{type(exc).__name__}:{relative}"
+            ) from exc
         merged = _merge_protected_regions(existing=existing, rendered=rendered, path=relative)
         plan[path] = merged.encode("utf-8")
 

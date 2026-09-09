@@ -14,10 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import ensure_under_root, safe_relative_component
+from project_atlas.logging import get_logger
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.protected_regions import GENERATED_END as _GENERATED_END
 from project_atlas.protected_regions import GENERATED_START as _GENERATED_START
-from project_atlas.protected_regions import ProtectedRegionError
+from project_atlas.protected_regions import ProtectedRegionError, read_note_text
 from project_atlas.protected_regions import merge_protected_regions as _merge_protected_regions
 
 PACKAGE_ID = "AS-CODER-ALPHA-OBSIDIAN-001"
@@ -28,6 +29,9 @@ PACKAGE_ID_R1 = "AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001"
 # across the R1 gap-fill (finding 4, PR #412 remediation).
 GENERATOR_ID = "atlas-coder-alpha-obsidian-001"
 OBS_ROOT = Path("generated") / "obsidian" / "projects"
+
+
+_LOG = get_logger("obsidian_projection")
 
 
 class ObsidianProjectionError(ValueError):
@@ -50,9 +54,50 @@ def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
     try:
         tmp.write_bytes(content)
         os.replace(tmp, path)
+    except OSError as exc:
+        # On Windows a note that "cannot be opened" surfaces HERE rather than
+        # at the read: a read-only target still reads fine, and it is
+        # ``os.replace`` that fails with WinError 5. Without this the raw
+        # OSError escapes `ObsidianProjectionError` entirely, so a caller
+        # catching that does not catch this at all
+        # -- the same defect this module's read guard fixes, one step later.
+        # Found by independent verification of the read-side fix against the
+        # Windows CI job, which the Linux-only reproduction could not see.
+        raise ObsidianProjectionError(
+            f"unwritable-note:{type(exc).__name__}:{path}"
+        ) from exc
     finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
+        # Best-effort: if the staging file cannot be removed -- a concurrent
+        # permission change on the directory, say -- that OSError would
+        # otherwise propagate *out of the finally* and REPLACE the
+        # ObsidianProjectionError raised just above, handing the caller a raw
+        # exception on the very path this guard exists to cover, and leaving
+        # the residue `test_f6_failed_write_leaves_no_tmp_residue` pins as
+        # absent. Cleanup failure must not mask the real error; the residue is
+        # then a disclosed residual rather than a silent one.
+        try:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+        except OSError as cleanup_exc:
+            # Swallowed so it cannot replace the real error -- but NOT silently.
+            # The receipt calls the surviving `.tmp` a "disclosed residual";
+            # that was only true in a document until this log made it true at
+            # the surface an operator actually sees.
+            _LOG.warning(
+                "obsidian projection: staging file could not be removed",
+                # `extra` MUST nest under "context": both formatters render
+                # `record.context` and silently drop anything else. An earlier
+                # revision passed the keys at top level, so this warning emitted
+                # neither the path nor the error class -- the log existed but
+                # carried nothing, which is worse than no log because the
+                # receipt claimed the residual was now operator-visible.
+                extra={
+                    "context": {
+                        "path": str(tmp),
+                        "error": type(cleanup_exc).__name__,
+                    }
+                },
+            )
 
 
 def _safe_project_id(project_id: str) -> str:
@@ -357,7 +402,17 @@ def materialize_obsidian_projection(
             ensure_under_root(vault, path, label="obsidian projection note")
         except ValueError as exc:
             raise ObsidianProjectionError(str(exc)) from exc
-        existing = path.read_text(encoding="utf-8") if path.is_file() else None
+        try:
+            existing = read_note_text(path) if path.is_file() else None
+        except (OSError, UnicodeError) as exc:
+            # An unreadable or non-UTF-8 prior note is an operator-facing
+            # condition, not an internal fault: it must name the note and stay
+            # inside this module's error boundary. `obsidian_capture_note`
+            # already does exactly this; the projection writers did not, so a
+            # raw UnicodeDecodeError or PermissionError escaped to the caller.
+            raise ObsidianProjectionError(
+                f"unreadable-existing-note:{type(exc).__name__}:{path}"
+            ) from exc
         try:
             merged = _merge_protected_regions(
                 existing=existing,
