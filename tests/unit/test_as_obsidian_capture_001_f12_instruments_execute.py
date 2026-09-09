@@ -57,6 +57,7 @@ broader than the corpus behind it.
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import inspect
 import os
@@ -112,6 +113,33 @@ def _invalidate_cached_bytecode(path: pathlib.Path) -> None:
     """
     cached = pathlib.Path(importlib.util.cache_from_source(str(path)))
     cached.unlink(missing_ok=True)
+
+
+def _is_the_mutating_instrument(path: pathlib.Path) -> bool:
+    """Identity by CONTENT, not by filename.
+
+    An earlier revision compared ``path.name == _MUTATING``. Verification showed
+    that a **copy** or a **symlink under another name** therefore loaded unfused
+    and ran the real mutating body -- through :func:`_load_from`, the one loader,
+    which the docstring claimed covered "every route ... whatever the call looks
+    like". That claim was measurably false, and the static layer missed those
+    spellings too, so both layers failed together.
+
+    Hashing the bytes closes the whole class at once: a copy, a symlink, a
+    rename, and a case-differing name on a case-insensitive filesystem all carry
+    the same content and all fuse. A file that merely shares the name no longer
+    does, which is also correct -- the tripwire belongs to the code, not the
+    label on it.
+    """
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return False
+    return digest == _mutating_digest()
+
+
+def _mutating_digest() -> str:
+    return hashlib.sha256((SCRIPTS / _MUTATING).read_bytes()).hexdigest()
 
 
 def _fuse(module: types.ModuleType) -> None:
@@ -174,7 +202,7 @@ def _load_from(path: pathlib.Path, *, invalidate: bool = True) -> types.ModuleTy
     assert spec and spec.loader, path
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    if path.name == _MUTATING:
+    if _is_the_mutating_instrument(path):
         _fuse(module)
     return module
 
@@ -312,17 +340,30 @@ def _names_naming(tree: ast.AST, script: str, *, seed: set[str] | None = None) -
 def _names_naming_closure(tree: ast.AST, script: str) -> set[str]:
     """:func:`_names_naming` iterated until it stops growing.
 
-    One pass cannot see ``a = script; b = f(a); exec(b)``. The corpus is a single
-    test module, so a fixpoint over a handful of passes costs nothing; the bound
-    exists only so a pathological file cannot spin.
+    A single pass already resolves *forward* chains, because :func:`_names_naming`
+    grows its set during one walk. What needs iteration is a **reverse-ordered**
+    chain -- ``exec(z)`` above ``z = v0`` above ``v0 = v1`` ... -- which
+    propagates one hop per pass. An earlier revision claimed "one pass could not
+    see it" of a forward chain; that was wrong, and the two corpus entries meant
+    to demonstrate transitivity both passed under a single pass, so the mechanism
+    was unpinned. The corpus now carries a reverse chain that requires it.
+
+    The bound fails **closed**: a file needing more than 64 passes raises rather
+    than returning a truncated, falsely-clean result.
     """
     names: set[str] = set()
-    for _ in range(16):
+    for _ in range(64):
         grown = _names_naming(tree, script, seed=names)
         if grown == names:
-            break
+            return names
         names = grown
-    return names
+    raise AssertionError(
+        "the name-resolution fixpoint did not converge; refusing to report a "
+        "clean result from a truncated analysis. An earlier revision capped this "
+        "at 16 and returned whatever it had, so a long enough reverse-ordered "
+        "chain silently produced an empty -- i.e. 'safe' -- verdict. A guard that "
+        "truncates must fail closed."
+    )
 
 
 def _exec_roots(tree: ast.AST) -> set[str]:
@@ -515,6 +556,61 @@ def test_f12_the_fuse_cannot_be_unwrapped(tmp_path: pathlib.Path) -> None:
         assert label
 
 
+def test_f12_the_fuse_follows_the_bytes_not_the_filename(tmp_path: pathlib.Path) -> None:
+    """A copy or a symlink under another name must still be fused.
+
+    An earlier revision keyed the fuse on ``path.name == _MUTATING``, so both of
+    these loaded UNFUSED through :func:`_load_from` -- the one loader -- and ran
+    the real mutating body. Verification measured it; the static layer missed the
+    same spellings, so both layers failed together. Identity is now the content
+    hash, which closes copies, symlinks, renames and case-differing names on a
+    case-insensitive filesystem in one stroke.
+    """
+    real = SCRIPTS / _MUTATING
+    disguises = [("copy", tmp_path / "harmless_helper.py")]
+    disguises[0][1].write_bytes(real.read_bytes())
+    link = tmp_path / "alias_instrument.py"
+    try:
+        link.symlink_to(real)
+        disguises.append(("symlink", link))
+    except (OSError, NotImplementedError):  # pragma: no cover - platform dependent
+        pass
+
+    for label, path in disguises:
+        module = _load_from(path)
+        assert getattr(module.main, "__fused__", False) is True, label
+        with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
+            module.main(tmp_path, "origin/main")
+
+    # Negative side: a file that merely shares the NAME is not fused, because the
+    # tripwire belongs to the code rather than to the label on it.
+    impostor = tmp_path / _MUTATING
+    impostor.write_text("def main(*a, **k):\n    return 0\n")
+    assert getattr(_load_from(impostor).main, "__fused__", False) is False
+
+
+def test_f12_the_fixpoint_fails_closed_rather_than_reporting_clean() -> None:
+    """A truncated analysis must not read as a clean verdict.
+
+    An earlier revision capped the iteration at 16 and returned whatever it had,
+    so a reverse-ordered chain longer than that produced an empty result -- which
+    the caller reads as "nothing executes this script". Verification found it.
+    """
+    def chain(hops: int) -> str:
+        return (
+            "import runpy\ndef f(): runpy.run_path(z)\n"
+            + "".join(f"v{i} = v{i + 1}\n" for i in range(hops))
+            + f'v{hops} = "f8_near_miss_controls.py"\nz = v0\n'
+        )
+
+    # Well within the bound: resolves, and the old cap of 16 would have missed it.
+    assert _executing_references_to(chain(40), _MUTATING)
+
+    # Beyond the bound: must RAISE, not return an empty (i.e. "clean") list.
+    with pytest.raises(AssertionError, match="did not converge"):
+        _executing_references_to(chain(200), _MUTATING)
+
+
 def test_f12_the_fuse_leaves_the_other_instruments_alone() -> None:
     """Negative side: only the mutating instrument is fused.
 
@@ -591,6 +687,21 @@ _MUST_DETECT = {
         'import importlib.util as iu\n_M = "f8_near_miss_controls.py"\n'
         'def f(): iu.spec_from_file_location("x", _M)\n'
     ),
+    "reverse-ordered chain (requires the fixpoint)": (
+        "import runpy\ndef f(): runpy.run_path(z)\n"
+        "z = v0\nv0 = v1\nv1 = v2\n"
+        'v2 = "f8_near_miss_controls.py"\n'
+    ),
+    "transitive THROUGH an attribute": (
+        "import runpy\nclass C:\n"
+        '    M = "f8_near_miss_controls.py"\n'
+        "alias = C.M\ndef f(): runpy.run_path(alias)\n"
+    ),
+    "attribute use (requires attr matching)": (
+        "import runpy\nclass C:\n"
+        '    M = "f8_near_miss_controls.py"\n'
+        "def f(): runpy.run_path(C.M)\n"
+    ),
     "later rebinding must not hide it": (
         'import runpy\n_M = "f8_near_miss_controls.py"\n'
         'def f(): runpy.run_path(_M)\n_M = "harmless.py"\n'
@@ -626,7 +737,7 @@ def test_f12_the_detector_finds_the_shapes_that_defeated_its_predecessor() -> No
     This also makes a *targeted* blinding of the detector fail. Stubbing it to
     return `[]` only for `_MUTATING` passed every other assertion in this module.
     """
-    assert len(_MUST_DETECT) >= 19 and len(_MUST_NOT_DETECT) >= 5, (
+    assert len(_MUST_DETECT) >= 22 and len(_MUST_NOT_DETECT) >= 5, (
         "the corpora are the pin; emptying either left the suite green, so their "
         f"size is asserted: detect={len(_MUST_DETECT)} reject={len(_MUST_NOT_DETECT)}"
     )
