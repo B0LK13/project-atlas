@@ -214,6 +214,23 @@
       "evidence": "Binds ADV to exact HEAD/TREE. ADV != MERGE. ADV != SECURITY CERTIFICATION.",
       "guard_tests": ["tests/unit/test_atlas3_adv_bind_052.py"]
     },
+    "at3-103-execution-identity-proof-v2": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": [
+        "src/atlas_contracts/canonical.py",
+        "src/atlas_contracts/execution_identity.py",
+        "src/atlas_contracts/attestation.py",
+        "src/project_atlas/atlas3/proof.py"
+      ],
+      "evidence": "Content-addressed execution identity + typed evidence attestation; proof v2 binds every attestation to one exact HEAD/TREE and fails closed. Proof v1 byte-identical. MODEL CLAIM != PROOF. Contract only: live observation not wired.",
+      "guard_tests": [
+        "tests/unit/test_atlas_contracts_canonical_103.py",
+        "tests/unit/test_atlas_contracts_execution_identity_103.py",
+        "tests/unit/test_atlas_contracts_attestation_103.py",
+        "tests/unit/test_atlas3_proof_v2_103.py"
+      ]
+    },
     "at3-051-iv-bind": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

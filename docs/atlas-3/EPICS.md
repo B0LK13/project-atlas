@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Directive | D-191 / D-192 / D-193 |
-| Epic count | **66** |
+| Epic count | **67** |
 | First vertical | AT3-003, AT3-014, AT3-015, AT3-030, AT3-050 |
 | Foundation priority | AT3-001, 002, 003, 004, 005, 014, 015, 030, 035, 050 |
 
@@ -87,6 +87,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-051 | Independent verification binding | ISOLATED_RUNTIME | AS-ORCH result envelope |
 | AT3-052 | ADV binding | ISOLATED_RUNTIME | adv_release_cert |
 | AT3-053 | Autonomy gate reuse | ISOLATED_RUNTIME | DAG, leases, owner gates |
+| AT3-103 | Execution identity + evidence attestation + proof v2 (ULT-01a) | ISOLATED_RUNTIME | AT3-050 v1 kept byte-identical; AT3-051/052 semantics; contract only, no observation |
 
 ## Wave G — Interoperability
 
@@ -144,4 +145,4 @@ clock, no second Truth Core). They were not dropped.
 
 ## Count
 
-66 unique epics (AT3-001…006, 010…015, 020…023, 030, 035…058, 060…062, 070…072, 080…082, 090…096, 100…102, 110…112, 120…122).
+67 unique epics (AT3-001…006, 010…015, 020…023, 030, 035…058, 060…062, 070…072, 080…082, 090…096, 100…103, 110…112, 120…122).
