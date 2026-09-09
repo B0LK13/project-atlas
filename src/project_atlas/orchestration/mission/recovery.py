@@ -18,19 +18,42 @@ Two genuinely different situations, kept genuinely distinct:
     to retry as a NEW run), `ADAPTER_INVOKED` (the adapter call was made
     but no confirmed outcome was ever recorded -- genuinely UNCERTAIN,
     the external effect may or may not have landed, never silently
-    retried), or `ADAPTER_CONFIRMED`/`ADAPTER_FAILED` (the outcome WAS
-    recorded before death -- known, not ambiguous, even though `COMPLETE`
-    and the lease release never happened).
+    retried), a resolved terminal state (the outcome WAS recorded before
+    death -- known, not ambiguous), or `CLEANUP_UNCONFIRMED_BLOCKED` (a
+    timeout whose process-tree termination could not be confirmed --
+    stays blocked, never silently treated as clean).
+
+COHERENT OWNERSHIP, NOT TWO INDEPENDENT READS: this module briefly
+ACQUIRES the workspace lease itself before reading the checkpoint, rather
+than reading the checkpoint and separately probing the lease as two
+unrelated observations. A real defect lived in exactly that gap: a worker
+could have a `STARTED` checkpoint at the moment of the checkpoint read,
+then advance to `ADAPTER_INVOKED`, perform its effect, and exit -- all
+before the (separate, later) lease probe -- so the probe reported the
+lease free and this function returned `safe_to_retry=True` from the
+stale `STARTED` snapshot, permitting the effect to be duplicated. A
+successful lease acquisition here is itself proof no one else held it at
+that instant, and (since we now hold it) proof nothing else can be
+mutating the checkpoint while we read it -- eliminating the gap instead
+of narrowing it.
 """
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from project_atlas.orchestration.mission.execution import MissionRunCheckpoint, load_checkpoint
-from project_atlas.orchestration.mission.lease import read_mission_lease_state
+from project_atlas.orchestration.mission.execution import (
+    MissionRunCheckpoint,
+    load_checkpoint,
+    load_checkpoint_detailed,
+)
+from project_atlas.orchestration.mission.lease import (
+    acquire_mission_lease,
+    release_mission_lease,
+)
 
 ReconciliationOutcome = Literal[
     "NO_RUN_FOUND",
@@ -39,6 +62,8 @@ ReconciliationOutcome = Literal[
     "SAFE_TO_RETRY_NEVER_STARTED_EXTERNAL_EFFECT",
     "KNOWN_OUTCOME_CLEANUP_ONLY",
     "UNCERTAIN_REQUIRES_RECONCILIATION",
+    "CLEANUP_UNCONFIRMED_BLOCKED",
+    "UNKNOWN_CHECKPOINT_UNSAFE_TO_RETRY",
 ]
 
 
@@ -53,10 +78,31 @@ class ReconciliationResult:
 
 def reconcile_mission_run(workspace: Path) -> ReconciliationResult:
     """Determine what actually happened to the mission run that last
-    touched `workspace`, without disturbing anything -- this function
-    never writes."""
-    checkpoint = load_checkpoint(workspace)
-    if checkpoint is None:
+    touched `workspace`. Momentarily acquires (and immediately releases)
+    the workspace lease under a private, single-use reconciler identity to
+    read the checkpoint under coherent ownership -- see module docstring.
+    If the lease cannot be acquired, a live worker genuinely owns it right
+    now (UI-reconnect, not recovery) and nothing is read under ownership;
+    the checkpoint is only peeked at, read-only, for reporting which run
+    is live, never to justify a retry decision."""
+    reconciler_id = f"reconciler-{uuid.uuid4().hex}"
+    acquired = acquire_mission_lease(workspace, run_id=reconciler_id)
+    if not acquired:
+        checkpoint = load_checkpoint(workspace)
+        return ReconciliationResult(
+            run_id=checkpoint.run_id if checkpoint is not None else None,
+            outcome="STILL_RUNNING",
+            detail="workspace lease is held by a live process; run is live",
+            safe_to_retry=False,
+            checkpoint=checkpoint,
+        )
+
+    try:
+        loaded = load_checkpoint_detailed(workspace)
+    finally:
+        release_mission_lease(workspace, run_id=reconciler_id)
+
+    if loaded.status == "ABSENT":
         return ReconciliationResult(
             run_id=None,
             outcome="NO_RUN_FOUND",
@@ -64,27 +110,42 @@ def reconcile_mission_run(workspace: Path) -> ReconciliationResult:
             safe_to_retry=True,
             checkpoint=None,
         )
-
-    lease = read_mission_lease_state(workspace)
-    if lease.held:
-        # The owning process is alive. This is a UI-reconnect situation,
-        # not a recovery situation -- do not touch the run.
+    if loaded.status != "VALID":
+        # UNREADABLE / MALFORMED / INCOMPATIBLE: this checkpoint EXISTS
+        # but cannot be trusted -- it could be hiding a real recorded
+        # effect corrupted after the fact. Preserving `UNKNOWN` here
+        # (never defaulting to "safe") is exactly what closes the
+        # "corrupt checkpoint after an effect returned NO_RUN_FOUND with
+        # safe_to_retry=True" defect: absent and unreadable are no longer
+        # the same answer.
         return ReconciliationResult(
-            run_id=checkpoint.run_id,
-            outcome="STILL_RUNNING",
-            detail=f"workspace lease held by pid {lease.holder_pid}; run is live",
+            run_id=None,
+            outcome="UNKNOWN_CHECKPOINT_UNSAFE_TO_RETRY",
+            detail=f"{loaded.status}: {loaded.detail}",
             safe_to_retry=False,
-            checkpoint=checkpoint,
+            checkpoint=None,
         )
 
-    # The lease is free. Either the run finished cleanly (released its own
-    # lease at COMPLETE) or the owning process died before reaching that
-    # point. The checkpoint's last recorded state is the only evidence.
+    checkpoint = loaded.checkpoint
+    assert checkpoint is not None  # VALID status guarantees this
+
     if checkpoint.state == "COMPLETE":
         return ReconciliationResult(
             run_id=checkpoint.run_id,
             outcome="ALREADY_COMPLETE",
             detail="run finished and released its own lease normally",
+            safe_to_retry=False,
+            checkpoint=checkpoint,
+        )
+    if checkpoint.state == "CLEANUP_UNCONFIRMED_BLOCKED":
+        return ReconciliationResult(
+            run_id=checkpoint.run_id,
+            outcome="CLEANUP_UNCONFIRMED_BLOCKED",
+            detail=(
+                "an adapter timeout's process-tree cleanup could not be confirmed -- the "
+                "workspace remains blocked pending manual verification, never silently "
+                "released for reuse while descendants might still be mutating it"
+            ),
             safe_to_retry=False,
             checkpoint=checkpoint,
         )
@@ -96,7 +157,7 @@ def reconcile_mission_run(workspace: Path) -> ReconciliationResult:
             safe_to_retry=True,
             checkpoint=checkpoint,
         )
-    if checkpoint.state in ("ADAPTER_CONFIRMED", "ADAPTER_FAILED"):
+    if checkpoint.state in ("ADAPTER_CONFIRMED", "ADAPTER_FAILED", "ADAPTER_SPAWN_FAILED"):
         return ReconciliationResult(
             run_id=checkpoint.run_id,
             outcome="KNOWN_OUTCOME_CLEANUP_ONLY",

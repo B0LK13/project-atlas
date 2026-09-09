@@ -27,6 +27,7 @@ def main() -> int:
     import uuid
 
     from project_atlas.orchestration.mission.adapter import ShellCommandAdapter
+    from project_atlas.orchestration.mission.context_packet import compile_mission_context
     from project_atlas.orchestration.mission.execution import (
         MissionRunCheckpoint,
         _persist_checkpoint,
@@ -43,11 +44,15 @@ def main() -> int:
     if not acquire_mission_lease(workspace, run_id=rid):
         return 1
 
+    # Workspace now exists (acquire_mission_lease mkdir'd it) -- record
+    # the SAME resolved identity `load_checkpoint_detailed` will expect.
+    workspace_identity = str(workspace.resolve())
+
     now = _time.time()
     checkpoint = MissionRunCheckpoint(
         run_id=rid,
         mission_id="M-CRASH-TEST",
-        workspace=str(workspace),
+        workspace=workspace_identity,
         adapter_repr="ShellCommandAdapter",
         state="STARTED",
         created_at=now,
@@ -67,8 +72,12 @@ def main() -> int:
         time.sleep(30.0)
         return 0
 
+    repo_root = Path(__file__).resolve().parents[2]
+    context = compile_mission_context(
+        repo_root, mission_id="M-CRASH-TEST", objective="crash test", keywords=["lock"]
+    )
     adapter = ShellCommandAdapter(command=(sys.executable, "-c", "print('ok')"))
-    result = adapter.run(workspace=workspace, timeout_sec=10.0)
+    result = adapter.run(workspace=workspace, context=context, timeout_sec=10.0)
     checkpoint = MissionRunCheckpoint(
         **{**asdict(checkpoint), "state": "ADAPTER_CONFIRMED", "result": asdict(result)}
     )

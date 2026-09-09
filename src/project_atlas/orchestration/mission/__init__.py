@@ -40,3 +40,18 @@ Modules:
 """
 
 from __future__ import annotations
+
+from typing import Final
+
+#: Where every operational file this package writes into a mission
+#: workspace lives -- the lease, its receipt, the run checkpoint, and the
+#: delivered context file -- rather than the workspace root directly.
+#: Discovered as a real gap while dogfooding this package's own pipeline:
+#: using a real repository checkout AS the workspace (a real, expected
+#: usage -- the lease then protects exclusive ownership of that checkout
+#: during a run) left `mission.lease`, `mission-run-checkpoint.json`, etc.
+#: sitting directly in the repo root, untracked and easy to mistake for
+#: real repository content. Mirrors this repository's own established
+#: convention (`orchestration.sdk.models.STATE_DIR_RELATIVE`) for exactly
+#: this kind of operational-state-vs-content separation.
+MISSION_STATE_DIR_NAME: Final[str] = ".atlas-mission"

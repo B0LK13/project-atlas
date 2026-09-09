@@ -32,23 +32,36 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from project_atlas.orchestration.mission import os_lock
+from project_atlas.orchestration.mission import MISSION_STATE_DIR_NAME, os_lock
 
 LEASE_FILE_NAME = "mission.lease"
 RECEIPT_FILE_NAME = "mission-lease-receipt.json"
-_HELD_LEASE_FDS: dict[str, int] = {}
+
+# Guards `_HELD_LEASES` against concurrent threads/nested calls in this
+# SAME process -- the OS lock (`os_lock`) already arbitrates correctly
+# ACROSS processes on its own; this lock exists purely to make the
+# check-then-act sequence below (is it already held? by whom? acquire if
+# not) atomic within one process, closing a real race between the
+# "already held" check and the write that records it.
+_STATE_LOCK = threading.Lock()
+# key -> (fd, run_id) -- run_id is what makes idempotency and release
+# OWNERSHIP-SPECIFIC: a second run_id reentering the SAME workspace in the
+# SAME process is a different logical owner and must be rejected, not
+# silently granted by a same-process short-circuit.
+_HELD_LEASES: dict[str, tuple[int, str]] = {}
 
 
 def _lease_path(workspace: Path) -> Path:
-    return workspace / LEASE_FILE_NAME
+    return workspace / MISSION_STATE_DIR_NAME / LEASE_FILE_NAME
 
 
 def _receipt_path(workspace: Path) -> Path:
-    return workspace / RECEIPT_FILE_NAME
+    return workspace / MISSION_STATE_DIR_NAME / RECEIPT_FILE_NAME
 
 
 def _key(path: Path) -> str:
@@ -65,19 +78,28 @@ class MissionLeaseState:
 
 
 def acquire_mission_lease(workspace: Path, *, run_id: str) -> bool:
-    """Claim exclusive ownership of `workspace` for this process. Returns
-    True if this process now holds it (freshly, or already did --
-    idempotent, no re-lock). False if a different live process holds it.
-    Never blocks. Crash recovery is automatic: see `os_lock`."""
+    """Claim exclusive ownership of `workspace` for `run_id`. Returns True
+    if `run_id` now holds it (freshly, or already did -- idempotent for
+    the SAME run_id, no re-lock). False if a different live process OR a
+    DIFFERENT run_id in THIS process holds it: reentrancy from a
+    different logical owner (two threads, or nested calls, each running a
+    different mission run against the same workspace) is rejected, not
+    silently granted by the same-process short-circuit -- a prior defect
+    here let two different run_ids both "win" and overwrite the same
+    checkpoint. Never blocks. Crash recovery is automatic: see `os_lock`.
+    """
     path = _lease_path(workspace)
     path.parent.mkdir(parents=True, exist_ok=True)
     key = _key(path)
-    if key in _HELD_LEASE_FDS:
-        return True
-    fd = os_lock.try_acquire_exclusive(path)
-    if fd is None:
-        return False
-    _HELD_LEASE_FDS[key] = fd
+    with _STATE_LOCK:
+        existing = _HELD_LEASES.get(key)
+        if existing is not None:
+            _, held_run_id = existing
+            return held_run_id == run_id
+        fd = os_lock.try_acquire_exclusive(path)
+        if fd is None:
+            return False
+        _HELD_LEASES[key] = (fd, run_id)
     _publish_lease_receipt(workspace, pid=os.getpid(), run_id=run_id)
     return True
 
@@ -87,7 +109,15 @@ def _publish_lease_receipt(workspace: Path, *, pid: int, run_id: str) -> None:
     discipline as `resident_driver._publish_receipt()` -- a failed
     publish leaves the receipt ABSENT, never a stale prior holder's
     content, and this is purely informational either way (ownership is
-    the OS lock, not this file)."""
+    the OS lock, not this file). Unlike `execution._persist_checkpoint()`
+    (which retries the same class of transient Windows sharing-violation
+    `PermissionError` -- see that function's docstring for the real,
+    reproduced hazard), this function deliberately does NOT retry: a
+    checkpoint write failure would be load-bearing (crashing the caller
+    with no recorded state), while a receipt publish failure here simply
+    leaves `read_mission_lease_state()`'s `holder_pid` as `None` for this
+    one read -- annoying, never incorrect, and consistent with this
+    receipt's already-established best-effort contract."""
     receipt_path = _receipt_path(workspace)
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
     receipt_path.unlink(missing_ok=True)
@@ -100,14 +130,24 @@ def _publish_lease_receipt(workspace: Path, *, pid: int, run_id: str) -> None:
         tmp_path.unlink(missing_ok=True)
 
 
-def release_mission_lease(workspace: Path) -> None:
-    """Release ownership of `workspace`, if this process holds it.
-    Idempotent, safe even if never held."""
+def release_mission_lease(workspace: Path, *, run_id: str) -> None:
+    """Release ownership of `workspace` IF this process holds it under
+    `run_id` -- ownership-specific: a caller cannot release a lease held
+    by a DIFFERENT run_id in the same process (that would leave the
+    actual owner's fd released out from under it while it still believes
+    itself protected). Idempotent, safe even if never held or already
+    released."""
     path = _lease_path(workspace)
     key = _key(path)
-    fd = _HELD_LEASE_FDS.pop(key, None)
-    if fd is not None:
-        os_lock.release(fd)
+    with _STATE_LOCK:
+        existing = _HELD_LEASES.get(key)
+        if existing is None:
+            return
+        fd, held_run_id = existing
+        if held_run_id != run_id:
+            return
+        del _HELD_LEASES[key]
+    os_lock.release(fd)
 
 
 def read_mission_lease_state(workspace: Path) -> MissionLeaseState:

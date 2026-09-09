@@ -18,15 +18,25 @@ Two hard rules, enforced by the data model itself, not just convention:
     retrieval -- carries authority.
 
   STALE SOURCES ARE DETECTABLE, NOT SILENTLY SERVED
-    Every included source records the git blob hash of its content at
-    compile time. `check_context_staleness()` re-hashes each source's
-    CURRENT content and flags any divergence -- a source that changed
-    since the packet was compiled is reported SUPERSEDED, never quietly
-    treated as still current.
+    Every included source records a content hash bound to the EXACT bytes
+    this compiler actually read for its excerpt -- not a separate re-read
+    of the file after the fact, which could in principle observe
+    different bytes than the excerpt itself if the file changed in
+    between. `check_context_staleness()` re-hashes each source's CURRENT
+    content the same way and flags any divergence -- a source that
+    changed since the packet was compiled is reported SUPERSEDED, never
+    quietly treated as still current.
+
+  GIT UNAVAILABILITY DEGRADES, NEVER CRASHES
+    `_git()` (used only for `base_head`/`base_tree`, real repository-state
+    identity that has no local substitute) tolerates a missing/hung git
+    the same way the rest of this module tolerates a missing file: an
+    empty string, not an unhandled exception aborting the whole compile.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -41,34 +51,34 @@ _GIT_TIMEOUT_SEC = 15.0
 
 
 def _git(args: list[str], cwd: Path) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT_SEC,
-        check=False,
-        creationflags=_NO_WINDOW,
-    )
-    return (result.stdout or "").strip()
-
-
-def _blob_hash(repo_root: Path, path: Path) -> str:
-    """`git hash-object` -- content identity independent of mtime, so an
-    edit-then-revert round-trip is correctly seen as unchanged, and any
-    real content change is correctly seen as changed."""
-    if not path.is_file():
+    """Never raises: a missing git executable, a timeout, or any other
+    OS-level failure degrades to an empty string, matching every other
+    "source unavailable" case in this module -- a hung or absent git must
+    not abort context compilation entirely."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=_GIT_TIMEOUT_SEC,
+            check=False,
+            creationflags=_NO_WINDOW,
+        )
+    except (subprocess.TimeoutExpired, OSError):
         return ""
-    result = subprocess.run(
-        ["git", "hash-object", str(path)],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT_SEC,
-        check=False,
-        creationflags=_NO_WINDOW,
-    )
     return (result.stdout or "").strip()
+
+
+def _content_hash(text: str) -> str:
+    """Hash of the EXACT text this module read for an excerpt/comparison
+    -- git-blob-style (`sha1("blob {len}\\0" + content)`) for familiarity,
+    but computed entirely in-process (no subprocess, no separate re-read)
+    so the recorded identity is provably the same bytes the excerpt itself
+    reflects, both at compile time and at every later staleness check."""
+    data = text.encode("utf-8", errors="replace")
+    header = f"blob {len(data)}\0".encode()
+    return hashlib.sha1(header + data).hexdigest()
 
 
 SourceKind = Literal["adr", "backlog", "worklog_excerpt", "code"]
@@ -77,11 +87,16 @@ SourceKind = Literal["adr", "backlog", "worklog_excerpt", "code"]
 @dataclass(frozen=True)
 class SourceRef:
     """Identity of one repository document at compile time -- what
-    `check_context_staleness()` re-verifies against."""
+    `check_context_staleness()` re-verifies against. `tail_lines` is only
+    meaningful for `kind="worklog_excerpt"`: it records how many trailing
+    lines were read, so a later staleness check can reproduce the EXACT
+    same bounded read rather than hashing a different slice of the file
+    (or the whole file) and reporting a false mismatch."""
 
     path: str
     kind: SourceKind
     blob_hash: str
+    tail_lines: int | None = None
 
 
 @dataclass(frozen=True)
@@ -150,6 +165,33 @@ def _packet_to_dict(p: MissionContextPacket) -> dict[str, Any]:
     }
 
 
+def packet_content_equivalent(a: MissionContextPacket, b: MissionContextPacket) -> bool:
+    """Two packets are CONTENT-equivalent if everything except the
+    operational `compiled_at` timestamp matches.
+
+    Directly driven by a retrieved Atlas decision, not invented: ADR-001
+    §2 ("Scaffold generation embeds no wall-clock timestamps") resolves
+    the tension between NFR-001 (byte-identical output across repeated
+    runs) and NFR-007 (generation metadata in every generated file) by
+    recording `generated.by` but omitting timestamp fields from anything
+    compared for determinism -- "later phases... can introduce explicit,
+    test-controlled timestamps where determinism is defined to exclude
+    them". `compiled_at` is exactly that kind of field here: purely
+    operational/audit metadata (when this packet happened to be built),
+    never part of the actual retrieved knowledge. Two packets compiled
+    moments apart from the SAME underlying repository state carry the
+    same knowledge and should be recognized as equivalent, not spuriously
+    "different" merely because wall-clock time moved forward between the
+    two compiles -- useful for detecting whether a recompiled context
+    packet actually changed anything, independent of when it was built.
+    """
+    da = _packet_to_dict(a)
+    db = _packet_to_dict(b)
+    da.pop("compiled_at", None)
+    db.pop("compiled_at", None)
+    return da == db
+
+
 def _score(text: str, keywords: list[str]) -> int:
     lowered = text.lower()
     return sum(lowered.count(k.lower()) for k in keywords if k)
@@ -159,6 +201,32 @@ def _excerpt(text: str, *, budget: int) -> tuple[str, bool]:
     if len(text) <= budget:
         return text, False
     return text[:budget], True
+
+
+def _read_tail_lines(path: Path, *, n: int, chunk_size: int = 65536) -> list[str]:
+    """Genuinely bounded tail read: seeks backward from EOF in chunks,
+    stopping as soon as at least `n` lines have been collected, rather
+    than reading the whole file first and slicing -- a real, reported
+    defect in this function's predecessor shape (`read_text().splitlines()
+    [-n:]`), which loaded the ENTIRE file into memory regardless of how
+    small a tail was requested. I/O is bounded to roughly `n` lines' worth
+    of bytes (plus at most one extra chunk of overshoot), not the whole
+    file, so this stays cheap even as WORKLOG.md keeps growing."""
+    try:
+        with path.open("rb") as f:
+            f.seek(0, 2)
+            pos = f.tell()
+            data = b""
+            while pos > 0 and data.count(b"\n") <= n:
+                read_size = min(chunk_size, pos)
+                pos -= read_size
+                f.seek(pos)
+                data = f.read(read_size) + data
+    except OSError:
+        return []
+    text = data.decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    return lines[-n:] if len(lines) > n else lines
 
 
 def _worklog_tail_excerpts(
@@ -171,11 +239,9 @@ def _worklog_tail_excerpts(
     path = repo_root / "WORKLOG.md"
     if not path.is_file():
         return []
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
+    tail = _read_tail_lines(path, n=tail_lines)
+    if not tail:
         return []
-    tail = lines[-tail_lines:]
     text = "\n".join(tail)
     hits = _score(text, keywords)
     if hits == 0:
@@ -186,7 +252,8 @@ def _worklog_tail_excerpts(
             source=SourceRef(
                 path=f"WORKLOG.md (last {len(tail)} lines)",
                 kind="worklog_excerpt",
-                blob_hash=_blob_hash(repo_root, path),
+                blob_hash=_content_hash(text),
+                tail_lines=len(tail),
             ),
             excerpt=excerpt,
             truncated=truncated,
@@ -220,7 +287,7 @@ def _adr_materials(
                 source=SourceRef(
                     path=str(p.relative_to(repo_root)),
                     kind="adr",
-                    blob_hash=_blob_hash(repo_root, p),
+                    blob_hash=_content_hash(text),
                 ),
                 excerpt=excerpt,
                 truncated=truncated,
@@ -251,7 +318,7 @@ def _backlog_materials(
             source=SourceRef(
                 path="docs/backlog.md",
                 kind="backlog",
-                blob_hash=_blob_hash(repo_root, path),
+                blob_hash=_content_hash(text),
             ),
             excerpt=excerpt,
             truncated=truncated,
@@ -336,27 +403,41 @@ class StalenessReport:
 
 
 def check_context_staleness(repo_root: Path, packet: MissionContextPacket) -> StalenessReport:
-    """Re-hash every source the packet recorded and compare against what
-    was recorded at compile time. A changed or now-missing source is
-    reported, never silently trusted."""
+    """Re-read every source the packet recorded THE SAME WAY it was
+    originally read (including, for a worklog excerpt, the identical
+    bounded tail read -- not the whole file, and not a differently-sized
+    slice of it), hash it with the same in-process `_content_hash`, and
+    compare against what was recorded at compile time. A changed or
+    now-missing source is reported, never silently trusted."""
     superseded: list[str] = []
     unreadable: list[str] = []
     fresh: list[str] = []
     all_materials = packet.decisions + packet.backlog_items + packet.prior_related_work
     for m in all_materials:
         src = m.source
-        # The recorded worklog path embeds a line count computed at
-        # compile time; re-derive the real file path for re-hashing.
-        path = (
-            repo_root / "WORKLOG.md" if src.kind == "worklog_excerpt" else repo_root / src.path
-        )
-        if not path.is_file():
-            unreadable.append(src.path)
-            continue
-        current_hash = _blob_hash(repo_root, path)
-        if not current_hash:
-            unreadable.append(src.path)
-        elif current_hash != src.blob_hash:
+        if src.kind == "worklog_excerpt":
+            path = repo_root / "WORKLOG.md"
+            if not path.is_file():
+                unreadable.append(src.path)
+                continue
+            tail = _read_tail_lines(path, n=src.tail_lines or 0)
+            if not tail:
+                unreadable.append(src.path)
+                continue
+            current_hash = _content_hash("\n".join(tail))
+        else:
+            path = repo_root / src.path
+            if not path.is_file():
+                unreadable.append(src.path)
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                unreadable.append(src.path)
+                continue
+            current_hash = _content_hash(text)
+
+        if current_hash != src.blob_hash:
             superseded.append(src.path)
         else:
             fresh.append(src.path)
