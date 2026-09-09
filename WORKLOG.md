@@ -14791,3 +14791,61 @@ ingestion (ULT-01b-2); any freshness claim (`observed_is_current` is fixed
 `false`); provenance of the `git` binary; Windows execution beyond CI's test
 run. `MERGE_AUTHORIZATION = NOT_GRANTED`; `ULT_01B_SLICE_2 = NOT_STARTED`;
 `ULT_01B_SLICE_3 = NOT_STARTED`.
+
+## ULT-01b-1 — operational authorization of `execution.observe` (2026-09-09)
+
+Owner directive `GOAL = COMPLETE_ULT_01B_1_OPERATIONAL_AUTHORIZATION`
+(REPOSITORY B0LK13/project-atlas, PACKAGE ULT-01b-1, SOURCE_PR #765): the
+architectural decision behind O3 is approved; authority is granted to modify
+the certified frozen authorization surface **solely** to register
+`execution.observe` as privileged and default-off, so the already-certified
+ULT-01b-1 CLI becomes usable through the existing Atlas authorization model.
+Not a general permission to modify `authz.py`.
+
+**Owner grant recorded (required by the DENY-list contract in
+`tests/unit/test_atlas3_demo_isolation_001.py`):** exception id
+`OG-ULT-01B-1-AUTHZ-EXECUTION-OBSERVE-20260909`; path
+`src/project_atlas/authz.py`; frozen preimage verified against fresh
+repository truth before mutation — blob `c6dd713a`, identical on the branch
+and on `origin/main` (`b87b4a22`), sha256
+`505ca5bbb9879e49f27f9ea0f43dd9b450bc3576343f789273d547f0b2d0f5ac`; applied
+change = exactly `docs/evidence/ULT-01B-1-authz-execution-observe.patch`
+(index `c6dd713a..4fd84eb4`, 5 insertions, 0 deletions: Literal member,
+`ALL_CAPABILITIES` member, `PRIVILEGED_CAPABILITIES` member); post-mutation
+sha256 `3f6500e597028265ee3aa4ec589d327b2258fbb035bc16cf961bb1ef3d4847e4`
+pinned. Semantics: `execution.observe ∈ ALL_CAPABILITIES`,
+`∈ PRIVILEGED_CAPABILITIES`, `∉ DEFAULT_OPERATOR_CAPS`,
+`∉ READ_ONLY_CAPABILITIES`; credential minting, API authentication, bearer
+handling and every other capability untouched (`AUTHZ_DEFAULT_PRIVILEGE =
+UNCHANGED`, pinned by `tests/unit/test_authz_execution_observe_01b.py`, which
+copies the frozen default sets verbatim).
+
+**Candidate.** `f71b9f5d` / tree `48d5c9b8` (PR #765, on top of the
+round-3 certified object `e3708077`): the observer package is byte-identical
+to round 3 (only comments changed in `atlas3/cli.py` and
+`execution_observation/observe.py`); the CLI fails closed without
+`ATLAS_CLI_ELEVATE_CAPS` (`authz-cli-elevation-required`), stays denied when
+the allow-list names other privileged capabilities (`-incomplete`), and with
+the explicit elevation runs the real live path end to end on a real
+repository (receipt stored, deterministic and idempotent,
+`observed_is_current=false`, `merge_authorization=NOT_GRANTED`).
+
+**Commands (junit counts, worktree venv).** ruff clean; mypy 415 files clean;
+new + observation suites 126 passed; authz/security suites (SEC-009,
+SEC-ADV004-B, AS-2.1 wave2/track-B, AS-2.0 collab/inbox sec, demo isolation)
+green; full suite 6094 collected, 6082 passed, 8 skipped, 4 xfailed, 0 failed. `docs/scripts/ult_01b_1_negative_controls.py`:
+35 controls, 35/35 kill, 35 distinct sets — the five
+new authorization controls (granted to default operator; carried by read
+credentials; demoted from privileged; CLI gate removed; allow-list
+completeness dropped) each kill; `at3_103_negative_controls.py` 28/28.
+Exact-head CI run 34344389532: all four jobs success (ubuntu 3.12 full `6082 passed, 8 skipped, 4 xfailed`; ubuntu 3.13 compat same; Windows `6025 passed, 62 skipped, 3 deselected, 4 xfailed`; control-plane). IV PASS_WITH_NONBLOCKING_FINDINGS (**P0=P1=P2=0**; P3: pre-existing allow-list whitespace tolerance, WORKLOG record only at the seal, carried nits); ADV PASS_WITH_FINDINGS (**P0=P1=P2=0**; harness 22 mutants, 21 killed, 0 survived; P3: six authz guards protected only by the sha pin, NBSP stripping, pre-existing fixture socket warnings; round-3 P3 residuals confirmed open and unabsorbed).
+
+**Receipt:** `docs/evidence/ULT-01B-1-OPERATIONAL-AUTHORIZATION.md`. The
+round-3 receipt (`ULT-01B-1-LIVE-EXECUTION-OBSERVATION.md`) is retained
+unchanged as the observation certification; this entry's seal commit is
+docs-only and keeps `src`/`tests` hash-identical to `f71b9f5d`.
+
+**Not claimed:** merge authority; ULT-01b-2 (IV/ADV observation integration)
+or ULT-01b-3 (agent observation); any change to default privilege; any
+absorption of the round-3 P3 residuals. `MERGE_AUTHORIZATION = NOT_GRANTED`;
+`ULT_01B_SLICE_2 = NOT_STARTED`.
