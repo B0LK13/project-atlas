@@ -15103,6 +15103,14 @@ lacked, never destroy the token on exit: 1 failed each; treat silence as clean:
 measured, not assumed -- an awaited task stays attributed, a bare thread starts
 with an empty context and is reported unattributed.
 
+**Demonstrated, not deployed.** Nothing in `src/project_atlas` calls `bind()`. F19 proves
+the binding works and that its protections are load-bearing; it does not make Atlas
+attribute its own writes today. The integration point is identified rather than left
+vague: `leases.py:grant_lease` is the sole place an `AgentLease` is ever created and is
+reached in production from `governor.py:596`, so one `bind()` there would cover every
+governed execution. That is a `src/` change this lane has not made and is recorded as a
+handoff.
+
 **What this does NOT claim.** Not `A_WRITER_CANNOT_SILENTLY_BYPASS_HUMAN_CONTENT_INTEGRITY`:
 the boundary is report-only in-process and absent out-of-process. Not
 cross-process attribution -- the process boundary carries no trusted identity,

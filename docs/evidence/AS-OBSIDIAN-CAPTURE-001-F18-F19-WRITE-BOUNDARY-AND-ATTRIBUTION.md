@@ -178,6 +178,23 @@ mistakes. It is not a security boundary.
 
 ---
 
+### Stated limitation: demonstrated, not deployed
+
+Nothing in `src/project_atlas` calls `bind()`. F19 proves the binding works and
+that its protections are load-bearing; it does **not** make Atlas attribute its
+own writes today.
+
+The integration point is identified rather than left vague.
+`leases.py:grant_lease` is, per its own callers' comments, *the sole place an
+`AgentLease` is ever created*, and it is reached in production from
+`governor.py:596`. A single `bind()` around the work a granted lease authorizes
+would therefore cover every governed execution -- one call site, not a
+sprinkling.
+
+That change is a `src/` change this lane has not made and has not been
+authorized to make. It is written down here as a precise handoff so the next
+owner inherits a location and a rationale rather than a research task.
+
 ## What this does NOT claim
 
 - **Not** `A_WRITER_CANNOT_SILENTLY_BYPASS_HUMAN_CONTENT_INTEGRITY`. The
