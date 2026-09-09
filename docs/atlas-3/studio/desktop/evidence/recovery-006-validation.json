@@ -8,6 +8,8 @@
   "directive": "D-CODEX-ATLAS-STUDIO-FINAL-DELIVERY-GATES-006",
   "evidence_sha256": {
     "recovery-006-installed-a11y.json": "bd7c8103cc89441954836e5df0c9e360162619bc4224b5ff109a28ce460dbf41",
+    "recovery-006-installed-live-a11y.json": "8f5e3da68a2e62d602584d68904ea93d98bf22a727cd1636577fdb6d38dbe8d9",
+    "recovery-006-installed-live.png": "89e882bcc8258b81bdb593d4945b4da9dac0231980d0acfd339e77ed6ce8c200",
     "recovery-006-installed-native.png": "1bffb9e34d5ab9c0212d9f7c6b60e26cd4f8399085843a49ea7f3ab96a4120b4",
     "recovery-006-native-error-a11y.json": "78d4a1c2fdefdec49f24c105bce50eafad676ef580a58b1dee03b109e5728bf8",
     "recovery-006-native-mission-a11y.json": "c83e43c2f6d36c68d7e04215222c5ffd73f33b5ed18ad64b11a64a53df71a8c0",
@@ -32,6 +34,15 @@
     "format": "deb",
     "installation": "PASS in rootless Podman Ubuntu26.04",
     "installed_launch": "non-root process and 1440x900 window under Xvfb; default sandbox; not full functional acceptance",
+    "installed_live_render": {
+      "active_agents": 1,
+      "generated_at_utc": "2026-09-09T17:09:19Z",
+      "network": "rootless container host networking solely to reach localhost read bridge; WebKit sandbox unchanged",
+      "result": "PASS; actual authenticated host A1 bridge, no interception/replay",
+      "uninstall": "PASS",
+      "waiting_ci": 11,
+      "waiting_iv": 55
+    },
     "installed_render": "BRIDGE DISCONNECTED and Projection Unavailable verified via AT-SPI; screenshot inspected; no fixture fallback",
     "lifecycle_exit": 0,
     "second_uninstall": "PASS after installed rendering check",

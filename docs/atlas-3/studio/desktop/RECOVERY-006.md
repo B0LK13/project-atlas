@@ -36,7 +36,9 @@ The container used default isolation. Xvfb reported expected DRI3 graphics warni
 
 ![Installed native WebKit disconnected state under Xvfb](evidence/recovery-006-installed-native.png)
 
-The additional installed rendering check and its subsequent uninstall both passed. It does not establish installed-package live A1 loading; ordinary host-native live/error/recovery evidence is recorded separately above.
+The additional installed rendering check and its subsequent uninstall both passed. A final installed-package run also loaded actual authenticated A1 through the existing host read bridge, without replay or interception. The rootless container used host networking to reach the localhost endpoint; WebKit sandboxing remained unchanged. AT-SPI assertions verified CURRENT READ-ONLY PROJECTION, Mission Control and ubuntu-main. The inspected native screenshot shows one active agent, 11 waiting CI and 55 waiting IV at source time 2026-09-09T17:09:19Z. Uninstall passed again. Ordinary host-native live/error/recovery evidence remains recorded separately above.
+
+![Installed native WebKit with actual A1 data under Xvfb](evidence/recovery-006-installed-live.png)
 
 ## Documentation and authority
 
