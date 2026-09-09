@@ -136,21 +136,25 @@ passed / 8 skipped / 4 xfailed; ruff and mypy clean (405 files). All five
 controls reproduce on `main` at 33 → 12/4/4/1/2, sources restored byte-identical.
 
 **Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py`
-compares both surfaces over a named corpus plus a generated sweep -- **226
-shapes, 203 refused, 226 byte-identical outcomes, 0 divergences** -- reporting
-refusal as well as message, so a change that widens or narrows what is refused
-shows as a policy delta rather than only a wording one. Controlled: reverting the
-count site to its bare message yields **48 divergences of 226**.
+compares both surfaces over a named corpus plus a generated sweep -- **135 shapes,
+125 refused, 135 byte-identical outcomes, 0 divergences**, across **17 distinct
+outcomes** of which **42 exercise a generated-marker diagnosis**. It reports refusal
+as well as message, so a change that widens or narrows what is refused shows as a
+policy delta rather than only a wording one. Controlled: reverting the count site to
+its bare message yields **24 divergences**; making the sweep inert trips the corpus
+guard.
 
-That script exists because review raised, correctly, that this seal was citing
-measurements no clean checkout could audit. Independent verification ran larger
-corpora of its own and reported the same direction -- 19 of 27 shapes divergent
-on the base and 0 at head, the refusal set unmoved across 20,314 cases -- but
-**those harnesses are not in this repository**, so those figures are attributed
-rather than cited as evidence.
+An earlier revision cited 226, which verification showed was inflated roughly
+threefold -- an empty sweep fragment made 60 of 216 shapes exact duplicates, and
+over half the rest refused on HUMAN-marker imbalance before any generated-marker
+diagnosis was computed. Its guards were vacuous in the same way: both were satisfied
+by construction, so an entirely inert sweep passed them. They now assert on distinct
+outcomes and on the sweep's own refusals.
 
-**Owner-gated and unchanged:** `ingestion.py`'s three sites, a certified surface
-needing an owner-approved §9.1 exception this lane cannot self-grant.
+That script exists because review raised, correctly, that this seal cited
+measurements no clean checkout could audit. Verification's own larger corpora
+reported the same direction, but **those harnesses are not in this repository**, so
+those figures are attributed rather than cited as evidence.
 
 **Citation boundary:** verification reports are session artifacts and are not in
 this repository. No verdict is asserted here as fact -- an earlier revision said
@@ -159,8 +163,14 @@ this seal rests on are reproducible by the committed script and by re-running th
 named suites; figures attributed to verification's own harnesses are marked as
 such and are not reproducible here.
 
-**A residual verification found, pre-existing and not F9's:** across a 40,000-case
-fuzz, 41 shapes where the two surfaces disagree on whether to refuse -- 30 where
-canonical raises and graph does not, 11 the reverse. They concern HUMAN marker
-*pairing*, not generated-marker diagnosis, and are identical on the base, so F9
-neither introduced nor worsened them. A candidate for its own package.
+**A residual verification found, pre-existing and not F9's:** across a
+**20,314-case corpus**, **41** shapes where the two surfaces disagree on whether to
+refuse -- 30 canonical-refuses/graph-accepts, 11 the reverse; a separate
+40,000-case fuzz gives **90** (61 and 29). An earlier revision attributed the 41 to
+the 40,000-case run, which was wrong, and neither corpus is committed. "Disagree"
+understates the direction: the larger group is graph **accepting and writing** a
+rendered document canonical refuses as structurally unpaired -- fail-open-shaped
+relative to canonical. It concerns HUMAN marker *pairing*, not generated-marker
+diagnosis, and is identical on the base, so F9 neither introduced nor worsened it.
+**It warrants its own work package**, not a residual line: a refusal-set divergence
+between two writers, measured today by no committed instrument.

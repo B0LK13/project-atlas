@@ -72,8 +72,10 @@ NAMED: dict[str, str] = {
 
 #: Fragments combined exhaustively, so the sweep covers orderings and counts the
 #: named corpus does not enumerate by hand.
+#: ``""`` is deliberately absent: including it made 60 of 216 sweep shapes exact
+#: duplicates of shorter ones, inflating the headline count without adding a
+#: single outcome.
 FRAGMENTS = [
-    "",
     GENERATED_START + "\n",
     GENERATED_END + "\n",
     HUMAN_OPEN + "\n",
@@ -121,10 +123,33 @@ def main() -> int:
     for label, canonical, graph in divergences:
         print(f"    [{label}]\n      canonical: {canonical}\n      graph    : {graph}")
 
-    # A run that compares nothing proves nothing: this lane has shipped controls
-    # that passed by being no-ops more than once.
-    assert len(shapes) > 200, len(shapes)
-    assert refusals > 0, "no shape was refused -- the corpus is not exercising the guard"
+    # A run that compares nothing proves nothing, and the first version of these
+    # guards did exactly that. `len(shapes) > 200` was structurally guaranteed by
+    # the sweep's own arithmetic, and `refusals > 0` was satisfied entirely by the
+    # ten hardcoded shapes -- so replacing every FRAGMENT with inert text left the
+    # sweep contributing zero refusals and one outcome while both guards passed.
+    # Verification demonstrated that. These assert on what the corpus actually
+    # exercises, and specifically on the SWEEP's contribution.
+    distinct_outcomes = {canonical for canonical, _ in map(outcome, (s for _, s in shapes))}
+    sweep_refusals = sum(
+        1 for label, existing in shapes
+        if label.startswith("sweep-") and outcome(existing)[0].startswith("REFUSE")
+    )
+    generated_marker = sum(
+        1 for _, existing in shapes
+        if "malformed-generated-markers" in outcome(existing)[0]
+    )
+    print(f"  distinct outcomes      {len(distinct_outcomes)}")
+    print(f"  refused by the sweep   {sweep_refusals}")
+    print(f"  generated-marker cases {generated_marker}")
+
+    assert len(distinct_outcomes) >= 15, len(distinct_outcomes)
+    assert sweep_refusals > 0, "the sweep contributes no refusals -- it has gone inert"
+    # 42 measured; the floor sits below it with room, so it catches a corpus
+    # that collapses without encoding today's exact count. An earlier revision
+    # asserted >= 50, a number carried over from a larger corpus and never
+    # measured against this one -- it failed immediately.
+    assert generated_marker >= 35, generated_marker
     return 1 if divergences else 0
 
 

@@ -14467,32 +14467,20 @@ parent process and a spawned child resolve `project_atlas` there:
 Each mutation under a sha256 assertion that it changed the file; source restored
 byte-identical after every run.
 
-**Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py` compares both surfaces over a named corpus plus a generated sweep -- **226 shapes, 203 refused, 226 byte-identical outcomes, 0 divergences** -- and reports refusal as well as message, so a future change that widens or narrows what is refused surfaces as a policy delta rather than only a wording one. Controlled: reverting the count site to its bare message yields **48 divergences of 226**. That script exists because review raised, correctly, that this seal was citing measurements no clean checkout could audit -- an instrument described is not an instrument available.
+**Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py`
+compares both surfaces over a named corpus plus a generated sweep -- **135 shapes, 125 refused, 135 byte-identical outcomes, 0 divergences**, over **17 distinct outcomes**, of which **42 exercise a generated-marker diagnosis**.
+It reports refusal as well as message, so a change that widens or narrows what is
+refused surfaces as a policy delta rather than only a wording one. Controlled:
+reverting the count site to its bare message yields **24 divergences**, and making
+the sweep inert trips the corpus guard.
 
-Independent verification ran larger corpora of its own and reported the same direction: 19 of 27 shapes divergent on the base and 0 at head, the refusal set unmoved across 20,314 cases, and `_generated_span`'s guard never raising across 3,883 public-path invocations. **Those harnesses are not in this repository**, so those figures are attributed rather than cited as evidence -- the numbers this seal rests on are the ones the committed script reproduces.
+An earlier revision cited 226. Verification showed that was inflated roughly threefold -- an empty sweep fragment made 60 of 216 shapes exact duplicates, and over half the rest refused on HUMAN-marker imbalance before a generated-marker diagnosis was ever computed. The empty fragment is gone and the smaller honest number is cited instead. Its guards were vacuous too: `len(shapes) > 200` was guaranteed by the sweep's own arithmetic and `refusals > 0` was satisfied by the ten hardcoded shapes, so replacing every fragment with inert text left both passing while the sweep contributed nothing. They now assert on distinct outcomes and on the sweep's own refusals, and fail when the sweep goes inert.
 
-**Two tests that could not fail were removed, and the second is the more
-instructive.** The first compared an immutable `str` to itself while four
-artifacts cited it as pinning byte identity. Its replacement, shipped in the very
-commit that removed it, globbed `*.tmp` — a suffix this module never writes,
-since `_promote` stages as `.<name>.<txn>.atlas-stage`. Worse, the control that
-appeared to validate it renamed staging to `.tmp`, matching the test's glob
-rather than the code's naming, so it validated the assertion against itself. The
-current test compares the whole vault byte for byte and was falsified seven ways,
-including the exact structural regression its docstring claims to guard: moving
-the merge after staging makes it fail where the old glob passes.
-
-**Owner-gated, unchanged.** `ingestion.py:103`, `:107` and `:484` still raise a
-plain `ValueError` with a third spelling of the same condition and no diagnosis
-at all — the surface closest to the product boundary. It is frozen by
-`test_atlas3_demo_isolation_001`; the only sanctioned path is an owner-approved
-sha256-pinned exception under `docs/atlas-3/ARCHITECTURE.md` §9.1, which this
-lane cannot self-grant. The fix is mechanical: the public helper this package
-exports.
-
-**Not claimed:** that refusal behaviour changed (it provably did not); that the
-three surfaces now agree (two do); or that `_generated_span`'s guard is reachable
-in production (it demonstrably is not).
+That script exists because review raised, correctly, that this seal was citing
+measurements no clean checkout could audit -- an instrument described is not an
+instrument available. Independent verification ran larger corpora of its own and
+reported the same direction, but **those harnesses are not in this repository**, so
+those figures are attributed rather than cited as evidence.
 
 **Citation boundary.** Where this seal refers to verification rounds, those
 reports are session artifacts and are **not in this repository**. No verdict is
@@ -14502,10 +14490,4 @@ that in all three artifacts. The figures this seal rests on are reproducible by
 the committed script and by re-running the named suites; figures attributed to
 verification's own harnesses are marked as such and are not reproducible here.
 
-**A residual verification found, pre-existing and not F9's.** Across a 40,000-case
-fuzz it observed 41 shapes where the two surfaces disagree on whether to refuse --
-30 where canonical raises and graph does not, 11 the reverse. These concern HUMAN
-marker *pairing*, not generated-marker diagnosis, and were **verified identical on
-the base**, so F9 neither introduced nor worsened them; F9's diff changes message
-text, never control flow. Recorded here as a candidate for its own package rather
-than folded into this one.
+**A residual verification found, pre-existing and not F9's.** Across a **20,314-case corpus** it observed **41** shapes where the two surfaces disagree on whether to refuse -- 30 where canonical raises and graph does not, 11 the reverse; a separate 40,000-case fuzz gives **90** (61 and 29). An earlier revision of this seal attributed the 41 to the 40,000-case run, which was wrong, and neither corpus is committed. The direction matters and "disagree" understates it: the larger group is graph **accepting and writing** a rendered document that canonical refuses as structurally unpaired -- fail-open-shaped relative to canonical. It concerns HUMAN marker *pairing* rather than generated-marker diagnosis, is identical on the base so F9 neither introduced nor worsened it, and F9's diff changes message text and never control flow. **This warrants its own work package**, not a residual line: it is a refusal-set divergence between two writers, measured today by no committed instrument.
