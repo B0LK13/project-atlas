@@ -14544,7 +14544,11 @@ emit malformed markers. False, and verification challenged it. Nothing in the
 render path escapes marker text -- `_redact_text` strips secrets and truncates
 but never touches HTML comments -- so a relationship field holding HUMAN marker
 text reaches the render verbatim; `source_entity_id`, `target_entity_id`,
-`relationship_type` and `relationship_id` all carry it.
+`relationship_type`, `relationship_id` and
+`provenance.graphify_artifact_refs[].relative_path` all carry it. **An earlier
+revision of this paragraph named only the first four.** The fifth is the one
+that bypasses `_redact_text` entirely; the correction was made in the receipt
+at `3b22f6d4` and did not reach this copy until the seal.
 
 The precondition neither my claim nor verification's stated: the prior note must
 have **no HUMAN regions**, which is the branch that splices by hand. An operator
@@ -14577,3 +14581,97 @@ surfaces agree in all directions -- they deliberately do not. Nor that
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F10 -- POST-MERGE SEAL (`06362807`)
+
+Integrated as PR #753 and sealed on the merge object. Merged **unrebased at the
+verified object**: merge commit `06362807`, first parent `a7adce4e`, second
+parent `3b22f6d4`, merge tree `1b11d3a0` **hash-identical to the PR head tree**,
+`git diff 3b22f6d4 06362807` empty, component trees `src 8ec29893`,
+`tests 6aa392e7`, `docs f81c9855`.
+
+That tree identity is the load-bearing fact rather than a formality: it means
+the exact-head CI which ran on `3b22f6d4` -- all four jobs green, both review
+threads resolved -- tested byte-for-byte what is now on `main`. There is no gap
+between the verified object and the merged one to argue about.
+
+**Re-measured on the merge object rather than carried forward.** The
+differential sweep, varying both sides of the merge, at three depths:
+
+    depth 2:     625 pairs   fail-open 0   disclosed (F4 contract)  2
+    depth 3:  15,625 pairs   fail-open 0   disclosed               12
+    depth 4: 390,625 pairs   fail-open 0   disclosed               42
+    total:   406,875 pairs   fail-open 0
+
+The disclosed direction -- canonical accepts, graph refuses -- is still present
+and grows with depth, so the corpus has not gone inert while reporting zero.
+
+**The sweep still bites.** With the fix removed from the merge object the same
+corpus at the same depths reports 1 / 3 / 54 fail-open, and the F10 suite drops
+from 7 passed to 4 failed: `crossed-a-b`, `reversed-end-before-begin`,
+`a_poisoned_field_cannot_brick_the_projection`, and
+`no_fail_open_divergence_across_a_differential_sweep`. The mutation was applied
+under a sha256 assertion that it changed the file and the source restored
+byte-identical (`1d9c0f84` before and after).
+
+Gates on `06362807`: F10 suite 7 passed; freeze guard and lifecycle sweep 81
+passed; full suite 5,733 passed, 8 skipped, 4 xfailed; `ruff check .` clean; `mypy src` clean (405 files).
+
+**What this seal does not claim.** Not that upstream reachability is
+established -- a live corruption path is demonstrated at the render and write
+layers, but whether a full `discover -> ingest -> graphify` run with
+attacker-controlled sources can plant such a field value is not shown. Not that
+the two surfaces agree in all directions; they deliberately do not, and F4's
+disclosed contract is asserted so it is not removed while "fixing the asymmetry"
+wholesale. Not that `ingestion.py` is covered: a third writer, owner-gated
+behind a frozen surface needing an owner-approved sha256-pinned exception under
+`docs/atlas-3/ARCHITECTURE.md` §9.1.
+
+**The pattern this package repeats, worth recording because it is now the rule
+rather than the exception in this lane: the code held from the first
+reproduction; every blocking finding was in the claim record.** Three
+corrections were needed before it could be sealed. The blast radius was
+understated -- an earlier revision called the defect defence in depth needing a
+broken renderer, and reproduction proved a durable denial-of-refresh instead.
+That retraction then reached the WORKLOG, the backlog and the receipt's Blast
+radius section but NOT the test module's docstring or the receipt's own `What is
+not claimed` list, whose first bullet still asserted the retracted claim in the
+conclusion a reader reaches last -- corrected-in-some-copies-not-all, on the
+central claim of a package whose subject is claim honesty. And a count was wrong
+by one: four propagating relationship fields named, five real, the fifth
+(`provenance.graphify_artifact_refs[].relative_path`) being the one that
+bypasses `_redact_text` entirely.
+
+A fourth, on the code side and equally instructive: the first version of the
+no-write test bound `before = NO_HUMAN_PRIOR` and asserted
+`before == NO_HUMAN_PRIOR` -- two names for one immutable `str`. Both review bots
+and verification caught it independently. It was the third tautological
+assertion in this lane and the second written after the lesson was recorded.
+Replaced by the end-to-end reproduction, which fails without the fix.
+
+**On editing this file in place.** The paragraph above was corrected in place
+rather than by appending a note beneath it. `WORKLOG.md:10947` describes a prior
+correction as made "rather than edited in place, per this file's own append-only
+convention", so that choice needs reconciling rather than silently contradicting.
+
+Measured on `origin/main`: of the last 38 commits touching `WORKLOG.md`, **26**
+delete lines, and the window is dense with in-place corrections of exactly this
+kind -- `f11d89ec` "bring WORKLOG to parity, after committing the fix to one copy
+only", `7b1763e0` "correct a wrong figure, a misleading message, and my own
+ledger damage", `9b2dba97` "correct the provenance claim". So the convention as
+stated at 10947 is not what this file's history shows; append-only is the
+practice for *new* entries, not for a sentence that is simply false. Appending a
+contradiction beneath a false claim leaves both on the page, which is the defect
+this seal exists to record.
+
+An earlier revision of this package cited **9** of 38 rather than 26, and
+asserted it over verification's correct figure. The cause is worth recording
+because it is a measurement-environment error, not arithmetic: the count was run
+in a worktree parked on an old branch, so it measured commits from 2026-08-31 to
+09-05 instead of 09-08 to 09-09, and the two precedent commits it cited
+(`9c146a31`, `ef5420f9`) sit at positions 76 and 78 in this file's history --
+outside any 38-commit window on `main`. Same class as trusting a subprocess to
+resolve the tree you think you are testing.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F10-REFUSAL-PARITY.md`,
+post-merge seal section.
