@@ -138,6 +138,8 @@ class GitDimension(DimensionObservation):
 
     @model_validator(mode="after")
     def _git_consistent(self) -> GitDimension:
+        if self.base_ref is not None and ".." in self.base_ref:
+            raise ObservationReceiptError("BASE_REF_INVALID", "base ref must be a plain ref name")
         incomplete = (
             self.base_ref is None or self.remote_name is None or self.worktree_clean is not True
         )
@@ -214,7 +216,7 @@ class ObservationReceipt(_Contract):
     identity_digest: str = Field(pattern=HASH_PATTERN)
     observer: Observer
     observed: ObservedDimensions
-    observed_is_current: Literal[False] = False
+    observed_is_current: StrictBool = False
     authority: Literal["derived"] = "derived"
     merge_authorization: Literal["NOT_GRANTED"] = "NOT_GRANTED"
     content_hash: str = Field(pattern=HASH_PATTERN)
@@ -238,6 +240,10 @@ class ObservationReceipt(_Contract):
 
     @model_validator(mode="after")
     def _verify(self, info: ValidationInfo) -> ObservationReceipt:
+        if self.observed_is_current is not False:
+            raise ObservationReceiptError(
+                "OBSERVED_IS_NOT_CURRENT", "a receipt is a record of a past observation"
+            )
         try:
             safe_relative_component(self.project_id, label="project id")
         except ValueError as exc:

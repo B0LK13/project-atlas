@@ -5,7 +5,8 @@ anything:
 
 1. ``git --version`` (the tool that will be trusted for everything below);
 2. the root is inside a work tree and **is** its top level (a subdirectory
-   would describe the wrong object);
+   would describe the wrong object); a symlinked root is resolved first and
+   the resolved path is what is observed — the identity names the real tree;
 3. shallow-ness (recorded, not refused);
 4. ``git status --porcelain`` must be empty — a candidate pair observed on a
    dirty tree would name an object that did not run
@@ -40,6 +41,7 @@ from project_atlas.orchestration.autonomy.trust import (
     normalize_repository_identity,
     require_full_pin,
 )
+from project_atlas.secrets import scan_text
 
 DEFAULT_BASE_REF: Final[str] = "origin/main"
 DEFAULT_REMOTE_NAME: Final[str] = "origin"
@@ -67,8 +69,16 @@ class GitObservation:
     method_refs: tuple[str, ...]
 
 
+MAX_BASE_REF_LENGTH: Final[int] = 100  # keeps "git rev-parse <ref>^{commit}" a valid method ref
+
+
 def validate_base_ref(base_ref: str) -> str:
-    if not isinstance(base_ref, str) or not _REF_RE.fullmatch(base_ref) or ".." in base_ref:
+    if (
+        not isinstance(base_ref, str)
+        or not _REF_RE.fullmatch(base_ref)
+        or ".." in base_ref
+        or len(base_ref) > MAX_BASE_REF_LENGTH
+    ):
         raise ObservationError("BASE_REF_INVALID", "base ref must be a plain git ref name")
     return base_ref
 
@@ -134,6 +144,12 @@ def _normalize_remote(raw_url: str) -> str:
     url = raw_url.strip()
     if not url or "\n" in url or "\x00" in url:
         raise ObservationError("REPO_IDENTITY_UNVERIFIABLE", "remote url unobservable")
+    # Scan the RAW value (before normalization lowercases it): a secret-shaped
+    # remote is refused outright; findings are pattern classes only.
+    if scan_text(url):
+        raise ObservationError(
+            "REPO_IDENTITY_UNVERIFIABLE", "remote url is secret-shaped; refusing to record it"
+        )
     if "@" in url:
         # scp form git@host:owner/name is handled by the shared normalizer;
         # ssh://git@host/owner/name loses its bare user here; any other
@@ -148,11 +164,19 @@ def _normalize_remote(raw_url: str) -> str:
         if sep:
             url = f"{scheme}://{tail}"
     try:
-        return normalize_repository_identity(url)
+        identity = normalize_repository_identity(url)
     except TrustError as exc:
         raise ObservationError(
             "REPO_IDENTITY_UNVERIFIABLE", "remote url did not normalize to a repository identity"
         ) from exc
+    host, _, rest = identity.partition("/")
+    if "." not in host or not rest or url.lower().startswith("file:") or url.startswith("/"):
+        # A filesystem path (or a hostless name) is not a repository identity
+        # and would persist a local path in a receipt.
+        raise ObservationError(
+            "REPO_IDENTITY_UNVERIFIABLE", "remote is not a host-qualified repository"
+        )
+    return identity
 
 
 def observe_git(
@@ -188,7 +212,7 @@ def observe_git(
     try:
         if Path(toplevel).resolve(strict=True) != root:
             raise ObservationError("GIT_ROOT_MISMATCH", "root is not the work tree top level")
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         raise ObservationError("GIT_ROOT_MISMATCH", "work tree top level unresolvable") from exc
 
     shallow_out = g.run(
@@ -222,9 +246,12 @@ def observe_git(
             ) from exc
         raise
 
+    # The RAW configured value: `git remote get-url` would apply any
+    # url.<base>.insteadOf rewrite (repo-local config is repository state, but
+    # the identity must name what is configured, not what a rewrite produces).
     remote_url = g.run(
-        ["remote", "get-url", remote],
-        ref=f"git remote get-url {remote}",
+        ["config", "--get", f"remote.{remote}.url"],
+        ref=f"git config --get remote.{remote}.url",
         code="REPO_IDENTITY_UNVERIFIABLE",
     )
     repository = _normalize_remote(remote_url)

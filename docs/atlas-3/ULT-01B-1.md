@@ -7,7 +7,11 @@ and produces a content-bound `atlas.observation-receipt.v1`. Does not mutate
 certified 2.x surfaces; `src/project_atlas/atlas3/` stays subprocess- and
 clock-free (this package is the only place observation launches a process).
 
-- Observed (git, argv-only, bounded, child env constructed from nothing):
+- Observed (git, argv-only, bounded, child env constructed from nothing with
+  the operator's global/system git config disabled; the remote is read raw via
+  `git config --get`, so an `insteadOf` rewrite cannot shape the identity;
+  local-path/hostless remotes refused; a symlinked root is resolved and the
+  real tree is what is observed):
   repository identity (remote URL normalized, never persisted), base head +
   tree (`origin/main` by default; `--base-ref` override recorded), candidate
   head + tree **only on a clean worktree**; shallow-ness recorded.
@@ -25,8 +29,9 @@ clock-free (this package is the only place observation launches a process).
   `tool`, method refs can never carry URLs or userinfo, no authority field.
 - Storage: `generated/ops/atlas3/observation/v1/<project>/<digest16>.json`
   through the shared locator helper (lifted from proof v2): `lstat` walk on
-  the unresolved path incl. Windows junctions, containment re-check, locator
-  collision refused.
+  the unresolved path incl. Windows junctions, `mkdir` before the resolved
+  containment check, locator collision refused — including a different
+  receipt for the same identity (a past observation is never replaced).
 - Proof v2: `evaluate_proof_v2(..., observation_receipt=...)`; a receipt bound
   to the same identity sets `live_observation_wired: true` and
   `observation_id`; it can never make a stage PRESENT. Proof v1 unchanged.

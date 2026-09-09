@@ -267,6 +267,13 @@ def test_caller_supplied_hash_on_seal_is_refused_and_placeholder_not_loadable() 
         load_observation_receipt(record)
 
 
+def test_observation_id_alone_cannot_be_retargeted() -> None:
+    record = seal_observation_receipt(receipt_body()).to_record()
+    record["observation_id"] = "obs-" + "f" * 16
+    with pytest.raises(ValidationError, match="OBSERVATION_ID_MISMATCH"):
+        load_observation_receipt(record)
+
+
 def test_project_must_match_identity_and_be_safe() -> None:
     body = receipt_body(project_id="other-project")
     with pytest.raises(ValidationError, match="RECEIPT_PROJECT_MISMATCH"):

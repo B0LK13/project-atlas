@@ -158,6 +158,19 @@ def test_subdirectory_is_not_the_repository_root(cloned: Path) -> None:
     assert excinfo.value.code == "GIT_UNOBSERVABLE"
 
 
+def test_process_environment_poisoning_does_not_reach_the_default_runner(
+    cloned: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    _git("init", "-q", "-b", "main", cwd=other)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(cloned.parent))
+    out = observe_execution(cloned, project_id="harbor-api")  # default runner, os.environ
+    assert out.identity.source.candidate_head == _git("rev-parse", "HEAD", cwd=cloned)
+
+
 def test_inherited_git_env_cannot_redirect_the_observation(cloned: Path, tmp_path: Path) -> None:
     other = tmp_path / "other"
     other.mkdir()
@@ -172,6 +185,48 @@ def test_inherited_git_env_cannot_redirect_the_observation(cloned: Path, tmp_pat
         cloned, project_id="harbor-api", runner=SubprocessRunner(environ=poisoned)
     )
     assert out.identity.source.candidate_head == _git("rev-parse", "HEAD", cwd=cloned)
+
+
+def test_global_git_config_cannot_rewrite_the_repository_identity(
+    cloned: Path, tmp_path: Path
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".gitconfig").write_text(
+        '[url "https://github.com/evil/"]\n\tinsteadOf = https://github.com/B0LK13/\n'
+        "[alias]\n\trev-parse = !echo 0000000000000000000000000000000000000000\n",
+        encoding="utf-8",
+    )
+    poisoned = {**os.environ, "HOME": str(home), "USERPROFILE": str(home)}
+    out = observe_execution(
+        cloned, project_id="harbor-api", runner=SubprocessRunner(environ=poisoned)
+    )
+    assert out.identity.source.repository == "github.com/b0lk13/project-atlas"
+    assert out.identity.source.candidate_head == _git("rev-parse", "HEAD", cwd=cloned)
+    _git(
+        "config", "url.https://github.com/evil/.insteadOf", "https://github.com/B0LK13/", cwd=cloned
+    )
+    local = observe_execution(cloned, project_id="harbor-api")
+    assert local.identity.source.repository == "github.com/b0lk13/project-atlas"
+
+
+def test_local_path_remote_is_refused_not_persisted(tmp_path: Path) -> None:
+    if GIT is None:
+        pytest.skip("git unavailable")
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    _git("init", "-q", "-b", "main", cwd=seed)
+    (seed / "a.txt").write_text("a\n", encoding="utf-8")
+    _git("add", ".", cwd=seed)
+    _git("commit", "-q", "-m", "init", cwd=seed)
+    bare = tmp_path / "origin.git"
+    _git("clone", "-q", "--bare", str(seed), str(bare), cwd=tmp_path)
+    repo = tmp_path / "repo"
+    _git("clone", "-q", str(bare), str(repo), cwd=tmp_path)
+    with pytest.raises(ObservationError) as excinfo:
+        observe_execution(repo, project_id="harbor-api")
+    assert excinfo.value.code == "REPO_IDENTITY_UNVERIFIABLE"
+    assert str(tmp_path) not in str(excinfo.value)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell shim")

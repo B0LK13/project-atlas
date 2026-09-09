@@ -6,7 +6,10 @@ Every observation subprocess goes through here:
 - the child environment is **constructed from nothing** — a short pass-through
   list plus fixed locale/git knobs — so ``GIT_DIR``, ``GIT_WORK_TREE``,
   ``GIT_CONFIG_*`` or any other inherited variable cannot redirect what is
-  observed, and no inherited value can leak into a receipt;
+  observed, no inherited value can leak into a receipt, and the operator's
+  global/system git configuration is disabled (``GIT_CONFIG_GLOBAL`` →
+  ``os.devnull``, ``GIT_CONFIG_NOSYSTEM=1``) so ``insteadOf`` rewrites or
+  ``core.fsmonitor`` commands cannot shape an observation;
 - stdout is captured as bytes, decoded with replacement and capped; stderr is
   discarded (it may echo paths or URLs and is never evidence);
 - the executable is resolved to an absolute regular file; on Windows only an
@@ -43,6 +46,12 @@ FIXED_ENV: Final[dict[str, str]] = {
     "LANG": "C",
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_OPTIONAL_LOCKS": "0",
+    # The operator's global/system git configuration must not shape an
+    # observation (url.<base>.insteadOf rewrites, core.fsmonitor commands,
+    # aliases). HOME still passes through for the platform, but git reads no
+    # config from it.
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_NOSYSTEM": "1",
 }
 WINDOWS_EXECUTABLE_SUFFIX: Final[str] = ".exe"
 

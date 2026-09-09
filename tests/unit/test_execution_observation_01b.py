@@ -59,7 +59,7 @@ class ScriptedRunner:
             "HEAD^{tree}": f"{HTREE}\n",
             "origin/main^{commit}": f"{BASE}\n",
             "origin/main^{tree}": f"{BTREE}\n",
-            "get-url": "https://github.com/B0LK13/project-atlas.git\n",
+            "--get": "https://github.com/B0LK13/project-atlas.git\n",
         }
         self.answers.update(overrides)
 
@@ -107,6 +107,13 @@ def observe(repo: Path, runner: ScriptedRunner | None = None, **kw: Any) -> Any:
 # ------------------------------------------------------------------ runner
 
 
+def test_child_env_disables_global_and_system_git_config() -> None:
+    import os
+
+    env = build_child_env({"PATH": "/usr/bin", "HOME": "/h"})
+    assert env["GIT_CONFIG_GLOBAL"] == os.devnull and env["GIT_CONFIG_NOSYSTEM"] == "1"
+
+
 def test_child_env_is_constructed_not_inherited() -> None:
     env = build_child_env(
         {
@@ -121,10 +128,13 @@ def test_child_env_is_constructed_not_inherited() -> None:
         }
     )
     assert env["PATH"] == "/usr/bin" and env["HOME"] == "/h" and env["TEMP"] == "/t"
-    assert not any(
-        key.startswith("GIT_") and key not in ("GIT_TERMINAL_PROMPT", "GIT_OPTIONAL_LOCKS")
-        for key in env
-    )
+    allowed = {
+        "GIT_TERMINAL_PROMPT",
+        "GIT_OPTIONAL_LOCKS",
+        "GIT_CONFIG_GLOBAL",
+        "GIT_CONFIG_NOSYSTEM",
+    }
+    assert not any(key.startswith("GIT_") and key not in allowed for key in env)
     assert "AWS_SECRET_ACCESS_KEY" not in env and "BAD" not in env
     assert env["LC_ALL"] == "C" and env["GIT_TERMINAL_PROMPT"] == "0"
 
@@ -169,6 +179,13 @@ def test_git_observation_happy_path_records_methods_not_urls(repo: Path) -> None
     argv_flat = [part for call in runner.calls for part in call]
     assert "--end-of-options" in argv_flat and "--no-optional-locks" in argv_flat
     assert not any(part.startswith("--force") for part in argv_flat)
+    # the remote is read raw (config --get), never through `remote get-url`
+    assert [part for call in runner.calls if "config" in call for part in call[3:]] == [
+        "config",
+        "--get",
+        "remote.origin.url",
+    ]
+    assert "get-url" not in argv_flat
 
 
 def test_dirty_worktree_refuses_before_any_pin_is_read(repo: Path) -> None:
@@ -251,6 +268,10 @@ def test_remote_urls_normalize_to_a_schemeless_identity(url: str, expected: str)
 @pytest.mark.parametrize(
     "url",
     [
+        "/home/someone/.cache/origin.git",
+        "file:///tmp/origin.git",
+        "localhost/x/y",
+        "../relative/repo",
         "https://x-access-token:ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@github.com/b0lk13/project-atlas.git",
         "https://token@github.com/b0lk13/project-atlas.git",
         "https://user:pass@github.com/b0lk13/project-atlas",
@@ -269,7 +290,7 @@ def test_remote_urls_with_userinfo_or_junk_are_refused_without_echo(url: str) ->
 
 def test_secret_shaped_remote_url_never_reaches_an_error_or_a_receipt(repo: Path) -> None:
     secret_url = "https://AKIAIOSFODNN7EXAMPLE@github.com/b0lk13/project-atlas.git\n"
-    runner = ScriptedRunner(repo, **{"get-url": secret_url})
+    runner = ScriptedRunner(repo, **{"--get": secret_url})
     with pytest.raises(ObservationError) as excinfo:
         observe(repo, runner)
     assert excinfo.value.code == "REPO_IDENTITY_UNVERIFIABLE"
@@ -475,6 +496,21 @@ def test_store_refuses_symlinked_components_and_foreign_digests(repo: Path, vaul
         load_stored_receipt(vault, "harbor-api", out.identity.identity_digest)
 
 
+def test_store_never_replaces_a_different_receipt_for_the_same_identity(
+    repo: Path, vault: Path
+) -> None:
+    first = observe(repo, observer_version=("2.0.0", "OBSERVED"))
+    second = observe(repo, observer_version=("2.1.0", "OBSERVED"))
+    assert first.identity.identity_digest == second.identity.identity_digest
+    assert first.receipt.content_hash != second.receipt.content_hash
+    path = store_observation_receipt(vault, first.receipt)
+    before = path.read_bytes()
+    with pytest.raises(ObservationError) as excinfo:
+        store_observation_receipt(vault, second.receipt)
+    assert excinfo.value.code == "OBSERVATION_LOCATOR_COLLISION"
+    assert path.read_bytes() == before
+
+
 def test_store_requires_a_known_project(repo: Path, tmp_path: Path) -> None:
     out = observe(repo)
     empty = tmp_path / "empty-vault"
@@ -622,6 +658,84 @@ def test_receipt_cannot_make_a_stage_present(repo: Path, vault: Path) -> None:
 def test_proof_v1_is_untouched_by_the_linkage(vault: Path) -> None:
     report = evaluate_proof(vault, "V1", project_id="harbor-api")
     assert report["schema"] == "atlas3.agent-proof.v1" and "live_observation_wired" not in report
+
+
+# ------------------------------------------------------------------ round-2 guards
+
+
+def test_runner_refuses_bad_argv_and_timeouts() -> None:
+    from project_atlas.execution_observation import SubprocessRunner
+
+    runner = SubprocessRunner(environ={"PATH": "/usr/bin"})
+    with pytest.raises(ObservationError) as excinfo:
+        runner.run(["git", "a\x00b"], cwd=Path("."), timeout=1.0)
+    assert excinfo.value.code == "ARGV_INVALID"
+    with pytest.raises(ObservationError) as excinfo:
+        runner.run([], cwd=Path("."), timeout=1.0)
+    assert excinfo.value.code == "ARGV_INVALID"
+    for bad in (0, -1, 61):
+        with pytest.raises(ObservationError) as excinfo:
+            runner.run(["git"], cwd=Path("."), timeout=bad)
+        assert excinfo.value.code == "TIMEOUT_INVALID"
+    with pytest.raises(ObservationError) as excinfo:
+        runner.run(["/definitely/not/a/binary"], cwd=Path("."), timeout=1.0)
+    assert excinfo.value.code == "EXECUTABLE_UNAVAILABLE"
+
+
+def test_remote_name_and_long_base_ref_are_validated(repo: Path) -> None:
+    for bad in ("-x", "..", "origin/", "x" * 65, "o\n"):
+        with pytest.raises(ObservationError) as excinfo:
+            observe_git(repo, runner=ScriptedRunner(repo), git=GIT, remote_name=bad)
+        assert excinfo.value.code == "REMOTE_NAME_INVALID"
+    with pytest.raises(ObservationError) as excinfo:
+        observe_git(repo, runner=ScriptedRunner(repo), git=GIT, base_ref="r" * 101)
+    assert excinfo.value.code == "BASE_REF_INVALID"
+
+
+def test_nul_in_toplevel_is_a_coded_refusal(repo: Path) -> None:
+    runner = ScriptedRunner(repo, **{"--show-toplevel": f"{repo}\x00x\n"})
+    with pytest.raises(ObservationError) as excinfo:
+        observe_git(repo, runner=runner, git=GIT)
+    assert excinfo.value.code == "GIT_ROOT_MISMATCH"
+
+
+def test_secret_shaped_remote_path_is_refused_before_normalization_lowercases_it() -> None:
+    with pytest.raises(ObservationError) as excinfo:
+        _normalize_remote("https://github.com/AKIAIOSFODNN7EXAMPLE/repo.git")
+    assert excinfo.value.code == "REPO_IDENTITY_UNVERIFIABLE"
+    assert "AKIA" not in str(excinfo.value)
+
+
+def test_store_validates_the_digest_argument_and_distinguishes_unreadable(
+    repo: Path, vault: Path
+) -> None:
+    for bad in ("../x", "F" * 64, "0" * 63, ""):
+        with pytest.raises(ObservationError) as excinfo:
+            receipt_locator("harbor-api", bad)
+        assert excinfo.value.code == "OBSERVATION_DIGEST_INVALID"
+        with pytest.raises(ObservationError):
+            load_stored_receipt(vault, "harbor-api", bad)
+    out = observe(repo)
+    path = vault / receipt_locator("harbor-api", out.identity.identity_digest)
+    path.parent.mkdir(parents=True)
+    path.write_text("not json", encoding="utf-8")
+    with pytest.raises(ObservationError) as excinfo:
+        load_stored_receipt(vault, "harbor-api", out.identity.identity_digest)
+    assert excinfo.value.code == "OBSERVATION_RECEIPT_UNREADABLE"
+
+
+def test_receipt_helper_refuses_observed_is_current_zero_and_dotdot_base_ref(repo: Path) -> None:
+    out = observe(repo)
+    body = out.receipt.body()
+    body["observed_is_current"] = 0
+    with pytest.raises(Exception) as excinfo:
+        seal_observation_receipt(body)
+    assert "OBSERVED_IS_NOT_CURRENT" in str(excinfo.value) or "bool" in str(excinfo.value)
+    body = out.receipt.body()
+    body["observed"]["source"]["base_ref"] = "a..b"
+    with pytest.raises(Exception) as excinfo:
+        seal_observation_receipt(body)
+    assert "BASE_REF_INVALID" in str(excinfo.value)
 
 
 # ------------------------------------------------------------------ boundaries

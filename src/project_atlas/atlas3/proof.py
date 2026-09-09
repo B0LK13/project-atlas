@@ -300,10 +300,6 @@ def evaluate_proof_v2(
                 "OBSERVATION_IDENTITY_MISMATCH",
                 "observation receipt is bound to another execution identity",
             )
-        if observation.project_id != pid:
-            raise Atlas3Error(
-                "OBSERVATION_PROJECT_MISMATCH", "observation receipt belongs to another project"
-            )
         _scan_for_secrets(observation.to_record())
 
     loaded: list[EvidenceAttestation] = []

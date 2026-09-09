@@ -3,8 +3,10 @@
 Each mutation must fail at least one of the ULT-01b-1 suites (receipt contract,
 observer unit, live integration); the source is restored byte-identical
 (sha256-asserted) after every control. Failing test names are recorded per
-control; `pairwise_distinct` is REPORTED, not asserted. Run from the repository
-root with the project venv:
+control; `pairwise_distinct` is REPORTED, not asserted. The store's
+identity-digest collision check is covered by the AT3-103 matrix (NC-N) and,
+for receipts, subsumed by the content_hash check (OC-X). Run from the
+repository root with the project venv:
     python docs/scripts/ult_01b_1_negative_controls.py
 """
 import hashlib, json, subprocess, sys, tempfile
@@ -37,12 +39,10 @@ CONTROLS = {
    "        if observation.identity_digest != ident.identity_digest:", "        if False:"),
  "OC-M store symlink walk dropped": ("src/project_atlas/atlas3/contracts.py",
    "        if current.is_symlink() or current.is_junction():", "        if False:"),
- "OC-N store collision check dropped": ("src/project_atlas/atlas3/contracts.py",
-   "        if existing is None or existing.get(identity_field) != identity_value:", "        if False:"),
  "OC-O root must be toplevel dropped": ("src/project_atlas/execution_observation/git.py",
    "        if Path(toplevel).resolve(strict=True) != root:", "        if False:"),
  "OC-P base-ref validation dropped": ("src/project_atlas/execution_observation/git.py",
-   "    if not isinstance(base_ref, str) or not _REF_RE.fullmatch(base_ref) or \"..\" in base_ref:", "    if not isinstance(base_ref, str):"),
+   "        or not _REF_RE.fullmatch(base_ref)\n        or \"..\" in base_ref\n", ""),
  "OC-Q timeout not distinguished": ("src/project_atlas/execution_observation/git.py",
    "            raise ObservationError(\"GIT_OBSERVATION_TIMEOUT\", f\"{ref}: timed out\")", "            raise ObservationError(code, f\"{ref}: timed out\")"),
  "OC-R secret scan of receipt dropped": ("src/project_atlas/execution_observation/observe.py",
@@ -51,6 +51,22 @@ CONTROLS = {
    "    kind: Literal[\"tool\"]", "    kind: Literal[\"tool\", \"model\", \"agent\", \"human\", \"ci\"]"),
  "OC-T unsafe project id accepted": ("src/project_atlas/execution_observation/observe.py",
    "        pid = safe_relative_component(project_id, label=\"project id\")", "        pid = project_id"),
+ "OC-U global git config not disabled": ("src/project_atlas/execution_observation/runner.py",
+   "    \"GIT_CONFIG_GLOBAL\": os.devnull,\n    \"GIT_CONFIG_NOSYSTEM\": \"1\",\n", ""),
+ "OC-V remote read through get-url (insteadOf applied)": ("src/project_atlas/execution_observation/git.py",
+   "        [\"config\", \"--get\", f\"remote.{remote}.url\"],", "        [\"remote\", \"get-url\", remote],"),
+ "OC-W hostless/local-path remote accepted": ("src/project_atlas/execution_observation/git.py",
+   "    if \".\" not in host or not rest or url.lower().startswith(\"file:\") or url.startswith(\"/\"):", "    if False:"),
+ "OC-X same-identity different receipt overwritten": ("src/project_atlas/execution_observation/store.py",
+   "            content_field=\"content_hash\",\n", ""),
+ "OC-Y raw remote url secret scan dropped": ("src/project_atlas/execution_observation/git.py",
+   "    if scan_text(url):", "    if False:"),
+ "OC-Z observed_is_current strictness dropped": ("src/atlas_contracts/observation_receipt.py",
+   "        if self.observed_is_current is not False:", "        if False:"),
+ "OC-AA store digest argument unvalidated": ("src/project_atlas/execution_observation/store.py",
+   "    if not isinstance(identity_digest, str) or not _DIGEST_RE.fullmatch(identity_digest):", "    if False:"),
+ "OC-AB base-ref length ceiling dropped": ("src/project_atlas/execution_observation/git.py",
+   "        or len(base_ref) > MAX_BASE_REF_LENGTH\n", ""),
 }
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def failing():

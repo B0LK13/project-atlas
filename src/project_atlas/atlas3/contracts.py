@@ -130,6 +130,7 @@ def write_locator_json(
     code_unsafe: str = "PROOF_LOCATOR_UNSAFE",
     code_collision: str = "PROOF_LOCATOR_COLLISION",
     code_escape: str = "UNSAFE_TASK_ID",
+    content_field: str | None = None,
 ) -> Path:
     """Write ``payload`` at ``root / locator`` under the shared locator rules.
 
@@ -142,8 +143,23 @@ def write_locator_json(
     absent or a regular file; the resolved target must stay under the
     resolved ``root / namespace``; and an existing target holding a different
     ``identity_field`` value (or unreadable) fails closed instead of being
-    overwritten.
+    overwritten. With ``content_field`` set, an existing target whose
+    ``content_field`` differs from the payload's is also refused: a record of
+    a past observation is never replaced by a different one.
+
+    Ordering: symlink walk → ``mkdir`` of the parent → resolved containment
+    check on now-existing paths → collision check → atomic write. The
+    ``mkdir``-before-``realpath`` order matters on Windows, where realpath of a
+    not-yet-existing path is not stable under concurrent creation.
     """
+    # Lexical gate first (nothing is created for a refused locator): relative,
+    # no dot components, and inside the namespace by construction.
+    if (
+        locator.is_absolute()
+        or any(part in {"", ".", ".."} for part in locator.parts)
+        or not locator.is_relative_to(namespace)
+    ):
+        raise Atlas3Error(code_escape, "locator path escaped its namespace")
     assert_no_symlink_components(root, locator, code=code_unsafe)
     parent = root / locator.parent
     if parent.exists() and not parent.is_dir():
@@ -151,6 +167,8 @@ def write_locator_json(
     target = root / locator
     if target.exists() and not target.is_file():
         raise Atlas3Error(code_unsafe, "locator is not a regular file")
+    parent.mkdir(parents=True, exist_ok=True)
+    assert_no_symlink_components(root, locator, code=code_unsafe)
     if not target.resolve().is_relative_to((root / namespace).resolve()):
         raise Atlas3Error(code_escape, "locator path escaped its namespace")
     if target.is_file():
@@ -159,6 +177,11 @@ def write_locator_json(
             raise Atlas3Error(
                 code_collision,
                 "locator already holds a different or unreadable record; not overwritten",
+            )
+        if content_field is not None and existing.get(content_field) != payload.get(content_field):
+            raise Atlas3Error(
+                code_collision,
+                "locator already holds a different record for this identity; not overwritten",
             )
     write_json_atomic(target, payload)
     return target
