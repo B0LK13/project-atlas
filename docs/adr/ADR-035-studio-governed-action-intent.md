@@ -33,17 +33,24 @@ primitives; Studio must not reimplement or bypass them.
    Mission Control fingerprint and freshness window.
 2. **Atlas control plane evaluates** validity, authorization, freshness, and
    TOCTOU; then executes or refuses. Studio never sets authorization grants.
-3. **First work package** (`AS-STUDIO-A2-001`) is governed **OWNERSHIP_CLAIM**
-   of an eligible unowned/runnable lane, reusing F12 + F04 emitter — not
-   dispatch-first, not UI-direct steal.
-4. **Attention / ranking / availability remain non-authoritative** (A1 laws).
+3. **Reusable governance substrate** (`atlas_studio.governance`) owns the
+   evaluate→(dry-run|apply_authorized)→evidence loop and action registry. Future
+   Studio actions register handlers; unknown/NOT_STARTED types fail closed
+   with `REFUSED_UNSUPPORTED_ACTION`. See
+   `docs/atlas-3/studio/a2/A2-GOVERNANCE-SUBSTRATE.md`.
+4. **First work package** (`AS-STUDIO-A2-001`) is governed **OWNERSHIP_CLAIM**
+   as the first registered instance — reusing F12 + F04 emitter — not
+   dispatch-first, not UI-direct steal, not a claim-only shortcut.
+5. **Attention / ranking / availability remain non-authoritative** (A1 laws).
 
 ## Consequences
 
 - A2 implementation starts only after intent schema + denial tests land.
-- Steal/dispatch/handoff/worktree attach as later packages on the same bridge.
+- Steal/dispatch/handoff/worktree attach as later packages on the same
+  substrate (register handler; widen schema enum; attack tests).
 - ADR-034 remains binding: Studio crash still ≠ agent task termination;
   Studio process still grants no mutation authority by presence alone.
+- Interface / Mission Control never becomes the source of authority.
 
 ## Honesty
 

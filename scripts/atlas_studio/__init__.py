@@ -1,4 +1,4 @@
-"""Atlas Studio — A0 snapshot + A1 Mission Control + A2 governed claim bridge.
+"""Atlas Studio — A0 snapshot + A1 Mission Control + A2 governance substrate.
 
 STUDIO_UI != AUTHORITY
 ATLAS_DAEMON = AUTHORITATIVE_RUNTIME
@@ -14,9 +14,10 @@ UNKNOWN != HEALTHY
 REQUESTED != CLAIMED
 PREVIEW != EXECUTION
 
-Package root remains free of mutation helpers. Governed OWNERSHIP_CLAIM lives
-in ``atlas_studio.action_intent`` and is invoked only via explicit claim-*
-CLI commands after control-plane revalidation.
+Package root remains free of mutation helpers. Reusable governance loop lives
+in ``atlas_studio.governance``; OWNERSHIP_CLAIM is the first registered
+instance (``atlas_studio.action_intent`` / claim-* CLI) after control-plane
+revalidation. Interface never becomes the source of authority.
 """
 
 __version__ = "0.3.0"

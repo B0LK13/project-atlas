@@ -894,43 +894,49 @@ def execute_ownership_claim(
 ) -> dict[str, Any]:
     """Evaluate on fresh truth; emit OWNER_CLAIMED only when EXECUTE allowed.
 
-    Always revalidates. dry_run=True never posts. Uses atlas_dag.emitter —
-    does not reimplement ownership mutex.
+    Routes through ``atlas_studio.governance.execute_governed_intent`` so claim
+    is an instance of the reusable substrate (not a Studio mutation shortcut).
+    dry_run=True never posts. Uses atlas_dag.emitter — does not reimplement
+    ownership mutex.
     """
-    from atlas_dag import emitter as emitter_mod
-    from atlas_dag import agents as agents_mod
+    from atlas_studio import governance as gov
 
-    decision = evaluate_ownership_claim_intent(
+    return gov.execute_governed_intent(
         intent,
+        dry_run=dry_run,
+        client=client,
+        registry=registry,
         frontier_matrix=frontier_matrix,
         mission_control=mission_control,
-        registry=registry,
         clock=clock,
         now_clock=now_clock,
+        emit_event=emit_event,
+        expected_repo=expected_repo,
     )
-    if decision["decision"] != EXECUTE_ALLOWED:
-        return decision
+
+
+def _emit_ownership_claim(
+    intent: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    client: Any,
+    registry: Any,
+    frontier_matrix: dict | None = None,
+    mission_control: dict | None = None,
+    clock: Callable[[], str] = utcnow,
+    now_clock: Callable[[], str] | None = None,
+    emit_event: Callable[..., str] | None = None,
+    expected_repo: str | None = None,
+    **_ignored: Any,
+) -> dict[str, Any]:
+    """Authoritative mutate step for OWNERSHIP_CLAIM (emitter only)."""
+    from atlas_dag import agents as agents_mod
+    from atlas_dag import emitter as emitter_mod
 
     intent_id = intent.get("intent_id")
     actor = str(intent["actor_agent_id"])
     pr = int(intent["target_pr"])
     expect_head = intent.get("target_head")
-
-    if dry_run:
-        return _decision(
-            EXECUTED,
-            intent_id=intent_id,
-            reasons=["DRY_RUN_NO_EMIT"],
-            evidence={
-                **(decision.get("evidence") or {}),
-                "evaluate_decision": EXECUTE_ALLOWED,
-            },
-            mutated=False,
-            dry_run=True,
-            emit_status=None,
-            event_id=None,
-            clock=now_clock or clock,
-        )
 
     resolved = agents_mod.resolve_agent(registry, actor)
     profile = resolved.profile or {}
@@ -948,7 +954,6 @@ def execute_ownership_claim(
             )
         # Permission re-check at emit boundary (control plane).
         owner = None
-        # Prefer live ownership from matrix action evidence.
         action = _find_claim_action(
             frontier_matrix, lane=str(intent["target_lane"]), agent_id=actor
         )
@@ -1024,6 +1029,7 @@ def execute_ownership_claim(
             "evaluate_decision": EXECUTE_ALLOWED,
             "lane": intent["target_lane"],
             "pr": pr,
+            "substrate": "atlas_studio.governance",
         },
         mutated=mutated,
         dry_run=False,
@@ -1031,3 +1037,36 @@ def execute_ownership_claim(
         event_id=payload["event_id"],
         clock=now_clock or clock,
     )
+
+
+class _OwnershipClaimHandler:
+    """First registered governed action — instance of the A2 substrate."""
+
+    action_type = ACTION_OWNERSHIP_CLAIM
+
+    def evaluate(self, intent: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        return evaluate_ownership_claim_intent(
+            intent,
+            frontier_matrix=kwargs.get("frontier_matrix"),
+            mission_control=kwargs.get("mission_control"),
+            registry=kwargs.get("registry"),
+            clock=kwargs.get("clock") or utcnow,
+            now_clock=kwargs.get("now_clock"),
+        )
+
+    def apply_authorized(
+        self, intent: dict[str, Any], decision: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        return _emit_ownership_claim(intent, decision, **kwargs)
+
+
+def _register_with_governance() -> None:
+    from atlas_studio import governance as gov
+
+    gov.register_action(
+        _OwnershipClaimHandler(),
+        notes="AS-STUDIO-A2-001 first governed action (OWNERSHIP_CLAIM)",
+    )
+
+
+_register_with_governance()

@@ -25,6 +25,7 @@ Studio never self-authorizes.
 | [A2-ACTION-INTENT-MODEL.md](./A2-ACTION-INTENT-MODEL.md) | Typed intent model |
 | [A2-AUTHORITY-BOUNDARY.md](./A2-AUTHORITY-BOUNDARY.md) | Studio vs control-plane authority |
 | [A2-FIRST-WORK-PACKAGE.md](./A2-FIRST-WORK-PACKAGE.md) | `AS-STUDIO-A2-001` — first governed CLAIM |
+| [A2-GOVERNANCE-SUBSTRATE.md](./A2-GOVERNANCE-SUBSTRATE.md) | Reusable evaluate→execute registry loop |
 | [A2-EVIDENCE.md](./A2-EVIDENCE.md) | Lane evidence / validation |
 | ADR | [ADR-035](../../../adr/ADR-035-studio-governed-action-intent.md) |
 

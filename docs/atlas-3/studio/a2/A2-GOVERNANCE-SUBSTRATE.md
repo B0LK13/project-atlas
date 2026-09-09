@@ -1,0 +1,84 @@
+# A2 governance substrate — reusable control loop
+
+```text
+AS_STUDIO_A2_GOVERNANCE_SUBSTRATE = IMPLEMENTED_IN_LANE
+FIRST_INSTANCE = OWNERSHIP_CLAIM
+FUTURE_ACTIONS = DECLARED_NOT_STARTED (attach via registry)
+STUDIO_UI != AUTHORITY
+INTERFACE != SOURCE_OF_AUTHORITY
+```
+
+## Purpose
+
+A2 establishes one reusable governance loop for every future Studio action.
+OWNERSHIP_CLAIM is the first **instance**, not a one-off mutation shortcut.
+
+```text
+MISSION CONTROL TRUTH
+  → CANDIDATE (projection / ranking — non-authoritative)
+  → PREVIEW (dry advice — PREVIEW != EXECUTION)
+  → INTENT (typed request — REQUESTED != EXECUTED)
+  → POLICY + AUTHORITY + FRESHNESS EVALUATION
+  → CONTROL PLANE REVALIDATION
+  → EXECUTE | REFUSE
+  → EVIDENCE (decision packet)
+```
+
+## Module
+
+| Piece | Role |
+|---|---|
+| `scripts/atlas_studio/governance.py` | Registry, shared honesty, authz-field reject, evaluate/execute entry |
+| `scripts/atlas_studio/action_intent.py` | OWNERSHIP_CLAIM handler + claim-* preview/intent helpers |
+| Schemas | `ATLAS_STUDIO_ACTION_{INTENT,PREVIEW,DECISION}_V1` |
+
+## Separation (must stay true)
+
+| Concern | Owner | Studio may |
+|---|---|---|
+| Intent | Typed request object | Mint request; never mint grants |
+| Authority | Control plane / daemon / emitter policy | Surface capability claims as informational only |
+| Freshness | Intent `max_age` + MC/frontier fingerprints + expect_head | Bind fingerprints; never treat stale as current |
+| Policy | Emitter permission + ownership mutex + agent registry | Preview expected policy; never self-pass |
+| Execution | Registered handler.apply_authorized after EXECUTE_ALLOWED | Invoke only via substrate; dry_run never mutates |
+| Evidence | Decision packet with reasons + honesty | Project decisions; never invent authority from UI |
+
+## Registry contract
+
+```python
+from atlas_studio import governance as gov
+import atlas_studio.action_intent  # registers OWNERSHIP_CLAIM
+
+gov.supported_actions()
+# OWNERSHIP_CLAIM = IMPLEMENTED
+# CI_DISPATCH / IV_REQUEST / HANDOFF_DELIVER / STEAL_EXECUTE /
+# MERGE / WORKTREE_OPEN = NOT_STARTED
+```
+
+Unknown or NOT_STARTED action types refuse with `REFUSED_UNSUPPORTED_ACTION`.
+Handlers must:
+
+1. `evaluate` — never mutate; return `EXECUTE_ALLOWED` or `REFUSED_*`
+2. `apply_authorized` — only after substrate confirms ALLOWED; revalidate at boundary
+
+## Attach path for next actions
+
+1. Implement handler (`evaluate` + `apply_authorized` reusing `atlas_dag` builders).
+2. `gov.register_action(handler, notes=...)`.
+3. Widen intent schema `action_type` enum when IMPLEMENTED.
+4. Add refusal/attack tests; keep A1 Mission Control free of mutation imports.
+
+## Honesty stamps
+
+```text
+STUDIO_UI != AUTHORITY
+ATTENTION != AUTHORIZATION
+REQUESTED != CLAIMED
+PREVIEW != EXECUTION
+STALE != CURRENT
+UNKNOWN != HEALTHY
+BUTTON != MUTATION
+CI_PASS != FORMAL_IV
+MERGE_AUTHORIZATION = NOT_GRANTED
+IMPLEMENTED != MERGED
+```

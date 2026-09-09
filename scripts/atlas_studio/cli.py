@@ -477,14 +477,38 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             gc.DISPATCH_STEAL_AUTO_NOT_STARTED is True,
             "DISPATCH/STEAL_AUTO=NOT_STARTED",
         )
+        from atlas_studio import governance as gov
+
+        by_type = {row["action_type"]: row for row in gov.supported_actions()}
+        claim_impl = by_type.get("OWNERSHIP_CLAIM", {}).get("status") == "IMPLEMENTED"
+        futures = (
+            "CI_DISPATCH",
+            "IV_REQUEST",
+            "HANDOFF_DELIVER",
+            "STEAL_EXECUTE",
+            "MERGE",
+            "WORKTREE_OPEN",
+        )
+        futures_ok = all(
+            by_type.get(name, {}).get("status") == "NOT_STARTED" for name in futures
+        )
+        add(
+            "a2_governance_substrate",
+            claim_impl and futures_ok,
+            (
+                "OWNERSHIP_CLAIM=IMPLEMENTED; futures=NOT_STARTED"
+                if claim_impl and futures_ok
+                else f"registry={sorted(by_type)}"
+            ),
+        )
         # Confirm mission_control does not import governed claim (A1 boundary).
         import atlas_studio.mission_control as mc_mod
 
         mc_src = Path(mc_mod.__file__).read_text(encoding="utf-8")
         add(
             "a1_mc_no_action_intent_import",
-            "action_intent" not in mc_src,
-            "mission_control does not import action_intent",
+            "action_intent" not in mc_src and "governance" not in mc_src,
+            "mission_control does not import action_intent/governance",
         )
         # No general dispatch/merge mutation helpers on package root.
         import atlas_studio as studio_pkg

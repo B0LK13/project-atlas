@@ -27,7 +27,9 @@
       "minLength": 1
     },
     "action_type": {
-      "const": "OWNERSHIP_CLAIM"
+      "type": "string",
+      "enum": ["OWNERSHIP_CLAIM"],
+      "description": "First implemented type; future types attach via atlas_studio.governance registry (schema enum widens when IMPLEMENTED)"
     },
     "requested_at_utc": {
       "type": "string",
