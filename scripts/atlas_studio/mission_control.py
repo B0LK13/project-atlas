@@ -940,6 +940,7 @@ def build_mission_control(
     events: list[dict] | None = None,
     registry: Any = None,
     live: bool = False,
+    live_client: Any = None,
     repo: str | None = None,
     verifier_pool_path: Path | str | None = None,
     weights_path: Path | str | None = None,
@@ -979,6 +980,7 @@ def build_mission_control(
             verifier_pool_path=verifier_pool_path,
             weights_path=weights_path,
             clock=clock,
+            live_client=live_client,
         )
         notes.extend(live_notes)
         repository = (snap or {}).get("repository") or repo or repository
@@ -1180,6 +1182,7 @@ def _build_live_mc(
     verifier_pool_path: Path | str | None,
     weights_path: Path | str | None,
     clock: Callable[[], str],
+    live_client: Any = None,
 ) -> tuple[dict, dict | None, bool, list[str], Any]:
     """Live RO path via GhClient + atlas_dag builders (O1).
 
@@ -1209,7 +1212,7 @@ def _build_live_mc(
         return snap, None, False, notes, None
 
     try:
-        client = GhClient(repo=repo)
+        client = live_client if live_client is not None else GhClient(repo=repo)
         snapshot = build_snapshot(client, pool_path=verifier_pool_path)
         registry = agents_mod.load_registry(None)
         stacks = stack_mod.build_stacks(

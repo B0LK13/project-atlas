@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window-core-only",
+  "description": "Core window lifecycle only. No shell, filesystem, process, Git or mutation permissions.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

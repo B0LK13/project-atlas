@@ -14745,3 +14745,28 @@ AS_STUDIO_A1 = NOT_STARTED
 - A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
   governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
 - Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added
+
+## Studio local recovery 003 — draft checkpoint
+
+Verified recovery transfer and restored an isolated Git checkout at exact A1
+028157e25f74ecea5da5b6ee407a7a866124f4b5. Preserved original archives and raw events.
+Fixed palette Enter reopening; corrected history text assertions. Final checks:
+43 Python tests, scoped ruff, 18 frontend tests/typecheck/build, and 5 sandboxed
+Chrome browser tests pass. Native dependencies, live-data latency, freshness aging,
+full nested schema checks and Vault synchronization remain open. See
+`docs/atlas-3/studio/desktop/RECOVERY-003.md`. No A2, merge, release or self-IV.
+
+
+## 2026-09-09 — D-CODEX-ATLAS-STUDIO-RESUME-AND-DELIVER-005
+
+Recovered the newer PR #781 worktree without replacing its unpublished commits or dirty source. Fixed read-only SHA comparison rejection and overlapped existing A1 metadata reads within the request budget. Added live Mission Control hierarchy with explicit missing objective, safe diagnostics and distinct connection states. Hardened nested projection/freshness validation, clock rollback, narrow keyboard containment and responsive verification visibility. Kept all design directions and isolated preview content; removed unused non-Linux icon outputs after archiving them.
+
+Evidence, source hashes, current validation and exact recovery diagnostics: `docs/atlas-3/studio/desktop/RECOVERY-005.md` and `evidence/recovery-005-validation.json`. 36 frontend tests and 16 browser tests pass, including real A1 response-to-render values and controlled changes. Native build is blocked by missing GTK/WebKit development packages and sudo authentication. Documentation events remain pending in the approved spool; normalizer environment repaired, provider credential still unavailable. PR remains draft. No A2, merge or self-IV.
+
+## D-006 native delivery continuation
+
+After supported Ubuntu prerequisite installation, diagnosed native blank-window startup as runtime Ajv code generation rejected by production CSP. Added a failing exact-CSP browser regression and moved canonical validator compilation to Vite build time without relaxing CSP. Frontend36/browser17/focusedPython19 pass. Normal Wayland native projection, navigation, bridge failure and recovery are evidenced by AT-SPI captures. Debian creation and disposable non-root installed window check/uninstall pass. See `docs/atlas-3/studio/desktop/RECOVERY-006.md` and its hash ledger for tested scope and screenshot limitations. Documentation remains pending provider configuration; no A2, merge or self-IV.
+
+### D-006 final sandbox correction
+
+Process inspection disproved the earlier assumption that absence of disabling flags proved WebKitGTK 4.1 sandbox enforcement. Studio now enables the supported WebKit sandbox before startup and rejects disabling overrides. Final ordinary Wayland renderer: NoNewPrivs=1/Seccomp=2; native live/error/recovery PASS. Rebuilt Debian SHA256 7d89937ebeca6b82717bf331e946ff0fe5e8b57910a22e02abb35788e5add03c installs, renders live/error state, and uninstalls in rootless Ubuntu26.04. Strict nested renderer attestation fails in the container (NoNewPrivs=0/Seccomp=2); its exit1 is retained, not relabeled as a passing test. See RECOVERY-006.md and updated hashed evidence. Documentation provider credentials remain externally unavailable; no receipt, IV or merge claimed.

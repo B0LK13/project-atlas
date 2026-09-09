@@ -832,6 +832,8 @@ Honesty: `PREP != IMPLEMENTED` · `STUDIO_UI != AUTHORITY` ·
 - [x] AS-STUDIO-INTAKE-20260908-01 Canonical documentation package synchronized from GitHub epic #746 (requirements register, A0–A8 gates, north-star cross-links; vault MDA normalize/route still BLOCKED without production `mda`)
 - [x] AS-STUDIO-A0-001 Foundation TECHNICALLY_COMPLETE (PR #763 exact-head CI; A0-CLOSURE; owner decisions O1–O5 explicit; not merged; CI_PASS != FORMAL_IV)
 - [x] AS-STUDIO-A1-001 Read-only Mission Control — TECHNICALLY_COMPLETE / EXTERNAL_IV_GATED (`docs/atlas-3/studio/a1/A1-CLOSURE.md`; semantic attacks 10/10; human coherence PROVEN; O1/O6 APPROVED; not merged; no Tauri; CI_PASS != FORMAL_IV; STUDIO_MUTATION_AUTHORITY=NONE)
+- [x] AS-STUDIO-DESKTOP-D005 Read-only Linux shell review checkpoint: bounded real A1 reads, nested validation, monotonic freshness, live Mission Control hierarchy, keyboard/responsive/accessibility browser evidence (PR #781; `docs/atlas-3/studio/desktop/RECOVERY-005.md`).
+- [ ] AS-STUDIO-DESKTOP-D005-NATIVE Normal GTK/WebKit launch and package install lifecycle; canonical documentation synchronization and independent verification remain outstanding.
 - [ ] AS-STUDIO-A2 Governed mutations (claim/dispatch/handoff/worktree/terminal) — **scope READY / implementation NOT_STARTED** (`docs/atlas-3/studio/a2/`; ADR-035; first WP AS-STUDIO-A2-001 = governed OWNERSHIP_CLAIM intent; BUTTON!=MUTATION)
 - [ ] AS-STUDIO-A3 Runtime / provider harness integration
 - [ ] AS-STUDIO-A4 Code/diff/test/PR lifecycle vertical
@@ -839,3 +841,6 @@ Honesty: `PREP != IMPLEMENTED` · `STUDIO_UI != AUTHORITY` ·
 - [ ] AS-STUDIO-A6 Research/design workflow
 - [ ] AS-STUDIO-A7 Evals / Observatory / Improvement Plane UX
 - [ ] AS-STUDIO-A8 Autonomous workstation gate
+
+- [x] D-006 Atlas Studio native CSP fix, ordinary desktop projection/error/recovery and bounded Debian install/window/uninstall evidence (see `docs/atlas-3/studio/desktop/RECOVERY-006.md`).
+- [ ] D-006 close canonical documentation receipt before review readiness; installed live and error rendering screenshots are recorded in D-006.
