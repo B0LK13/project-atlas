@@ -349,6 +349,12 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
             "HONESTY: CONTROL_PLANE_REVALIDATES_AT_EXECUTION / "
             "STUDIO_NEVER_SELF_AUTHORIZES / DRY_RUN!=EXECUTED"
         )
+        print(
+            "NEXT: save this decision JSON, then "
+            "`atlas-studio action-evidence --decision-file <path>` "
+            "(AUTO_RETRY=FORBIDDEN); after interrupt use "
+            "`atlas-studio intent-continuity --intent-file … --decision-file …`"
+        )
     outcome = decision.get("decision")
     if args.dry_run:
         ok = outcome == gc.EXECUTE_ALLOWED and decision.get("dry_run") is True

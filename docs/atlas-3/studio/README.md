@@ -128,12 +128,25 @@ CAPTURE != AUTHORITY
 FORMAL_IV = NOT_STARTED
 ```
 
+## A2-005 Intent Continuity (lane)
+
+See [`a2-005/`](./a2-005/).
+
+```text
+AS_STUDIO_A2_005 = IMPLEMENTED_IN_LANE (RO continuity after interrupt)
+STACKED_WITH = A2-004 on feat/as-studio-a2-004-action-evidence (#788)
+STALE_INTENT != PERMISSION
+DUPLICATE_SUBMIT != AUTO_RETRY
+INSPECT != EXECUTE
+FORMAL_IV = NOT_STARTED
+```
+
 ## Next
 
 1. Owner merge/IV decisions for A0/A1/A2-001 remain separate from technical completeness.
 2. Human review-thread adjudication on #776 remains external.
 3. Later A2.x: dispatch / steal-auto / handoff delivery / worktree behind the same intent bridge.
-4. A2-002 / A2-004 successors require their own exact-head CI + formal IV (do not inherit A2-001 IV).
+4. A2-002 / A2-004 / A2-005 successors require their own exact-head CI + formal IV (do not inherit A2-001 IV).
 5. Avoid overlapping #786 (task-context), #782 (target_repo), #781 (visual shell).
 
 ## A0 package
