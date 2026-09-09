@@ -14808,3 +14808,35 @@ Directive: `D-CODEX-ATLAS-STUDIO-A2-CERTIFIED-CONTINUATION-002`
 - Studio suite: 101 passed; doctor a2_002_* PASS.
 - Overlap avoided: #782 repo-binding, #781 visual shell.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`; A2-002 Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-003 — Task Context + Continuation (lane)
+
+- Branch: `feat/as-studio-a5-task-context-001` on #785 tip `cd4523fc` (A2-002 mission journey; unmerged)
+- Directive: G-ATLAS-12H-LIVE-BACKLOG-TO-USABLE-STUDIO §5 (mission attention → useful context)
+- Deliverables: `scripts/atlas_studio/task_context.py`; `ATLAS_STUDIO_TASK_CONTEXT_V1` schema;
+  CLI `task-context` (live via shared `_live_frontier`, or offline via JSON files); doctor check
+- Reuse: frontier matrix + stacks (lane state, blockers, dependencies, vs-main), A1 freshness +
+  attention, `project_atlas` state/decisions/unknown lenses (KNOWN/UNKNOWN/STALE/CONFLICT/
+  UNAVAILABLE), `export_agent_context` optional, handoff commands referenced not built
+- Honesty: TASK_CONTEXT!=AUTHORITY; NEXT_STEP!=AUTHORIZATION; CONTINUATION!=EXECUTION;
+  MISSING_SHOWN_EXPLICITLY; `merged` always UNKNOWN; no materialization of any vault lens
+- Not started: dispatch/IV/handoff-deliver/steal/merge/worktree; FORMAL_IV=NOT_STARTED;
+  MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AS-STUDIO-A2-003 — live validation, baseline repairs, continuation verification
+
+- Ran the package through its real entry point against the real repository, which
+  exposed three defects fixtures had hidden: two baseline (`clock=None` into
+  `build_studio_snapshot`; positional args to a keyword-only
+  `build_frontier_matrix`) that broke **every** live Studio command and were
+  reproduced on base `cd4523fc`; one in this package (classifier read top-level
+  lens fields while the real lenses nest counters under `signals`)
+- Repaired the two baseline defects once in the shared `_live_frontier` helper
+- Added `verify_continuation` + `ATLAS_STUDIO_CONTINUATION_VERDICT_V1` and
+  `task-context --verify-continuation`: STILL_VALID / INVALIDATED / UNVERIFIABLE
+  with changed fields itemized; exit 0 only when STILL_VALID
+- Live round trip caught a real invalidation: a packet recorded at head
+  `924a4f88` was correctly INVALIDATED after the branch moved to `e0f50f69`
+- Tests 28 → 46; Studio A0–A2-003 suite 147 passed; doctor ok
+- Honesty: IMPORTED_CONTEXT != PERMISSION; verification authorizes nothing;
+  CLI/schema/API only, no Studio UI integration; FORMAL_IV = NOT_STARTED

@@ -144,25 +144,35 @@ def _load_intent_file(path: str) -> dict[str, Any]:
     return data
 
 
-def _live_claim_context(
+def _live_frontier(
     agent_id: str,
     *,
     repo: str | None,
     clock=None,
-) -> tuple[dict[str, Any], dict[str, Any], Any]:
-    """Build MC + frontier matrix + registry for claim commands (fail closed)."""
+) -> tuple[dict[str, Any], dict[str, Any], Any, dict[str, Any]]:
+    """Build MC + frontier matrix + registry + stacks from live truth (fail closed).
+
+    ``clock=None`` must never reach the builders: ``build_studio_snapshot`` calls
+    ``clock()`` unconditionally, so a None clock raises
+    ``TypeError: 'NoneType' object is not callable`` deep inside the snapshot.
+    Reproduced on the base commit through the pre-existing claim path, so this
+    is a baseline defect on every live Studio command, repaired once here
+    because every live caller now routes through this helper.
+    """
     from atlas_dag import agents as agents_mod
     from atlas_dag import frontier_matrix as fm_mod
     from atlas_dag import model as model_mod
     from atlas_dag import stack as stack_mod
     from atlas_dag.gh import GhClient
     from atlas_studio.mission_control import build_mission_control
+    from atlas_studio.snapshot import utcnow as _snapshot_utcnow
 
+    tick = clock or _snapshot_utcnow
     mc = build_mission_control(
         agent_id=agent_id,
         live=True,
         repo=repo,
-        clock=clock,
+        clock=tick,
     )
     client = GhClient(repo=repo) if repo else GhClient()
     snap = model_mod.build_snapshot(client)
@@ -170,14 +180,125 @@ def _live_claim_context(
         snap["nodes"], client, snap.get("main_branch") or "main"
     )
     registry = agents_mod.load_registry()
+    # build_frontier_matrix takes snapshot positionally and everything else
+    # keyword-only; the inherited positional call raised TypeError on every live
+    # invocation (second baseline defect, reproduced on the base commit).
     matrix = fm_mod.build_frontier_matrix(
         snap,
-        agent_id,
-        registry,
+        agent_id=agent_id,
+        registry=registry,
         stacks=stacks,
-        clock=clock,
+        clock=tick,
     )
+    return mc, matrix, registry, stacks
+
+
+def _live_claim_context(
+    agent_id: str,
+    *,
+    repo: str | None,
+    clock=None,
+) -> tuple[dict[str, Any], dict[str, Any], Any]:
+    """Build MC + frontier matrix + registry for claim commands (fail closed)."""
+    mc, matrix, registry, _stacks = _live_frontier(agent_id, repo=repo, clock=clock)
     return mc, matrix, registry
+
+
+def _load_json_file(path: str) -> dict[str, Any]:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"not a JSON object: {path}")
+    return data
+
+
+def cmd_task_context(args: argparse.Namespace) -> int:
+    """AS-STUDIO-A2-003: read-only task context + continuation for one lane."""
+    from atlas_studio import task_context as tcx
+
+    if not args.lane and not args.verify_continuation:
+        print(
+            "atlas-studio task-context: FAIL --lane is required "
+            "(or --verify-continuation PACKET)",
+            file=sys.stderr,
+        )
+        return 2
+
+    recorded = None
+    if args.verify_continuation:
+        try:
+            recorded = _load_json_file(args.verify_continuation)
+        except Exception as exc:
+            print(
+                f"atlas-studio task-context: FAIL cannot read continuation packet "
+                f"{type(exc).__name__}:{exc}",
+                file=sys.stderr,
+            )
+            return 1
+        args.lane = args.lane or str(recorded.get("lane") or "")
+        if not args.lane:
+            print(
+                "atlas-studio task-context: FAIL packet has no lane; pass --lane",
+                file=sys.stderr,
+            )
+            return 2
+    try:
+        offline = bool(args.mc_file or args.matrix_file or args.stacks_file)
+        if offline:
+            mc = _load_json_file(args.mc_file) if args.mc_file else None
+            matrix = _load_json_file(args.matrix_file) if args.matrix_file else None
+            stacks = _load_json_file(args.stacks_file) if args.stacks_file else None
+        else:
+            if not args.agent:
+                print("atlas-studio task-context: FAIL --agent is required for live mode "
+                      "(or pass --mc-file/--matrix-file/--stacks-file)", file=sys.stderr)
+                return 2
+            mc, matrix, _registry, stacks = _live_frontier(args.agent, repo=args.repo)
+        packet = tcx.build_task_context(
+            lane=args.lane,
+            agent_id=args.agent,
+            mission_control=mc,
+            frontier_matrix=matrix,
+            stacks=stacks,
+            vault=args.vault,
+            project_id=args.project,
+            include_agent_context=bool(args.with_agent_context),
+        )
+        errors = tcx.validate_task_context(packet)
+        if errors:
+            print(f"atlas-studio task-context: FAIL schema {errors[0]}", file=sys.stderr)
+            return 1
+        if recorded is not None:
+            verdict = tcx.verify_continuation(recorded, packet)
+            verdict_errors = tcx.validate_continuation_verdict(verdict)
+            if verdict_errors:
+                print(
+                    f"atlas-studio task-context: FAIL verdict schema {verdict_errors[0]}",
+                    file=sys.stderr,
+                )
+                return 1
+            if args.json:
+                print(json.dumps(verdict, indent=2, sort_keys=True))
+            else:
+                print(f"CONTINUATION {verdict['verdict']} lane={packet.get('lane')}")
+                for change in verdict["changes"]:
+                    print(
+                        f"  changed {change['field']}: {change['recorded']} -> {change['current']}"
+                    )
+                for change in verdict.get("advisory_changes") or []:
+                    print(f"  advisory {change['field']}: moved on since the packet")
+                for reason in verdict["reasons"]:
+                    print(f"  reason: {reason}")
+                print(f"  {verdict.get('guidance')}")
+                print("HONESTY: IMPORTED_CONTEXT!=PERMISSION / VERDICT!=AUTHORIZATION")
+            return 0 if verdict["verdict"] == tcx.STILL_VALID else 1
+    except Exception as exc:
+        print(f"atlas-studio task-context: FAIL {type(exc).__name__}:{exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(tcx.format_task_context_tui(packet))
+    return 0
 
 
 def cmd_claim_candidates(args: argparse.Namespace) -> int:
@@ -553,6 +674,24 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 else f"registry={sorted(by_type)}"
             ),
         )
+        # A2-003: task context lens importable, schema loads, all-missing packet validates,
+        # and the module carries no mutation imports.
+        try:
+            from atlas_studio import task_context as tcx
+
+            probe = tcx.build_task_context(lane="pr/1", clock=lambda: "2026-09-09T00:00:00Z")
+            tc_errors = tcx.validate_task_context(probe)
+            tc_src = Path(tcx.__file__).read_text(encoding="utf-8")
+            tc_clean = all(
+                tok not in tc_src for tok in ("emit_event", "execute_governed", "run_gh")
+            )
+            add(
+                "a2_003_task_context",
+                not tc_errors and tc_clean and "NO_MISSION_CONTROL" in probe["missing"],
+                "ok" if not tc_errors and tc_clean else f"errors={tc_errors[:2]} clean={tc_clean}",
+            )
+        except Exception as exc:
+            add("a2_003_task_context", False, f"{type(exc).__name__}:{exc}")
         # Confirm mission_control does not import governed claim (A1 boundary).
         import atlas_studio.mission_control as mc_mod
 
@@ -776,6 +915,30 @@ def build_parser() -> argparse.ArgumentParser:
     journey.add_argument("--weights", default=None)
     journey.add_argument("--json", action="store_true")
     journey.set_defaults(func=cmd_mission_journey)
+
+    tcp = sub.add_parser(
+        "task-context",
+        help="RO task context + continuation for one lane (AS-STUDIO-A2-003)",
+    )
+    tcp.add_argument("--lane", default=None, help="Lane id, e.g. pr/776")
+    tcp.add_argument(
+        "--verify-continuation",
+        default=None,
+        metavar="PACKET",
+        help="Re-read truth and report whether a recorded packet is STILL_VALID "
+        "(exit 0) or INVALIDATED/UNVERIFIABLE (exit 1). Imports context, never permission.",
+    )
+    tcp.add_argument("--agent", default=None, help="Agent id (required for live mode)")
+    tcp.add_argument("--repo", default=None, help="owner/name override for gh")
+    tcp.add_argument("--vault", default=None, help="Compiled Atlas vault (knowledge lenses)")
+    tcp.add_argument("--project", default=None, help="Project id inside the vault")
+    tcp.add_argument("--with-agent-context", action="store_true",
+                     help="Also export project_atlas agent context (needs --vault/--project)")
+    tcp.add_argument("--mc-file", default=None, help="Offline: mission-control JSON")
+    tcp.add_argument("--matrix-file", default=None, help="Offline: frontier matrix JSON")
+    tcp.add_argument("--stacks-file", default=None, help="Offline: stacks JSON")
+    tcp.add_argument("--json", action="store_true")
+    tcp.set_defaults(func=cmd_task_context)
 
     doc = sub.add_parser("doctor", help="Import/honesty/schema diagnostics")
     doc.add_argument("--json", action="store_true")
