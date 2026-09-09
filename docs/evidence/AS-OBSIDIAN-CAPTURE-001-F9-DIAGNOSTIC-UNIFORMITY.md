@@ -1,6 +1,6 @@
 # AS-OBSIDIAN-CAPTURE-001-F9 — one marker diagnosis, whichever writer refuses
 
-**Status:** implemented, awaiting independent verification. **Not sealed.**
+**Status:** integrated on `main` and **SEALED** (PR #748). See the post-merge seal at the end of this file.
 
 ## The defect
 
@@ -120,3 +120,60 @@ missing is the owner decision, not engineering. Carried as a residual.
 - **Not that `_generated_span`'s guard is reachable in production.** It is
   demonstrably not, through the public path; it is pinned by direct call and
   described as defence in depth, which is what it is.
+
+---
+
+## Post-merge seal
+
+Integrated as PR #748: merge commit `dbf8d838`, second parent `f11d89ec`, base
+`7f3dff69`. Merged **unrebased at the verified object** — `git diff f11d89ec
+dbf8d838` is empty and the merge trees are hash-identical to the certified one.
+
+**Diagnosis parity on the integrated result: 7 of 7**, including two shapes this
+package never tested. Measured on the merge object: F9 suite 33; the five
+pre-existing suites 100; freeze guard and label sweep 81; full suite 5,726
+passed / 8 skipped / 4 xfailed; ruff and mypy clean (405 files). All five
+controls reproduce on `main` at 33 → 12/4/4/1/2, sources restored byte-identical.
+
+**Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py`
+compares both surfaces over a named corpus plus a generated sweep -- **635 shapes, 616 refused, 635 byte-identical outcomes, 0 divergences**, across **27 distinct outcomes** of which **168 exercise a generated-marker diagnosis**. It reports refusal
+as well as message, so a change that widens or narrows what is refused shows as a
+policy delta rather than only a wording one. Controlled: reverting the count site to
+its bare message yields **72 divergences**; making the sweep inert trips the corpus
+guard.
+
+An earlier revision cited 226, which verification showed was inflated roughly
+threefold -- an empty sweep fragment made 60 of 216 shapes exact duplicates, and
+over half the rest refused on HUMAN-marker imbalance before any generated-marker
+diagnosis was computed. Its guards were vacuous in the same way: both were satisfied
+by construction, so an entirely inert sweep passed them. They now assert on distinct
+outcomes and on the sweep's own refusals.
+
+That script exists because review raised, correctly, that this seal cited
+measurements no clean checkout could audit. Verification's own larger corpora
+reported the same direction, but **those harnesses are not in this repository**, so
+those figures are attributed rather than cited as evidence.
+
+**Citation boundary:** verification reports are session artifacts and are not in
+this repository. No verdict is asserted here as fact -- an earlier revision said
+"no P0 and no P1" a few lines above this boundary, contradicting it. The figures
+this seal rests on are reproducible by the committed script and by re-running the
+named suites; figures attributed to verification's own harnesses are marked as
+such and are not reproducible here.
+
+**A gap in this instrument:** nothing executes it -- not CI, not any test. It
+cannot live under `tests/` without breaking the byte-identity invariant this
+seal rests on, so wiring it up belongs to a follow-up; until then it is
+reproducible on demand and not continuously enforced.
+
+**A residual verification found, pre-existing and not F9's:** across a
+**20,314-case corpus**, **41** shapes where the two surfaces disagree on whether to
+refuse -- 30 canonical-refuses/graph-accepts, 11 the reverse; a separate
+40,000-case fuzz gives **90** (61 and 29). An earlier revision attributed the 41 to
+the 40,000-case run, which was wrong, and neither corpus is committed. "Disagree"
+understates the direction: the larger group is graph **accepting and writing** a
+rendered document canonical refuses as structurally unpaired -- fail-open-shaped
+relative to canonical. It concerns HUMAN marker *pairing*, not generated-marker
+diagnosis, and is identical on the base, so F9 neither introduced nor worsened it.
+**It warrants its own work package**, not a residual line: a refusal-set divergence
+between two writers, measured today by no committed instrument.

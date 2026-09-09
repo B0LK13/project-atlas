@@ -14432,3 +14432,68 @@ depth because that is what it is).
 
 Implementation evidence, not certification: independent exact-head verification
 and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F9 — post-merge seal (2026-09-09)
+
+Integrated as PR #748. Merge commit `dbf8d838`, second parent `f11d89ec`, base
+`7f3dff69`. Merged **unrebased at the verified object** — `git diff f11d89ec
+dbf8d838` is empty and the merge trees (`src 08e61813`, `tests 8b4237b8`,
+`docs 8205a5b6`) are hash-identical to the certified object.
+
+**Diagnosis parity on the integrated result: 7 of 7.** Every corrupt shape now
+produces a byte-identical message from the canonical core and from
+`graph_projections` — including two shapes absent from this package's own tests
+(a triple begin marker, and a balanced forged pair inside a HUMAN region). That
+is the whole point of the package, measured on `main` rather than on the branch.
+
+**Measured on `dbf8d838`**, in an isolated worktree after proving both the
+parent process and a spawned child resolve `project_atlas` there:
+
+    F9 suite                     33 passed
+    five pre-existing suites    100 passed
+    freeze guard + lifecycle sweep  81 passed
+    full suite                5,726 passed, 8 skipped, 4 xfailed
+    ruff / mypy                 clean, 405 files
+
+**All five negative controls reproduce on main:**
+
+    baseline                                    33 passed
+    A  count site -> bare message               12 failed
+    B  end-before-begin site -> bare             4 failed
+    C  `_generated_span` site -> bare            4 failed
+    D  rendered-no-span site -> bare             1 failed
+    E  `_generated_span` reason always `count`   2 failed
+
+Each mutation under a sha256 assertion that it changed the file; source restored
+byte-identical after every run.
+
+**Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py`
+compares both surfaces over a named corpus plus a generated sweep -- **635 shapes, 616 refused, 635 byte-identical outcomes, 0 divergences**, over **27 distinct outcomes**, of which **168 exercise a generated-marker diagnosis**.
+It reports refusal as well as message, so a change that widens or narrows what is
+refused surfaces as a policy delta rather than only a wording one. Controlled:
+reverting the count site to its bare message yields **72 divergences**, and making
+the sweep inert trips the corpus guard.
+
+An earlier revision cited 226. Verification showed that was inflated roughly threefold -- an empty sweep fragment made 60 of 216 shapes exact duplicates, and over half the rest refused on HUMAN-marker imbalance before a generated-marker diagnosis was ever computed. The empty fragment is gone and the smaller honest number is cited instead. Its guards were vacuous too: `len(shapes) > 200` was guaranteed by the sweep's own arithmetic and `refusals > 0` was satisfied by the ten hardcoded shapes, so replacing every fragment with inert text left both passing while the sweep contributed nothing. They now assert on distinct outcomes and on the sweep's own refusals, and fail when the sweep goes inert.
+
+That script exists because review raised, correctly, that this seal was citing
+measurements no clean checkout could audit -- an instrument described is not an
+instrument available. Independent verification ran larger corpora of its own and
+reported the same direction, but **those harnesses are not in this repository**, so
+those figures are attributed rather than cited as evidence.
+
+**Citation boundary.** Where this seal refers to verification rounds, those
+reports are session artifacts and are **not in this repository**. No verdict is
+asserted here as fact -- an earlier revision of this section said "no P0 and no
+P1" three paragraphs above this boundary, contradicting it, and review caught
+that in all three artifacts. The figures this seal rests on are reproducible by
+the committed script and by re-running the named suites; figures attributed to
+verification's own harnesses are marked as such and are not reproducible here.
+
+**A gap in this instrument, recorded because a commit message is the least
+discoverable place for it.** Nothing executes `f9_diagnostic_parity.py` -- not CI,
+not any test. It cannot live under `tests/` without breaking the byte-identity
+invariant this seal rests on, so wiring it up belongs to a follow-up. Until then it
+is reproducible on demand and not continuously enforced.
+
+**A residual verification found, pre-existing and not F9's.** Across a **20,314-case corpus** it observed **41** shapes where the two surfaces disagree on whether to refuse -- 30 where canonical raises and graph does not, 11 the reverse; a separate 40,000-case fuzz gives **90** (61 and 29). An earlier revision of this seal attributed the 41 to the 40,000-case run, which was wrong, and neither corpus is committed. The direction matters and "disagree" understates it: the larger group is graph **accepting and writing** a rendered document that canonical refuses as structurally unpaired -- fail-open-shaped relative to canonical. It concerns HUMAN marker *pairing* rather than generated-marker diagnosis, is identical on the base so F9 neither introduced nor worsened it, and F9's diff changes message text and never control flow. **This warrants its own work package**, not a residual line: it is a refusal-set divergence between two writers, measured today by no committed instrument.
