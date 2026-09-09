@@ -15050,3 +15050,67 @@ The guard makes the ACCIDENTAL new writer hard to introduce. It does not close
 the set, and an earlier revision of this entry said it did.
 
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F16-ACCEPTED-WRITE-INTEGRITY.md`.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F18/F19 -- write boundary and write attribution
+
+Two questions kept deliberately apart, because they have different answers and
+different limits: F18 asks whether a write altered operator-owned bytes; F19
+asks which execution did it, under what authority, against which exact state.
+
+**F18** intercepts the OS primitives note bytes reach disk through --
+`os.replace`, `os.rename`, `os.open`, `os.close`, `os.fdopen`, `builtins.open`,
+`Path.write_bytes`, `Path.write_text` -- rather than Atlas's own helpers, so it
+is spelling-independent: a writer need not call the blessed helper to be seen.
+Twelve bypass routes were enumerated and all twelve are caught. The detector is
+itself falsifiable: unhooking each primitive in turn makes the corresponding
+route escape, without which "all routes caught" would be equally consistent
+with a detector that always reports success.
+
+**F18 detects damage but cannot attribute it, and an earlier reading of it was
+wrong.** `Violation.origin` names the innermost frame inside `src/`, which was
+read as "the responsible writer". It is not: a caller handing damaged bytes to
+`capture_io.write_atomic_under_root` and a caller writing them directly are the
+same act with different plumbing. The property is renamed
+`landed_via_atlas_helper` and must never be used as a gate; the limitation is
+pinned by a test.
+
+**The boundary is opt-in, and that is a measured retreat rather than a
+preference.** Installing it for every session broke three tests that spawn a
+nested `pytest` -- the child loads the same conftest and the added option
+changed its exit status. The sensor is not at fault and its census is real, but
+a monitor that changes the result of the suite it observes is not an observer.
+Making it continuous requires that nested-pytest interaction to be fixed first,
+which belongs to the owners of those tests and is recorded rather than worked
+around. One opt-in full-suite run reports `568 protected writes checked, 82
+altered operator regions`; those 82 are NOT 82 defects -- most are fixtures
+legitimately rewriting their own notes, and presenting the raw count as a defect
+count would be the overclaim this entry exists to avoid.
+
+**F19 introduces no new identity system.** `AgentLease` already carries every
+field the attribution question needs: `agent_id`/`lease_id` for which
+execution, `capabilities`/`authorized_paths`/`forbidden_paths`/`active` for
+under what authority, and `base_pin` for against which exact state. The lease
+record was already well formed; what did not exist was any connection between
+it and a write. That connection -- a `ContextVar` binding, trusted via a minted
+token rather than via the presence of a lease object -- is the whole of F19.
+
+Seven mutations were applied to the classifier and each turns the suite red
+(trust any claimed binding: 2 failed; authorize everything: 4 failed; ignore
+forbidden paths, ignore `active=False`, let `reconcile` claim observation it
+lacked, never destroy the token on exit: 1 failed each; treat silence as clean:
+2 failed). Baseline and restored: 14 passed. Inheritance across concurrency is
+measured, not assumed -- an awaited task stays attributed, a bare thread starts
+with an empty context and is reported unattributed.
+
+**What this does NOT claim.** Not `A_WRITER_CANNOT_SILENTLY_BYPASS_HUMAN_CONTENT_INTEGRITY`:
+the boundary is report-only in-process and absent out-of-process. Not
+cross-process attribution -- the process boundary carries no trusted identity,
+so a subprocess write is `OUTSIDE_OBSERVABLE_BOUNDARY` and stays there. Not a
+production control: both modules live under `tests/`, nothing in
+`src/project_atlas` imports them, and no shipped code path changes. Not a
+defence against hostile in-process code, which can mint itself a token exactly
+as it can unhook the boundary -- pinned by a test that PASSES WHEN THE ATTACK
+SUCCEEDS. Not a closure of #759, whose frozen surface is untouched.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F18-F19-WRITE-BOUNDARY-AND-ATTRIBUTION.md`.
