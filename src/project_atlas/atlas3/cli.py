@@ -98,6 +98,7 @@ ATLAS3_COMMANDS = frozenset(
         "claim-nodes",
         "conflict-unknown",
         "graph-authority",
+        "observe-execution",
     }
 )
 
@@ -154,7 +155,34 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
             "(or an object with an 'attestations' list)."
         ),
     )
+    proof.add_argument(
+        "--observation",
+        type=Path,
+        default=None,
+        help=(
+            "ULT-01b-1 proof v2: JSON file with a sealed atlas.observation-receipt.v1 for the "
+            "same identity; sets live_observation_wired when it verifies."
+        ),
+    )
     proof.add_argument("--json", action="store_true")
+
+    observe = subparsers.add_parser(
+        "observe-execution",
+        help=(
+            "ULT-01b-1: observe live git/host/toolchain state, seal an execution identity and "
+            "write a content-bound observation receipt (requires execution.observe)."
+        ),
+        description=(
+            "OBSERVED != CLAIMED. Refuses a dirty worktree, never records a remote URL, never "
+            "reads a clock, and writes only generated/ops/atlas3/observation/v1/."
+        ),
+    )
+    observe.add_argument("--vault", type=Path, required=True)
+    observe.add_argument("--project", required=True)
+    observe.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
+    observe.add_argument("--base-ref", default="origin/main", help="Base ref (recorded).")
+    observe.add_argument("--remote", default=None, help="Remote name (default from base ref).")
+    observe.add_argument("--json", action="store_true")
 
     memory = subparsers.add_parser(
         "memory",
@@ -780,6 +808,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         "PROOF_V2_INPUTS_CONFLICT",
                         "--evidence is proof v1 input; it cannot be combined with v2 flags",
                     )
+                observation_path = getattr(args, "observation", None)
                 return _dump(
                     evaluate_proof_v2(
                         args.vault,
@@ -790,8 +819,18 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         model_claims_complete=bool(
                             getattr(args, "model_claims_complete", False)
                         ),
+                        observation_receipt=(
+                            _read_json_object(observation_path)
+                            if observation_path is not None
+                            else None
+                        ),
                     ),
                     as_json=True,
+                )
+            if getattr(args, "observation", None) is not None:
+                raise Atlas3Error(
+                    "PROOF_V2_INPUTS_INCOMPLETE",
+                    "--observation requires --identity and --attestations",
                 )
             evidence = None
             if getattr(args, "evidence", None):
@@ -804,6 +843,54 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     evidence=evidence,
                     model_claims_complete=bool(getattr(args, "model_claims_complete", False)),
                 ),
+                as_json=True,
+            )
+        if command == "observe-execution":
+            from typing import cast
+
+            from project_atlas.authz import AuthzError, Capability, require_cli_elevated_operator
+            from project_atlas.execution_observation import (
+                OBSERVE_CAPABILITY,
+                ObservationError,
+                observe_execution,
+                store_observation_receipt,
+            )
+
+            # Owner decision O3: dedicated `execution.observe`, privileged and
+            # default off (registered in authz.py under the owner-approved pinned
+            # exception OG-ULT-01B-1-AUTHZ-EXECUTION-OBSERVE-20260909). Elevation
+            # is never self-granted: the operator must list the capability in
+            # ATLAS_CLI_ELEVATE_CAPS or this gate fails closed.
+            try:
+                require_cli_elevated_operator(
+                    "local-operator-observe",
+                    required={cast(Capability, OBSERVE_CAPABILITY)},
+                )
+            except AuthzError as exc:
+                raise Atlas3Error("AUTHZ_DENIED", str(exc)) from exc
+            try:
+                outcome = observe_execution(
+                    args.repo,
+                    project_id=args.project,
+                    base_ref=args.base_ref,
+                    remote_name=args.remote,
+                )
+                written = store_observation_receipt(args.vault, outcome.receipt)
+            except ObservationError as exc:
+                raise Atlas3Error(exc.code, str(exc)) from exc
+            return _dump(
+                {
+                    "ok": True,
+                    "observation_id": outcome.receipt.observation_id,
+                    "identity_digest": outcome.identity.identity_digest,
+                    "run_id": outcome.identity.run_id,
+                    "receipt_path": str(written.relative_to(args.vault.expanduser().resolve())),
+                    "bindings": outcome.identity.bindings(),
+                    "observed_is_current": False,
+                    "authority": "derived",
+                    "merge_authorization": "NOT_GRANTED",
+                    "receipt": outcome.receipt.to_record(),
+                },
                 as_json=True,
             )
         if command == "memory":

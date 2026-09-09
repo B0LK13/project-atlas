@@ -776,6 +776,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-051 Isolated independent-verification binding (exact HEAD/TREE; IV != MERGE)
 - [x] AT3-052 Isolated ADV binding (exact HEAD/TREE; ADV != MERGE / != security cert)
 - [x] AT3-103 Isolated execution identity + evidence attestation + proof v2 (ULT-01a; contract only; same-object fail-closed; proof v1 byte-identical; MODEL CLAIM != PROOF; live observation NOT wired; next package: observation wiring, planning alias ULT-01b)
+- [x] ULT-01b-1 Isolated live execution observation (git/host/toolchain OBSERVED; agent/context/capabilities UNKNOWN by owner decision; content-bound receipt without timestamp; OBSERVED != CURRENT; proof v2 linkage; CLI capability `execution.observe` OWNER-GATED on the frozen authz surface, fails closed until the pinned exception lands; ULT-01b-2/3 NOT started)
 - [x] AT3-070 Isolated surface contract (CLI/API/Web/TUI/MCP/A2A; surface != authority)
 - [x] AT3-071 Isolated transport != authority prover (HTTP/CLI/MCP/A2A success != authority)
 - [x] AT3-072 Isolated provider-register / capabilities CLI design (no CLI proliferation)

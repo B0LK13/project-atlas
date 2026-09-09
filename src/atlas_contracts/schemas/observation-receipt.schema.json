@@ -1,0 +1,332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/observation-receipt.schema.json",
+  "title": "AtlasObservationReceiptV1",
+  "description": "ULT-01b-1 observation receipt. STRUCTURAL interchange validation only: dimension/identity consistency, reason-code rules and content_hash self-verification are enforced by atlas_contracts.observation_receipt (semantic validation); a JSON Schema validator alone does not prove a valid receipt.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "project_id",
+    "identity",
+    "identity_digest",
+    "observer",
+    "observed",
+    "observed_is_current",
+    "authority",
+    "merge_authorization",
+    "content_hash",
+    "observation_id"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "status": {
+      "enum": [
+        "OBSERVED",
+        "UNKNOWN"
+      ]
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "method": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "method_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._+/^{}=-]{0,127}$"
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "method",
+        "method_refs",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "method": {
+          "$ref": "#/$defs/method"
+        },
+        "method_refs": {
+          "$ref": "#/$defs/method_refs"
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "atlas.observation-receipt.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "identity": {
+      "type": "object",
+      "description": "A sealed atlas.execution-identity.v1 record; validate it against execution-identity.schema.json. Its identity_digest must equal the receipt's identity_digest (enforced semantically)."
+    },
+    "identity_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "observer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "version",
+        "version_status"
+      ],
+      "properties": {
+        "kind": {
+          "const": "tool"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 128
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"
+        },
+        "version_status": {
+          "$ref": "#/$defs/status"
+        }
+      }
+    },
+    "observed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "environment",
+        "toolchain",
+        "agent",
+        "context",
+        "capabilities"
+      ],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "method",
+            "method_refs",
+            "reason",
+            "base_ref",
+            "remote_name",
+            "worktree_clean",
+            "shallow",
+            "git_version",
+            "git_executable_path_digest"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/status"
+            },
+            "method": {
+              "$ref": "#/$defs/method"
+            },
+            "method_refs": {
+              "$ref": "#/$defs/method_refs"
+            },
+            "reason": {
+              "$ref": "#/$defs/reason"
+            },
+            "base_ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "remote_name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "worktree_clean": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "shallow": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "git_version": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "git_executable_path_digest": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/sha256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "method",
+            "method_refs",
+            "reason",
+            "arch_raw"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/status"
+            },
+            "method": {
+              "$ref": "#/$defs/method"
+            },
+            "method_refs": {
+              "$ref": "#/$defs/method_refs"
+            },
+            "reason": {
+              "$ref": "#/$defs/reason"
+            },
+            "arch_raw": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "method",
+            "method_refs",
+            "reason",
+            "declared",
+            "absent"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/status"
+            },
+            "method": {
+              "$ref": "#/$defs/method"
+            },
+            "method_refs": {
+              "$ref": "#/$defs/method_refs"
+            },
+            "reason": {
+              "$ref": "#/$defs/reason"
+            },
+            "declared": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "absent": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "agent": {
+          "$ref": "#/$defs/dimension"
+        },
+        "context": {
+          "$ref": "#/$defs/dimension"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/dimension"
+        }
+      }
+    },
+    "observed_is_current": {
+      "const": false
+    },
+    "authority": {
+      "const": "derived"
+    },
+    "merge_authorization": {
+      "const": "NOT_GRANTED"
+    },
+    "content_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "observation_id": {
+      "type": "string",
+      "pattern": "^obs-[0-9a-f]{16}$"
+    }
+  }
+}

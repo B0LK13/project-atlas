@@ -23,16 +23,21 @@ from atlas_contracts.execution_identity import (
     load_execution_identity,
 )
 from atlas_contracts.identity import safe_relative_component
+from atlas_contracts.observation_receipt import (
+    ObservationReceipt,
+    ObservationReceiptError,
+    load_observation_receipt,
+)
 from project_atlas.atlas3.contracts import (
     GENERATOR_ID,
     OPS_RELATIVE,
     TRUTH_BOUNDARY,
     Atlas3Error,
     honesty_block,
-    read_json,
     require_vault,
     safe_project_id,
     write_json_atomic,
+    write_locator_json,
 )
 
 PACKAGE_ID: Final[str] = "AT3-050"
@@ -139,18 +144,6 @@ def _safe_task_id(task_id: object) -> str:
         raise Atlas3Error("UNSAFE_TASK_ID", "task id is not a safe path component") from exc
 
 
-def _assert_no_symlink_components(root: Path, relative: Path) -> None:
-    """Refuse if any path component below ``root`` is a symlink (checked with
-    ``lstat`` on the *unresolved* path, before any ``resolve()``), so a planted
-    link at ``proof/v2``, at the task directory or at the locator cannot
-    redirect a report inside or outside the vault."""
-    current = root
-    for part in relative.parts:
-        current = current / part
-        if current.is_symlink():
-            raise Atlas3Error("PROOF_LOCATOR_UNSAFE", f"proof path component {part!r} is a symlink")
-
-
 def _load_identity(identity: ExecutionIdentity | Mapping[str, Any]) -> ExecutionIdentity:
     # An instance is re-validated from its record: a draft built in seal
     # context, a model_copy, or model_construct must not carry an unverified
@@ -177,6 +170,22 @@ def _load_attestation(
         return load_evidence_attestation(attestation)
     except ValidationError as exc:
         code = _pydantic_code(exc, default="ATTESTATION_MALFORMED")
+        raise Atlas3Error(code, _pydantic_detail(exc)) from exc
+
+
+def _load_observation_receipt(
+    receipt: ObservationReceipt | Mapping[str, Any],
+) -> ObservationReceipt:
+    if isinstance(receipt, ObservationReceipt):
+        receipt = receipt.to_record()
+    if not isinstance(receipt, Mapping):
+        raise Atlas3Error("OBSERVATION_RECEIPT_MALFORMED", "receipt must be a JSON object")
+    try:
+        return load_observation_receipt(receipt)
+    except ObservationReceiptError as exc:
+        raise Atlas3Error(exc.code, str(exc)) from exc
+    except ValidationError as exc:
+        code = _pydantic_code(exc, default="OBSERVATION_RECEIPT_MALFORMED")
         raise Atlas3Error(code, _pydantic_detail(exc)) from exc
 
 
@@ -238,6 +247,7 @@ def evaluate_proof_v2(
     identity: ExecutionIdentity | Mapping[str, Any],
     attestations: Sequence[EvidenceAttestation | Mapping[str, Any]],
     model_claims_complete: bool = False,
+    observation_receipt: ObservationReceipt | Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """AT3-103 proof v2: typed, digest-verified, same-object-bound evidence.
 
@@ -254,6 +264,13 @@ def evaluate_proof_v2(
     Every path component under the vault is checked with ``lstat`` before any
     resolution: a symlink at ``proof/v2``, at the task directory or at the
     locator is refused (``PROOF_LOCATOR_UNSAFE``), never followed.
+
+    ``observation_receipt`` (ULT-01b-1): when a sealed
+    ``atlas.observation-receipt.v1`` is supplied and it embeds exactly this
+    identity, the report carries ``live_observation_wired: true`` and the
+    ``observation_id``; otherwise ``live_observation_wired`` stays ``false``.
+    The receipt is evidence of *how* the identity was observed; it grants
+    nothing and cannot make a stage PRESENT.
     """
     root = require_vault(vault)
     tid = _safe_task_id(task_id)
@@ -273,6 +290,17 @@ def evaluate_proof_v2(
     head, tree = candidate
     _scan_for_secrets({"task_id": tid})
     _scan_for_secrets(ident.to_record())
+    observation: ObservationReceipt | None = None
+    if observation_receipt is not None:
+        observation = _load_observation_receipt(observation_receipt)
+        # The embedded identity was strictly re-validated on load, so digest
+        # equality is record equality; one check, not two redundant ones.
+        if observation.identity_digest != ident.identity_digest:
+            raise Atlas3Error(
+                "OBSERVATION_IDENTITY_MISMATCH",
+                "observation receipt is bound to another execution identity",
+            )
+        _scan_for_secrets(observation.to_record())
 
     loaded: list[EvidenceAttestation] = []
     seen_ids: set[str] = set()
@@ -373,30 +401,21 @@ def evaluate_proof_v2(
         "independence_declared_only": True,
         "independence_verified": False,
         "merge_authorization": "NOT_GRANTED",
-        "live_observation_wired": False,
+        "live_observation_wired": observation is not None,
+        "observation_id": observation.observation_id if observation is not None else None,
+        "observed_is_current": False,
         "authority": "derived",
         "truth_boundary": TRUTH_BOUNDARY,
         "honesty": honesty_block(),
         "generated": {"by": GENERATOR_ID},
     }
     locator = PROOF_V2_RELATIVE / tid / f"{ident.identity_digest[:16]}.json"
-    _assert_no_symlink_components(root, locator)
-    task_dir = root / PROOF_V2_RELATIVE / tid
-    if task_dir.exists() and not task_dir.is_dir():
-        raise Atlas3Error("PROOF_LOCATOR_UNSAFE", "proof task path is not a directory")
-    target = root / locator
-    if target.exists() and not target.is_file():
-        raise Atlas3Error("PROOF_LOCATOR_UNSAFE", "proof locator is not a regular file")
-    # Defence in depth after the symlink walk: the resolved locator must still
-    # sit under the resolved proof root.
-    if not target.resolve().is_relative_to((root / PROOF_V2_RELATIVE).resolve()):
-        raise Atlas3Error("UNSAFE_TASK_ID", "proof path escaped the proof root")
-    if target.is_file():
-        existing = read_json(target)
-        if existing is None or existing.get("identity_digest") != ident.identity_digest:
-            raise Atlas3Error(
-                "PROOF_LOCATOR_COLLISION",
-                "proof locator already holds a different or unreadable proof; not overwritten",
-            )
-    write_json_atomic(target, report)
+    write_locator_json(
+        root,
+        locator,
+        report,
+        namespace=PROOF_V2_RELATIVE,
+        identity_field="identity_digest",
+        identity_value=ident.identity_digest,
+    )
     return report

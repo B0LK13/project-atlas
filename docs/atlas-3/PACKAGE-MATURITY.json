@@ -231,6 +231,24 @@
         "tests/unit/test_atlas3_proof_v2_103.py"
       ]
     },
+    "ult-01b-1-execution-observation": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": [
+        "src/project_atlas/execution_observation/",
+        "src/atlas_contracts/observation_receipt.py",
+        "src/project_atlas/atlas3/proof.py",
+        "src/project_atlas/atlas3/contracts.py",
+        "src/project_atlas/authz.py"
+      ],
+      "evidence": "Operational authorization: `execution.observe` registered in the frozen authz surface under owner-approved pinned exception OG-ULT-01B-1-AUTHZ-EXECUTION-OBSERVE-20260909 (privileged, default-off; not in DEFAULT_OPERATOR_CAPS or READ_ONLY_CAPABILITIES; CLI fails closed without ATLAS_CLI_ELEVATE_CAPS=execution.observe). Live git/host/toolchain observation sealed through the canonical identity mint path; content-bound receipt without timestamp; proof v2 live_observation_wired only with a verifying receipt. Dirty worktree refused; remote URL never persisted; child env constructed. CLI capability execution.observe owner-gated (frozen authz surface).",
+      "guard_tests": [
+        "tests/unit/test_atlas_contracts_observation_receipt_01b.py",
+        "tests/unit/test_execution_observation_01b.py",
+        "tests/integration/test_execution_observation_live_01b.py",
+        "tests/unit/test_authz_execution_observe_01b.py"
+      ]
+    },
     "at3-051-iv-bind": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
