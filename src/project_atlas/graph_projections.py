@@ -35,6 +35,7 @@ from project_atlas.graph_quarantine import GraphHealthSnapshot, HealthState
 from project_atlas.graph_relationships import LinkQuality, RelationshipRecord
 from project_atlas.protected_regions import (
     ProtectedRegionError,
+    generated_marker_diagnosis,
     read_note_text,
 )
 from project_atlas.protected_regions import (
@@ -151,15 +152,19 @@ def _validate_protected_markers(text: str, *, path: str) -> None:
         raise GraphProjectionError(f"malformed-protected-markers:{path}")
     start_count = text.count(_GENERATED_START)
     end_count = text.count(_GENERATED_END)
-    if start_count != end_count:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
-    if start_count > 1:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
+    if start_count != end_count or start_count > 1:
+        raise GraphProjectionError(
+            f"malformed-generated-markers:"
+            f"{generated_marker_diagnosis(text, reason='count')}:{path}"
+        )
     if start_count == 1:
         start_index = text.index(_GENERATED_START)
         end_index = text.index(_GENERATED_END)
         if end_index < start_index:
-            raise GraphProjectionError(f"malformed-generated-markers:{path}")
+            raise GraphProjectionError(
+                f"malformed-generated-markers:"
+                f"{generated_marker_diagnosis(text, reason='end-before-begin')}:{path}"
+            )
 
 
 def _generated_span(text: str, *, path: str) -> tuple[int, int] | None:
@@ -177,7 +182,13 @@ def _generated_span(text: str, *, path: str) -> tuple[int, int] | None:
     if start < 0 and end < 0:
         return None
     if start < 0 or end < 0 or end < start:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
+        # `end < start` is a distinct condition from a missing marker, and the
+        # operator can act on the difference, so report which one it was.
+        reason = "end-before-begin" if (start >= 0 and end >= 0) else "count"
+        raise GraphProjectionError(
+            f"malformed-generated-markers:"
+            f"{generated_marker_diagnosis(text, reason=reason)}:{path}"
+        )
     return start, end + len(_GENERATED_END)
 
 
@@ -217,7 +228,17 @@ def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) 
             # render offers none. Refuse rather than fall back to overwriting
             # the whole document, which would discard the outside text this
             # branch exists to preserve.
-            raise GraphProjectionError(f"malformed-generated-markers:{path}")
+            # The counts must name the artifact they describe. Borrowing the
+            # note-shaped vocabulary here reported `begin=0,end=0` against the
+            # OPERATOR'S path, telling them their note had no markers when it
+            # has one of each -- the render is what lacks a span. Found by
+            # verification.
+            raise GraphProjectionError(
+                f"malformed-generated-markers:rendered-has-no-generated-span,"
+                f"rendered-begin={rendered.count(_GENERATED_START)},"
+                f"rendered-end={rendered.count(_GENERATED_END)},"
+                f"expected=1,no-write:{path}"
+            )
         return (
             existing[: existing_span[0]]
             + rendered[rendered_span[0] : rendered_span[1]]

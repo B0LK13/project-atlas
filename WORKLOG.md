@@ -14333,3 +14333,102 @@ checkable is cited; what is not is named as such.
 come from #716, or that the matcher is correct in general. Only that these four
 shapes are preserved, and that two specific plausible relaxations are now
 detected where they previously were not.
+
+## AS-OBSIDIAN-CAPTURE-001-F9 — one marker diagnosis, whichever writer refuses (2026-09-08)
+
+A generated-marker collision is one operator condition. It did not read as one.
+Reproduced on `e264d599` and re-checked on current `main`, the identical corrupt
+note through both generated-span-preserving writers:
+
+    canonical : malformed-generated-markers:count,begin=2,end=1,expected=1,no-write:n.md
+    graph     : malformed-generated-markers:n.md
+
+So what an operator was told about their own file depended on an internal
+routing detail they cannot observe: which surface reached the note first. The
+canonical message names the reason, the observable counts, what was expected,
+whether a reserved spelling demonstrably sits inside a HUMAN region, and -- most
+useful of all -- that **nothing was written**. The graph message names a path.
+
+Recorded in the F1-F4 residual register as "the diagnostic is not uniform across
+surfaces", with the five `graph_projections` sites and three `ingestion.py`
+sites enumerated. This closes the five; the three are owner-gated.
+
+**Diagnosis, not policy.** Exactly the same notes are refused, with the same
+fail-closed guarantee and the same bytes left on disk -- both pinned, not
+assumed: every corrupt shape is asserted refused AND asserted to leave the note
+byte-identical, and a positive control asserts a well-formed note still merges.
+The message PREFIX is unchanged, so the change is backward compatible with every
+existing assertion matching `malformed-generated-markers` -- **100 tests across five suites**, verified passing before and after.
+
+**One site gets an honest reason instead of the shared one.** The fifth is not a
+marker malformation at all: it refuses because the *fresh render* offers no
+generated span, an Atlas-side condition rather than a corrupt note. Reporting it
+as `malformed-generated-markers` pointed the operator at the wrong artifact
+entirely. It now reads `rendered-has-no-generated-span`, and a test asserts the
+reason token is not `count`.
+
+**Negative controls** (33 passed baseline), each applied under a sha256
+assertion that it changed the file, each reverted with both sources confirmed
+byte-identical:
+
+    A  count site -> bare message                12 failed
+    B  end-before-begin site -> bare              4 failed
+    C  `_generated_span` site -> bare             4 failed
+    D  rendered-no-span site -> bare              1 failed
+    E  `_generated_span` reason always `count`    2 failed
+
+**Two tests that could not fail, both found by review.** The first asserted the
+note was byte-identical by comparing the `existing` *string* to itself -- a
+`str` is immutable, so it could not fail, while four artifacts cited it as the
+pin for that claim. Its replacement drives the real writer and asserts the
+file's sha256. The second shipped in the very commit that removed the first: a
+residue test globbing `*.tmp`, a suffix this module never writes, since
+`_promote` stages as `.<name>.<txn>.atlas-stage` and `.atlas-backup`. The
+control that appeared to validate it renamed staging to `.tmp` -- matching the
+test's glob rather than the code's naming -- so it validated the assertion
+against itself. It now compares the whole vault byte for byte, which holds
+regardless of naming, and the underlying fact is stronger than "no residue":
+the merge raises while the plan is still being built, so `_promote` is never
+reached -- zero invocations measured during a refusal. Residue is structurally
+impossible. Controlled with the code's own convention: leaking a uuid-unique
+`.atlas-stage` file **on the refusing pass only** fails exactly **1** of 33 --
+this test and nothing else. Two ways to get that number wrong, both encountered
+here: an earlier revision said 5, which a note-clobber alone fully produces with
+the residue contributing none of it; and checking that finding, I built a
+mutation that leaks on *every* call, which also fails 4 unrelated tests because
+during setup the parent directory does not exist yet and the leak breaks the
+write path itself. A control that fires too early is as useless as one that
+matches its own assertion, and this package produced both. The true figure is
+the better story: this test is the only thing that can detect residue, which is
+precisely why it had to exist. The old `*.tmp` glob detected none of it.
+
+**Controls C and E earned their place by first failing to fail.** On the initial
+test set, reverting the `_generated_span` site left the suite at **27 passed** --
+the tests were not load-bearing there at all. The reason is structural rather
+than an oversight: that guard is **unreachable** through
+`_merge_protected_regions`, because `_validate_protected_markers` runs first on
+both `existing` and `rendered` and already refuses every shape that would
+trigger it. It is defence in depth for direct callers. Four direct-call tests
+now pin it -- the only way it can be pinned -- and the controls bite at 4 and 2.
+Recorded because the honest reading of a passing negative control is "the
+control is broken, or the protection is not where I thought"; here it was the
+second.
+
+**Owner-gated, not fixed.** `ingestion.py` raises a plain `ValueError` at `:103`,
+`:107` and `:484`, with a different spelling again -- `malformed generated
+markers`, spaces not hyphens -- and no diagnosis at all. So a third surface
+reports a third thing for the same condition, and it is the surface closest to
+the product boundary. `src/project_atlas/ingestion.py` is a certified surface
+frozen by `test_atlas3_demo_isolation_001`; the only sanctioned edit path is an
+owner-approved exception pinned to an exact sha256 under
+`docs/atlas-3/ARCHITECTURE.md` §9.1, which this lane cannot self-grant. The fix
+is mechanical -- the same public helper this package exports -- and what is
+missing is the owner decision, not engineering.
+
+**Not claimed:** that refusal behaviour changed (same notes, same bytes); that
+the three surfaces now agree (two do); or that `_generated_span`'s guard is
+reachable in production (it demonstrably is not, and is described as defence in
+depth because that is what it is).
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
