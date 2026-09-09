@@ -70,8 +70,24 @@ asymmetry" wholesale.
 
 ## Negative control
 
-Removing the structural check fails **5 of 9** tests, including the differential
-sweep. Restored, 9 pass and the source is byte-identical.
+Removing the structural check fails **4 of 7** tests, including the differential
+sweep and the end-to-end brick test. Restored, 7 pass and the source is
+byte-identical. Re-measured on the merge object `06362807`; the failing set is
+`crossed-a-b`, `reversed-end-before-begin`,
+`a_poisoned_field_cannot_brick_the_projection` and
+`no_fail_open_divergence_across_a_differential_sweep`.
+
+**An earlier revision of this section said 5 of 9, and 9 passing.** That was
+accurate against `4dc35e19`, where the module collected nine cases. It went stale
+at `ae5bc6b4` -- the commit that replaced the tautological
+`refusal_leaves_the_prior_note_untouched` (three parametrised shapes) with the
+single end-to-end `a_poisoned_field_cannot_brick_the_projection`, taking the
+module from nine cases to seven. The backlog entry was updated to 4 of 7; this
+section was not, and I sealed it in that state. Review caught it.
+
+That is the **fourth** instance in this package of a correction reaching some
+copies and not all -- in the record whose own seal narrates that exact pattern.
+Recorded rather than silently overwritten, because the pattern is the finding.
 
 `unclosed-region` fails **either way** — graph's count check already catches an
 unmatched BEGIN — so the fix specifically closes **reversed** and **crossed**
