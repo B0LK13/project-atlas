@@ -49,7 +49,17 @@ def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
         ensure_under_root(vault, path, label="obsidian projection note")
     except ValueError as exc:
         raise ObsidianProjectionError(str(exc)) from exc
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # F6 guarded the read and `os.replace`; this `mkdir` was the third failure
+    # site in the same function and was left outside the boundary, so a blocked
+    # or unwritable parent escaped as a raw OSError -- the same defect one step
+    # earlier. Reproduced: a plain file where the note's parent must be raises
+    # NotADirectoryError straight through `ObsidianProjectionError`.
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ObsidianProjectionError(
+            f"unwritable-note-directory:{type(exc).__name__}:{path.parent}"
+        ) from exc
     tmp = path.with_suffix(path.suffix + ".tmp")
     try:
         tmp.write_bytes(content)

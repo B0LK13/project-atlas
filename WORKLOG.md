@@ -14675,3 +14675,119 @@ resolve the tree you think you are testing.
 
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F10-REFUSAL-PARITY.md`,
 post-merge seal section.
+
+## AS-OBSIDIAN-CAPTURE-001-F11 -- the mkdir failure site in each writer
+
+F6 closed the error boundary for two ways an atomic note write can fail: the read
+of the prior note, and `os.replace`. Creating the note's parent directory was
+left outside the guard in **both** writers, so a blocked or unwritable parent
+escaped as a raw `OSError` past `ObsidianProjectionError` /
+`GraphProjectionError`. A caller catching only the domain error did not catch it
+at all -- the defect F6 exists to prevent, one step earlier in the same function.
+
+Reproduced on `a7adce4e` and again on current `main`, by a plain file where a
+path component must be a directory:
+
+    obsidian_projection._write_atomic  ->  NotADirectoryError escaped raw
+    graph_projections._promote         ->  NotADirectoryError escaped raw
+
+**Both sites were already recorded; an earlier revision claimed otherwise and it
+is retracted.** F6's residual register names the second one explicitly -- "an
+ancestor directory replaced by a file" escaping the unguarded `_promote` -- 13
+lines above the bullet this package quoted. The fix is new; the finding was not.
+
+Six lines of code replace one in each writer (`+11/-1` and `+10/-1` with
+comments), raising the module's own error type and naming the **directory**,
+which is what the operator must act on: `unwritable-note-directory:<Type>:<path>`.
+
+**The P0 this package paid for.** Two tests asserted the literal string
+`"NotADirectoryError"`. Windows raises `FileExistsError` for the same fixture and
+CI went red; on Linux alone the class depends on shape (ancestor file -> ENOTDIR
+20, immediate parent file -> EEXIST 17), so the assertion was platform- AND
+shape-coupled from the start. Fixed by **measuring**: a helper performs the same
+`mkdir`, catches the `OSError`, and the test asserts the guard names THAT class.
+Portable and strictly stronger -- a guard reporting a generic `OSError` now fails,
+which the hard-coded string could not detect. Under a plugin simulating the
+Windows class: new assertion 5 passed, old assertion 2 failed / 3 passed. Windows
+CI is green at `83a3d7a3` and again at `217e93eb`, 5,682 passed at both -- the same
+count, as a docs-only delta over an identical `tests/` tree must produce. The
+SHAs are named because the ledger outlives the PR.
+
+**A justification that was exactly backwards.** The docstring claimed a
+`pytest.raises` test "would pass on a writer that raised nothing at all", and
+used that to prefer a `try/except OSError`. `pytest.raises` fails with DID NOT
+RAISE and re-raises non-matching exceptions, so it rejects both failure modes.
+Demonstrated with a mutant that swallows the `mkdir` failure and raises nothing:
+the old form 1 passed, the new form 1 failed. That test was also redundant with
+the two above it, on the same fixture; it now runs a second, materially different
+blocked shape, so containment is not pinned to one errno.
+
+**Controls** -- each mutation under a sha256 assertion that it changed the file,
+restored with `git restore --source=HEAD --staged --worktree` under a porcelain
+emptiness assertion, sources byte-identical afterwards:
+
+    baseline                                     5 passed
+    projection guard removed                     3 failed
+    graph guard removed                          3 failed
+    both guards swallow and raise nothing        4 failed, 1 passed
+    guard reports a generic OSError              3 failed
+    fixture made inert (one fixture)             3 failed, 2 passed
+    fixture made inert (both fixtures)           4 failed, 1 passed
+    restored                                     5 passed
+
+Read the 3/3 rows honestly: each is carried by ONE guard-specific test, the other
+two being shared tests that detect either guard's absence. Judged on name sets --
+`A\B = {projection_mkdir}`, `B\A = {graph_mkdir}` -- neither contains the other,
+so both guards ARE independently load-bearing, with one independent witness each,
+not three. The two inert-fixture rows differ because making only `_blocked_parent`
+inert leaves the second shape live; both are recorded rather than picking the
+larger.
+
+**Reachability, corrected downward.** An earlier revision said the failure
+"surfaces today as an unhandled traceback rather than an Atlas diagnostic". Not
+true at either production surface: `cli.py:4264` catches `(ObsidianProjectionError,
+OSError, ValueError)`, `connect.py:786` catches `(OSError, ValueError, KeyError,
+TypeError)`, and both already contained the raw error on base. Only
+`demo_readiness.py:162`, an internal harness, is unguarded. What this buys is
+precision and type-correctness at the boundary, not traceback-vs-diagnostic.
+Weaker still on the graph side: `graph_projections.write_projection_outputs` has
+**no caller anywhere in `src/`** -- seven test modules only -- so that half is not
+reachable from any Atlas command today.
+
+**Not a policy change**, verified independently rather than argued: 67 legitimate
+scenarios at the previous head and 57 re-instrumented at this one, with
+tree-level manifests compared by path and sha256 and zero differing scenarios;
+plus 960 concurrent writes into a shared not-yet-existing tree with zero errors
+on base and head alike. The 67 is attributed rather than cited: it is not
+reproducible from anything in this repository.
+`Path.mkdir(parents=True, exist_ok=True)` is race-safe and the guard is purely
+additive.
+
+**What it does NOT close.** F6's register named THREE raw `_promote` escapes; this
+closes one. The other two remain raw, reproduced with line attribution **at this head** --
+the same sites sit at 603/605/609 on `ef628223` and 605/607/611 on current `main`
+(`e4dd17bc`), so a line number without its object is not a fact. Issue #757 names
+`main` and therefore needs 605/607/611, not these:
+
+    read-only output directory   PermissionError  graph_projections.py:620
+    existing target unreadable   PermissionError  graph_projections.py:616
+    ENAMETOOLONG filename        OSError          graph_projections.py:614
+
+The third is not in the register. Filed as **#757** so they are explicitly owned;
+deliberately not folded in, being different sites with different failure modes.
+The same three sites are at 603/605/609 on `ef628223`, at 605/607/611 on current
+`main` (`e4dd17bc`), and at 614/616/620 here. An earlier revision cited the first
+set and called it `main`; a first correction cited this set and called it the
+merged base. Both were wrong about the OBJECT rather than the arithmetic, which
+is the lesson worth keeping: a line number without its object is not a fact.
+Issue #757 names `main` and therefore needs 605/607/611, not these.
+
+**Not claimed:** that every `OSError` in these modules is contained (the mkdir
+site only); that the F6 property holds "at all three sites", as an earlier
+docstring said; that `ingestion.py` is covered (a third writer, owner-gated behind
+a frozen surface needing an owner-approved sha256-pinned exception under
+`docs/atlas-3/ARCHITECTURE.md` §9.1); or that anything is verified on Windows
+beyond CI -- junctions, ACL-denied components and case-insensitive filesystems
+are untested.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F11-MKDIR-BOUNDARY.md`.
