@@ -67,10 +67,13 @@ atlas-studio claim-candidates [--agent ID] [--json]
 atlas-studio claim-preview --agent ID --lane pr/N [--json]
 atlas-studio claim-intent --agent ID --lane pr/N   # stdout intent JSON only
 atlas-studio claim-evaluate --intent-file PATH [--json]
-atlas-studio claim-execute --intent-file PATH [--json] [--dry-run]
+atlas-studio claim-execute --intent-file PATH --repo OWNER/NAME [--json] [--dry-run]
 ```
 
 `claim-execute` always revalidates internally even if evaluate was skipped.
+`--repo` is mandatory: execution is pinned to an explicit repository identity
+and refuses (`EXPECTED_REPO_REQUIRED_AT_EXECUTE`) without it. A dry run
+reports `EXECUTE_ALLOWED` with `dry_run=true`, never `EXECUTED`.
 
 ## Exit evidence (lane)
 

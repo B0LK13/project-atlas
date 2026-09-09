@@ -46,6 +46,7 @@ REFUSED_TARGET_MISMATCH = "REFUSED_TARGET_MISMATCH"
 REFUSED_IDEMPOTENT_ALREADY_CLAIMED = "REFUSED_IDEMPOTENT_ALREADY_CLAIMED"
 REFUSED_SCHEMA = "REFUSED_SCHEMA"
 REFUSED_UNSUPPORTED_ACTION = "REFUSED_UNSUPPORTED_ACTION"
+EXECUTION_FAILED = "EXECUTION_FAILED"  # executor raised / returned no decision
 
 FORBIDDEN_AUTHZ_FIELDS = frozenset(
     {
@@ -68,6 +69,8 @@ STUDIO_NEVER_SELF_AUTHORIZES = True
 STALE_INTENT_NE_CURRENT_PERMISSION = True
 DISPATCH_STEAL_AUTO_NOT_STARTED = True
 MERGE_HANDOFF_WORKTREE_NOT_STARTED = True
+DRY_RUN_NE_EXECUTED = True
+EXECUTION_FAILURE_NE_SUCCESS = True
 
 
 class GovernanceError(RuntimeError):
@@ -103,6 +106,8 @@ def honesty_decision() -> dict[str, bool]:
         "control_plane_revalidates_at_execution": CONTROL_PLANE_REVALIDATES_AT_EXECUTION,
         "studio_never_self_authorizes": STUDIO_NEVER_SELF_AUTHORIZES,
         "stale_intent_ne_current_permission": STALE_INTENT_NE_CURRENT_PERMISSION,
+        "dry_run_ne_executed": DRY_RUN_NE_EXECUTED,
+        "execution_failure_ne_success": EXECUTION_FAILURE_NE_SUCCESS,
     }
 
 
@@ -191,10 +196,25 @@ class RegisteredAction:
 _REGISTRY: dict[str, RegisteredAction] = {}
 
 
-def register_action(handler: ActionHandler, *, notes: str = "") -> None:
+def register_action(
+    handler: ActionHandler, *, notes: str = "", replace: bool = False
+) -> None:
+    """Register an IMPLEMENTED handler. Fail closed on silent takeover.
+
+    - A NOT_STARTED attach point may be promoted to IMPLEMENTED.
+    - Re-registering the *same* handler object is idempotent.
+    - Replacing an existing IMPLEMENTED handler requires ``replace=True``;
+      otherwise ``GovernanceError(DUPLICATE_REGISTRATION:...)``.
+    """
     action_type = str(handler.action_type)
     if not action_type:
         raise GovernanceError("handler.action_type required")
+    existing = _REGISTRY.get(action_type)
+    if existing is not None and existing.status == "IMPLEMENTED":
+        if existing.handler is handler:
+            return
+        if not replace:
+            raise GovernanceError(f"DUPLICATE_REGISTRATION:{action_type}")
     _REGISTRY[action_type] = RegisteredAction(
         action_type=action_type, handler=handler, status="IMPLEMENTED", notes=notes
     )
@@ -284,8 +304,11 @@ def execute_governed_intent(
 ) -> dict[str, Any]:
     """Always evaluate first; apply_authorized only when EXECUTE_ALLOWED and not dry_run.
 
-    dry_run with EXECUTE_ALLOWED returns EXECUTED + mutated=False (preview of
-    success without control-plane write).
+    dry_run with EXECUTE_ALLOWED returns EXECUTE_ALLOWED + dry_run=True +
+    mutated=False (DRY_RUN != EXECUTED: nothing ran, the label must not say
+    it did). An executor that raises, or returns something that is not a
+    decision packet, yields EXECUTION_FAILED with mutation_state=UNKNOWN —
+    never EXECUTED, never a bare exception without evidence.
     """
     decision = evaluate_governed_intent(intent, **kwargs)
     if decision.get("decision") != EXECUTE_ALLOWED:
@@ -301,7 +324,7 @@ def execute_governed_intent(
         )
     if dry_run:
         return build_decision(
-            EXECUTED,
+            EXECUTE_ALLOWED,
             action_type=action_type,
             intent_id=intent.get("intent_id"),
             reasons=["DRY_RUN_NO_EMIT"],
@@ -313,7 +336,40 @@ def execute_governed_intent(
             mutated=False,
             dry_run=True,
         )
-    return reg.handler.apply_authorized(intent, decision, **kwargs)
+    try:
+        result = reg.handler.apply_authorized(intent, decision, **kwargs)
+    except Exception as exc:  # noqa: BLE001 — executor failure must become evidence
+        return build_decision(
+            EXECUTION_FAILED,
+            action_type=action_type,
+            intent_id=intent.get("intent_id"),
+            reasons=[f"EXECUTOR_EXCEPTION:{type(exc).__name__}"],
+            evidence={
+                "evaluate_decision": EXECUTE_ALLOWED,
+                "exception_type": type(exc).__name__,
+                "exception_message": str(exc)[:500],
+                "mutation_state": "UNKNOWN",
+                "substrate": "atlas_studio.governance",
+            },
+            mutated=False,
+            dry_run=False,
+        )
+    if not isinstance(result, dict) or not result.get("decision"):
+        return build_decision(
+            EXECUTION_FAILED,
+            action_type=action_type,
+            intent_id=intent.get("intent_id"),
+            reasons=["EXECUTOR_RETURN_INVALID"],
+            evidence={
+                "evaluate_decision": EXECUTE_ALLOWED,
+                "returned_type": type(result).__name__,
+                "mutation_state": "UNKNOWN",
+                "substrate": "atlas_studio.governance",
+            },
+            mutated=False,
+            dry_run=False,
+        )
+    return result
 
 
 def ensure_default_registry() -> None:

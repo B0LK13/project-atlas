@@ -165,7 +165,8 @@ def test_claim_dry_run_execute_via_substrate_no_mutate(tmp_path):
         now_clock=lambda: FIXED,
         client=object(),
     )
-    assert decision["decision"] == gov.EXECUTED
+    # DRY_RUN != EXECUTED: nothing ran, so the label is the evaluate verdict.
+    assert decision["decision"] == gov.EXECUTE_ALLOWED
     assert decision["dry_run"] is True
     assert decision["mutated"] is False
     assert "DRY_RUN_NO_EMIT" in decision["reasons"]

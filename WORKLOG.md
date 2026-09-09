@@ -14773,3 +14773,25 @@ AS_STUDIO_A1 = NOT_STARTED
   CONTROL_PLANE_REVALIDATES_AT_EXECUTION; A1 MC does not import action_intent
 - Explicit: **DISPATCH/STEAL_AUTO = NOT_STARTED**; no merge/IV/worktree/PTY;
   MERGE_AUTHORIZATION=NOT_GRANTED; FORMAL_IV=NOT_STARTED; no commit/push/PR
+
+## AS-STUDIO-A2-001 — review-closure hardening (lane, PR #776)
+
+- Directive: D-CODEX-ATLAS-STUDIO-A2-001-END-TO-END-CLOSURE (executed by the
+  Claude Code implementation session, not by Codex; CODEX_VALIDATED = NO)
+- Baseline: frozen `6ff336cd` (exact-head CI run 34360705782 PASS); freeze
+  lifted only for confirmed A2-001 defects + tests + required docs
+- Reproduced and fixed: `--repo` omission skipped repo pinning → refuse
+  `EXPECTED_REPO_REQUIRED_AT_EXECUTE`, CLI `--repo` required; dead
+  `if True` comprehension removed; `register_action` silent overwrite →
+  `DUPLICATE_REGISTRATION` refusal (`replace=True` explicit); executor
+  exception / invalid return → `EXECUTION_FAILED` + `mutation_state=UNKNOWN`;
+  dry-run label `EXECUTED` → `EXECUTE_ALLOWED` + `dry_run=true`
+- Schema: `EXECUTION_FAILED` added to `ATLAS_STUDIO_ACTION_DECISION_V1` enum;
+  `mutated` / `dry_run` semantics documented
+- Tests: `tests/unit/test_atlas_studio_a2_review_closure.py` (18) + 3 existing
+  assertions updated; A1 `mission_control.py` untouched, still free of
+  governance/action_intent imports
+- Not changed: dispatch/IV/handoff/steal/merge/worktree intents (still
+  NOT_STARTED); A0/A1 modules; no force-push; no merge; no self-IV
+- Review threads: replied with fix pointers; resolution left to human reviewer
+- FORMAL_IV = PENDING on the new exact head; MERGE_AUTHORIZATION = NOT_GRANTED

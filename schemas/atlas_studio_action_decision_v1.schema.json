@@ -33,7 +33,8 @@
         "REFUSED_TARGET_MISMATCH",
         "REFUSED_IDEMPOTENT_ALREADY_CLAIMED",
         "REFUSED_SCHEMA",
-        "REFUSED_UNSUPPORTED_ACTION"
+        "REFUSED_UNSUPPORTED_ACTION",
+        "EXECUTION_FAILED"
       ]
     },
     "action_type": {
@@ -45,10 +46,12 @@
       "type": ["string", "null"]
     },
     "mutated": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "True only when the executor CONFIRMED a control-plane mutation. False otherwise, including EXECUTION_FAILED (see evidence.mutation_state=UNKNOWN) and dry_run."
     },
     "dry_run": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "True when no executor ran; decision is then EXECUTE_ALLOWED, never EXECUTED (DRY_RUN != EXECUTED)."
     },
     "emit_status": {
       "type": ["string", "null"]

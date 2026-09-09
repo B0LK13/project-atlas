@@ -54,6 +54,7 @@ REFUSED_POLICY = "REFUSED_POLICY"
 REFUSED_TARGET_MISMATCH = "REFUSED_TARGET_MISMATCH"
 REFUSED_IDEMPOTENT_ALREADY_CLAIMED = "REFUSED_IDEMPOTENT_ALREADY_CLAIMED"
 REFUSED_SCHEMA = "REFUSED_SCHEMA"
+EXECUTION_FAILED = "EXECUTION_FAILED"  # substrate: executor raised / invalid return
 
 FORBIDDEN_AUTHZ_FIELDS = frozenset(
     {
@@ -323,8 +324,8 @@ def list_claim_candidates(
         if a.get("action_type") == ACTION_OWNERSHIP_CLAIM
     ]
     if agent_id:
-        candidates = [c for c in candidates if True]  # agent bind is in matrix build
-        # Filter presentation to matrix agent when set.
+        # Agent binding happens in build_frontier_matrix; here we only refuse
+        # to present a foreign agent's matrix as this agent's candidates.
         matrix_agent = matrix.get("agent")
         if matrix_agent and matrix_agent != agent_id:
             notes.append("AGENT_MATRIX_MISMATCH")
@@ -937,6 +938,17 @@ def _emit_ownership_claim(
     actor = str(intent["actor_agent_id"])
     pr = int(intent["target_pr"])
     expect_head = intent.get("target_head")
+
+    if not expected_repo:
+        # Fail closed: a mutation must be pinned to an explicit repository
+        # identity. GhClient auto-resolution is not authority.
+        return _decision(
+            REFUSED_POLICY,
+            intent_id=intent_id,
+            reasons=["EXPECTED_REPO_REQUIRED_AT_EXECUTE"],
+            evidence={"client_repo": getattr(client, "repo", None)},
+            clock=now_clock or clock,
+        )
 
     resolved = agents_mod.resolve_agent(registry, actor)
     profile = resolved.profile or {}

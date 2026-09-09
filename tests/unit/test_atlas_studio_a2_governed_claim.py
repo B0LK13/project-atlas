@@ -527,6 +527,7 @@ def test_execute_path_evaluate_then_emit_when_allowed(monkeypatch, tmp_path):
         dry_run=False,
         clock=clock,
         emit_event=fake_emit,
+        expected_repo=REPO,
     )
     assert ok["decision"] == gc.EXECUTED
     assert ok["mutated"] is True
@@ -624,7 +625,7 @@ def test_positive_eligible_dry_run_and_wet(monkeypatch, tmp_path):
         clock=clock,
         emit_event=fake_emit,
     )
-    assert dry["decision"] == gc.EXECUTED
+    assert dry["decision"] == gc.EXECUTE_ALLOWED  # DRY_RUN != EXECUTED
     assert dry["dry_run"] is True
     assert dry["mutated"] is False
     assert emit_calls == []
@@ -638,6 +639,7 @@ def test_positive_eligible_dry_run_and_wet(monkeypatch, tmp_path):
         dry_run=False,
         clock=clock,
         emit_event=fake_emit,
+        expected_repo=REPO,
     )
     assert wet["decision"] == gc.EXECUTED
     assert wet["mutated"] is True

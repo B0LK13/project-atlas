@@ -36,7 +36,10 @@ primitives; Studio must not reimplement or bypass them.
 3. **Reusable governance substrate** (`atlas_studio.governance`) owns the
    evaluate→(dry-run|apply_authorized)→evidence loop and action registry. Future
    Studio actions register handlers; unknown/NOT_STARTED types fail closed
-   with `REFUSED_UNSUPPORTED_ACTION`. See
+   with `REFUSED_UNSUPPORTED_ACTION`. Registration refuses silent takeover of
+   an IMPLEMENTED handler; dry-run is labelled `EXECUTE_ALLOWED` (never
+   `EXECUTED`); executor failure is `EXECUTION_FAILED` with
+   `mutation_state=UNKNOWN`, never success. See
    `docs/atlas-3/studio/a2/A2-GOVERNANCE-SUBSTRATE.md`.
 4. **First work package** (`AS-STUDIO-A2-001`) is governed **OWNERSHIP_CLAIM**
    as the first registered instance — reusing F12 + F04 emitter — not

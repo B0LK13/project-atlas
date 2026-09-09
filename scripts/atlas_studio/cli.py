@@ -337,9 +337,13 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
             print(f"  reason: {r}")
         print(
             "HONESTY: CONTROL_PLANE_REVALIDATES_AT_EXECUTION / "
-            "STUDIO_NEVER_SELF_AUTHORIZES"
+            "STUDIO_NEVER_SELF_AUTHORIZES / DRY_RUN!=EXECUTED"
         )
-    ok = decision.get("decision") == gc.EXECUTED
+    outcome = decision.get("decision")
+    if args.dry_run:
+        ok = outcome == gc.EXECUTE_ALLOWED and decision.get("dry_run") is True
+    else:
+        ok = outcome == gc.EXECUTED and decision.get("mutated") is True
     return 0 if ok else 1
 
 
@@ -631,7 +635,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Revalidate then emit OWNER_CLAIMED via atlas_dag emitter if allowed",
     )
     cx.add_argument("--intent-file", required=True)
-    cx.add_argument("--repo", default=None)
+    cx.add_argument(
+        "--repo",
+        required=True,
+        help="owner/name — required: execution is pinned to an explicit repo identity",
+    )
     cx.add_argument("--json", action="store_true")
     cx.add_argument(
         "--dry-run",

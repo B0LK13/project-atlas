@@ -43,6 +43,26 @@ MISSION CONTROL TRUTH
 | Execution | Registered handler.apply_authorized after EXECUTE_ALLOWED | Invoke only via substrate; dry_run never mutates |
 | Evidence | Decision packet with reasons + honesty | Project decisions; never invent authority from UI |
 
+## Outcome labels (review-closure hardening, PR #776)
+
+| Path | `decision` | `dry_run` | `mutated` | Notes |
+|---|---|---|---|---|
+| Evaluate refused | `REFUSED_*` | false | false | reasons carry the refusal code |
+| Evaluate allowed (no execute) | `EXECUTE_ALLOWED` | false | false | evaluate-only |
+| Dry-run execute | `EXECUTE_ALLOWED` | **true** | false | reason `DRY_RUN_NO_EMIT`; **DRY_RUN != EXECUTED** — the label never says something ran |
+| Wet execute, confirmed | `EXECUTED` | false | **true** | only path to `EXECUTED` with `mutated=true` |
+| Wet execute, idempotent duplicate | `REFUSED_IDEMPOTENT_ALREADY_CLAIMED` | false | false | bus already holds the event |
+| Executor raised / returned no packet | `EXECUTION_FAILED` | false | false | `evidence.mutation_state = UNKNOWN`; never reported as success, never a bare exception |
+
+`mutated=true` means the executor **confirmed** a control-plane mutation.
+`mutated=false` with `EXECUTION_FAILED` does not mean "nothing happened" — it
+means nothing was confirmed; the evidence says `UNKNOWN`.
+
+Repository identity: `apply_authorized` for OWNERSHIP_CLAIM refuses with
+`REFUSED_POLICY / EXPECTED_REPO_REQUIRED_AT_EXECUTE` unless an explicit
+`expected_repo` is supplied; the CLI makes `--repo` **required** on
+`claim-execute`. `gh` auto-resolution of "the current repo" is not authority.
+
 ## Registry contract
 
 ```python
@@ -56,6 +76,13 @@ gov.supported_actions()
 ```
 
 Unknown or NOT_STARTED action types refuse with `REFUSED_UNSUPPORTED_ACTION`.
+
+Registration is fail-closed: `register_action` refuses to replace an existing
+`IMPLEMENTED` handler (`GovernanceError(DUPLICATE_REGISTRATION:<type>)`)
+unless called with `replace=True`; re-registering the same handler object is
+idempotent; a `NOT_STARTED` attach point may be promoted to `IMPLEMENTED`;
+`declare_not_started` never demotes an `IMPLEMENTED` entry.
+
 Handlers must:
 
 1. `evaluate` — never mutate; return `EXECUTE_ALLOWED` or `REFUSED_*`
