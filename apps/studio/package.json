@@ -1,0 +1,38 @@
+{
+  "name": "@project-atlas/studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Linux-first Atlas Studio desktop shell. Read-only projection; UI is not authority.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview",
+    "dev:live": "concurrently --kill-others-on-fail --names bridge,ui \"npm:bridge\" \"npm:dev\"",
+    "bridge": "../../.venv/bin/python bridge/atlas_studio_bridge.py",
+    "desktop:dev": "concurrently --kill-others-on-fail --names bridge,desktop \"npm:bridge\" \"npm:tauri:dev\"",
+    "tauri:dev": "tauri dev",
+    "typecheck": "tsc -b",
+    "test": "vitest run src",
+    "test:e2e": "playwright test",
+    "build": "tsc -b && vite build",
+    "tauri:build": "tauri build",
+    "check": "npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "lucide-react": "^0.544.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@tauri-apps/cli": "^2.8.4",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "typescript": "~5.9.2",
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4"
+  }
+}

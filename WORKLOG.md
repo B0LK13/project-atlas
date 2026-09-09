@@ -14745,3 +14745,13 @@ AS_STUDIO_A1 = NOT_STARTED
 - A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
   governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
 - Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added
+
+## Studio local recovery 003 — draft checkpoint
+
+Verified recovery transfer and restored an isolated Git checkout at exact A1
+028157e25f74ecea5da5b6ee407a7a866124f4b5. Preserved original archives and raw events.
+Fixed palette Enter reopening; corrected history text assertions. Final checks:
+43 Python tests, scoped ruff, 18 frontend tests/typecheck/build, and 5 sandboxed
+Chrome browser tests pass. Native dependencies, live-data latency, freshness aging,
+full nested schema checks and Vault synchronization remain open. See
+`docs/atlas-3/studio/desktop/RECOVERY-003.md`. No A2, merge, release or self-IV.
