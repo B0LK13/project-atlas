@@ -37,8 +37,8 @@ PYTHONPATH=scripts .venv/bin/python scripts/atlas-studio.py doctor --json
 ```
 
 ```text
-FINAL_HEAD                         = c53716d6422a6a94e4dbc54a48e35cbb38b2af9b
-FINAL_TREE                         = fa3d5d966776abb72ce3a8beabfb3d53ec56d610
+FINAL_HEAD                         = e03b496b6d3b9118ed13eec2f1722f5f933676ec
+FINAL_TREE                         = 7004c0affdebe3761bab55f9e2e5b53eaaf010f5
 IMPL_COMMIT                        = c8ae7c1e6b177bdb11202e6a00c6b5cb2d96fa8d
 STUDIO_SUITE                       = 101 passed
 DOCTOR                             = ok (a2_002_* PASS)
