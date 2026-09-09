@@ -65,6 +65,7 @@ import pathlib
 import subprocess
 import sys
 import types
+from collections.abc import Callable
 
 import pytest
 
@@ -116,21 +117,32 @@ def _invalidate_cached_bytecode(path: pathlib.Path) -> None:
 
 
 def _is_the_mutating_instrument(path: pathlib.Path) -> bool:
-    """Identity by CONTENT, not by filename.
+    """Identity by filename **OR** content hash — the union, not a replacement.
 
-    An earlier revision compared ``path.name == _MUTATING``. Verification showed
-    that a **copy** or a **symlink under another name** therefore loaded unfused
-    and ran the real mutating body -- through :func:`_load_from`, the one loader,
-    which the docstring claimed covered "every route ... whatever the call looks
-    like". That claim was measurably false, and the static layer missed those
-    spellings too, so both layers failed together.
+    Two revisions of this predicate each closed one class and opened another,
+    because each **replaced** the previous rule instead of joining it:
 
-    Hashing the bytes closes the whole class at once: a copy, a symlink, a
-    rename, and a case-differing name on a case-insensitive filesystem all carry
-    the same content and all fuse. A file that merely shares the name no longer
-    does, which is also correct -- the tripwire belongs to the code, not the
-    label on it.
+    ======================================  ============  ============  =========
+    candidate                               ``name`` only  hash only     union
+    ======================================  ============  ============  =========
+    other name, identical bytes             REAL BODY     blocked       blocked
+    same name, one byte edited              blocked       REAL BODY     blocked
+    ======================================  ============  ============  =========
+
+    Verification measured both columns. The name rule missed a copy or symlink
+    under another name; the hash rule then missed a **maintainer editing the
+    instrument**, which keeps the filename and changes a byte -- a trailing
+    newline, an inserted comment, CRLF endings, a stray ``print``. That is the
+    likelier accident of the two, and the guard exists so that the exclusion
+    "stays a decision rather than becoming an accident".
+
+    Neither rule is a superset of the other, so the guard takes **both**. A
+    false fuse costs nothing: nothing in this suite legitimately loads a file
+    named like the mutating instrument, and if one ever does, fusing it is the
+    safe direction.
     """
+    if path.name == _MUTATING:
+        return True
     try:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
@@ -557,7 +569,7 @@ def test_f12_the_fuse_cannot_be_unwrapped(tmp_path: pathlib.Path) -> None:
 
 
 def test_f12_the_fuse_follows_the_bytes_not_the_filename(tmp_path: pathlib.Path) -> None:
-    """A copy or a symlink under another name must still be fused.
+    """Identity is the union of filename and content hash; both halves asserted.
 
     An earlier revision keyed the fuse on ``path.name == _MUTATING``, so both of
     these loaded UNFUSED through :func:`_load_from` -- the one loader -- and ran
@@ -582,11 +594,25 @@ def test_f12_the_fuse_follows_the_bytes_not_the_filename(tmp_path: pathlib.Path)
         with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
             module.main(tmp_path, "origin/main")
 
-    # Negative side: a file that merely shares the NAME is not fused, because the
-    # tripwire belongs to the code rather than to the label on it.
-    impostor = tmp_path / _MUTATING
-    impostor.write_text("def main(*a, **k):\n    return 0\n")
-    assert getattr(_load_from(impostor).main, "__fused__", False) is False
+    # The other half of the union: an EDITED copy keeps the filename, so it must
+    # still fuse. An earlier revision asserted the opposite here -- that a file
+    # merely sharing the name is NOT fused -- on the aesthetic ground that "the
+    # tripwire belongs to the code, not the label". That assertion actively
+    # pinned a hole: it made every single-byte edit of the instrument load
+    # unfused, which is exactly what a maintainer working on it produces.
+    mutations: tuple[tuple[str, Callable[[bytes], bytes]], ...] = (
+        ("trailing newline", lambda b: b + b"\n"),
+        ("inserted comment", lambda b: b"# wip\n" + b),
+        ("CRLF endings", lambda b: b.replace(b"\n", b"\r\n")),
+    )
+    for label, mutate in mutations:
+        edited = tmp_path / label.replace(" ", "_") / _MUTATING
+        edited.parent.mkdir(parents=True, exist_ok=True)
+        edited.write_bytes(mutate(real.read_bytes()))
+        module = _load_from(edited)
+        assert getattr(module.main, "__fused__", False) is True, label
+        with pytest.raises(AssertionError, match="was EXECUTED by this suite"):
+            module.main(tmp_path, "origin/main")
 
 
 def test_f12_the_fixpoint_fails_closed_rather_than_reporting_clean() -> None:
