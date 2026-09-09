@@ -14915,3 +14915,44 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F14 -- the last three raw OSErrors in `_promote`
+
+`_promote` is `graph_projections`' transactional write boundary -- it stages,
+backs up and promotes -- and three failures there escaped as raw `OSError`,
+outside `GraphProjectionError`. A caller catching the module's own type, which
+is the type its docstrings tell callers to catch, did not catch them at all.
+
+Reproduced on current `main` `b87b4a22` before changing anything, with the
+raising line attributed by walking the traceback back into the module: a
+read-only output directory escaped `PermissionError` at line 620
+(`staged.write_bytes`), an unreadable existing target escaped `PermissionError`
+at 616 (`path.read_bytes()`), and an `ENAMETOOLONG` filename escaped `OSError`
+at 614 (`path.exists()`). #757 predicted 614/616/620 for this object and the
+prediction held exactly.
+
+Two of the three are named verbatim in F6's residual register. The third,
+`ENAMETOOLONG`, is recorded nowhere and was found while reproducing the other
+two. All are pre-existing: F11 closed the `mkdir` site one step earlier in the
+same loop and did not introduce these.
+
+Each guard is separately load-bearing, measured by removing one at a time with
+the file restored between runs: unguarding the stat, the read, or the staging
+write each fails 2 of 8 tests; restored, 8 passed.
+
+**Three reasons, not one.** An unstattable path, an unreadable existing note and
+an unwritable staging file are three different things to go and fix, and this
+module already treats "the operator can act on the difference" as its rule for
+diagnostics (`_generated_span` says so in as many words).
+
+**On fixture liveness.** The permission-based cases are inert where a process
+reads regardless of mode -- as root, and on Windows, where `chmod(0o000)` does
+not block a read. A test that silently skipped there would report green while
+measuring nothing, so each fixture is PROBED and skips only with the platform
+named. The portable monkeypatched cases carry the containment logic on every
+platform, so nowhere is left with zero coverage of this boundary.
+
+**Not claimed**: that `_promote` is now exhaustively fail-closed. These are the
+three sites F6's register and this reproduction identified; the enumeration was
+not proved complete, and a fourth site would look exactly like these did.

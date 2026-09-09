@@ -611,13 +611,43 @@ def _promote(plan: dict[Path, bytes]) -> None:
                 raise GraphProjectionError(
                     f"unwritable-note-directory:{type(exc).__name__}:{path.parent}"
                 ) from exc
-            if path.exists() and not path.is_file():
+            # The remaining three raw-`OSError` sites in this function, closed
+            # for the same reason F11 closed the `mkdir` one directly above: a
+            # caller that catches this module's own exception type did not
+            # catch these at all, and `_promote` is the transactional write
+            # boundary -- an uncontained failure here is precisely where the
+            # fail-closed guarantee has to hold.
+            #
+            # Each keeps its own reason rather than collapsing into one. The
+            # three are separately actionable -- an unstattable path, an
+            # unreadable existing note, and an unwritable staging file are
+            # different things to go and fix -- and this module already treats
+            # "the operator can act on the difference" as the rule for
+            # diagnostics (see `_generated_span`).
+            try:
+                target_conflict = path.exists() and not path.is_file()
+            except OSError as exc:
+                raise GraphProjectionError(
+                    f"unstattable-note-target:{type(exc).__name__}:{path}"
+                ) from exc
+            if target_conflict:
                 raise GraphProjectionError(f"canonical-target-not-file:{path}")
-            if path.is_file() and path.read_bytes() == plan[path]:
+            try:
+                unchanged = path.is_file() and path.read_bytes() == plan[path]
+            except OSError as exc:
+                raise GraphProjectionError(
+                    f"unreadable-note-target:{type(exc).__name__}:{path}"
+                ) from exc
+            if unchanged:
                 continue
             staged = path.with_name(f".{path.name}.{transaction}.atlas-stage")
             backup = path.with_name(f".{path.name}.{transaction}.atlas-backup")
-            staged.write_bytes(plan[path])
+            try:
+                staged.write_bytes(plan[path])
+            except OSError as exc:
+                raise GraphProjectionError(
+                    f"unwritable-note-stage:{type(exc).__name__}:{staged}"
+                ) from exc
             entries.append(
                 _PromotionEntry(
                     path=path,
