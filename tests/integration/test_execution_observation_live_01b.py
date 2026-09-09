@@ -513,3 +513,80 @@ def test_cli_proof_observation_flag_links_a_stored_receipt(
         "--json",
     )
     assert code == EXIT_ERROR and payload["error"] == "PROOF_V2_INPUTS_INCOMPLETE"
+
+
+def test_filter_driver_defined_only_in_global_config_is_still_refused(
+    cloned: Path, tmp_path: Path
+) -> None:
+    """ULT-01b-1-T (W20): the driver scan must read every config level. A
+    driver defined only in HOME (the git-lfs shape) and bound in the repo would
+    otherwise reach `git status` and execute."""
+    marker = tmp_path / "RAN-global-clean-filter"
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {**_ENV, "HOME": str(home), "USERPROFILE": str(home)}
+    _git(
+        "config",
+        "--global",
+        "filter.globalprobe.clean",
+        _marker_command(marker) + " && cat",
+        cwd=cloned,
+        env=env,
+    )
+    _git("config", "--global", "filter.globalprobe.required", "true", cwd=cloned, env=env)
+    assert "globalprobe" in (home / ".gitconfig").read_text(encoding="utf-8")
+    assert "globalprobe" not in (cloned / ".git" / "config").read_text(encoding="utf-8")
+    (cloned / ".gitattributes").write_text("*.bin filter=globalprobe\n", encoding="utf-8")
+    (cloned / "blob.bin").write_bytes(b"\x00payload")
+    _git("add", ".", cwd=cloned, env=env)
+    _git("commit", "-q", "-m", "filtered", cwd=cloned, env=env)
+    if not marker.exists():
+        pytest.skip("global clean filter did not fire on this platform")
+    marker.unlink()
+    os.utime(cloned / "blob.bin", None)
+    with pytest.raises(ObservationError) as excinfo:
+        observe_execution(cloned, project_id="harbor-api", runner=SubprocessRunner(environ=env))
+    assert excinfo.value.code == "REPO_CONTENT_FILTERS_CONFIGURED"
+    assert "globalprobe" not in str(excinfo.value)
+    assert not marker.exists()
+    _git("status", "--porcelain", cwd=cloned, env=env)
+    assert marker.exists()
+
+
+def test_cli_proof_observation_reader_is_size_bounded(
+    cloned: Path, vault: Path, tmp_path: Path
+) -> None:
+    """ULT-01b-1-T (U87): the `--observation` reader refuses a file over the
+    1 MiB cap before parsing it, so an oversized receipt cannot reach proof v2."""
+    from project_atlas.atlas3.cli import _MAX_PROOF_INPUT_BYTES
+
+    out = observe_execution(cloned, project_id="harbor-api")
+    identity_file = tmp_path / "identity.json"
+    identity_file.write_text(json.dumps(out.identity.to_record()), encoding="utf-8")
+    padded = dict(out.receipt.to_record())
+    big = tmp_path / "big-receipt.json"
+    big.write_text(
+        json.dumps(padded)[:-1] + ', "pad": "' + "x" * (_MAX_PROOF_INPUT_BYTES + 1) + '"}',
+        encoding="utf-8",
+    )
+    assert big.stat().st_size > _MAX_PROOF_INPUT_BYTES
+    attestations = tmp_path / "attestations.json"
+    attestations.write_text("[]", encoding="utf-8")
+    code, payload = _cli(
+        "proof",
+        "T1",
+        "--vault",
+        str(vault),
+        "--project",
+        "harbor-api",
+        "--identity",
+        str(identity_file),
+        "--attestations",
+        str(attestations),
+        "--observation",
+        str(big),
+        "--json",
+    )
+    assert code == EXIT_ERROR and payload["error"] == "PROOF_INPUT_INVALID"
+    assert "size cap" in str(payload["detail"])
+    assert not (vault / "generated").exists()

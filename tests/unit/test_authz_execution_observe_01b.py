@@ -110,3 +110,78 @@ def test_read_credentials_never_carry_execution_observe() -> None:
     assert elevated.credentials.privileged_operator is not None
     assert elevated.credentials.privileged_operator.allows(CAP)
     assert elevated.credentials.privileged_token != elevated.credentials.read_token
+
+
+# ---------------------------------------------------------------------------
+# ULT-01b-1-T (proposed): behavioural tests for guards that the round-4 ADV
+# harness found protected only by the sha-pin freeze guard (Z06, Z08, Z09,
+# Z10, Z11, Z16). Each is a code-holds guard; these tests make the controls
+# script, not the pin, the thing that proves it.
+
+
+def test_cli_gate_refuses_an_unknown_required_capability_before_reading_the_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Z06: the unknown-capability check precedes the allow-list: with no
+    # allow-list at all the refusal names the unknown capability, never
+    # "elevation required" (which would invite the operator to grant it).
+    monkeypatch.delenv(CLI_ELEVATE_CAPS_ENV, raising=False)
+    with pytest.raises(AuthzError, match=r"^authz-unknown-capability:execution\.observ$"):
+        require_cli_elevated_operator("op", required={"execution.observ"})  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "*",  # Z08 wildcard
+        "EXECUTION.OBSERVE",  # Z09 case
+        "Execution.Observe",
+        "execution",  # Z10 prefix / segment
+        "execution.",
+        "execution.observer",
+        "execution.observe.extra",
+        "execution.*",
+        "execution.observe​",
+        "executi\u043en.observe",  # Cyrillic small o as a confusable
+        "'execution.observe'",
+        "execution.observe;vault.write",
+        "execution.observe\tvault.write",
+    ],
+)
+def test_cli_allow_list_grants_only_the_exact_token(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv(CLI_ELEVATE_CAPS_ENV, value)
+    with pytest.raises(AuthzError, match=r"authz-cli-elevation-incomplete:execution\.observe"):
+        require_cli_elevated_operator("op", required={CAP})
+
+
+def test_elevated_operator_refuses_near_miss_capabilities() -> None:
+    # Z11: the unknown-capability check in elevated_operator is load-bearing
+    for bogus in ("execution.observ", "EXECUTION.OBSERVE", "execution.observe ", "*"):
+        with pytest.raises(AuthzError, match=r"authz-unknown-capability:"):
+            elevated_operator("x", extra={bogus})  # type: ignore[arg-type]
+
+
+def test_read_credential_is_the_read_only_intersection_even_for_a_fully_privileged_launch() -> None:
+    # Z16: a launch operator holding EVERY privileged capability still yields a
+    # read credential that is exactly the read-only intersection
+    launch = elevated_operator("root-ish", extra=set(PRIVILEGED_CAPABILITIES))
+    assert launch.allows(CAP) and launch.allows("vault.write")
+    store = mint_api_session(launch)
+    read_caps = store.credentials.read_operator.capabilities
+    assert read_caps == (launch.capabilities & READ_ONLY_CAPABILITIES)
+    assert read_caps.isdisjoint(PRIVILEGED_CAPABILITIES)
+    assert store.credentials.privileged_operator is launch
+    assert store.credentials.read_token != store.credentials.privileged_token
+
+
+def test_read_credential_api_read_fallback_adds_nothing_else() -> None:
+    # Z16 (fallback variant): a launch operator whose read-only caps lack
+    # api.read gets exactly api.read added -- never any privileged capability
+    from project_atlas.authz import OperatorProfile
+
+    launch = OperatorProfile("odd", frozenset({"web.read", "vault.write", CAP}))
+    store = mint_api_session(launch)
+    assert store.credentials.read_operator.capabilities == frozenset({"web.read", "api.read"})
+    assert store.credentials.privileged_operator is launch
