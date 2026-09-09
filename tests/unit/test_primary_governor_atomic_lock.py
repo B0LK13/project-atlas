@@ -1,12 +1,35 @@
-"""M-WINDOWS-PRIMARY-GOVERNOR-ATOMIC-LOCK-001 -- load-bearing regression
-coverage for the real production `acquire_primary_lock()` /
-`release_primary_lock()` / `read_primary_lock_pid()` in
-`project_atlas.orchestration.sdk.resident_driver`.
+"""M-WINDOWS-PRIMARY-GOVERNOR-ATOMIC-LOCK-001 /
+M-WINDOWS-PRIMARY-LOCK-IDENTITY-BINDING-REMEDIATION-001 -- load-bearing
+regression coverage for the real production `acquire_primary_lock()` /
+`release_primary_lock()` / `read_primary_lock_pid()` /
+`read_primary_lock_state()` in `project_atlas.orchestration.sdk.resident_driver`.
 
 Fixes issue #773 (cross-process TOCTOU race in the primary-governor lock):
 exclusivity is now enforced by a kernel-arbitrated OS lock
 (`project_atlas.orchestration.sdk.os_lock`), not by this process reading
 then writing a JSON file.
+
+Remediation mission (predecessor HEAD `06d22096382e036407273e993e066161a1ca7bbc`)
+additionally closes two identity-binding defects reproduced against that
+exact predecessor code (see `test_r1_*` / `test_r2_*` below, and the
+mission packet):
+  R1: `read_primary_lock_pid()` could return a large sentinel int
+      (`2**31 - 1`) for "identity unknown while held" -- a value that
+      satisfies `holder > 0`, indistinguishable from a real confirmed PID
+      to any caller using that comparison.
+  R2: a receipt publish failure after a real lock win could leave a
+      PREVIOUS holder's stale-but-well-formed receipt on disk, which
+      `read_primary_lock_pid()` would then report as the CURRENT owner.
+
+Both are closed by separating "is the lease held" (`held: bool`, backed by
+a real OS-lock probe) from "who confirmably holds it"
+(`identity: CONFIRMED | UNKNOWN`, `pid: int | None`) --
+`PrimaryLockState` / `read_primary_lock_state()`. The legacy int-returning
+`read_primary_lock_pid()` keeps a strict contract with NO sentinel: real
+confirmed PID, or 0 -- 0 now covers both "no holder" and "held, identity
+unknown", so any caller needing to tell those apart (duplicate-governor
+prevention in particular) must use `read_primary_lock_state()` and check
+`.held`, never this function's return value.
 
 These tests exercise the real functions across genuinely separate OS
 processes (not threads -- threads share a PID and cannot exercise the
@@ -36,15 +59,16 @@ from pathlib import Path
 import pytest
 
 from project_atlas.orchestration.sdk import os_lock
-from project_atlas.orchestration.sdk.host import no_window_creationflags
+from project_atlas.orchestration.sdk.host import no_window_creationflags, pid_is_alive
 from project_atlas.orchestration.sdk.resident_driver import (
     _HELD_LOCK_FDS,
     LOCK_NAME,
-    MALFORMED_RECEIPT_LIVE_SENTINEL_PID,
     RECEIPT_NAME,
+    PrimaryLockIdentity,
     _runtime,
     acquire_primary_lock,
     read_primary_lock_pid,
+    read_primary_lock_state,
     release_primary_lock,
 )
 
@@ -309,33 +333,239 @@ def test_receipt_owner_matches_actual_sync_owner(tmp_path):
     release_primary_lock(root)
 
 
-def test_read_primary_lock_pid_invalid_pid_field_still_reports_live(tmp_path):
-    """If the lock IS genuinely held (proven by the OS-lock probe) but the
-    receipt's `pid` field is missing or invalid, `read_primary_lock_pid()`
-    must still report a live holder (a positive sentinel), never 0 --
-    reporting 0 here would tell a caller "no live holder" while one is in
-    fact still running, and a watchdog could then start a duplicate
-    governor.
-
-    Note: a receipt that is syntactically-valid JSON but not a JSON object
-    at all (e.g. `[1, 2, 3]`) hits a separate, pre-existing parsing gap
-    tracked as issue #767 -- deliberately not fixed by this mission (see
-    module docstring and `read_primary_lock_pid`'s own docstring). This
-    test instead covers the well-formed-object-with-a-bad-`pid`-field
-    shape, which is the one this module's own writer could plausibly ever
-    produce, and confirms the OWNERSHIP decision (live vs not) never
-    depends on that field being parseable -- only whether the object
-    itself parses."""
+def test_read_primary_lock_pid_invalid_pid_field_is_0_not_sentinel(tmp_path):
+    """R1 (fixed): if the lock IS genuinely held but the receipt's `pid`
+    field is invalid, the legacy `read_primary_lock_pid()` returns 0 (its
+    strict "not confirmed" contract -- no sentinel), while
+    `read_primary_lock_state()` correctly reports HELD + IDENTITY UNKNOWN
+    so a caller that actually needs to know "is someone live" doesn't lose
+    that information to the int API's necessarily-collapsed 0."""
     root = tmp_path / "root"
     assert acquire_primary_lock(root) is True
     receipt_path = _runtime(root) / RECEIPT_NAME
-    # Corrupt just the `pid` field while we still hold the OS lock -- this
-    # cannot disturb the lock itself, since the receipt lives in its own,
-    # never-locked file.
     receipt_path.write_text(json.dumps({"pid": "not-a-number"}), encoding="utf-8")
 
-    assert read_primary_lock_pid(root) == MALFORMED_RECEIPT_LIVE_SENTINEL_PID
+    assert read_primary_lock_pid(root) == 0
+    state = read_primary_lock_state(root)
+    assert state.held is True
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert state.pid is None
     release_primary_lock(root)
+
+
+# ---------------------------------------------------------------------------
+# M-WINDOWS-PRIMARY-LOCK-IDENTITY-BINDING-REMEDIATION-001
+# ---------------------------------------------------------------------------
+
+
+def test_r1_sentinel_reproduced_on_predecessor_not_on_successor():
+    """R1_SENTINEL regression anchor: the predecessor's sentinel constant
+    must no longer exist at all -- not merely be unreachable. Its
+    reintroduction under any name would be the same defect."""
+    import project_atlas.orchestration.sdk.resident_driver as rd
+
+    assert not hasattr(rd, "MALFORMED_RECEIPT_LIVE_SENTINEL_PID")
+
+
+def test_r2_publication_failure_leaves_identity_unknown_not_stale_pid(tmp_path, monkeypatch):
+    """R2 (fixed), test A from the remediation directive: an existing stale
+    receipt from a PREVIOUS holder ('A', fabricated here since same-process
+    tests can't produce two real distinct PIDs) is on disk; a NEW winner
+    ('this process') acquires the real OS lock, but its receipt publication
+    is forced to fail (deliberately injected, real production code path --
+    not reasoned about only). A must NEVER be reported as the confirmed
+    current owner -- the state must read back HELD + IDENTITY UNKNOWN."""
+    root = tmp_path / "root"
+    receipt_path = _runtime(root) / RECEIPT_NAME
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    FAKE_STALE_PID_A = 999999
+    assert not pid_is_alive(FAKE_STALE_PID_A)  # must genuinely look dead/implausible
+    receipt_path.write_text(json.dumps({"pid": FAKE_STALE_PID_A, "at": 0}), encoding="utf-8")
+
+    import project_atlas.orchestration.sdk.resident_driver as rd
+
+    def failing_replace(*_a, **_k):
+        raise OSError("deliberately injected: simulated publication failure")
+
+    monkeypatch.setattr(rd.os, "replace", failing_replace)
+    won = acquire_primary_lock(root)  # the real OS-lock win happens regardless
+    monkeypatch.undo()
+
+    assert won is True
+    state = read_primary_lock_state(root)
+    assert state.held is True
+    assert state.pid != FAKE_STALE_PID_A, "A's stale receipt must never be reported as B"
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert state.pid is None
+    assert read_primary_lock_pid(root) == 0  # legacy view: not confirmed, never a fake PID
+    release_primary_lock(root)
+
+
+def test_b_lock_held_receipt_absent_is_identity_unknown(tmp_path):
+    """Test B: lock held + receipt absent -> HELD / IDENTITY UNKNOWN."""
+    root = tmp_path / "root"
+    assert acquire_primary_lock(root) is True
+    (_runtime(root) / RECEIPT_NAME).unlink(missing_ok=True)
+
+    state = read_primary_lock_state(root)
+    assert state.held is True
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert state.pid is None
+    release_primary_lock(root)
+
+
+def test_c_lock_held_malformed_receipt_is_identity_unknown_no_synthetic_pid(tmp_path):
+    """Test C: lock held + malformed (non-dict) receipt -> HELD / IDENTITY
+    UNKNOWN, no synthetic PID, no crash. This is the exact issue #767
+    shape (`[1, 2, 3]`); `read_primary_lock_state()` must not propagate
+    that as an uncaught exception, but this test does NOT assert anything
+    about #767's own parser-hardening scope -- only that THIS function's
+    own held/identity contract stays honest around it."""
+    root = tmp_path / "root"
+    assert acquire_primary_lock(root) is True
+    (_runtime(root) / RECEIPT_NAME).write_text("[1, 2, 3]", encoding="utf-8")
+
+    state = read_primary_lock_state(root)  # must not raise
+    assert state.held is True
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert state.pid is None
+    release_primary_lock(root)
+
+
+def test_d_lock_held_invalid_pid_field_is_identity_unknown(tmp_path):
+    """Test D: lock held + PID field invalid -> HELD / IDENTITY UNKNOWN."""
+    root = tmp_path / "root"
+    assert acquire_primary_lock(root) is True
+    (_runtime(root) / RECEIPT_NAME).write_text(
+        json.dumps({"pid": "not-a-number"}), encoding="utf-8"
+    )
+
+    state = read_primary_lock_state(root)
+    assert state.held is True
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert state.pid is None
+    release_primary_lock(root)
+
+
+def test_e_lock_held_stale_dead_pid_is_not_confirmed(tmp_path):
+    """Test E: lock held + a syntactically-valid, positive, but DEAD PID in
+    the receipt -> must not claim confirmed current ownership of that dead
+    PID. Uses a real short-lived process's real PID, captured after it has
+    actually exited, so this is a genuine dead PID, not a guessed one."""
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "pass"],
+        creationflags=no_window_creationflags(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    dead_pid = proc.pid
+    proc.wait(timeout=10)  # blocks until exit -- dead_pid is now genuinely dead
+    assert not pid_is_alive(dead_pid), "precondition: the captured PID must actually be dead"
+
+    root = tmp_path / "root"
+    assert acquire_primary_lock(root) is True
+    (_runtime(root) / RECEIPT_NAME).write_text(
+        json.dumps({"pid": dead_pid, "at": 0}), encoding="utf-8"
+    )
+
+    state = read_primary_lock_state(root)
+    assert state.held is True
+    assert state.pid != dead_pid
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    release_primary_lock(root)
+
+
+def test_f_no_lock_stale_receipt_is_no_holder(tmp_path):
+    """Test F: no lock held (nobody has ever acquired, or the holder
+    released/crashed) + a stale receipt sitting on disk -> NO HOLDER,
+    regardless of what the stale receipt claims."""
+    root = tmp_path / "root"
+    receipt_path = _runtime(root) / RECEIPT_NAME
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_path.write_text(json.dumps({"pid": os.getpid(), "at": 0}), encoding="utf-8")
+
+    state = read_primary_lock_state(root)
+    assert state.held is False
+    assert state.pid is None
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert read_primary_lock_pid(root) == 0
+
+
+def test_g_confirmed_normal_acquisition_is_held_and_confirmed(tmp_path):
+    """Test G: the ordinary, non-adversarial path -- acquire succeeds,
+    publish succeeds -> HELD + CONFIRMED with the real actual PID."""
+    root = tmp_path / "root"
+    assert acquire_primary_lock(root) is True
+    state = read_primary_lock_state(root)
+    assert state.held is True
+    assert state.identity is PrimaryLockIdentity.CONFIRMED
+    assert state.pid == os.getpid()
+    release_primary_lock(root)
+
+
+def test_h_release_is_no_holder_regardless_of_historical_receipt(tmp_path):
+    """Test H: after release, NO HOLDER -- even though the receipt file
+    itself is left in place as historical evidence (by design, see
+    `release_primary_lock`'s docstring), it must never be mistaken for
+    proof of a still-live holder."""
+    root = tmp_path / "root"
+    assert acquire_primary_lock(root) is True
+    my_pid = os.getpid()
+    release_primary_lock(root)
+
+    receipt_path = _runtime(root) / RECEIPT_NAME
+    assert receipt_path.is_file()  # historical evidence, left in place
+    assert json.loads(receipt_path.read_text(encoding="utf-8"))["pid"] == my_pid
+
+    state = read_primary_lock_state(root)
+    assert state.held is False
+    assert state.pid is None
+    assert state.identity is PrimaryLockIdentity.UNKNOWN
+    assert read_primary_lock_pid(root) == 0
+
+
+def test_turnover_race_never_claims_a_as_owner_after_a_releases(tmp_path):
+    """Section 10: A owns; a reader observes; A releases; B acquires (and
+    nearby permutations). The API must never claim "A is current owner"
+    merely because A's historical receipt remains -- if exact identity
+    can't be atomically proven across the turnover, HELD/IDENTITY UNKNOWN
+    is the honest answer, never invented certainty about the old holder."""
+    root = tmp_path / "root"
+    go_file = tmp_path / "go"
+    out_file = tmp_path / "out.json"
+
+    # A: a real separate process that acquires, reports, then exits
+    # immediately (hold_sec=0 -- see _primary_lock_worker.py). Process exit
+    # releases the OS lock automatically (same mechanism as crash recovery);
+    # A's receipt is left behind on disk, un-updated.
+    a = _spawn_contender(root, go_file, out_file, hold_sec=0.0)
+    try:
+        go_file.write_text("go", encoding="utf-8")
+        a.wait(timeout=_PER_PROC_TIMEOUT_SEC)
+        assert out_file.is_file()
+        a_result = json.loads(out_file.read_text(encoding="utf-8"))
+        assert a_result["won"] is True
+        a_pid = a_result["pid"]
+
+        # A has exited -- the lock is free, but A's receipt is still
+        # sitting on disk.
+        state_after_a = read_primary_lock_state(root)
+        assert state_after_a.held is False
+        assert state_after_a.pid != a_pid or state_after_a.pid is None
+        assert read_primary_lock_pid(root) == 0
+
+        # B (this test process) now acquires for real.
+        assert acquire_primary_lock(root) is True
+        state_after_b = read_primary_lock_state(root)
+        assert state_after_b.held is True
+        assert state_after_b.identity is PrimaryLockIdentity.CONFIRMED
+        assert state_after_b.pid == os.getpid()
+        assert state_after_b.pid != a_pid
+        release_primary_lock(root)
+    finally:
+        if a.poll() is None:
+            a.kill()
+            a.wait(timeout=5)
 
 
 def test_no_process_leaks(tmp_path):
