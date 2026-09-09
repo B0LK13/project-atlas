@@ -14833,3 +14833,10 @@ Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT` (same lane as A2-004)
 - Linked from mission-journey `next_actions.continuity`
 - Studio suite: 116 passed (local)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED
+
+## AS-STUDIO-A2-004/005 — Formal IV PASS (2026-09-09)
+
+- Independent Formal IV: **PASS** on subject tip `4904125f` / tree `00734f63`
+- CI exact-head: run **34390223409** SUCCESS
+- Durable handoff: `docs/atlas-3/studio/a2-004/iv/A2-004-005-FORMAL-IV-HANDOFF-4904125f.md`
+- `FORMAL_IV != MERGE_AUTHORIZATION`; later tip commits not auto-covered
