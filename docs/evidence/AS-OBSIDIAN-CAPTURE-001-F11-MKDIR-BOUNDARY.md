@@ -162,14 +162,16 @@ not folded in here: different sites, different failure modes, different guards.
 ## What is not claimed
 
 - **Not a policy change.** Nothing that succeeded before is refused now.
-  Verification confirmed this independently -- 67 legitimate scenarios at the
-previous head, and 57 recorded scenarios re-instrumented at this one with
-tree-level manifests compared path-and-sha256 --
-  (deep paths, unusual directory names, symlinked vault root, 1 MB and binary
-  content, multi-file plans) with byte-identical output trees on base and head,
-  plus 960 concurrent writes into a shared not-yet-existing tree with zero
-  errors on either side. `Path.mkdir(parents=True, exist_ok=True)` is race-safe
-  and the guard is purely additive.
+  Verified independently, twice. **67 legitimate scenarios at the previous
+  head** — attributed rather than cited, since that harness is not in this
+  repository — and **57 recorded scenarios re-instrumented at this one**, with
+  tree-level manifests compared by path and sha256 and **zero differing
+  scenarios**: deep paths, unusual directory names, symlinked vault root,
+  1 MB / binary / empty / CRLF / BOM content, multi-file plans. Plus **960
+  concurrent writes** into a shared not-yet-existing tree with zero errors,
+  measured on **base and head alike** rather than on the head alone.
+  `Path.mkdir(parents=True, exist_ok=True)` is race-safe and the guard is
+  purely additive.
 - **Not that every `OSError` in these modules is now contained.** The mkdir site
   in both writers only — see the table above. An earlier revision said "the
   three sites in the atomic write path", which understates `_promote`.
