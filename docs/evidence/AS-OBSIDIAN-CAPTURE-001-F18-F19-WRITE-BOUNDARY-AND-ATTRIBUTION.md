@@ -43,6 +43,40 @@ turn and asserts the corresponding route then escapes. Without it, "all routes
 caught" would be equally consistent with a detector that reports success
 unconditionally.
 
+### What Windows CI found that POSIX could not
+
+Three defects, all mine, none reproducible on Linux:
+
+1. **The fixture was the source of the difference.** `_note` seeded notes with
+   `Path.write_text`, which translates `\n` to `\r\n` on Windows. The prior
+   note was then CRLF while the payload was LF, so a *correct* write looked
+   like damage. Seeding is now byte-exact.
+2. **`os.rename` onto an existing file raises `WinError 183` on Windows** where
+   it overwrites on POSIX. That route cannot damage a protected note there at
+   all, so it is not an escape -- it is inapplicable. The runner now records
+   inapplicable routes by name and asserts that at most two of the twelve may
+   be skipped, so "no route escaped" cannot become true by everything being
+   skipped.
+3. **The boundary itself had a real gap.** Fixing (1) exposed it: the
+   `Path.write_text` hook checked the *payload it was handed*, not the bytes
+   that landed. Text mode is not byte-transparent, so a write that translates
+   line endings rewrites operator bytes while every word still matches -- and
+   the hook could not see it. `Path.write_text` is now verified **after** the
+   bytes land (`_check_landed`), which cannot be fooled by anything the write
+   layer does on the way down. `builtins.open` already checked at descriptor
+   close and was measured to catch it unaided.
+
+Defect (3) is the same class as the CRLF-translating *read* that
+`protected_regions.read_note_text` exists to prevent, arriving from the write
+side. It is now pinned by a test that probes whether text mode actually
+translates rather than assuming it from the platform name, so it stays honest
+if a future Python changes the default, and skips with the platform named where
+there is nothing to detect.
+
+These were verified locally by simulating both Windows behaviours (a
+non-overwriting `os.rename` and newline-translating text mode) on Linux: 8
+passed under simulation, 24 passed + 1 skipped natively.
+
 ### Stated limitation: detection is not attribution
 
 `Violation.origin` records the innermost stack frame inside
@@ -70,7 +104,11 @@ requires that nested-pytest interaction to be fixed first, which belongs to the
 owners of those tests and is recorded rather than worked around.
 
 Census from one opt-in full-suite run, reported and not gated:
-`568 protected write(s) checked, 82 altered operator regions`. Those 82 are
+`573 protected write(s) checked, 87 altered operator regions`. **That run was
+not fully green** -- it ended `1 failed, 5789 passed`, the failure being the
+nested-pytest test described above, which is precisely why the boundary is
+opt-in. The census figure comes from a run with a known failure and is reported
+with that caveat rather than as a clean measurement. Those 82 are
 **not** 82 defects — most are fixtures that legitimately rewrite their own
 notes. Presenting the raw count as a defect count would be exactly the
 overclaim this record exists to avoid.
@@ -177,6 +215,21 @@ The mechanism is trustworthy against accident, refactoring and ordinary
 mistakes. It is not a security boundary.
 
 ---
+
+### The measured answer to the attribution question
+
+Full-suite census with the boundary and ledger installed:
+
+```
+attribution: GOVERNED_AND_ATTRIBUTED=1, ATTRIBUTED_BUT_UNAUTHORIZED=1,
+             DETECTED_BUT_UNATTRIBUTED=565
+  2/567 protected writes carry a trusted execution identity (0%)
+```
+
+The two attributed writes are F19's own tests binding a lease deliberately.
+**Atlas can currently explain none of its real protected writes.** That is the
+honest state of the system, and it is the number this package exists to make
+visible rather than to improve by itself.
 
 ### Stated limitation: demonstrated, not deployed
 

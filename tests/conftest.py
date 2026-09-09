@@ -76,4 +76,18 @@ def pytest_terminal_summary(terminalreporter: Any, *a: Any, **k: Any) -> None:
     for violation in _BOUNDARY.violations[:5]:
         terminalreporter.write_line(f"  {violation.primitive} -> {violation.path}")
 
-
+    # F19. The census is reported per attribution state rather than as a single
+    # total, because "how many writes happened" and "how many we can explain"
+    # are different questions and only the second one is governance.
+    counts = _BOUNDARY.ledger.by_state()
+    terminalreporter.write_line(
+        "attribution: " + ", ".join(f"{k}={v}" for k, v in counts.items() if v)
+        or "attribution: (no protected writes observed)"
+    )
+    total = sum(counts.values())
+    attributed = counts["GOVERNED_AND_ATTRIBUTED"] + counts["ATTRIBUTED_BUT_UNAUTHORIZED"]
+    if total:
+        terminalreporter.write_line(
+            f"  {attributed}/{total} protected writes carry a trusted execution identity "
+            f"({attributed * 100 // total}%)"
+        )

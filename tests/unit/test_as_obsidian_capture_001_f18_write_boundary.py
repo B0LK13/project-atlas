@@ -39,6 +39,7 @@ import importlib
 import os
 import pathlib
 import shutil
+import sys
 
 import pytest
 from human_content_boundary import HumanContentBoundary, enforced  # type: ignore[import-not-found]
@@ -56,8 +57,15 @@ def _clobber(text: str) -> str:
 
 
 def _note(tmp_path: pathlib.Path, name: str) -> pathlib.Path:
+    """Seed byte-exactly.
+
+    `Path.write_text` opens in text mode, which rewrites `\n` to `\r\n` on
+    Windows. Seeding that way made the FIXTURE the source of the byte
+    difference the boundary then reported, so a correct write looked like
+    damage. Windows CI caught it; POSIX never could.
+    """
     path = tmp_path / name
-    path.write_text(PRIOR)
+    path.write_bytes(PRIOR.encode("utf-8"))
     return path
 
 
@@ -66,6 +74,7 @@ def _note(tmp_path: pathlib.Path, name: str) -> pathlib.Path:
 # whatever primitive it reaches for. The point of the list is that none of them
 # imports a protected-region primitive in a way F16's derivation would see.
 # --------------------------------------------------------------------------
+
 
 def _hand_rolled_write_text(path: pathlib.Path) -> None:
     path.write_text(_clobber(path.read_bytes().decode()))
@@ -160,15 +169,36 @@ def test_f18_every_bypass_route_is_caught(tmp_path: pathlib.Path) -> None:
     this boundary is installed at the OS interface, not in the import graph.
     """
     escaped: list[str] = []
+    inapplicable: list[str] = []
     for index, (label, route) in enumerate(BYPASS_ROUTES.items()):
         note = _note(tmp_path, f"bypass{index}.md")
+        before = note.read_bytes()
         with enforced() as boundary:
-            route(note)
-        damaged = OPERATOR not in note.read_text()
+            try:
+                route(note)
+            except OSError as exc:
+                # A route the platform refuses is not an escape -- nothing was
+                # written, so there is nothing the boundary failed to see. The
+                # canonical case is `os.rename` onto an existing file, which
+                # overwrites on POSIX and raises WinError 183 on Windows.
+                # Recorded by name so a route that silently stops working
+                # everywhere shows up as shrinking coverage rather than as a
+                # pass.
+                if note.read_bytes() == before:
+                    inapplicable.append(f"{label} ({type(exc).__name__})")
+                    continue
+                raise
+        damaged = OPERATOR.encode() not in note.read_bytes()
         assert damaged, f"{label!r} did not actually damage the note; the route is inert"
         if not boundary.violations:
             escaped.append(label)
     assert not escaped, f"routes that damaged operator bytes undetected: {escaped}"
+    # Non-vacuity: "no route escaped" must not be reachable by every route
+    # being skipped. The bound is deliberately most of the list, not one.
+    applicable = len(BYPASS_ROUTES) - len(inapplicable)
+    assert applicable >= len(BYPASS_ROUTES) - 2, (
+        f"only {applicable}/{len(BYPASS_ROUTES)} routes ran here; inapplicable: {inapplicable}"
+    )
 
 
 def test_f18_a_preserving_write_is_not_flagged(tmp_path: pathlib.Path) -> None:
@@ -179,10 +209,14 @@ def test_f18_a_preserving_write_is_not_flagged(tmp_path: pathlib.Path) -> None:
     """
     note = _note(tmp_path, "ok.md")
     with enforced() as boundary:
-        note.write_text(PRESERVING)
+        # Byte-exact spellings throughout. Text mode is not byte-preserving on
+        # Windows, so writing `PRESERVING` through it would change the note and
+        # the boundary would be right to say so -- see the test below, which
+        # pins that as a real damage route rather than working around it.
+        note.write_bytes(PRESERVING.encode("utf-8"))
         os.replace(*_staged(note, PRESERVING))
-        with builtins.open(note, "w") as handle:
-            handle.write(PRESERVING)
+        with builtins.open(note, "wb") as handle:
+            handle.write(PRESERVING.encode("utf-8"))
     assert not boundary.violations, f"a preserving write was flagged: {boundary.violations}"
     assert boundary.checked >= 3, f"the boundary did not observe the writes: {boundary.checked}"
     assert OPERATOR in note.read_text()
@@ -249,21 +283,35 @@ def test_f18_the_boundary_itself_can_fail(tmp_path: pathlib.Path) -> None:
         "os.rename": _own_rename_writer,
         "builtins.open": _builtin_open,
     }
+    unhooked = 0
     for index, (primitive, route) in enumerate(depends_on.items()):
         note = _note(tmp_path, f"unhooked{index}.md")
+        before = note.read_bytes()
         boundary = HumanContentBoundary()
         boundary.install()
         try:
             # Put the real primitive back, leaving every other hook in place.
             _restore_one(boundary, primitive)
             route(note)
-        finally:
+        except OSError:
+            # Same platform caveat as the route table: `os.rename` onto an
+            # existing file raises on Windows, so it cannot be a damage route
+            # there and proves nothing about the hook either way.
             boundary.uninstall()
-        assert OPERATOR not in note.read_text(), f"{primitive}: route did not damage"
+            if note.read_bytes() == before:
+                continue
+            raise
+        else:
+            boundary.uninstall()
+        unhooked += 1
+        assert OPERATOR.encode() not in note.read_bytes(), f"{primitive}: route did not damage"
         assert not boundary.violations, (
             f"unhooking {primitive} did not blind the boundary to the route that "
             "uses it, so that hook is not load-bearing and the table overstates"
         )
+    assert unhooked >= len(depends_on) - 1, (
+        f"only {unhooked}/{len(depends_on)} hooks were actually tested here"
+    )
 
 
 def _restore_one(boundary: HumanContentBoundary, primitive: str) -> None:
@@ -295,8 +343,7 @@ def test_f18_the_residual_classes_are_named_and_measured(tmp_path: pathlib.Path)
 
     with enforced() as boundary:
         subprocess.run(
-            [sys.executable, "-c",
-             f"open({str(note)!r}, 'w').write({_clobber(PRIOR)!r})"],
+            [sys.executable, "-c", f"open({str(note)!r}, 'w').write({_clobber(PRIOR)!r})"],
             check=True,
         )
     assert OPERATOR not in note.read_text(), "the subprocess route did not damage"
@@ -328,17 +375,14 @@ def test_f18_the_boundary_detects_damage_but_cannot_attribute_it(
 
     handed_to_helper = _note(tmp_path, "via-helper.md")
     with enforced() as first:
-        write_atomic_under_root(
-            handed_to_helper, damaged, root=tmp_path, label="note"
-        )
+        write_atomic_under_root(handed_to_helper, damaged, root=tmp_path, label="note")
 
     written_directly = _note(tmp_path, "direct.md")
     with enforced() as second:
         written_directly.write_bytes(damaged)
 
     assert first.violations and second.violations, (
-        "both spellings must be DETECTED -- that part works and is the point of "
-        "the boundary"
+        "both spellings must be DETECTED -- that part works and is the point of the boundary"
     )
     assert first.violations[0].landed_via_atlas_helper is True
     assert second.violations[0].landed_via_atlas_helper is False, (
@@ -346,3 +390,44 @@ def test_f18_the_boundary_detects_damage_but_cannot_attribute_it(
         "genuinely fixed, the report-only decision in tests/conftest.py should be "
         "revisited, because a sound attribution would make a hard gate possible"
     )
+
+
+def test_f18_text_mode_writing_is_a_real_damage_route_where_it_translates(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Windows CI found this; POSIX cannot.
+
+    `Path.write_text` and `open(path, "w")` translate `\\n` to the platform
+    line ending. On Windows that rewrites an operator's LF bytes on a refresh
+    they never asked for -- the same class of defect as the CRLF-translating
+    *read* that `protected_regions.read_note_text` exists to prevent, arriving
+    from the write side instead.
+
+    The translation is **probed, not assumed from the platform name**, so this
+    stays honest if a future Python changes the default. Where text mode is
+    byte-transparent (POSIX) there is nothing to detect and the test says so
+    rather than pretending to have measured something.
+    """
+    probe = tmp_path / "probe.txt"
+    probe.write_text("a\nb")
+    translates = probe.read_bytes() != b"a\nb"
+    if not translates:
+        pytest.skip(f"text mode is byte-transparent here ({sys.platform})")
+
+    # Both text-mode spellings, because they reach disk by different hooks:
+    # `Path.write_text` is verified after the bytes land, `builtins.open` at
+    # descriptor close. A gap in either would be invisible to the other.
+    for index, spelling in enumerate(("write_text", "open")):
+        note = _note(tmp_path, f"textmode{index}.md")
+        with enforced() as boundary:
+            if spelling == "write_text":
+                note.write_text(PRESERVING)
+            else:
+                with builtins.open(note, "w") as handle:
+                    handle.write(PRESERVING)
+        assert b"\r\n" in note.read_bytes(), f"{spelling}: fixture did not translate"
+        assert boundary.violations, (
+            f"{spelling} rewrote the operator's line endings and the boundary did "
+            "not report it -- a translating write is damage even when every word "
+            "still matches"
+        )

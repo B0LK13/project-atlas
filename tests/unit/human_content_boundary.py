@@ -163,6 +163,36 @@ class HumanContentBoundary:
         if altered:
             self.violations.append(self._violation(primitive, str(path), before, after))
 
+    def _before(self, dest: Any) -> dict[str, str] | None:
+        """The protected regions on disk right now, or `None` if unprotected."""
+        try:
+            path = pathlib.Path(dest)
+            if not path.is_file():
+                return None
+            return self._regions(path.read_bytes())
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def _check_landed(self, primitive: str, dest: Any, before: dict[str, str] | None) -> None:
+        """Compare against what is on disk AFTER the write.
+
+        Stronger than inspecting the payload, because it cannot be fooled by
+        anything the write layer does to the bytes on the way down -- newline
+        translation being the case that was actually missed.
+        """
+        if self._suppressed or before is None:
+            return
+        self.protected_writes += 1
+        self.checked += 1
+        try:
+            after = self._regions(pathlib.Path(dest).read_bytes()) or {}
+        except (OSError, ValueError, TypeError):
+            return
+        altered = after != before
+        self.ledger.record(pathlib.Path(dest), primitive, altered=altered)
+        if altered:
+            self.violations.append(self._violation(primitive, str(dest), before, after))
+
     def _violation(
         self, primitive: str, path: str, before: dict[str, str], after: dict[str, str]
     ) -> Violation:
@@ -214,12 +244,16 @@ class HumanContentBoundary:
             return real["Path.write_bytes"](self, data)
 
         def write_text(self: pathlib.Path, data: str, *a: Any, **k: Any) -> Any:
-            try:
-                payload = data.encode(k.get("encoding") or "utf-8")
-            except (UnicodeError, LookupError):
-                payload = None
-            boundary._check("Path.write_text", self, payload)
-            return real["Path.write_text"](self, data, *a, **k)
+            # Text mode is NOT byte-transparent: it translates newlines to the
+            # platform ending, so the payload handed in here is not what lands
+            # on disk. Checking the payload alone missed exactly that damage --
+            # a translating write rewrites operator line endings while every
+            # word still matches. So capture the prior regions, do the write,
+            # then compare against the bytes that actually landed.
+            before = boundary._before(self)
+            result = real["Path.write_text"](self, data, *a, **k)
+            boundary._check_landed("Path.write_text", self, before)
+            return result
 
         def os_open(path: Any, flags: int, *a: Any, **k: Any) -> int:
             # A raw descriptor bypasses `pathlib` AND `os.replace`, so the write

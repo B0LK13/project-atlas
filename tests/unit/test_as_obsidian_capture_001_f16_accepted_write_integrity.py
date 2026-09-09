@@ -106,11 +106,7 @@ def _pairs() -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = []
     for body, name in itertools.product(BODIES, NAMES):
         prior = f"{GENERATED_START}\nold\n{GENERATED_END}\n" + _region(name, body) + "\n"
-        fresh = (
-            f"{GENERATED_START}\nnew\n{GENERATED_END}\n"
-            + _region(name, "PLACEHOLDER")
-            + "\n"
-        )
+        fresh = f"{GENERATED_START}\nnew\n{GENERATED_END}\n" + _region(name, "PLACEHOLDER") + "\n"
         out.append((f"{name!r}/{body!r}"[:60], prior, fresh))
     for first, second in itertools.product(BODIES[:8], repeat=2):
         prior = (
@@ -165,10 +161,7 @@ class Report:
         self.changed: list[str] = []
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostic only
-        return (
-            f"<accepted={self.accepted} refused={self.refused} "
-            f"changed={len(self.changed)}>"
-        )
+        return f"<accepted={self.accepted} refused={self.refused} changed={len(self.changed)}>"
 
 
 def _sweep(corrupt: Callable[[str], str] | None = None) -> Report:
@@ -234,8 +227,7 @@ def test_f16_human_bytes_survive_every_accepted_merge() -> None:
     """
     report = _sweep()
     assert not report.changed, (
-        f"{len(report.changed)} accepted writes altered operator bytes: "
-        f"{report.changed[:5]}"
+        f"{len(report.changed)} accepted writes altered operator bytes: {report.changed[:5]}"
     )
     assert report.accepted >= MIN_ACCEPTED, f"corpus shrank: {report!r}"
     assert report.refused >= MIN_REFUSED, (
@@ -504,6 +496,7 @@ def test_f16_every_splicing_writer_is_covered_or_explicitly_excluded() -> None:
         "A coverage claim outliving its subject is how this record rots."
     )
 
+
 def test_f16_the_derivation_survives_renaming_and_re_export(tmp_path: Path) -> None:
     """Two evasions that MUST be caught, exercised rather than asserted about.
 
@@ -598,9 +591,7 @@ def test_f16_the_alias_list_still_matches_the_tree() -> None:
             continue
         for node in ast.walk(ast.parse(path.read_text(errors="replace"))):
             if isinstance(node, ast.ImportFrom):
-                actual |= {
-                    a.asname for a in node.names if a.name == canonical and a.asname
-                }
+                actual |= {a.asname for a in node.names if a.name == canonical and a.asname}
 
     assert actual <= claimed, (
         f"local alias(es) of the canonical merge exist in the tree but are not in "

@@ -15122,3 +15122,39 @@ as it can unhook the boundary -- pinned by a test that PASSES WHEN THE ATTACK
 SUCCEEDS. Not a closure of #759, whose frozen surface is untouched.
 
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F18-F19-WRITE-BOUNDARY-AND-ATTRIBUTION.md`.
+
+
+### F18 addendum -- three defects Windows CI found that POSIX could not
+
+All three were mine. (1) `_note` seeded notes with `Path.write_text`, which
+translates `\n` to `\r\n` on Windows, so the FIXTURE was the source of the byte
+difference the boundary reported and a correct write looked like damage; seeding
+is now byte-exact. (2) `os.rename` onto an existing file raises `WinError 183` on
+Windows where it overwrites on POSIX, so that route cannot damage a protected
+note there -- it is inapplicable rather than an escape, and the runner now names
+inapplicable routes and asserts at most two of twelve may be skipped, so "no
+route escaped" cannot become true by everything being skipped.
+
+(3) is the one that matters: **fixing (1) exposed a real gap in the boundary.**
+The `Path.write_text` hook checked the payload it was HANDED, not the bytes that
+LANDED. Text mode is not byte-transparent, so a write that translates line
+endings rewrites operator bytes while every word still matches, and the hook
+could not see it. `Path.write_text` is now verified after the write via
+`_check_landed`, which cannot be fooled by anything the write layer does on the
+way down; `builtins.open` already checked at descriptor close and was measured
+to catch it unaided. This is the same class as the CRLF-translating READ that
+`read_note_text` exists to prevent, arriving from the write side.
+
+Verified by simulating both Windows behaviours on Linux -- a non-overwriting
+`os.rename` and newline-translating text mode: 8 passed under simulation, 24
+passed + 1 skipped natively. The text-mode test PROBES whether translation
+actually happens rather than assuming it from the platform name.
+
+**The measured answer to the attribution question.** Full-suite census with the
+boundary and ledger installed: `GOVERNED_AND_ATTRIBUTED=1,
+ATTRIBUTED_BUT_UNAUTHORIZED=1, DETECTED_BUT_UNATTRIBUTED=565` -- 2 of 567, and
+both attributed writes are F19's own tests binding a lease deliberately. **Atlas
+can currently explain none of its real protected writes.** That census run was
+NOT fully green (`1 failed, 5789 passed`, the failure being the nested-pytest
+test that is the reason the boundary is opt-in), and the figure is reported with
+that caveat rather than as a clean measurement.
