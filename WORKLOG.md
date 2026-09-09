@@ -14840,3 +14840,37 @@ Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT` (same lane as A2-004)
 - CI exact-head: run **34390223409** SUCCESS
 - Durable handoff: `docs/atlas-3/studio/a2-004/iv/A2-004-005-FORMAL-IV-HANDOFF-4904125f.md`
 - `FORMAL_IV != MERGE_AUTHORIZATION`; later tip commits not auto-covered
+
+## AS-STUDIO-A2-006 — Mission Session Continuity (2026-09-09)
+
+Goal: `ATLAS-STUDIO-MISSION-CONTINUITY-AND-RECOVERY-001`
+
+- Closed #788 validation cycle: Formal IV PASS scoped to `4904125f`; tip CI
+  `34393171693` SUCCESS on freeze `10df59fb`; executable post-IV delta documented.
+- Branched `feat/as-studio-a2-006-mission-session` from freeze (non-moving target).
+- Implemented `ATLAS_STUDIO_MISSION_SESSION_V1` + CLI `mission-session`.
+- Binding: mismatched intent_id / repository → MISMATCHED_BINDING.
+- Persistence failure after mutation → claim-execute exit 3 + session flag.
+- Cross-process resume test; task-context dependency explicit UNAVAILABLE.
+- Studio suite: 126 passed. Formal IV = NOT_STARTED. MERGE not granted.
+
+## AS-STUDIO-A2-006 hardening — fingerprint/binding/conflict (2026-09-09)
+
+Goal: mission-session dependability under stale evidence / interrupted persistence /
+repeated inspection / uncertain outcomes.
+
+- Reproduced Copilot/Codex findings: wall-clock fingerprint drift; malformed→PENDING;
+  --repo unverified; evidence/decision conflict; DRY_RUN mislabeled REFUSED.
+- Repaired mission_session + intent_continuity MALFORMED path; expanded tests (134 suite).
+- Control-plane observation: explicit UNAVAILABLE (no invented API).
+- Formal IV request packet prepared (owner dispatch). MERGE not granted.
+
+## Overnight — snapshot load + corrupt JSON + session exit codes (2026-09-09)
+
+Directive: ATLAS-STUDIO-OVERNIGHT-CONTINUATION-001
+
+- Recorded #791: tip b9fd932d; no exact-head CI SUCCESS yet (dependency noted; no poll loop).
+- Added `atlas_studio.snapshot_load` (bytes→hash→parse same buffer).
+- Continuity CORRUPT; session CORRUPT_INPUT; CLI exit 0/1/3 for mission-session.
+- Honesty: byte hashes ≠ multi-file FS snapshot; process tests ≠ power-loss IV.
+- Local suite: 141 passed. Formal IV / merge not claimed.

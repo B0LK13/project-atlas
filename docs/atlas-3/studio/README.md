@@ -138,7 +138,18 @@ STACKED_WITH = A2-004 on feat/as-studio-a2-004-action-evidence (#788)
 STALE_INTENT != PERMISSION
 DUPLICATE_SUBMIT != AUTO_RETRY
 INSPECT != EXECUTE
-FORMAL_IV = NOT_STARTED
+FORMAL_IV = PASS on subject tip 4904125f (with A2-004)
+```
+
+## A2-006 Mission Session Continuity (lane)
+
+See [`a2-006/`](./a2-006/).
+
+```text
+AS_STUDIO_A2_006 = IMPLEMENTED_IN_LANE (coherent session + binding + resume)
+BASE_FREEZE = #788 tip 10df59fb
+FORMAL_IV = NOT_STARTED (does not inherit 4904125f)
+TASK_CONTEXT dependency = explicit UNAVAILABLE until #786 on stack
 ```
 
 ## Next
@@ -146,8 +157,9 @@ FORMAL_IV = NOT_STARTED
 1. Owner merge/IV decisions for A0/A1/A2-001 remain separate from technical completeness.
 2. Human review-thread adjudication on #776 remains external.
 3. Later A2.x: dispatch / steal-auto / handoff delivery / worktree behind the same intent bridge.
-4. A2-002 / A2-004 / A2-005 successors require their own exact-head CI + formal IV (do not inherit A2-001 IV).
+4. A2-002 / A2-004 / A2-005 / A2-006 successors require their own exact-head CI + formal IV where claimed.
 5. Avoid overlapping #786 (task-context), #782 (target_repo), #781 (visual shell).
+6. Optional Formal IV delta for #788 tip `10df59fb` (write-decision + pointers) is separate from A2-006.
 
 ## A0 package
 

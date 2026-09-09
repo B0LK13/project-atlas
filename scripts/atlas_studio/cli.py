@@ -137,11 +137,28 @@ def cmd_mission_control(args: argparse.Namespace) -> int:
 
 
 def _load_intent_file(path: str) -> dict[str, Any]:
-    raw = Path(path).read_text(encoding="utf-8")
-    data = json.loads(raw)
-    if not isinstance(data, dict):
+    """Load claim intent via the same byte→hash→parse snapshot path as continuity."""
+    from atlas_studio.snapshot_load import (
+        CORRUPT_JSON,
+        EMPTY,
+        MISSING,
+        NOT_OBJECT,
+        READ_ERROR,
+        load_json_snapshot,
+    )
+
+    snap = load_json_snapshot(path)
+    if snap.ok and snap.data is not None:
+        return snap.data
+    if snap.error == MISSING:
+        raise FileNotFoundError(f"intent file missing: {path}")
+    if snap.error in {CORRUPT_JSON, EMPTY}:
+        raise ValueError(f"intent file corrupt or empty: {path}")
+    if snap.error == NOT_OBJECT:
         raise ValueError("intent file must contain a JSON object")
-    return data
+    if snap.error == READ_ERROR:
+        raise OSError(f"intent file unreadable: {path}")
+    raise ValueError(f"intent file load failed ({snap.error}): {path}")
 
 
 def _live_claim_context(
@@ -357,12 +374,31 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
         )
     if args.write_decision:
         out_path = Path(args.write_decision)
-        tmp = out_path.with_suffix(out_path.suffix + ".tmp")
-        tmp.write_text(
-            json.dumps(decision, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-        tmp.replace(out_path)
-        print(f"decision_written={out_path}", file=sys.stderr)
+        try:
+            tmp = out_path.with_suffix(out_path.suffix + ".tmp")
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(
+                json.dumps(decision, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            tmp.replace(out_path)
+            print(f"decision_written={out_path}", file=sys.stderr)
+        except OSError as exc:
+            mutated = decision.get("mutated") is True
+            print(
+                f"atlas-studio claim-execute: PERSISTENCE_FAILED "
+                f"path={out_path} error={type(exc).__name__} "
+                f"mutated={mutated}",
+                file=sys.stderr,
+            )
+            if mutated:
+                print(
+                    "PERSISTENCE_FAILED_AFTER_MUTATION: inspect control plane; "
+                    "do NOT re-execute; do NOT assume decision file exists; "
+                    "use mission-session --persistence-failed-after-mutation",
+                    file=sys.stderr,
+                )
+                return 3
+            return 1
     outcome = decision.get("decision")
     if args.dry_run:
         ok = outcome == gc.EXECUTE_ALLOWED and decision.get("dry_run") is True
@@ -458,6 +494,47 @@ def cmd_intent_continuity(args: argparse.Namespace) -> int:
     else:
         print(format_intent_continuity_tui(packet))
     return 0
+
+
+def cmd_mission_session(args: argparse.Namespace) -> int:
+    """AS-STUDIO-A2-006 coherent mission session — never re-executes."""
+    from atlas_studio.mission_session import (
+        build_mission_session,
+        exit_code_for_session,
+        format_mission_session_tui,
+        validate_mission_session,
+    )
+    from atlas_studio.snapshot_load import load_json_snapshot
+
+    journey = None
+    if args.journey_file:
+        snap = load_json_snapshot(args.journey_file)
+        if not snap.ok:
+            print(
+                f"atlas-studio mission-session: FAIL JOURNEY_{snap.error}",
+                file=sys.stderr,
+            )
+            return 1
+        journey = snap.data
+    packet = build_mission_session(
+        intent_file=args.intent_file,
+        decision_file=args.decision_file,
+        evidence_file=args.evidence_file,
+        journey=journey,
+        persistence_failed_after_mutation=bool(args.persistence_failed_after_mutation),
+        expected_repository=args.repo,
+        strict_schema=bool(args.strict_schema),
+    )
+    errors = validate_mission_session(packet)
+    if errors:
+        for err in errors:
+            print(f"  SCHEMA: {err}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(format_mission_session_tui(packet))
+    return exit_code_for_session(packet)
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -765,6 +842,59 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001
         add("a2_005_intent_continuity", False, f"{type(exc).__name__}:{exc}")
 
+    # A2-006: coherent mission session continuity.
+    try:
+        from atlas_studio import mission_session as ms
+
+        honesty = ms.honesty_block()
+        add(
+            "a2_006_session_honesty",
+            honesty.get("session_ne_authority") is True
+            and honesty.get("auto_retry_forbidden") is True
+            and honesty.get("persistence_failed_ne_confirmed_success") is True,
+            json.dumps(honesty, sort_keys=True),
+        )
+        intent = {
+            "schema": "ATLAS_STUDIO_ACTION_INTENT_V1",
+            "intent_id": "intent-session-test",
+            "action_type": "OWNERSHIP_CLAIM",
+            "requested_at_utc": "2026-09-09T18:00:00Z",
+            "max_age_seconds": 3600,
+            "repository": "B0LK13/project-atlas",
+        }
+        decision = {
+            "schema": "ATLAS_STUDIO_ACTION_DECISION_V1",
+            "decision": "EXECUTED",
+            "action_type": "OWNERSHIP_CLAIM",
+            "intent_id": "intent-session-test",
+            "mutated": True,
+            "reasons": [],
+            "evidence": {"mutation_state": "CONFIRMED"},
+            "honesty": {},
+            "evaluated_at_utc": "2026-09-09T18:01:00Z",
+        }
+        packet = ms.build_mission_session(
+            intent=intent,
+            decision=decision,
+            clock=lambda: "2026-09-09T18:02:00Z",
+        )
+        errs = ms.validate_mission_session(packet)
+        add(
+            "a2_006_mission_session_schema",
+            not errs
+            and packet.get("session_state") == ms.SESSION_CONFIRMED_SUCCESS
+            and packet["recovery"]["auto_retry"] is False,
+            "ok" if not errs else "; ".join(errs[:5]),
+        )
+        tc = (packet.get("dependencies") or {}).get("task_context") or {}
+        add(
+            "a2_006_task_context_dependency_explicit",
+            tc.get("state") in {"AVAILABLE", "UNAVAILABLE"},
+            f"task_context.state={tc.get('state')}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        add("a2_006_mission_session", False, f"{type(exc).__name__}:{exc}")
+
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -971,6 +1101,39 @@ def build_parser() -> argparse.ArgumentParser:
     continuity.add_argument("--json", action="store_true")
     continuity.set_defaults(func=cmd_intent_continuity)
 
+    session = sub.add_parser(
+        "mission-session",
+        aliases=["session"],
+        help=(
+            "AS-STUDIO-A2-006 coherent mission session continuity "
+            "(journey+evidence+continuity; never re-executes)"
+        ),
+    )
+    session.add_argument("--intent-file", default=None)
+    session.add_argument("--decision-file", default=None)
+    session.add_argument("--evidence-file", default=None)
+    session.add_argument(
+        "--journey-file",
+        default=None,
+        help="Optional mission-journey JSON for repository binding",
+    )
+    session.add_argument("--repo", default=None, help="Expected repository owner/name")
+    session.add_argument(
+        "--persistence-failed-after-mutation",
+        action="store_true",
+        help=(
+            "Operator flag: mutation may have occurred but decision persistence failed "
+            "(never invents success)"
+        ),
+    )
+    session.add_argument(
+        "--strict-schema",
+        action="store_true",
+        help="Fail closed when intent/decision fail ATLAS_STUDIO_* JSON Schema validation",
+    )
+    session.add_argument("--json", action="store_true")
+    session.set_defaults(func=cmd_mission_session)
+
     doc = sub.add_parser("doctor", help="Import/honesty/schema diagnostics")
     doc.add_argument("--json", action="store_true")
     doc.set_defaults(func=cmd_doctor)
@@ -982,3 +1145,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
