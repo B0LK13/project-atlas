@@ -939,16 +939,22 @@ def _emit_ownership_claim(
     pr = int(intent["target_pr"])
     expect_head = intent.get("target_head")
 
-    if not expected_repo:
-        # Fail closed: a mutation must be pinned to an explicit repository
-        # identity. GhClient auto-resolution is not authority.
+    # Fail closed: a mutation must be pinned to an explicit repository
+    # identity. Empty / whitespace is not a pin; GhClient auto-resolution
+    # is not authority.
+    pinned_repo = expected_repo.strip() if isinstance(expected_repo, str) else ""
+    if not pinned_repo:
         return _decision(
             REFUSED_POLICY,
             intent_id=intent_id,
             reasons=["EXPECTED_REPO_REQUIRED_AT_EXECUTE"],
-            evidence={"client_repo": getattr(client, "repo", None)},
+            evidence={
+                "client_repo": getattr(client, "repo", None),
+                "expected_repo_raw": expected_repo,
+            },
             clock=now_clock or clock,
         )
+    expected_repo = pinned_repo
 
     resolved = agents_mod.resolve_agent(registry, actor)
     profile = resolved.profile or {}

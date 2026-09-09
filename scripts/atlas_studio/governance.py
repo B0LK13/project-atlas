@@ -196,15 +196,15 @@ class RegisteredAction:
 _REGISTRY: dict[str, RegisteredAction] = {}
 
 
-def register_action(
-    handler: ActionHandler, *, notes: str = "", replace: bool = False
-) -> None:
+def register_action(handler: ActionHandler, *, notes: str = "") -> None:
     """Register an IMPLEMENTED handler. Fail closed on silent takeover.
 
     - A NOT_STARTED attach point may be promoted to IMPLEMENTED.
     - Re-registering the *same* handler object is idempotent.
-    - Replacing an existing IMPLEMENTED handler requires ``replace=True``;
-      otherwise ``GovernanceError(DUPLICATE_REGISTRATION:...)``.
+    - Replacing an existing IMPLEMENTED handler with a different object
+      always raises ``GovernanceError(DUPLICATE_REGISTRATION:...)``.
+      There is no ``replace=True`` escape hatch in this package; a future
+      audited replace operation would be a separate API if ever required.
     """
     action_type = str(handler.action_type)
     if not action_type:
@@ -213,11 +213,19 @@ def register_action(
     if existing is not None and existing.status == "IMPLEMENTED":
         if existing.handler is handler:
             return
-        if not replace:
-            raise GovernanceError(f"DUPLICATE_REGISTRATION:{action_type}")
+        raise GovernanceError(f"DUPLICATE_REGISTRATION:{action_type}")
     _REGISTRY[action_type] = RegisteredAction(
         action_type=action_type, handler=handler, status="IMPLEMENTED", notes=notes
     )
+
+
+def sanitize_executor_error(exc: BaseException) -> dict[str, str]:
+    """Evidence-safe executor failure fields (type only; no secret-bearing body)."""
+    return {
+        "exception_type": type(exc).__name__,
+        # Never persist raw exception text — messages may carry tokens/paths.
+        "exception_message": f"{type(exc).__name__} (message redacted)",
+    }
 
 
 def declare_not_started(action_type: str, *, notes: str = "") -> None:
@@ -338,22 +346,33 @@ def execute_governed_intent(
         )
     try:
         result = reg.handler.apply_authorized(intent, decision, **kwargs)
-    except Exception as exc:  # noqa: BLE001 — executor failure must become evidence
-        return build_decision(
-            EXECUTION_FAILED,
-            action_type=action_type,
-            intent_id=intent.get("intent_id"),
-            reasons=[f"EXECUTOR_EXCEPTION:{type(exc).__name__}"],
-            evidence={
-                "evaluate_decision": EXECUTE_ALLOWED,
-                "exception_type": type(exc).__name__,
-                "exception_message": str(exc)[:500],
-                "mutation_state": "UNKNOWN",
-                "substrate": "atlas_studio.governance",
-            },
-            mutated=False,
-            dry_run=False,
-        )
+    except Exception as exc:
+        # KeyboardInterrupt / SystemExit are BaseException, not Exception:
+        # they must propagate (process-control != executor failure).
+        sanitized = sanitize_executor_error(exc)
+        try:
+            return build_decision(
+                EXECUTION_FAILED,
+                action_type=action_type,
+                intent_id=intent.get("intent_id"),
+                reasons=[f"EXECUTOR_EXCEPTION:{sanitized['exception_type']}"],
+                evidence={
+                    "evaluate_decision": EXECUTE_ALLOWED,
+                    **sanitized,
+                    "mutation_state": "UNKNOWN",
+                    "substrate": "atlas_studio.governance",
+                },
+                mutated=False,
+                dry_run=False,
+            )
+        except Exception as evidence_exc:
+            # Evidence construction failed after executor failure: do not claim
+            # success, do not claim evidence was persisted, re-raise with both.
+            raise GovernanceError(
+                f"EVIDENCE_PERSISTENCE_FAILED_AFTER_EXECUTOR:"
+                f"{sanitized['exception_type']}:"
+                f"{type(evidence_exc).__name__}"
+            ) from exc
     if not isinstance(result, dict) or not result.get("decision"):
         return build_decision(
             EXECUTION_FAILED,

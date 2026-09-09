@@ -78,10 +78,21 @@ gov.supported_actions()
 Unknown or NOT_STARTED action types refuse with `REFUSED_UNSUPPORTED_ACTION`.
 
 Registration is fail-closed: `register_action` refuses to replace an existing
-`IMPLEMENTED` handler (`GovernanceError(DUPLICATE_REGISTRATION:<type>)`)
-unless called with `replace=True`; re-registering the same handler object is
-idempotent; a `NOT_STARTED` attach point may be promoted to `IMPLEMENTED`;
-`declare_not_started` never demotes an `IMPLEMENTED` entry.
+`IMPLEMENTED` handler (`GovernanceError(DUPLICATE_REGISTRATION:<type>)`).
+There is **no** `replace=True` escape hatch in this package. Re-registering
+the same handler object is idempotent; a `NOT_STARTED` attach point may be
+promoted to `IMPLEMENTED`; `declare_not_started` never demotes an
+`IMPLEMENTED` entry.
+
+Ordinary executor exceptions become `EXECUTION_FAILED` with redacted
+exception type evidence (`mutation_state=UNKNOWN`). `KeyboardInterrupt` and
+`SystemExit` are not caught. If evidence construction itself fails after an
+executor exception, the substrate raises
+`GovernanceError(EVIDENCE_PERSISTENCE_FAILED_AFTER_EXECUTOR:...)` — it does
+not claim success or claim that evidence was persisted.
+
+Whitespace-only or empty `expected_repo` is treated as missing and refused
+with `EXPECTED_REPO_REQUIRED_AT_EXECUTE` before live resolution.
 
 Handlers must:
 

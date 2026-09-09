@@ -251,11 +251,15 @@ def test_same_handler_reregistration_is_idempotent(registry_snapshot):
     assert gov.get_handler("SYNTHETIC_ACTION").handler is h
 
 
-def test_explicit_replace_is_allowed(registry_snapshot):
+def test_no_replace_escape_hatch_on_register_action(registry_snapshot):
+    """Ordinary registration has no replace=True path (directive §16)."""
+    import inspect
+
+    sig = inspect.signature(gov.register_action)
+    assert "replace" not in sig.parameters
     gov.register_action(_Handler())
-    second = _Handler()
-    gov.register_action(second, replace=True)
-    assert gov.get_handler("SYNTHETIC_ACTION").handler is second
+    with pytest.raises(gov.GovernanceError, match="DUPLICATE_REGISTRATION"):
+        gov.register_action(_Handler())
 
 
 def test_ownership_claim_handler_cannot_be_silently_taken_over(registry_snapshot):
@@ -321,7 +325,7 @@ def test_future_intents_still_closed_after_snapshot_restore():
 
 def test_executor_exception_becomes_execution_failed(registry_snapshot):
     def boom(intent, decision, **kwargs):
-        raise RuntimeError("gh: network unreachable")
+        raise RuntimeError("gh: bearer token=SECRET_SHOULD_NOT_LEAK")
 
     gov.register_action(_Handler(apply=boom))
     decision = gov.execute_governed_intent(_synthetic_intent(), dry_run=False)
@@ -330,9 +334,81 @@ def test_executor_exception_becomes_execution_failed(registry_snapshot):
     assert decision["dry_run"] is False
     assert "EXECUTOR_EXCEPTION:RuntimeError" in decision["reasons"]
     assert decision["evidence"]["mutation_state"] == "UNKNOWN"
-    assert decision["evidence"]["exception_message"] == "gh: network unreachable"
+    assert decision["evidence"]["exception_type"] == "RuntimeError"
+    assert "SECRET_SHOULD_NOT_LEAK" not in decision["evidence"]["exception_message"]
+    assert "redacted" in decision["evidence"]["exception_message"]
     assert decision["evidence"]["evaluate_decision"] == gov.EXECUTE_ALLOWED
     assert gc.validate_decision(decision) == []
+
+
+def test_executor_keyboard_interrupt_propagates(registry_snapshot):
+    def boom(intent, decision, **kwargs):
+        raise KeyboardInterrupt()
+
+    gov.register_action(_Handler(apply=boom))
+    with pytest.raises(KeyboardInterrupt):
+        gov.execute_governed_intent(_synthetic_intent(), dry_run=False)
+
+
+def test_executor_system_exit_propagates(registry_snapshot):
+    def boom(intent, decision, **kwargs):
+        raise SystemExit(99)
+
+    gov.register_action(_Handler(apply=boom))
+    with pytest.raises(SystemExit) as exc:
+        gov.execute_governed_intent(_synthetic_intent(), dry_run=False)
+    assert exc.value.code == 99
+
+
+def test_empty_and_whitespace_expected_repo_refuses(monkeypatch, tmp_path):
+    registry = write_registry(tmp_path, [make_profile()])
+    resolve_calls: list[int] = []
+    emit_calls: list[dict] = []
+
+    def fake_resolve(*a, **k):
+        resolve_calls.append(1)
+        return _resolved_ctx(*a, **k)
+
+    monkeypatch.setattr("atlas_dag.emitter.resolve_context", fake_resolve)
+    for bad in ("", "   ", "\t"):
+        decision = gc.execute_ownership_claim(
+            _intent(),
+            client=FakeClient(),
+            registry=registry,
+            frontier_matrix=_matrix([_claim_action()]),
+            mission_control=_mc(),
+            dry_run=False,
+            clock=clock,
+            emit_event=lambda *a, **k: emit_calls.append(a) or "posted",
+            expected_repo=bad,
+        )
+        assert decision["decision"] == gc.REFUSED_POLICY, bad
+        assert "EXPECTED_REPO_REQUIRED_AT_EXECUTE" in decision["reasons"], bad
+    assert resolve_calls == []
+    assert emit_calls == []
+
+
+def test_cli_claim_execute_rejects_empty_repo(capsys, monkeypatch, tmp_path):
+    intent_path = tmp_path / "intent.json"
+    intent_path.write_text(json.dumps(_intent(requested_at=gc.utcnow())), encoding="utf-8")
+    # Avoid live context if parse somehow proceeds.
+    monkeypatch.setattr(
+        studio_cli,
+        "_live_claim_context",
+        lambda *a, **k: (_mc(), _matrix([_claim_action()]), None),
+    )
+    rc = studio_cli.main(
+        [
+            "claim-execute",
+            "--intent-file",
+            str(intent_path),
+            "--repo",
+            "  ",
+            "--json",
+        ]
+    )
+    assert rc == 2
+    assert "EXPECTED_REPO_REQUIRED_AT_EXECUTE" in capsys.readouterr().err
 
 
 def test_executor_invalid_return_becomes_execution_failed(registry_snapshot):

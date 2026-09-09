@@ -309,10 +309,20 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
     from atlas_studio import action_intent as gc
 
     try:
+        # argparse required=True still accepts "" / whitespace; normalize.
+        pinned_repo = (args.repo or "").strip()
+        if not pinned_repo:
+            print(
+                "atlas-studio claim-execute: FAIL "
+                "EXPECTED_REPO_REQUIRED_AT_EXECUTE "
+                "(--repo must be a non-empty owner/name)",
+                file=sys.stderr,
+            )
+            return 2
         intent = _load_intent_file(args.intent_file)
         agent_id = str(intent.get("actor_agent_id") or "")
-        mc, matrix, registry = _live_claim_context(agent_id, repo=args.repo)
-        client = GhClient(repo=args.repo) if args.repo else GhClient()
+        mc, matrix, registry = _live_claim_context(agent_id, repo=pinned_repo)
+        client = GhClient(repo=pinned_repo)
         decision = gc.execute_ownership_claim(
             intent,
             client=client,
@@ -320,7 +330,7 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
             frontier_matrix=matrix,
             mission_control=mc,
             dry_run=bool(args.dry_run),
-            expected_repo=args.repo,
+            expected_repo=pinned_repo,
         )
     except Exception as exc:  # noqa: BLE001
         print(f"atlas-studio claim-execute: FAIL {exc}", file=sys.stderr)
