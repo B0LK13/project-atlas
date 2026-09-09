@@ -13148,3 +13148,1557 @@ AS-OBSIDIAN-CAPTURE-001-F2, merged as `eadc0f62`).
   is retained graph-specific behavior). This is implementation evidence, not
   certification: fresh independent verification and exact-head CI are
   required before merge (F4 merge is Owner-bound; not pre-authorized).
+
+## AS-OBSIDIAN-CAPTURE-001-F3 — reserved marker closure (2026-09-07, post-F4)
+
+Work package: **AS-OBSIDIAN-CAPTURE-001-F3**, sequenced after F4 (merged as
+`15c9a6d6`). Base `15c9a6d6` / tree `ca209578`.
+
+Owner policy: Atlas structural marker spellings are **reserved everywhere**,
+including inside a HUMAN protected region. HUMAN payload is not opaque, and raw
+HUMAN bytes are immutable — no auto-escaping, no normalisation, no zero-width
+rewriting.
+
+The safety behaviour was measured before anything was changed, and it already
+held on main: all five exact reserved spellings inside a HUMAN region already
+failed closed with the note byte-identical, and all seven near-miss controls
+(bare token, extra inner spacing, `startx` suffix, uppercase, partial token,
+ordinary HTML comment, unnamed HUMAN marker) were already preserved as ordinary
+prose. Under the minimal-change principle no parser change was manufactured.
+
+The remaining defect was diagnostic quality. `malformed-generated-markers:<path>`
+told an operator nothing about what collided or whether anything had been
+written. The refusal now carries observable facts —
+`count` or `end-before-begin`, `begin=`/`end=`/`expected=` counts,
+`reserved-marker-in-human-region` **only when structurally determinable**, and
+`no-write` — behind the unchanged leading class token, so every existing
+matcher, including the `GraphProjectionError` translations in
+`graph_projections.py`, keeps working.
+
+Causal honesty is the constraint that shaped this. The same failure shape can
+arise from an operator writing a reserved spelling as prose, from Atlas
+corrupting its own generated structure, or from an unrelated malformed state,
+and the implementation cannot distinguish them — so it claims no authorship. A
+duplicated generated marker outside any HUMAN region is not reported as a region
+collision, and that is pinned by its own test. The containment helper is
+deliberately non-raising: it runs only to enrich a diagnostic for a document
+already known to be malformed, so it must not fail and mask the real error.
+
+The balanced forged pair is the load-bearing refusal: counting alone would see
+begins and ends match and could call it balanced, and it is refused only because
+Atlas owns exactly one generated span.
+
+Review then caught a real false-positive source in the containment check: it
+matched marker names with `[^\s>]*` and paired by a bare depth counter, so
+`<!-- BEGIN HUMAN: -->` — which the canonical `[^\s>]+` grammar does not treat
+as a region at all — produced a `reserved-marker-in-human-region` claim about a
+region that does not exist, and crossed markers were read as a balanced span.
+That is the same second-parser-drift failure this project keeps meeting, so the
+helper now shares the canonical grammar and strict name-matched pairing and
+returns "not determinable" for orphan, crossed or unclosed structure.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`.
+Review also caught that the containment check compared every marker against
+every span — quadratic on precisely the input that reaches it, so a refusal
+could spend seconds formatting its own error (1.09s at 5,000 regions). Both
+sequences are ascending and non-overlapping, so they are now walked together:
+0.012s at 5,000 and 0.070s at 20,000. A test pins the linearity; restoring the
+pairwise scan takes 18.3s and fails it (that timing was measured at the
+pre-remediation candidate and has NOT been re-run at the exact head or at any
+seal; treat the number as unverified -- the linearity test itself is green).
+
+Tests: F3 suite 37 passed; F3 + capture + F1/F2 + F4 + graph projection +
+Obsidian suites 249 passed / 0 failed (that aggregate is NOT reproducible as
+stated -- the file set is unspecified, nearest reconstruction 237/0, and it is
+subsumed by the green full suite); `ruff check .` clean; `mypy src` clean
+(405 files). F4 differential harness unchanged at this branch — graph converges
+on canonical exactly, 2178/1822 with zero on every corruption counter.
+
+Negative controls, run in scratch and reverted: removing the diagnostic
+classification fails exactly seven diagnostic and containment tests (an earlier
+revision of this paragraph said four -- that was the count at `56b1b0c2`, and it
+was carried forward uncorrected. Three further tests fail now because two more
+containment tests and the linearity test were added after that candidate; one
+containment test already existed there); emulating an escaping
+strategy on preserved HUMAN blocks fails six byte-preservation tests. Both are
+load-bearing.
+
+Broader suite under independent verification: 5,616 passed, 8 skipped, 0 failed.
+An earlier revision of this entry reported four `tests/unit/test_logging.py`
+failures as an environment artifact; those did not reproduce for the verifier
+(18/18 pass there), so the claim was more pessimistic than reality and is
+recorded as machine-local rather than as a property of this candidate.
+
+Two claim corrections from verification, made rather than waived: the
+disable-the-diagnostic negative control fails **7** tests at this head, not the
+4 carried forward from the first candidate (one containment test already existed
+there; the three further failures come from two more containment tests and the
+linearity test added after it, so "before the containment tests existed" was
+wrong);
+and the CRLF byte-fidelity claim holds at the `protected_regions` module level
+but **not** end to end, because the writers read prior notes with
+`Path.read_text`, whose universal-newline translation converts CRLF to LF before
+the merge sees the bytes. That is pre-existing and identical on base main, but
+"no normalisation" is not currently honoured for line endings at the product
+boundary and deserves its own work package.
+
+This entry is implementation evidence, not certification: independent exact-head
+verification and CI are required before merge, and merge authority is not this
+lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F3 — postmerge seal record (2026-09-08, on main)
+
+F3 merged as PR #717 (merge commit 48a51875 onto main 15c9a6d6; candidate head
+c6b0ecb8 carried only docs/evidence corrections over the independently
+verified behavioural predecessor 8d19932c, src/tests byte-identical). PR #716
+was retired as the superseded parallel F3 candidate, and PR #718 landed the
+backlog truth correction for F1/F2/F4 tails on main (merge commit 0414e8d5).
+
+Postmerge seal on actual main (48a51875, pre-#718-docs, behaviour-identical):
+F3 suite + capture + F1/F2 + F4 canonical-semantics + graph projections +
+graph adversarial = 246 passed; full suite 5,616 passed / 8 skipped. Seal
+matrix per `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F3-RESERVED-MARKER-CLOSURE.md`:
+exact reserved START/END and balanced forged pairs inside HUMAN fail closed
+with the note byte-identical; near misses are accepted per grammar; nested
+HUMAN structure is preserved; the diagnostic reports observable facts only
+(`count`, `end-before-begin`, begin/end/expected counts, `no-write`) and makes
+no authorship claim. F2 and F4 regression suites pass; transactionality holds.
+
+Known residual, unchanged by this package: CRLF byte-fidelity holds at the
+`protected_regions` module level but not end to end (`Path.read_text`
+universal-newline translation at the writers); pre-existing, identical on base
+main, tracked as its own future work package.
+
+This entry is a merge/verification record, not new certification: exact-head
+CI and bounded independent IV were consumed from their own lanes before merge.
+
+## F4 post-merge seal (2026-09-08)
+
+Work package: **AS-OBSIDIAN-CAPTURE-001-F4**, merged as `15c9a6d6` (PR #707,
+first parent `691a70a9`, second parent `b23d9c18`). The F4 implementation entry
+-- "F2 seal and F4 baseline + canonical-semantics implementation", further up,
+not the #721 F3 seal immediately above -- ends with "fresh independent
+verification and exact-head CI are required before merge (F4 merge is
+Owner-bound; not pre-authorized)". That was true when written and has been stale
+since the merge landed. This seal is
+the correction, and it is recorded here rather than only in `docs/backlog.md`,
+because the WORKLOG is where the merge history is supposed to be legible.
+
+- Consolidation confirmed on main. `graph_projections.py` at `15c9a6d6` imports
+  `merge_protected_regions as _canonical_merge_protected_regions` and calls it
+  at both merge sites. An exported pre-fix tree (`691a70a9`) contains zero
+  occurrences of that symbol, so the delegation is a real change and not a
+  rename.
+- Error-boundary seal. Both canonical call sites are wrapped, translating
+  `ProtectedRegionError` to `GraphProjectionError`. Independently fuzzed over
+  **60,000 malformed input pairs**: 2,592 accept / 57,408 `GraphProjectionError`,
+  **0 raw leaks**. The pre-fix control leaked **50 raw
+  `ValueError: substring not found`** over the same 60,000 trials. Note that
+  `GraphProjectionError` subclasses `ValueError`, so the claim is meaningful
+  only as "no *bare* ValueError", which is what was measured.
+- Divergence seal. A directed differential (canonical vs adapter, 11 shapes)
+  finds the one disclosed contract — a prior note with no HUMAN regions keeps
+  its text outside the generated span, where the canonical core returns the
+  fresh render. It also finds a second observable difference, recorded here
+  rather than left for a reader to discover: a no-HUMAN prior note carrying a
+  generated span, where the fresh render has none, is refused by graph and
+  accepted by canonical. That corner is commented in the code and is
+  **production-unreachable** — both `render_relationships_markdown` and
+  `render_graph_health_markdown` unconditionally emit exactly one generated
+  span. "Exactly one disclosed contract" is therefore precise about intentional
+  contracts, not about all observable differences.
+- Harness seal on the merged tree, from the committed
+  `docs/scripts/f4_protected_region_divergence_harness.py`: seed `20260907`
+  gives graph accept/refuse `2178/1822`, seed `99` gives `2175/1825`, both
+  **identical to canonical**, where pre-fix was `3051/949`. All six corruption
+  counters (`loss_cases`, `lost_payloads`, `xscope_cases`, `dup_cases`,
+  `duplicated_payloads`, `marker_growth_cases`) are zero on both seeds;
+  `malformed_output` and `error` are zero too. Two runs at the same seed are
+  byte-identical, so the determinism claim holds.
+- Pre-fix baseline reproduced, not cross-read, against the exported pre-fix
+  tree at seed `20260907` / 4,000 trials: 897 loss cases of 3,051 accepted, 194
+  duplication cases, 108 marker-growth cases, canonical zero on every counter.
+  These are three independent counters over one denominator, not a partition.
+- The self-nesting correction is reproduced at the real refresh surface:
+  pre-fix, `self nesting (x inside x) -> ACCEPT, drops ['PAY-OUT']`, where
+  `PAY-OUT` is the **outer** region's payload, while the helper level refused
+  it. The earlier claim that self-nesting was "refused only incidentally via
+  marker-count mismatch" described the helper level and understated the defect;
+  the production path is authoritative for impact.
+
+**Instrument boundary, stated because the counters read stronger than they
+are.** The harness measures marker token presence, count and placement — it
+does **not** measure human-byte fidelity, and the evidence document records
+that ten deliberately corrupt merges (prose truncation, whitespace/CRLF/
+encoding mutation, line reordering, generated-text injection) all score clean
+on it. "All six corruption counters zero" is therefore not a no-corruption
+certificate, and must not be cited as one.
+
+**Claim boundary.** This seal claims canonical reuse of HUMAN-region semantics
+on main, verified at token granularity, with the fail-closed boundary intact.
+It does **not** claim general equivalence between graph projections and the
+canonical core, does not claim human-byte fidelity was measured, and carries no
+release, GA, pilot or external-certification implication.
+
+## F1-F4 residual register and series close (2026-09-08, complements #721)
+
+#721 sealed F3 on main. This entry adds what that seal did not carry: the
+negative control, the merged-object identity proof, and the full residual list.
+It does not restate #721's seal matrix.
+
+**The merged object is the verified object.** #717 was merged unrebased at
+`c6b0ecb8`, and the merge commit's tree was checked against it rather than
+assumed:
+
+    src   0ccf2e1afc37c80670a81ea19c95412419b154a3   identical
+    tests a63fcebefddc79dc4725557c335518ba2076cc4c   identical
+    git diff c6b0ecb8 48a51875   ->   empty
+
+Those same two tree hashes hold at `8d19932c`, `48a51875` and current main, so
+the exact-head verification transfers without an inference step -- and the
+docs-only delta `8d19932c` -> `c6b0ecb8` inherited the earlier runtime coverage
+for the same reason.
+
+**Negative control on merged main**, not recorded elsewhere: reverting both
+enriched raises to the bare `malformed-generated-markers:{path}` form gives
+**7 failed, 30 passed** of 37. The diagnostic is load-bearing on main, not only
+on the branch. Reproduced three times independently (the receipt's own control,
+the exact-head verifier, and this seal); at `56b1b0c2` the same revert gives 4,
+because two of the five containment tests added after that candidate fail under
+the revert, as does the linearity test.
+
+### Residual register
+
+Carried forward, not closed. Each is recorded because a reader of the sealed
+entries would otherwise have to rediscover it.
+
+- **CRLF is normalised LF-only end to end, at FOUR sites.** The anchors below
+  are the `read_text` lines -- where the normalisation actually happens -- not
+  the lines that call `merge_protected_regions`. Three sit in writers that do go
+  on to call it (`obsidian_capture_note.py:378`, `obsidian_projection.py:360`,
+  `graph_projections.py:644`); the fourth, **`ingestion.py:99`**
+  (`_generated_content`), preserves a generated span and normalises the same way
+  without going through `protected_regions` at all --
+  so a grep for the merge function misses it. Pre-existing and byte-identical
+  on base main -- `sha256 ingestion.py` is `6911a99d...` at both head and
+  `15c9a6d6` -- therefore not introduced by F3. (An earlier revision cited a
+  digest `cc7007ce...17ecf2` here. That was the digest of a note produced by a
+  verification script, not of any file in this repository, and naming it as
+  evidence was wrong: it identifies nothing a reader can check.)
+  The receipt's "all three writers" undercounts. "No normalisation" is not
+  honoured for line endings at the product boundary; this needs its own work
+  package scoped to four sites.
+- **The diagnostic is not uniform across surfaces.** `graph_projections` still
+  emits the bare `malformed-generated-markers:<path>` at five sites -- three in
+  `_validate_protected_markers`, one in `_generated_span`, one in
+  `_merge_protected_regions`. Wider still: `ingestion.py:103`, `:107` and
+  `:484` raise a plain `ValueError(f"malformed generated markers: {path}")` --
+  different spelling, different exception type, no diagnostic at all.
+- **The containment helper pairs self-nested same-name markers** where the
+  canonical parser refuses them as `ambiguous-protected-region-nesting`. The
+  divergence itself is directly reproducible and has been reproduced
+  independently more than once. The *cardinality* has not: an independent
+  exhaustive sweep was reported as 21,844 sequences / 24 cases / zero
+  withheld-containment cases, but **that harness is not committed either**, so
+  the counts belong in the non-citable list below and are recorded here only as
+  the reason to believe the class is narrow -- not as a measured bound.
+- **A second graph/canonical divergence, production-unreachable.** A no-HUMAN
+  prior note carrying a generated span, where the fresh render has none, is
+  refused by graph and accepted by canonical. Commented in the code; both
+  renderers unconditionally emit exactly one generated span, so it is not
+  reachable in production. "Exactly one disclosed contract" is precise about
+  *intentional contracts*, not about all observable differences.
+- **#716's split-token near miss** `<!-- atlas:generated:sta rt -->` behaves
+  correctly but is pinned by no assertion in the F3 test file.
+
+### Figures that must NOT be cited
+
+No instrument is committed for any of these. They are recorded so nobody
+rebuilds an argument on them:
+
+- **"52 of 66,430"** exhaustive-sequence figure -- enumeration space
+  unspecified, harness absent. The divergence it describes is separately and
+  directly reproducible; the arithmetic is not reconstructible.
+- **The "21,844 sequences / 24 cases" containment sweep** -- same defect, and it
+  must not be used to corroborate the figure above, which would only launder one
+  uninstrumented number with another.
+- **The F4 error-boundary fuzz absolutes** (60,000 trials / 2,592 accept /
+  57,408 `GraphProjectionError` / 0 leaks, against 50 pre-fix). A second
+  independent 60,000-trial fuzz reproduced the direction and the exact
+  exception identity but different absolutes (0 post-fix, **84** pre-fix) --
+  they are corpus-bound. Cite the direction, never the numbers.
+- **"249 passed"** -- file set unspecified; nearest reconstruction 237/0.
+- **"18.3s pairwise scan"** -- measured at the pre-remediation candidate, never
+  re-run at any head or seal. The linearity test itself is green.
+- **"~50.5%"** F4 prevalence -- superseded and non-reconstructible, already
+  withdrawn.
+
+### Series claim boundary
+
+F1-F4 are integrated on main, each independently verified at an exact head,
+with CI green and seals re-run after merge. That is the whole claim. It does
+**not** establish `CODEX_VALIDATED`, does not discharge
+`EXTERNAL_SECURITY_REVALIDATION_REQUIRED`, and does not assert that Obsidian
+note corruption in general is solved.
+
+Two boundaries are worth stating rather than leaving implicit, because both
+read stronger than they are. **F3's runtime delta is diagnostic-only**
+(`+117/-2`; the only two removed lines are the two bare raises) -- the
+fail-closed safety behaviour predates the work package and was proved to by
+differential execution against base, so the seal is not a claim that F3 made
+notes safe. And **the F4 harness measures marker token presence, count and
+placement, not human-byte fidelity** -- it scores ten deliberately corrupt
+merges (prose truncation, whitespace/CRLF/encoding mutation, line reordering,
+generated-text injection) as clean, so its zeroed counters are not a
+no-corruption certificate.
+
+## AS-OBSIDIAN-CAPTURE-001-F5 — HUMAN line endings are bytes (2026-09-08)
+
+Work package: **AS-OBSIDIAN-CAPTURE-001-F5**, successor to the F1-F4 series
+(sealed at `7a9eeb76`). The F3/F4 seals recorded CRLF end-to-end loss as an
+open residual requiring its own work package. This is that package. Branch
+`fix/as-obsidian-capture-001-f5-newline-fidelity`, base `7a9eeb76`.
+
+**Selected by frontier scan, not by narrative.** The Obsidian/capture lane had
+zero open PRs after #722. A repository search found no branch, PR or issue
+claiming line-ending work, so the residual was unowned and runnable. The DAG
+lane (#719/#720/#723) is separately owned and was not touched.
+
+### The defect, reproduced on current main before anything changed
+
+All four generated-span-preserving writers read the prior note with
+`Path.read_text(encoding="utf-8")`. That is text mode with universal newlines,
+so `\r\n` and a lone `\r` become `\n` *before the merge sees the bytes*. The
+note is the file the human edits, so a translating read is a silent write-back
+mutation of HUMAN content on a refresh nobody asked for.
+
+Driven through the real entry points, comparing bytes on disk:
+
+    1  obsidian_capture_note.py:378   capture() + retry()                CR 2 -> 0
+    2  obsidian_projection.py:360     materialize_obsidian_projection()  CR 2 -> 0
+    3  graph_projections.py:644       write_projection_outputs()         CR 2 -> 0
+    4  ingestion.py:99                _generated_content()               CR 2 -> 0  [owner-gated]
+
+CR counts are per-fixture: 2 for the two-line HUMAN body used here, 3 for the
+whole-note CRLF fixture an independent verifier used. Same direction, different
+probe -- noted because the two figures otherwise read as contradictory.
+
+Entry point 3 is the sharpest: its own docstring claims "Preserves HUMAN
+protected regions byte-for-byte (AT-011 fail-closed)". Entry point 4 does not
+route through `protected_regions` at all, which is why a search for
+`merge_protected_regions` callers finds only three — the undercount the F3
+receipt carried.
+
+**Why nothing caught it.** The guards check marker presence, count and
+placement; translation changes none of those. The F1-F4 suites assert substring
+presence, and `"my note" in text` is true both before and after the line
+endings are destroyed. This is the corruption class those checks cannot see.
+
+**Corruption class, measured:** `\r\n`, lone `\r`, mixed endings and a CR
+mid-prose are all mutated; `U+2028` and form feed survive. So the class is
+CR-bearing line endings specifically, not whitespace generally.
+
+**Pre-existing, not introduced.** Reproduces identically on earlier bases;
+#717's verification already established byte-for-byte equivalence on
+`15c9a6d6`. F3 neither introduced nor changed it.
+
+**The write side needed no fix** — checked, because a mirrored defect there
+would have made this incomplete. All four writers emit via `write_bytes`, and
+`ingestion.py:296` already passes `newline="\n"` explicitly.
+
+### An owner gate split the package, and that is the guard working
+
+The first candidate fixed all four sites. The full suite then failed
+`test_atlas3_demo_isolation_001.test_certified_surfaces_unmodified`:
+`src/project_atlas/ingestion.py` is a **certified surface**, and editing it
+requires an owner-approved, sha256-pinned exception under
+`docs/atlas-3/ARCHITECTURE.md` SS9.1. That gate cannot be self-granted by this
+lane, and the mechanism is content-pinned so even a one-byte further edit
+invalidates it.
+
+The candidate was split rather than argued with:
+
+- **F5** fixes the three permitted sites plus the shared helper;
+  `ingestion.py` is restored byte-identical to `main`.
+- **F5-B** is the `ingestion.py` site, recorded as OWNER-GATED. The fix is one
+  line -- swapping the read for `read_note_text`, the helper F5 introduces,
+  which is NOT on `main` until F5 merges -- so what is missing is a decision, not
+  engineering.
+
+The gated defect is NOT downgraded to a paragraph. Its four reproductions stay
+in the suite as `xfail(strict=True)`: they execute on every CI run and flip to
+a visible XPASS failure the moment the gated fix lands. A residual that
+self-alerts survives a handoff; a residual in prose does not.
+
+### The fix
+
+One helper, `protected_regions.read_note_text(path)`, at the three permitted
+sites, and ready for the fourth when F5-B is granted.
+`newline=""` is the obvious spelling but `Path.read_text` accepts it only from
+3.13, and this package declares `requires-python >= 3.12`, so it decodes bytes
+directly. The exception surface is unchanged (`OSError`, `UnicodeDecodeError`),
+which is what the existing handlers already catch. A shared helper rather than
+three inline edits (one per live site), so the invariant has one name and one
+place to test -- and the fourth site can adopt it unchanged when F5-B is granted.
+
+**CORE3-014 is deliberately untouched.** Identity hashing still normalises
+CRLF to LF so content identity is stable across platforms; `canonical_content`
+already states that the stored raw evidence is the untouched original. Storage
+fidelity and identity normalisation are different concerns, and a test pins
+that `content_hash("a\r\nb\r\n") == content_hash("a\nb\n")` still holds.
+
+### Evidence
+
+27 tests (31 collected, including the 4 strict-xfail tripwires) asserting
+**bytes and digests**, never substring presence: four
+line-ending shapes across four entry points, plus repeat-refresh erosion,
+an LF-only regression guard that also asserts no endings are *invented*, and a
+check that the generated span still refreshes beside preserved CRLF content so
+the fix has not frozen derived output.
+
+Negative controls, each load-bearing and per-site:
+
+    baseline                                   27 passed, 4 xfailed (31 collected)
+    A  helper -> read_text (3 live sites)      19 failed,  8 passed
+    B  graph_projections site only              5 failed
+    C  obsidian_capture_note site only          6 failed
+    D  obsidian_projection site only            4 failed
+    E  ownership probe made LF-naive            3 failed
+
+Each fails a distinct, appropriate set (verified by test name), so no site is
+covered only by another site's test. The EIGHT surviving control A are the ones
+that must, enumerated rather than counted: the four `read_text`-is-the-defect
+controls; the LF-only guard; both parametrisations of
+`test_f5_note_ownership_survives_non_lf_frontmatter` (named, because the file
+holds a third ownership test -- `test_f5_ownership_probe_does_not_rewrite_human_bytes`
+-- which correctly FAILS under this control; reverting the helper
+restores the translating read, which masks the ownership issue by
+construction); and identity hashing. The 4 xfails are the gated `ingestion.py`
+reproductions and stay strict.
+
+These figures were re-measured at this head after the erosion test was
+strengthened. An earlier revision carried round-1 numbers (24/17/5/4/4) that no
+longer reproduced -- the same stale-evidence defect this lane exists to catch,
+found by verification round 2.
+
+Suites (file set enumerated, because the figure was previously not
+reproducible as stated): test_as_obsidian_capture_001, _f3,
+test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
+test_as_coder_alpha_obsidian_001, _r1_001, and this package's own file =
+264 passed, 4 xfailed. Full suite: 5,643 passed, 8 skipped, 4 xfailed,
+EXIT=0 -- recorded here because it is the strongest single gate and was
+previously only in the PR body. The seven F1-F4 files are byte-identical to
+base, so 237/237 there is a clean no-regression result against the sealed
+baseline. The freeze guard `test_atlas3_demo_isolation_001` passes (78 tests),
+confirming this candidate touches no certified surface. `ruff check .` clean;
+`mypy src` clean (405 files).
+
+### Claim boundary
+
+Claimed: CR-bearing line endings inside HUMAN regions survive a refresh
+byte-for-byte at the THREE LIVE writers fixed here; note ownership no longer
+depends on line endings; identity hashing is unchanged. (An earlier revision
+said "all four writers" -- contradicting the next paragraph, and false: the
+fourth still loses its CR bytes on this head -- CR 3 -> 0 on the verifier's
+whole-note fixture, per-fixture as noted above; the direction is the claim,
+the integer is fixture-dependent. Corrected, not softened.)
+
+**Not claimed:** that the fourth writer is fixed -- `ingestion.py` is
+unchanged here and its defect remains live on `main` under F5-B; general byte
+fidelity for every transformation; that notes
+already normalised by an earlier refresh are recoverable — they are not, this
+stops further loss rather than undoing it; that non-newline normalisation
+elsewhere is absent; or that Obsidian note corruption in general is solved.
+
+This entry is implementation evidence, not certification: independent
+exact-head verification and CI are required before merge, and merge authority
+is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F5 — post-merge seal (2026-09-08)
+
+Merged as `91f40368` (PR #724), first parent `7a9eeb76`, second parent
+`2b472b91`. **What was verified, stated precisely** -- because an earlier
+revision of this entry said "the merged object is the verified object", which
+conflated the verification chain with its final link.
+
+The four IV rounds ran against four DIFFERENT objects -- `6788f3bc`,
+`7e632070`, `78b48d93`, `bf8799ee` -- each superseded by the next, so no single
+object carries all four verdicts. What holds:
+
+  - the merged object equals the final branch head: `git diff 2b472b91
+    91f40368` is empty, and it was merged unrebased for exactly that reason;
+  - its `src` (`0f909c49`) and `tests` (`8c3b9dfc`) trees are hash-identical to
+    round 4's object `bf8799ee`, so round 4's runtime and test certification
+    transfers;
+  - the docs-only delta `bf8799ee` -> `2b472b91` (WORKLOG and evidence prose,
+    no code or test change) was NOT independently verified. It had fresh
+    exact-head CI, green on all four jobs, but no IV round of its own.
+
+Seal re-run on the merge commit, in a venv built inside a worktree at that
+commit with subprocess resolution proved to reach it first:
+
+    F5 suite      27 passed, 4 xfailed
+    full suite    5,643 passed, 8 skipped, 4 xfailed
+    freeze guard  78 passed
+    ruff / mypy   clean (405 source files)
+
+Negative controls, re-run on the merge commit -- the protections are
+load-bearing on `main`, not only on the branch:
+
+    baseline                          27 passed, 4 xfailed
+    helper -> read_text               19 failed
+    graph_projections only             5 failed
+    obsidian_capture_note only         6 failed
+    obsidian_projection only           4 failed
+    ownership probe LF-naive           3 failed
+
+Each fails a distinct set. The owner gate survived: `ingestion.py` on `main` is
+byte-identical to its pre-F5 state, so the certified surface was never touched.
+
+### What the four verification rounds actually caught
+
+Round 1 found a **regression this fix introduced**. The faithful read exposed
+`_existing_capture_id`'s `startswith("---\n")` gate, so a note whose first line
+ended CRLF -- a Windows editor, or `core.autocrlf=true` -- was judged unmanaged
+and refused with `OBSIDIAN_NOTE_CONFLICT` on every refresh. It failed closed and
+lost no bytes, but the note never refreshed again and the error named the wrong
+cause. The lesson: *reading faithfully is not enough if a consumer of that text
+was silently relying on the translation.*
+
+Round 2 attacked the obvious risk in the remedy -- that making ownership
+line-ending tolerant might start accepting notes Atlas does not own -- and
+disproved it: 18 hostile shapes still refused, and `HEAD_probe(faithful bytes)
+== BASE_probe(translated)` across 42 cases with 0 mismatches.
+
+Rounds 3 and 4 found only evidence-consistency defects, and round 4 returned
+P0/P1/P2 = none.
+
+Rounds 2-4 all found the same defect class in this lane's own bookkeeping: a
+correction applied in some copies and not others. The measured figures were
+never wrong; the record of them kept drifting. Worth stating because it is the
+third series in a row where that was the recurring failure, not the engineering.
+
+### Claim boundary
+
+Claimed: CR-bearing line endings inside HUMAN regions survive a refresh
+byte-for-byte at the three live generated-span-preserving writers; note
+ownership no longer depends on line endings; identity hashing (CORE3-014) is
+unchanged.
+
+**Not claimed:** that the fourth writer is fixed -- `ingestion.py:99` is
+untouched and its defect remains live on `main` under F5-B; that notes already
+normalised by an earlier refresh are recoverable (they are not -- this stops
+further loss, it does not undo it); that non-newline normalisation elsewhere is
+absent; or that Obsidian note corruption in general is solved.
+
+### Lane state after this seal
+
+Runnable and unowned: **F6** (raw `UnicodeDecodeError`/`PermissionError` escape
+the domain boundary in the projection writers, where `obsidian_capture_note`
+already handles both correctly) and **a UTF-8 BOM making a note permanently
+unmanageable** (pre-existing, not introduced by F5, deliberately not folded in).
+Owner-gated: **F5-B**. Transferred: **issue #726**, bridge-import
+`source_sha256` hashing translated text so it can never verify the file it
+names.
+## AS-OBSIDIAN-CAPTURE-001-F6 — an unreadable note is an operator condition (2026-09-08)
+
+Work package **AS-OBSIDIAN-CAPTURE-001-F6**, branched from `91f40368` (post-F5
+main). Selected from the residual register as the highest-value runnable
+unowned item; no PR, issue or branch claimed it.
+
+Both projection writers read the prior note to splice a fresh generated span
+into it. When that read failed, the raw exception escaped the module's error
+boundary, so a caller catching the module's own error type did not catch these
+at all. (The two `PermissionError` cases already carried the path via
+`OSError.filename`; the escape is what was wrong in all four.) A
+consistency defect rather than a design question: `obsidian_capture_note`
+already catches `(OSError, UnicodeError)` and raises its own domain error.
+
+Reproduced on `91f40368` before any change, through the real entry points:
+
+    obsidian_projection   undecodable   raw UnicodeDecodeError
+    obsidian_projection   unreadable    raw PermissionError
+    graph_projections     undecodable   raw UnicodeDecodeError
+    graph_projections     unreadable    raw PermissionError
+    obsidian_capture_note both          already correct
+
+FOUR leaks, not the three an earlier informal probe recorded -- the projection
+writer leaks on the unreadable case too, which only appeared when both writers
+were driven against both failure modes rather than one each. That is exactly
+why the lane rule says verify every affected entry point, not the reported one.
+
+**Why the existing instrument missed it.** #707's verification fuzzed 60,000
+malformed input pairs and reported 0 raw leaks. Not contradicted: its corpus was
+*valid UTF-8* with malformed markers, so invalid bytes and unreadable files were
+never in the space. Scoping that claim, rather than letting it look wrong.
+
+**Blast radius, and one place the no-write property does NOT hold.** For
+`graph_projections` the read precedes `_promote`, so the failure path writes
+nothing; verified in both orderings by sha256 plus a staging-residue check.
+For `obsidian_projection` it is NOT true, and an earlier revision of this entry
+claimed it was: that writer calls `_write_atomic` INSIDE its per-project loop,
+so in a multi-project vault an earlier note that merged cleanly has already been
+rewritten when a later one fails. Independent verification proved this on head
+AND on base -- pre-existing, not introduced here, but the unqualified claim was
+wrong and is corrected rather than softened. Making that writer
+plan-then-promote is a separate package.
+
+Fix: `try/except (OSError, UnicodeError)` at each read, raising the module's own
+error naming the note and the underlying class, `from exc` so the cause chain
+survives for a developer while the operator gets a path.
+
+Controls, re-derived in full at this head rather than patched line by line --
+which is how the previous revision came to have a correct suite figure sitting
+below a stale control table it no longer matched:
+
+    baseline                              13 passed
+    A graph read guard removed             5 failed
+    B obsidian read guard removed          2 failed
+    C obsidian WRITE guard removed         4 failed
+    D read guard widened, body AND clause  1 failed
+    E finally cleanup guard removed        2 failed
+    F warning payload un-nested            1 failed
+
+    body widened only                     13 passed
+    clause widened only                   13 passed
+
+A-D fail pairwise disjoint sets. E and F do not: F is contained in E, which is
+contained in C -- F < E < C, all strict -- because removing the write guard
+removes both the error E proves is not masked and the warning F proves carries
+its payload. Both remain load-bearing: reverting only the finally guard fails
+E's two tests, and un-nesting only the payload fails F's one.
+
+An earlier revision of this paragraph said E had a "single failing test". That
+was true before the logging test existed; when it was added the table was
+re-derived and this sentence was not -- the same carry-forward defect this entry
+keeps recording, one layer down in the prose rather than the figures.
+
+Control D is the important one, and it took TWO attempts to describe correctly.
+The first candidate said "widen the clause to `except Exception`"; verification
+got 8 passed. The second said "widen the try BODY"; verification got 11 passed.
+Both wrong -- and the second was written without re-running it, which is exactly
+the discipline this lane enforces, applied to itself and missed. Measured
+directly:
+
+    body widened, clause unchanged      13 passed
+    clause widened, body unchanged      13 passed
+    body AND clause both widened         1 failed
+
+The mechanism is the exception hierarchy: `ProtectedRegionError` and
+`GraphProjectionError` are `ValueError` subclasses, so `(OSError, UnicodeError)`
+never catches them however the body is arranged, and `except Exception` catches
+nothing extra unless the merge is inside the `try`. Both changes are required
+before `malformed-generated-markers` is relabelled. The test is load-bearing;
+two successive receipts described the wrong mutation.
+
+Suites (file set named, because an unenumerated figure is not checkable):
+  tests/unit/test_as_obsidian_capture_001.py
+  tests/unit/test_as_obsidian_capture_001_f3.py
+  tests/unit/test_as_obsidian_capture_001_f5_newline_fidelity.py
+  tests/unit/test_as_obsidian_capture_001_f6_error_boundary.py
+  tests/unit/test_as_graph_005_projections.py
+  tests/unit/test_as_graph_005_adversarial.py
+  tests/unit/test_as_graph_005_f4_canonical_semantics.py
+  tests/unit/test_as_coder_alpha_obsidian_001.py
+  tests/unit/test_as_coder_alpha_obsidian_r1_001.py
+= 277 passed, 4 xfailed; full suite 5,682 passed, 8 skipped, 4 xfailed; freeze guard 78
+(the full-suite figure is 26 higher than this package measured before the base
+refresh: F7 merged into main and brought 26 tests with it)
+(neither changed file is a certified surface); ruff and mypy clean (405 files).
+
+### The first candidate FAILED verification, and why
+
+`24fbf2f4` returned FAIL_MATERIAL. Two blocking findings, both mine:
+
+Its two unreadable-note tests provoked the condition with `chmod(0o000)`, which
+is not portable -- on Windows `chmod` clears only the read-only bit, so the read
+succeeds and the test failed with `DID NOT RAISE`; it also passes vacuously as
+root. **Windows CI was red at that head**, and the repo already had the
+convention the new file ignored (`skipif(os.name == "nt")` in `test_logging.py`
+and `test_linux_filesystem_portability.py`). The tests now INJECT the failure by
+patching `Path.read_bytes`/`os.replace`, which is better than skipping: it
+exercises the boundary on every runner and every uid, and tests the claim rather
+than the operating system. One real-`chmod` test is retained for POSIX, properly
+guarded and skipped as root.
+
+The second finding was substantive rather than cosmetic: on Windows an
+"unreadable" note fails at WRITE time, and `_write_atomic`'s `os.replace` was
+unguarded -- so the first candidate leaked a raw `PermissionError` from
+`ObsidianProjectionError` at the very failure mode this package names. The fix
+was platform-incomplete, not merely under-tested. `_write_atomic` is now guarded
+too, and control C pins it.
+
+Claim boundary: a read OR WRITE failure at either projection writer now
+surfaces as that module's own error type, names the note, and preserves the
+cause chain. For `graph_projections` the failure path additionally writes
+nothing. NOT claimed -- that `obsidian_projection` writes nothing: it calls
+`_write_atomic` inside its per-project loop, so a multi-project vault can have
+an earlier note already rewritten (pre-existing, proven on base, disclosed
+above). An earlier revision of this paragraph said "writes nothing" of either
+writer, contradicting this entry's own blast-radius section. Also NOT claimed:
+that any data-loss defect is fixed (there was none on this path); that every raw exception in these modules is wrapped; that
+`ingestion.py`'s parallel plain-`ValueError` sites are addressed; or that the
+diagnostic is uniform across surfaces.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
+
+
+## AS-OBSIDIAN-CAPTURE-001-F7 — a BOM must not make a note unmanageable (2026-09-08)
+
+Work package **AS-OBSIDIAN-CAPTURE-001-F7**, branched from `8076d360`. Found
+while building the lane's residual register during F5's verification wait; no
+PR, issue or branch claimed it.
+
+Windows Notepad writes UTF-8 WITH a byte-order mark by default. An operator who
+opens an Atlas-managed note there and saves it gets a file Atlas no longer
+recognises as its own -- correct `capture_id`, correct frontmatter, just a
+`U+FEFF` prefix -- and every refresh is refused with `OBSIDIAN_NOTE_CONFLICT`,
+"refusing to overwrite a note Atlas does not manage". The note stops updating
+permanently and the error names the wrong cause: it IS Atlas's note.
+
+Reproduced on `8076d360` through the real `capture()`/`retry()` driver:
+
+    plain LF                  ok
+    CRLF (F5 fixed)           ok
+    BOM + LF                  partial  OBSIDIAN_NOTE_CONFLICT
+    BOM + CRLF (Notepad)      partial  OBSIDIAN_NOTE_CONFLICT
+
+Pre-existing. Same consumer and same consequence as the CRLF-frontmatter
+regression F5's round-1 verification caught, but a different trigger -- so a
+separate package, and deliberately NOT folded into F5, which would have voided
+a completed four-round certification for a defect F5 did not cause.
+
+### The trap is sharper than the defect
+
+Refusing a note Atlas does not recognise is CORRECT fail-closed behaviour. The
+fix must widen what Atlas RECOGNISES, never what it ACCEPTS; a change that
+started accepting foreign notes would be far worse than the defect it repairs.
+
+So the evidence is weighted at 18 hostile-shape refusal tests against 8
+recognition tests. Every hostile shape is asserted refused AND left
+byte-identical: no frontmatter, foreign frontmatter, `managed: false`,
+`managed: "true"`, a different `capture_id`, malformed YAML, an indented
+delimiter, `atlas` as a scalar, a non-string `capture_id`, unterminated
+frontmatter, an empty file, a BOM-only file, a double BOM, plus BOM-prefixed
+variants.
+
+Fix: one line. `_existing_capture_id` already normalised line endings for the
+ownership probe only (F5); it now also strips a leading BOM from that same probe
+copy. The note's bytes are untouched, and ownership still requires
+`atlas.managed is True` and a matching `capture_id` from genuine YAML.
+
+Controls, each load-bearing and each failing a DISTINCT set -- not a disjoint
+one. Measured: |A n B| = 3 (the two BOM+CR shapes and the direct probe, where
+both normalisations must compose), and C is a strict subset of D. The C-in-D
+relation was already implied by this package's own text, which says dropping the
+`capture_id` match fails ALL 18 hostile shapes -- necessarily including C's
+three -- so "disjoint" was refutable from the receipt alone:
+
+    baseline                             26 passed
+    A  BOM strip removed (this fix)       6 failed
+    B  F5 line-ending normalisation gone  4 failed
+    C  `managed is True` check dropped    3 failed
+    D  `capture_id` match dropped        18 failed
+
+C and D are the ones that matter: they prove the refusal set actually detects a
+widening of acceptance. D failing all 18 is what makes this safe to land.
+
+Every mutation was applied under an assertion that it changed the file. Two
+earlier attempts at controls A and B silently NO-OPPED -- the source contains
+the escape `"\ufeff"`, not a literal BOM -- and reported a passing suite that
+proved nothing. The assertion is what caught it, and it is the reason that
+discipline exists.
+
+Suites: group set (9 files, enumerated in the evidence receipt) 290 passed /
+4 xfailed; full suite 5,669 passed, 8 skipped, 4 xfailed; freeze guard 78;
+ruff and mypy clean (405 files).
+
+Claim boundary: a BOM-prefixed note Atlas genuinely owns is recognised and
+refreshes, its HUMAN bytes survive, and every unowned shape tested is still
+refused with the file byte-identical. NOT claimed -- the BOM is not preserved:
+it sits before the frontmatter in Atlas-owned generated territory, which is
+re-rendered from scratch, so it is dropped on refresh. That is consistent with
+"generated content is derived" and is not a HUMAN-byte loss; a test pins that
+the human region survives verbatim alongside it. Also not claimed: that UTF-16
+BOMs are handled (they fail the UTF-8 decode long before this probe), or that
+ownership is correct for shapes outside the 18 tested.
+
+Residual recorded here as well as in the receipt, because this lane's convention
+registers residuals in the WORKLOG and a residual that lives in one document
+decays: `yaml.safe_load` raises a bare `KeyError` -- not a `yaml.YAMLError` --
+for a malformed explicit bool tag, and only `yaml.YAMLError` is caught, so
+`_existing_capture_id` escapes rather than refusing cleanly. Verified at both
+base and head with `---\natlas: !!bool nope\n---\nbody\n` -> `KeyError: 'nope'`;
+pre-existing, outside F7's scope. Nothing converts it: it propagates out of the
+public `retry()` API and reaches the CLI as an unhandled traceback. Fail-closed
+in outcome -- the note is left byte-identical -- but an escaped exception in
+mechanism.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F7 — post-merge seal (2026-09-08)
+
+Integrated as PR #731. Merge commit `7b0989a7`, second parent `3d5b1d97`, base
+`8076d360`.
+
+**Merged unrebased at the verified object.** `git diff 3d5b1d97 7b0989a7` is
+empty, and the merge object's trees are hash-identical to the certified object:
+
+    src    2d3d6d8842fd24aca4db7f5f5be4124bea016d6d
+    tests  ebb90845f04bee9d01a48262ef943547ca31dc2b
+    docs   cd8180830ffa917a2cec3d090d79116dac7e67e0
+
+So round 5's certification transfers to the merged object by hash, not by
+assertion. This is the distinction F5's seal got wrong and had to correct: a
+verification chain does not certify its final link merely because the link is
+last. Here the merged object IS the verified object, byte for byte.
+
+**Verification.** Five rounds against six objects. Round 5 returned PASS with no
+P0, no P1 and no P2, and concluded the object was mergeable. The `src` tree was
+identical across all six objects, and `obsidian_capture_note.py` is blob
+`d6617798` in every one — **the one-line fix never changed after round 1**. An
+earlier revision put this as "every round after the first changed evidence prose
+only", which overstates it: the `tests` tree moved in three of the six objects,
+and the receipt records control A going 5 -> 6 when a vacuous assertion was
+strengthened. CI green on all four jobs at the exact head,
+Windows included; `mergeable=MERGEABLE state=CLEAN`; both Copilot threads
+resolved.
+
+**Post-merge seal, measured on `7b0989a7` in an isolated worktree with its own
+venv** (the primary checkout sits on another branch and would otherwise capture
+subprocess tests through the editable install — both parent and a spawned child
+were proven to resolve `project_atlas` to the seal worktree before any figure
+below was trusted):
+
+    F7 suite                              26 passed
+    F5 suite                              27 passed,  4 xfailed
+    protected-region + Obsidian selection 259 passed, 4 xfailed
+    full suite                            5,669 passed, 8 skipped, 4 xfailed
+    freeze guard                          78 passed
+    ruff check .                          clean
+    mypy src                              clean, 405 files
+    literal U+FEFF bytes in src/          0
+
+The BOM count is a byte scan, not a text search. `U+FEFF` is invisible in an
+editor, which is exactly how two negative controls silently no-opped during
+development — they searched for a literal BOM while the source held the escape
+`"\ufeff"` — and reported a passing suite that proved nothing.
+
+**Negative controls reproduce on main, not only on the branch:**
+
+    baseline                              26 passed
+    A  BOM strip removed                   6 failed
+    B  F5 newline normalisation removed    4 failed
+    C  `managed is True` check removed     3 failed
+    D  `capture_id` match removed         18 failed
+
+Each mutation was applied under an assertion that it actually changed the file,
+and the source was confirmed restored byte-identical to `7b0989a7` afterwards.
+C and D are the ones that carry weight: they prove the refusal set detects a
+widening of *acceptance*, not merely of recognition. The figures match the
+receipt exactly. The protections are load-bearing on the integrated result.
+
+**Round 5's two P3s are fixed in this seal, not carried.** They were first
+recorded as residuals, on the reasoning that further documentation edits in this
+package had repeatedly introduced fresh drift. That reasoning does not survive
+the principle applied to F6 the same day — a claim an evidence record cannot
+support should not stay in it — and the seal edits both files anyway, so fixing
+them costs nothing beyond the verification the seal already requires:
+
+  - the receipt heading "a pre-existing **fail-open-shaped** path" contradicted
+    its own paragraph, which concludes the *outcome* is fail-closed. It now reads
+    "a pre-existing **escaped exception**", which is what the paragraph shows.
+  - PR #731's description heading "What four verification rounds caught" carried
+    prose for rounds 1-2 only, and is corrected there — that heading is in the
+    description, not in the receipt.
+
+**Residual, pre-existing and out of scope, unchanged by this package.**
+`yaml.safe_load` raises a bare `KeyError` (not a `yaml.YAMLError`) for a
+malformed explicit bool tag, so `_existing_capture_id` escapes uncaught out of
+the public `retry()` API and reaches the CLI as an unhandled traceback: exit 1,
+empty stdout, traceback on stderr. Fail-closed in outcome — the note is left
+byte-identical — but an escaped exception in mechanism. Verified identical at
+base and head, so F7 neither introduced nor worsened it.
+
+**Not claimed:** that the BOM is preserved. It sits in Atlas-owned generated
+territory and is dropped on re-render, pinned by test; HUMAN bytes survive
+verbatim.
+
+## AS-OBSIDIAN-CAPTURE-001-F6 — post-merge seal (2026-09-08)
+
+Integrated as PR #729. Merge commit `e264d599`, second parent `c5d85fe7`, base
+`7b0989a7`.
+
+**Merged unrebased at the verified object.** `git diff c5d85fe7 e264d599` is
+empty; merge trees `src 8086e6f9`, `tests e6157e27`, `docs aa0b3336` are
+hash-identical to the certified object.
+
+**Nine verification rounds against nine objects** — the most-corrected package in
+this lane. Round 1 found a real defect in the fix: it was platform-incomplete,
+because on Windows an unopenable note fails at `os.replace`, not at the read,
+and that site was unguarded. A Linux-only reproduction could not see it.
+
+An earlier revision of this entry then said "every finding after that was in the
+claim record rather than the code". **That is false**, it was raised by two
+independent reviewers, and it contradicted this very section eight lines later.
+Measured: **six of the nine objects changed `src`/`tests`** --
+
+    24fbf2f4  c61efe3a  cb9d882d  3710db65  087c5c01  1c65ee98   src/tests changed
+    c995040a  8ec6311d  c5d85fe7                                 documentation only
+
+-- so the documentation-only stretch is rounds 7-9, not everything after round 1.
+R1's platform-incomplete fix, R3's `finally` masking and R5's discarded log
+payload were **engineering** defects, load-bearing enough that this seal makes
+the latter two its controls **E** and **F**. What is true, and is the narrower
+claim now made, is that the defect *class* which kept recurring was
+bookkeeping. The findings themselves:
+
+    R2  a negative control corrected without re-running it
+    R3  a `finally` that could REPLACE the error it was cleaning up after
+    R4  one WORKLOG figure updated, its neighbours left stale
+    R5  `_LOG.warning` with `extra` passed at top level -- both formatters read
+        `record.context` and discard anything else, so the warning emitted
+        neither path nor error class. The log existed and carried nothing, while
+        the receipt claimed the residual was now operator-visible.
+    R6  tables re-derived, the prose describing them not
+    R7  four prose distance figures, two of them repeats of round 6
+    R8  a byte-identity premise contradicting a measurement taken one step
+        earlier, plus a full-suite figure the base refresh had moved
+    R9  a ledger figure hardcoded in the body generator, so "regenerated from
+        the receipt" could never catch it
+
+The recurring defect was a correction applied to some copies and not all, and
+each round narrowed where it could hide: figures, then neighbouring figures,
+then the prose describing them, then the body quoting them, then the distances
+between them, and finally the two things a base refresh invalidates — a premise
+about what a merge changed, and a figure the merge moved. Three of the nine
+(R4, R8, R9) are addressed by deriving rather than typing. **The other six are
+not**, and it would be an overclaim to say automation closed this class: R1, R2,
+R3 and R5 were engineering defects closed by re-running things, and R6 by
+reading carefully.
+
+**Post-merge seal, measured on `e264d599`** in an isolated worktree with its own
+venv, both parent and a spawned child proven to resolve `project_atlas` there
+first:
+
+    F6 suite                              13 passed
+    nine-file group set                   277 passed, 4 xfailed
+    full suite                            5,682 passed, 8 skipped, 4 xfailed
+    freeze guard                          78 passed
+    ruff / mypy                           clean, 405 files
+
+**All six negative controls reproduce on main, not only on the branch:**
+
+    baseline                              13 passed
+    A  graph read guard removed            5 failed
+    B  obsidian read guard removed         2 failed
+    C  obsidian WRITE guard removed        4 failed
+    D  read guard widened, clause AND body 1 failed
+    E  finally cleanup guard removed       2 failed
+    F  warning payload un-nested           1 failed
+
+Each mutation was applied under a sha256 assertion that it actually changed the
+file, and both sources were confirmed restored byte-identical afterwards.
+A–D fail **pairwise disjoint** sets; `F ⊊ E ⊊ C`, both strict. These relations
+were computed on the failing test-name sets, not on counts — equal cardinalities
+prove nothing about containment.
+
+**Control D is the one worth recording.** It reproduces only when the merge call
+is moved *inside* the `try` **and** the except clause is widened to `ValueError`;
+each half alone is a no-op at 13 passed. An earlier reconstruction of D during
+this seal returned 13 passed, which meant it was not the documented mutation at
+all — it was discarded and rebuilt rather than reported as reproducing. A
+control that passes is not evidence; it is usually a broken control.
+
+**Residuals recorded, not fixed:**
+
+  - `graph_projections` still emits the bare `malformed-generated-markers:<path>`
+    at five sites; `ingestion.py:103`, `:107` and `:484` raise a plain
+    `ValueError` with no diagnostic at all. The `ingestion.py` half is
+    owner-gated (frozen surface); the `graph_projections` half is not, and is
+    the next runnable candidate in this lane.
+  - `_write_atomic`'s `mkdir` sits outside the new guard.
+  - F5's sealed work-package entry (WORKLOG L13584 -- its work-package section,
+    not its "post-merge seal" subsection; both are sealed records) still carries
+    the abbreviated suite list whose expansions do not exist. It lies in the
+    byte-identical prefix, so editing it would destroy the pure-insertion
+    property that proves no sealed record was rewritten. For a future package.
+  - The receipt's headline figures and control tables are typed, not derived.
+    That is exactly where the round-8 blocker lived, and it is the highest-value
+    remaining hardening of this lane's evidence process.
+
+**Not claimed:** that Windows runtime behaviour was observed directly. It is
+evidenced only by the green Windows CI job at the exact head; the tests inject
+the failure, which is why they pass on Linux.
+
+## AS-OBSIDIAN-CAPTURE-001-F8 — the split-token near miss is pinned (2026-09-08)
+
+A **pin, not a fix.** `src/` is byte-identical to `main`; nothing about the
+behaviour changes. What was missing was the assertion.
+
+The F1-F4 residual register named it precisely: "#716's split-token near miss
+`<!-- atlas:generated:sta rt -->` behaves correctly but is pinned by no
+assertion in the F3 test file."
+
+**Reproduced before anything was written**, through `merge_protected_regions` --
+the canonical entry point the F3 suite uses -- first on `7b0989a7`, then again
+on `e264d599` after F6 merged and moved the base. `protected_regions.py` is
+hash-identical at both (`d3fe8615`), so the two runs are the same measurement;
+both were done rather than assumed, because a stale base reference in an
+evidence record is how the two preceding packages accumulated blocking findings.
+
+    <!-- atlas:generated:sta rt -->     PRESERVED, human bytes intact
+    <!-- atlas:generated:e nd -->       PRESERVED, human bytes intact
+    <!-- atlas:generated :start -->     PRESERVED, human bytes intact
+    <!-- atlas:generated:sta\nrt -->    PRESERVED, human bytes intact
+
+All four survive as ordinary prose, which is correct: only the exact spelling is
+reserved. So the package changes no behaviour and claims none. "We checked and
+it was already right" is a result, and the next person to widen marker matching
+needs the check to exist.
+
+**Why the direction matters.** The owner policy makes Atlas marker spellings
+reserved *everywhere*, including inside HUMAN content, which makes the matcher's
+exactness load-bearing in a direction that fails quietly. A matcher made **more
+tolerant** does not error -- it starts REFUSING ordinary human prose. A note
+whose HUMAN region happens to discuss Atlas syntax would be judged a structural
+collision and refused on every refresh: permanently unmanageable, with the error
+naming the wrong cause. That is the same consumer and the same consequence as
+the CRLF regression F5's verification caught and the BOM defect F7 fixed,
+reached from a third direction.
+
+**Negative controls.** Three mutations, each under a sha256 assertion that it
+changed the file, each reverted with the source confirmed byte-identical after.
+Each was run twice -- against the corpus as it exists on `main`, and against the
+corpus with the four pins added -- because a control that only demonstrates the
+new tests fail proves they are tests, not that they are needed:
+
+    control                                  main's corpus (37)   with F8 (45)
+    A  broadly whitespace-tolerant matching  1 caught             9 caught
+    B  tolerant only of a break in the token 0 caught, 37 passed  6 caught
+    C  tolerant only of colon whitespace     0 caught, 37 passed  2 caught
+
+The right column counts F8's four corpus entries and its four byte-level
+assertions. An earlier revision reported 5/3/1, measured before those assertions
+were added in response to verification -- a figure this package's own
+remediation moved, re-derived here rather than carried forward. The left column
+is the load-bearing one and is unaffected.
+
+**B and C are the load-bearing pair.** Both are plausible "helpful" relaxations
+of marker matching; both would turn ordinary human prose into a permanent
+refresh refusal; and both pass **entirely undetected** against the corpus as it
+stands on `main` -- a clean 37/37, no signal at all. The pre-existing
+`extra-inner-spacing` case catches A alone, which is why A on its own would have
+been weak evidence that these pins add anything.
+
+**Not claimed:** that all four shapes come from #716. **One** does --
+`<!-- atlas:generated:sta rt -->`, the only shape the residual register
+attributes to it. The other three (a break inside the *end* token, a space
+before a colon, a split across a newline) are **locally derived**, constructed
+to discriminate the three controls; B and C exist precisely because they isolate
+them. An earlier revision said all four were "the ones #716 raised", which gave
+three of them a provenance the register does not support. Raised independently
+by review and by verification.
+
+Nor is the corpus claimed complete: the near-miss space is not enumerated and no
+exhaustive sweep is committed, so no coverage fraction is asserted.
+
+The controls were measured on `e264d599` and the base has since moved to
+`9972d164`. Checked rather than assumed: `src` (`8086e6f9`) and `tests`
+(`e6157e27`) are identical at both, and the F3 corpus blob is `e07cbf16` at
+`7b0989a7`, `e264d599` and the current base alike. The mutation source is
+committed at `docs/scripts/f8_near_miss_controls.py`, so the six cells are
+reproducible from a clean checkout rather than only from this prose.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F8 — post-merge seal (2026-09-08)
+
+Integrated as PR #740. Merge commit `8aaf7b63`, second parent `bb033a68`, base
+`9972d164`. Merged **unrebased at the verified object** — `git diff bb033a68
+8aaf7b63` is empty and the merge trees (`src 8086e6f9`, `tests 00bbde18`,
+`docs 01fe760d`) are hash-identical to the certified object.
+
+**`src` is byte-identical to pre-merge `main`.** That is the seal's central
+fact: F8 changed no behaviour. It is a pin.
+
+**Measured on the merge object**, in an isolated worktree with its own venv,
+after proving both the parent process and a spawned child resolve
+`project_atlas` there:
+
+    F3 suite            45 passed
+    full suite          5,690 passed, 8 skipped, 4 xfailed
+    freeze guard        78 passed
+    ruff / mypy         clean, 405 files
+
+`ruff` was run twice: over the configured scope, and explicitly over
+`docs/scripts/f8_near_miss_controls.py`, because `docs/scripts` sits outside
+ruff's `include` and CI never lints it. That gap is real and is recorded as a
+residual below.
+
+**The controls reproduce on main**, via the committed tool rather than from
+prose:
+
+    control                                  base corpus (37)   pinned (45)
+    A  broadly whitespace-tolerant            1 caught           9 caught
+    B  break inside the token only            0 caught, 37 clean 6 caught
+    C  whitespace around the colons only      0 caught, 37 clean 2 caught
+
+Sources restored byte-identical after every mutation — both files, now that the
+tool asserts the test file too rather than only the source. One honest limit: on
+the happy path that second assertion is trivially true, because the loop's last
+iteration already writes the pinned corpus. It is load-bearing only when a run
+aborts mid-loop, which is what the `finally` exists for. Controlled: with the
+`finally` restore disabled and an abort injected during the base-corpus phase,
+the test file is left as the BASE corpus with F8's pins stripped from the working
+tree; with the restore in place, the tree comes back clean.
+
+**B and C at zero against the base corpus is the whole argument for this
+package** — two plausible
+relaxations of marker matching that `main`'s existing corpus does not detect at
+all — and it holds on the integrated result, not only on the branch.
+
+**Confirmed by independent fault models, with the provenance stated exactly.**
+Verification built a *matcher-relaxing* model -- patching the public
+`validate_protected_markers` in `protected_regions.py` to count via regex, leaving the document untouched
+-- where the committed tool canonicalises the input inside
+`merge_protected_regions`. Different mechanism, same cells, same failing test
+names.
+
+An earlier revision named `_validate_protected_markers` here. That is a real
+function but the wrong one -- it is the private copy in `graph_projections.py`,
+not the public `validate_protected_markers` in `protected_regions.py` that was
+actually patched. A reader reproducing the corroboration this seal rests on
+would have patched a different function in a different module.
+
+The credit needs bounding, and an earlier revision of this paragraph overstated
+it. The second instrument was **not** derived from prose: it reused the three
+regex patterns from the committed tool and changed only the mechanism. So this
+is one derivation tested two ways, which is real corroboration of the
+*implementation*, not two independent derivations of the *fault model*.
+
+The precision matters, and an earlier revision of this paragraph lacked it. The
+round that verified PR #740 measured the **pre-byte-test** object, whose figures
+are 41 baseline and 5/3/1; the **9/6/2** corroboration comes from this seal's
+own verification round, which built the second instrument and reproduced 1/0/0 and
+9/6/2. Placing the sentence under the 9/6/2 table without saying which round
+produced which figures attributed corroboration to numbers it predated. Both
+results are real; only the attribution was loose.
+
+**Findings corrected before merge, all in the claim record:**
+
+  - The receipt, WORKLOG and PR body said the four shapes "are the ones #716
+    raised". #716 raised exactly **one**; the residual register — quoted two
+    lines above the false sentence in the same receipt — attributes only
+    `<!-- atlas:generated:sta rt -->` to it. The other three are locally
+    derived. Raised independently by review and by verification, and it sat
+    inside the section whose job is bounding claims.
+  - The corpus assertion `body.strip() in merged` was weaker than the receipt's
+    "human bytes intact". Four byte-level tests now pin the stronger property.
+    A discriminating control proved them non-redundant: a mutation that keeps
+    the substring true but changes the bytes is caught by all four byte tests
+    and by **zero** corpus tests.
+  - **Adding those tests moved the control figures** from 5/3/1 to 9/6/2 and the
+    pinned baseline from 41 to 45 — a figure invalidated by this package's own
+    remediation, which is the defect that failed F6's round 8. Re-derived in all
+    four copies including the tool's own expected block.
+  - A stale WORKLOG numstat (`62 0`, actually `82 0`) survived in the PR body
+    after being re-derived in four places and missed in the fifth. The lesson,
+    recorded in the body: **a figure being derived once does not keep it
+    derived.**
+
+**Residual, recorded not fixed:** `docs/scripts/f8_near_miss_controls.py` is
+linted only by explicit invocation. `pyproject.toml` scopes ruff to `src/**` and
+`tests/**`, and CI runs a bare `ruff check .`, so CI cannot catch a defect in it.
+The blob merged at `8aaf7b63` is clean at longest line 95; the successor this
+seal ships is clean at exactly 100, the limit, because the two-file restore
+assertion added here is that long -- a figure moved by this very commit, which
+is why it now names which blob it describes. Ruff passes either way. The gap
+is real, and it bit during development: I committed an E501 into this file after
+the explicit check had reported the error, and it was fixed in `bb033a68` before
+merge. That is history, not a live defect in the sealed object.
+
+**A boundary on this seal's own citations.** Where it refers to IV rounds and
+their verdicts, those reports are **session artifacts and are not in the
+repository or on the PRs**. A reader can re-run the committed tool and the
+suites, and can verify the merge object and the ledger invariants from git; they
+cannot verify that a round returned a particular verdict. The same limit applies
+to the F5, F6 and F7 seals, and verification has flagged it on each. What is
+checkable is cited; what is not is named as such.
+
+**Not claimed:** that the near-miss corpus is complete, that all four shapes
+come from #716, or that the matcher is correct in general. Only that these four
+shapes are preserved, and that two specific plausible relaxations are now
+detected where they previously were not.
+
+## AS-OBSIDIAN-CAPTURE-001-F9 — one marker diagnosis, whichever writer refuses (2026-09-08)
+
+A generated-marker collision is one operator condition. It did not read as one.
+Reproduced on `e264d599` and re-checked on current `main`, the identical corrupt
+note through both generated-span-preserving writers:
+
+    canonical : malformed-generated-markers:count,begin=2,end=1,expected=1,no-write:n.md
+    graph     : malformed-generated-markers:n.md
+
+So what an operator was told about their own file depended on an internal
+routing detail they cannot observe: which surface reached the note first. The
+canonical message names the reason, the observable counts, what was expected,
+whether a reserved spelling demonstrably sits inside a HUMAN region, and -- most
+useful of all -- that **nothing was written**. The graph message names a path.
+
+Recorded in the F1-F4 residual register as "the diagnostic is not uniform across
+surfaces", with the five `graph_projections` sites and three `ingestion.py`
+sites enumerated. This closes the five; the three are owner-gated.
+
+**Diagnosis, not policy.** Exactly the same notes are refused, with the same
+fail-closed guarantee and the same bytes left on disk -- both pinned, not
+assumed: every corrupt shape is asserted refused AND asserted to leave the note
+byte-identical, and a positive control asserts a well-formed note still merges.
+The message PREFIX is unchanged, so the change is backward compatible with every
+existing assertion matching `malformed-generated-markers` -- **100 tests across five suites**, verified passing before and after.
+
+**One site gets an honest reason instead of the shared one.** The fifth is not a
+marker malformation at all: it refuses because the *fresh render* offers no
+generated span, an Atlas-side condition rather than a corrupt note. Reporting it
+as `malformed-generated-markers` pointed the operator at the wrong artifact
+entirely. It now reads `rendered-has-no-generated-span`, and a test asserts the
+reason token is not `count`.
+
+**Negative controls** (33 passed baseline), each applied under a sha256
+assertion that it changed the file, each reverted with both sources confirmed
+byte-identical:
+
+    A  count site -> bare message                12 failed
+    B  end-before-begin site -> bare              4 failed
+    C  `_generated_span` site -> bare             4 failed
+    D  rendered-no-span site -> bare              1 failed
+    E  `_generated_span` reason always `count`    2 failed
+
+**Two tests that could not fail, both found by review.** The first asserted the
+note was byte-identical by comparing the `existing` *string* to itself -- a
+`str` is immutable, so it could not fail, while four artifacts cited it as the
+pin for that claim. Its replacement drives the real writer and asserts the
+file's sha256. The second shipped in the very commit that removed the first: a
+residue test globbing `*.tmp`, a suffix this module never writes, since
+`_promote` stages as `.<name>.<txn>.atlas-stage` and `.atlas-backup`. The
+control that appeared to validate it renamed staging to `.tmp` -- matching the
+test's glob rather than the code's naming -- so it validated the assertion
+against itself. It now compares the whole vault byte for byte, which holds
+regardless of naming, and the underlying fact is stronger than "no residue":
+the merge raises while the plan is still being built, so `_promote` is never
+reached -- zero invocations measured during a refusal. Residue is structurally
+impossible. Controlled with the code's own convention: leaking a uuid-unique
+`.atlas-stage` file **on the refusing pass only** fails exactly **1** of 33 --
+this test and nothing else. Two ways to get that number wrong, both encountered
+here: an earlier revision said 5, which a note-clobber alone fully produces with
+the residue contributing none of it; and checking that finding, I built a
+mutation that leaks on *every* call, which also fails 4 unrelated tests because
+during setup the parent directory does not exist yet and the leak breaks the
+write path itself. A control that fires too early is as useless as one that
+matches its own assertion, and this package produced both. The true figure is
+the better story: this test is the only thing that can detect residue, which is
+precisely why it had to exist. The old `*.tmp` glob detected none of it.
+
+**Controls C and E earned their place by first failing to fail.** On the initial
+test set, reverting the `_generated_span` site left the suite at **27 passed** --
+the tests were not load-bearing there at all. The reason is structural rather
+than an oversight: that guard is **unreachable** through
+`_merge_protected_regions`, because `_validate_protected_markers` runs first on
+both `existing` and `rendered` and already refuses every shape that would
+trigger it. It is defence in depth for direct callers. Four direct-call tests
+now pin it -- the only way it can be pinned -- and the controls bite at 4 and 2.
+Recorded because the honest reading of a passing negative control is "the
+control is broken, or the protection is not where I thought"; here it was the
+second.
+
+**Owner-gated, not fixed.** `ingestion.py` raises a plain `ValueError` at `:103`,
+`:107` and `:484`, with a different spelling again -- `malformed generated
+markers`, spaces not hyphens -- and no diagnosis at all. So a third surface
+reports a third thing for the same condition, and it is the surface closest to
+the product boundary. `src/project_atlas/ingestion.py` is a certified surface
+frozen by `test_atlas3_demo_isolation_001`; the only sanctioned edit path is an
+owner-approved exception pinned to an exact sha256 under
+`docs/atlas-3/ARCHITECTURE.md` §9.1, which this lane cannot self-grant. The fix
+is mechanical -- the same public helper this package exports -- and what is
+missing is the owner decision, not engineering.
+
+**Not claimed:** that refusal behaviour changed (same notes, same bytes); that
+the three surfaces now agree (two do); or that `_generated_span`'s guard is
+reachable in production (it demonstrably is not, and is described as defence in
+depth because that is what it is).
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F9 — post-merge seal (2026-09-09)
+
+Integrated as PR #748. Merge commit `dbf8d838`, second parent `f11d89ec`, base
+`7f3dff69`. Merged **unrebased at the verified object** — `git diff f11d89ec
+dbf8d838` is empty and the merge trees (`src 08e61813`, `tests 8b4237b8`,
+`docs 8205a5b6`) are hash-identical to the certified object.
+
+**Diagnosis parity on the integrated result: 7 of 7.** Every corrupt shape now
+produces a byte-identical message from the canonical core and from
+`graph_projections` — including two shapes absent from this package's own tests
+(a triple begin marker, and a balanced forged pair inside a HUMAN region). That
+is the whole point of the package, measured on `main` rather than on the branch.
+
+**Measured on `dbf8d838`**, in an isolated worktree after proving both the
+parent process and a spawned child resolve `project_atlas` there:
+
+    F9 suite                     33 passed
+    five pre-existing suites    100 passed
+    freeze guard + lifecycle sweep  81 passed
+    full suite                5,726 passed, 8 skipped, 4 xfailed
+    ruff / mypy                 clean, 405 files
+
+**All five negative controls reproduce on main:**
+
+    baseline                                    33 passed
+    A  count site -> bare message               12 failed
+    B  end-before-begin site -> bare             4 failed
+    C  `_generated_span` site -> bare            4 failed
+    D  rendered-no-span site -> bare             1 failed
+    E  `_generated_span` reason always `count`   2 failed
+
+Each mutation under a sha256 assertion that it changed the file; source restored
+byte-identical after every run.
+
+**Reproducible from a clean checkout.** `docs/scripts/f9_diagnostic_parity.py`
+compares both surfaces over a named corpus plus a generated sweep -- **635 shapes, 616 refused, 635 byte-identical outcomes, 0 divergences**, over **27 distinct outcomes**, of which **168 exercise a generated-marker diagnosis**.
+It reports refusal as well as message, so a change that widens or narrows what is
+refused surfaces as a policy delta rather than only a wording one. Controlled:
+reverting the count site to its bare message yields **72 divergences**, and making
+the sweep inert trips the corpus guard.
+
+An earlier revision cited 226. Verification showed that was inflated roughly threefold -- an empty sweep fragment made 60 of 216 shapes exact duplicates, and over half the rest refused on HUMAN-marker imbalance before a generated-marker diagnosis was ever computed. The empty fragment is gone and the smaller honest number is cited instead. Its guards were vacuous too: `len(shapes) > 200` was guaranteed by the sweep's own arithmetic and `refusals > 0` was satisfied by the ten hardcoded shapes, so replacing every fragment with inert text left both passing while the sweep contributed nothing. They now assert on distinct outcomes and on the sweep's own refusals, and fail when the sweep goes inert.
+
+That script exists because review raised, correctly, that this seal was citing
+measurements no clean checkout could audit -- an instrument described is not an
+instrument available. Independent verification ran larger corpora of its own and
+reported the same direction, but **those harnesses are not in this repository**, so
+those figures are attributed rather than cited as evidence.
+
+**Citation boundary.** Where this seal refers to verification rounds, those
+reports are session artifacts and are **not in this repository**. No verdict is
+asserted here as fact -- an earlier revision of this section said "no P0 and no
+P1" three paragraphs above this boundary, contradicting it, and review caught
+that in all three artifacts. The figures this seal rests on are reproducible by
+the committed script and by re-running the named suites; figures attributed to
+verification's own harnesses are marked as such and are not reproducible here.
+
+**A gap in this instrument, recorded because a commit message is the least
+discoverable place for it.** Nothing executes `f9_diagnostic_parity.py` -- not CI,
+not any test. It cannot live under `tests/` without breaking the byte-identity
+invariant this seal rests on, so wiring it up belongs to a follow-up. Until then it
+is reproducible on demand and not continuously enforced.
+
+**A residual verification found, pre-existing and not F9's.** Across a **20,314-case corpus** it observed **41** shapes where the two surfaces disagree on whether to refuse -- 30 where canonical raises and graph does not, 11 the reverse; a separate 40,000-case fuzz gives **90** (61 and 29). An earlier revision of this seal attributed the 41 to the 40,000-case run, which was wrong, and neither corpus is committed. The direction matters and "disagree" understates it: the larger group is graph **accepting and writing** a rendered document that canonical refuses as structurally unpaired -- fail-open-shaped relative to canonical. It concerns HUMAN marker *pairing* rather than generated-marker diagnosis, is identical on the base so F9 neither introduced nor worsened it, and F9's diff changes message text and never control flow. **This warrants its own work package**, not a residual line: it is a refusal-set divergence between two writers, measured today by no committed instrument.
+
+## AS-OBSIDIAN-CAPTURE-001-F10 — graph must not write what canonical refuses (2026-09-09)
+
+Two generated-span-preserving writers disagreed on **whether** a document was
+safe to write. Not on how to describe a refusal -- that was F9 -- but on the
+refusal itself, which is a policy difference at a writer boundary.
+
+Reproduced on `dbf8d838` by sweeping **both sides** of the merge. That is what
+makes it visible: a corpus varying only the prior note cannot see a defect that
+lives on the rendered side, and every sweep in this lane until now varied only
+the prior note.
+
+    existing = <GS>|<GE>|                    a generated span, no HUMAN regions
+    rendered = <END HUMAN>|<BEGIN HUMAN>|    markers in reversed order
+
+    canonical : REFUSE  malformed-protected-markers:unpaired:notes
+    graph     : ACCEPT  and writes the document verbatim
+
+**A path asymmetry, not a validator one**, which is why counting arguments
+missed it. `graph_projections._merge_protected_regions` keeps F4's disclosed
+contract for a prior note with no HUMAN regions -- preserve the text outside the
+generated span -- and that branch splices by hand instead of delegating, so it
+never reaches the canonical structural parse. Its own validation compares HUMAN
+marker counts and names, never **order**, so `END notes` then `BEGIN notes` is
+one begin and one end with matching names and passes. Both validators accept
+these shapes; canonical only refuses inside the merge.
+
+Fixed by running the already-public `reject_ambiguous_region_identity` on the
+rendered document, translating `ProtectedRegionError` to `GraphProjectionError`
+at the boundary as the rest of the module does. Four lines plus an import.
+
+**Differential sweep, both sides varied:**
+
+    base, depth 2:    625 pairs,  3 divergences, 1 fail-open
+    head, depth 2:    625 pairs,  2 divergences, 0 fail-open
+    head, depth 3: 15,625 pairs, 12 divergences, 0 fail-open
+
+Every remaining divergence is the opposite direction -- canonical accepts, graph
+refuses -- which is F4's disclosed contract, and a test pins it so nobody
+removes it while "fixing the asymmetry" wholesale.
+
+**Blast radius: I got this wrong, in the direction that understated it.** An
+earlier revision called this defence in depth, needing the renderer itself to
+emit malformed markers. False, and verification challenged it. Nothing in the
+render path escapes marker text -- `_redact_text` strips secrets and truncates
+but never touches HTML comments -- so a relationship field holding HUMAN marker
+text reaches the render verbatim; `source_entity_id`, `target_entity_id`,
+`relationship_type`, `relationship_id` and
+`provenance.graphify_artifact_refs[].relative_path` all carry it. **An earlier
+revision of this paragraph named only the first four.** The fifth is the one
+that bypasses `_redact_text` entirely; the correction was made in the receipt
+at `3b22f6d4` and did not reach this copy until the seal.
+
+The precondition neither my claim nor verification's stated: the prior note must
+have **no HUMAN regions**, which is the branch that splices by hand. An operator
+who deleted their block, or a note predating HUMAN emission, is in that state.
+
+Given both, reproduced end to end through the real writer:
+
+    BASE   poisoned refresh WRITTEN; every later refresh -- including a clean
+           one with zero relationships -- PERMANENTLY REFUSED. No self-heal.
+    HEAD   refused up front; note byte-identical; no staging residue; the
+           projection remains refreshable.
+
+A durable denial-of-refresh, not defence in depth. The fix turns a permanent
+brick into a clean refusal, and a test now pins that consequence rather than the
+mechanism.
+
+**A test that could not fail, again.** The first version of that test bound
+`before = NO_HUMAN_PRIOR` and asserted `before == NO_HUMAN_PRIOR` -- two names
+for one immutable `str`. Both review bots and verification caught it
+independently. This is the third tautological assertion in this lane, and the
+second I have written after recording the lesson. Replaced by the end-to-end
+reproduction above, which fails without the fix.
+
+**Not claimed:** that a full `discover -> ingest -> graphify` run with
+attacker-controlled sources can plant such a field value. The render and write
+layers propagate it unsanitised and the pre-fix writer persists it; the
+reachability ceiling is upstream and is not established here. Nor that the two
+surfaces agree in all directions -- they deliberately do not. Nor that
+`ingestion.py` is covered: a third writer, owner-gated behind a frozen surface.
+
+Implementation evidence, not certification: independent exact-head verification
+and CI are required before merge, and merge authority is not this lane's.
+
+## AS-OBSIDIAN-CAPTURE-001-F10 -- POST-MERGE SEAL (`06362807`)
+
+Integrated as PR #753 and sealed on the merge object. Merged **unrebased at the
+verified object**: merge commit `06362807`, first parent `a7adce4e`, second
+parent `3b22f6d4`, merge tree `1b11d3a0` **hash-identical to the PR head tree**,
+`git diff 3b22f6d4 06362807` empty, component trees `src 8ec29893`,
+`tests 6aa392e7`, `docs f81c9855`.
+
+That tree identity is the load-bearing fact rather than a formality: it means
+the exact-head CI which ran on `3b22f6d4` -- all four jobs green, both review
+threads resolved -- tested byte-for-byte what is now on `main`. There is no gap
+between the verified object and the merged one to argue about.
+
+**Re-measured on the merge object rather than carried forward.** The
+differential sweep, varying both sides of the merge, at three depths:
+
+    depth 2:     625 pairs   fail-open 0   disclosed (F4 contract)  2
+    depth 3:  15,625 pairs   fail-open 0   disclosed               12
+    depth 4: 390,625 pairs   fail-open 0   disclosed               42
+    total:   406,875 pairs   fail-open 0
+
+The disclosed direction -- canonical accepts, graph refuses -- is still present
+and grows with depth, so the corpus has not gone inert while reporting zero.
+
+**The sweep still bites.** With the fix removed from the merge object the same
+corpus at the same depths reports 1 / 3 / 54 fail-open, and the F10 suite drops
+from 7 passed to 4 failed: `crossed-a-b`, `reversed-end-before-begin`,
+`a_poisoned_field_cannot_brick_the_projection`, and
+`no_fail_open_divergence_across_a_differential_sweep`. The mutation was applied
+under a sha256 assertion that it changed the file and the source restored
+byte-identical (`1d9c0f84` before and after).
+
+Gates on `06362807`: F10 suite 7 passed; freeze guard and lifecycle sweep 81
+passed; full suite 5,733 passed, 8 skipped, 4 xfailed; `ruff check .` clean; `mypy src` clean (405 files).
+
+**What this seal does not claim.** Not that upstream reachability is
+established -- a live corruption path is demonstrated at the render and write
+layers, but whether a full `discover -> ingest -> graphify` run with
+attacker-controlled sources can plant such a field value is not shown. Not that
+the two surfaces agree in all directions; they deliberately do not, and F4's
+disclosed contract is asserted so it is not removed while "fixing the asymmetry"
+wholesale. Not that `ingestion.py` is covered: a third writer, owner-gated
+behind a frozen surface needing an owner-approved sha256-pinned exception under
+`docs/atlas-3/ARCHITECTURE.md` §9.1.
+
+**The pattern this package repeats, worth recording because it is now the rule
+rather than the exception in this lane: the code held from the first
+reproduction; every blocking finding was in the claim record.** Three
+corrections were needed before it could be sealed. The blast radius was
+understated -- an earlier revision called the defect defence in depth needing a
+broken renderer, and reproduction proved a durable denial-of-refresh instead.
+That retraction then reached the WORKLOG, the backlog and the receipt's Blast
+radius section but NOT the test module's docstring or the receipt's own `What is
+not claimed` list, whose first bullet still asserted the retracted claim in the
+conclusion a reader reaches last -- corrected-in-some-copies-not-all, on the
+central claim of a package whose subject is claim honesty. And a count was wrong
+by one: four propagating relationship fields named, five real, the fifth
+(`provenance.graphify_artifact_refs[].relative_path`) being the one that
+bypasses `_redact_text` entirely.
+
+A fourth, on the code side and equally instructive: the first version of the
+no-write test bound `before = NO_HUMAN_PRIOR` and asserted
+`before == NO_HUMAN_PRIOR` -- two names for one immutable `str`. Both review bots
+and verification caught it independently. It was the third tautological
+assertion in this lane and the second written after the lesson was recorded.
+Replaced by the end-to-end reproduction, which fails without the fix.
+
+**On editing this file in place.** The paragraph above was corrected in place
+rather than by appending a note beneath it. `WORKLOG.md:10947` describes a prior
+correction as made "rather than edited in place, per this file's own append-only
+convention", so that choice needs reconciling rather than silently contradicting.
+
+Measured on `origin/main`: of the last 38 commits touching `WORKLOG.md`, **26**
+delete lines, and the window is dense with in-place corrections of exactly this
+kind -- `f11d89ec` "bring WORKLOG to parity, after committing the fix to one copy
+only", `7b1763e0` "correct a wrong figure, a misleading message, and my own
+ledger damage", `9b2dba97` "correct the provenance claim". So the convention as
+stated at 10947 is not what this file's history shows; append-only is the
+practice for *new* entries, not for a sentence that is simply false. Appending a
+contradiction beneath a false claim leaves both on the page, which is the defect
+this seal exists to record.
+
+An earlier revision of this package cited **9** of 38 rather than 26, and
+asserted it over verification's correct figure. The cause is worth recording
+because it is a measurement-environment error, not arithmetic: the count was run
+in a worktree parked on an old branch, so it measured commits from 2026-08-31 to
+09-05 instead of 09-08 to 09-09, and the two precedent commits it cited
+(`9c146a31`, `ef5420f9`) sit at positions 76 and 78 in this file's history --
+outside any 38-commit window on `main`. Same class as trusting a subprocess to
+resolve the tree you think you are testing.
+
+Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F10-REFUSAL-PARITY.md`,
+post-merge seal section.
+
+
+## AS-STUDIO-INTAKE-20260908-01 — canonical Studio docs package
+
+**Date:** 2026-09-09  
+**Lane:** `docs/as-studio-intake-20260908`  
+**Epic:** [#746](https://github.com/B0LK13/project-atlas/issues/746)
+
+Synchronized the Atlas Studio owner master update into canonical repository
+documentation under `docs/atlas-3/studio/`, with cross-links from Coder Alpha
+and Atlas 3 north stars. No Studio runtime/UI implementation in this package.
+
+Vault normalize/route/receipt remains **PENDING**: production `mda` is not on
+PATH (fixture mock must not be treated as production success).
+
+Coordination Features 1–16 remain implementation-complete on the stacked PR
+tip with exact-head CI PASS and `EXTERNAL_IV_GATED`; this docs sync does not
+merge that stack and does not claim formal IV.
+
+Evidence: `docs/evidence/AS-STUDIO-INTAKE-20260908-01-CANONICAL-DOCS-SYNC.md`.
+
+```text
+ATLAS_STUDIO_CANONICAL_PACKAGE = SYNCHRONIZED_IN_REPO
+VAULT_DOCUMENTATION_RECEIPT = PENDING_MDA
+AS_STUDIO_A0_001 = READY_FOR_IMPLEMENTATION_PACKAGE
+AS_STUDIO_A1 = NOT_STARTED
+```

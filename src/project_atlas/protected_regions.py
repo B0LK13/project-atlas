@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from pathlib import Path
 
 GENERATED_START = "<!-- atlas:generated:start -->"
 GENERATED_END = "<!-- atlas:generated:end -->"
@@ -43,6 +44,122 @@ class ProtectedRegionError(ValueError):
     """Fail-closed: malformed generated/human region markers."""
 
 
+#: The same marker grammar the canonical parser uses, as one token stream.
+#: Sharing ``[^\s>]+`` with :data:`_HUMAN_BEGIN` matters: a permissive variant
+#: would recognise ``<!-- BEGIN HUMAN: -->`` as a marker where the canonical
+#: parser does not, and the diagnostic would then report containment inside a
+#: "region" that does not exist.
+_HUMAN_TOKEN = re.compile(r"<!--\s*(BEGIN|END) HUMAN:\s*([^\s>]+)\s*-->")
+
+
+def _outermost_human_spans(text: str) -> list[tuple[int, int]]:
+    """``(start, end)`` of each outermost HUMAN block, or ``[]`` if undecidable.
+
+    Deliberately non-raising: this runs only to enrich a diagnostic for a
+    document already known to be malformed, so it must not fail and mask the
+    real error.
+
+    Pairing is strict and name-matched, exactly as the canonical parser pairs
+    -- an ``END`` must close the region currently open. Anything else (an
+    orphan ``END``, a crossed pair, an unclosed ``BEGIN``) means containment is
+    *not* structurally determinable, and this returns ``[]`` so the caller omits
+    the fact rather than asserting something the canonical grammar would not
+    agree with.
+    """
+    spans: list[tuple[int, int]] = []
+    open_names: list[str] = []
+    opened_at = 0
+    for match in _HUMAN_TOKEN.finditer(text):
+        kind, name = match.group(1), match.group(2)
+        if kind == "BEGIN":
+            if not open_names:
+                opened_at = match.start()
+            open_names.append(name)
+            continue
+        if not open_names or open_names[-1] != name:
+            return []  # orphan or crossed: not determinable
+        open_names.pop()
+        if not open_names:
+            spans.append((opened_at, match.end()))
+    return [] if open_names else spans
+
+
+def _reserved_marker_inside_human_region(text: str) -> bool:
+    """Does a generated-marker occurrence fall inside an outermost HUMAN span?
+
+    Both sequences are ascending and the spans do not overlap, so this walks
+    them together rather than comparing every marker against every span. The
+    naive form was quadratic on exactly the input that reaches it -- a large
+    malformed note with many markers and many sibling regions -- and a refusal
+    path must not become slow while merely formatting its own error.
+    """
+    spans = _outermost_human_spans(text)
+    if not spans:
+        return False
+    positions = sorted(
+        index
+        for marker in (GENERATED_START, GENERATED_END)
+        for index in _all_indices(text, marker)
+    )
+    span_index = 0
+    for position in positions:
+        while span_index < len(spans) and spans[span_index][1] <= position:
+            span_index += 1
+        if span_index == len(spans):
+            return False
+        if spans[span_index][0] <= position:
+            return True
+    return False
+
+
+def generated_marker_diagnosis(text: str, *, reason: str) -> str:
+    """Public form of :func:`_generated_marker_diagnosis`.
+
+    Exported so other generated-span-preserving writers can emit the *same*
+    diagnosis rather than their own weaker message. Before
+    AS-OBSIDIAN-CAPTURE-001-F9 the identical corrupt note produced
+    ``malformed-generated-markers:count,begin=2,end=1,expected=1,no-write:n.md``
+    from the canonical core and a bare ``malformed-generated-markers:n.md``
+    from ``graph_projections`` -- the operator's diagnosis depended on which
+    writer happened to hit the note first.
+    """
+    return _generated_marker_diagnosis(text, reason=reason)
+
+
+def _generated_marker_diagnosis(text: str, *, reason: str) -> str:
+    """Observable facts about a generated-marker failure.
+
+    Reports what can be counted and located, never who wrote it. The same
+    shape arises from an operator writing a reserved spelling as prose, from
+    Atlas corrupting its own structure, and from an unrelated malformed state,
+    and this function cannot tell those apart -- so it states the counts, notes
+    when a reserved spelling demonstrably sits inside a HUMAN region, and
+    leaves the cause to the reader.
+
+    ``no-write`` is included because the most useful thing an operator can be
+    told about a fail-closed refusal is that the note on disk was not touched.
+    """
+    facts = [
+        reason,
+        f"begin={text.count(GENERATED_START)}",
+        f"end={text.count(GENERATED_END)}",
+        "expected=1",
+    ]
+    if _reserved_marker_inside_human_region(text):
+        facts.append("reserved-marker-in-human-region")
+    facts.append("no-write")
+    return ",".join(facts)
+
+
+def _all_indices(text: str, needle: str) -> list[int]:
+    found: list[int] = []
+    index = text.find(needle)
+    while index >= 0:
+        found.append(index)
+        index = text.find(needle, index + 1)
+    return found
+
+
 def validate_protected_markers(text: str, *, path: str) -> None:
     begins = _HUMAN_BEGIN.findall(text)
     ends = _HUMAN_END.findall(text)
@@ -51,9 +168,22 @@ def validate_protected_markers(text: str, *, path: str) -> None:
     start_count = text.count(GENERATED_START)
     end_count = text.count(GENERATED_END)
     if start_count != end_count or start_count > 1:
-        raise ProtectedRegionError(f"malformed-generated-markers:{path}")
+        # Atlas owns exactly one generated span, so the marker spellings are
+        # reserved syntax wherever they occur -- including inside a HUMAN
+        # region (AS-OBSIDIAN-CAPTURE-001-F3). A note carrying one is a
+        # structural collision, not opaque prose, and is refused with the note
+        # left untouched. Note that a *balanced* forged pair is caught here
+        # too: counting alone would call it balanced, and `start_count > 1` is
+        # what stops a forged pair becoming valid structure by accident.
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:"
+            f"{_generated_marker_diagnosis(text, reason='count')}:{path}"
+        )
     if start_count == 1 and text.index(GENERATED_END) < text.index(GENERATED_START):
-        raise ProtectedRegionError(f"malformed-generated-markers:{path}")
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:"
+            f"{_generated_marker_diagnosis(text, reason='end-before-begin')}:{path}"
+        )
 
 
 #: A region's identity: the names of its open ancestors, outermost first,
@@ -173,6 +303,33 @@ def extract_human_regions(text: str) -> dict[RegionPath, str]:
             f"duplicate-protected-region-names:{','.join(duplicates)}:extract"
         )
     return {path: text[start:end] for path, start, end in spans}
+
+
+def read_note_text(path: Path) -> str:
+    """Read a note's text **without** translating its line endings.
+
+    ``Path.read_text`` opens in text mode with universal newlines, which
+    rewrites ``\r\n`` and a lone ``\r`` to ``\n`` *before any caller sees the
+    bytes*. Every generated-span-preserving writer reads the prior note in
+    order to splice a fresh generated span into it and write the result back,
+    so a translating read silently rewrites the operator's HUMAN bytes on a
+    refresh they did not ask for -- the note is stored, not merely parsed.
+
+    That directly contradicts the owner policy for F3 (raw HUMAN bytes are
+    immutable: no escaping, no normalisation, no zero-width rewriting) and the
+    byte-for-byte preservation contract these writers document.
+
+    ``newline=""`` would be the obvious spelling but ``Path.read_text`` only
+    accepts it from Python 3.13; this package supports 3.12, so decode the
+    bytes directly. The exception surface is unchanged: ``OSError`` from the
+    read and ``UnicodeDecodeError`` (a ``UnicodeError``) from the decode.
+
+    This is deliberately **not** the rule for hashing. CORE3-014 normalises
+    CRLF to LF before hashing text sources so identity is stable across
+    platforms; that normalisation is applied to a copy for the digest and must
+    not be confused with what is written back to disk.
+    """
+    return path.read_bytes().decode("utf-8")
 
 
 def merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:
