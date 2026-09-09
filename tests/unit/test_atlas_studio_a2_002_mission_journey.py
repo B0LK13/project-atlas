@@ -109,6 +109,9 @@ def test_journey_schema_success_path():
     assert packet["honesty"]["knowledge_ne_permission"] is True
     assert packet["next_actions"]["preview"] is None
     assert mj.validate_mission_journey(packet) == []
+    monitoring = packet["next_actions"]["monitoring"]
+    assert monitoring["auto_retry"] is False
+    assert "action-evidence" in monitoring["command"]
 
 
 def test_knowledge_none_found():
