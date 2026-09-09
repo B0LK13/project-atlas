@@ -23,15 +23,15 @@ An implementation agent may choose CLI, TUI, or thin web/desktop chrome, but
    `ATLAS_STUDIO_SNAPSHOT_V1` (or a strictly additive
    `ATLAS_STUDIO_MISSION_CONTROL_V1` that embeds/extends it — no parallel
    protocol). Prefer additive fields over replacement.
-2. **First-class panels** mapped 1:1 from F15 `control_view.panels.*`
-   (agents, ownership, stacks, frontier, residuals, telemetry, steal,
-   dispatch_gates, evidence_health, postmerge, event_bus, system_honesty)
-   plus A0 efficiency/residuals honesty — **reuse builders**, do not fork
-   eligibility logic.
+2. **First-class panels** mapped from F15 `control_view.panels.*` **and**,
+   where Mission Control needs action-class / rankings / owner-gates, from
+   F12 `frontier_matrix` (or an extended F15 summary) — **reuse builders**,
+   do not fork eligibility logic. Counts-only F15 frontier is insufficient
+   for req 06 “by action class” / “highest-value eligible”.
 3. **Attention surface**: deterministic ranking/list of items needing human
    attention (e.g. owner-gated residuals, `EXTERNAL_IV_GATED`, blocked
-   frontier, registry inactive, DEGRADED/UNKNOWN panels). Attention ≠
-   authority.
+   frontier, `HUMAN_GATE` / `OWNER_DECISION` when matrix present, registry
+   inactive, DEGRADED/UNKNOWN panels). Attention ≠ authority.
 4. **Freshness contract**: every view carries `generated_at_utc`, fingerprint,
    and an explicit stale/unknown/offline policy
    (`STALE_UI_STATE != CURRENT_TRUTH`). Cached UI state must never silently
@@ -42,9 +42,9 @@ An implementation agent may choose CLI, TUI, or thin web/desktop chrome, but
    tasks; reconnect rebuilds from live builders/daemon (document + test).
 7. **Zero mutation API**: no claim/dispatch/emit/merge/IV/write vault routes
    in Studio A1. Denial tests required.
-8. **Tests + evidence**: unit/contract tests for panel mapping, stale honesty,
-   mutation absence; exact-object CI on the A1 PR tip; evidence doc with
-   commands/results. No self-IV; no fabricated verifier binding.
+8. **Contract continuity**: keep A0 nested honesty fail-closed (CV/telemetry
+   honesty false ⇒ reject/DEGRADE; never `slice_status=OK`). Tests + evidence
+   with exact-object CI; no self-IV.
 
 ## Suggested technical route (non-binding)
 

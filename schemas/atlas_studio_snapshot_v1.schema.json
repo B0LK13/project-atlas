@@ -78,7 +78,7 @@
     },
     "panels": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "control_view",
         "telemetry",
@@ -87,23 +87,54 @@
       ],
       "properties": {
         "control_view": {
-          "type": "object"
+          "$ref": "#/$defs/studio_panel"
         },
         "telemetry": {
-          "type": "object"
+          "$ref": "#/$defs/studio_panel"
         },
         "efficiency_metrics": {
-          "type": "object"
+          "$ref": "#/$defs/studio_panel"
         },
         "residuals": {
-          "type": "object"
+          "$ref": "#/$defs/studio_panel"
         }
       }
     },
     "observation_events": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "required": [
+          "schema",
+          "event_id",
+          "timestamp_utc",
+          "kind",
+          "honesty"
+        ],
+        "properties": {
+          "schema": {
+            "const": "ATLAS_STUDIO_EVENT_V1"
+          },
+          "honesty": {
+            "type": "object",
+            "required": [
+              "observation_ne_authority",
+              "studio_ui_ne_authority",
+              "grants_no_mutation"
+            ],
+            "properties": {
+              "observation_ne_authority": {
+                "const": true
+              },
+              "studio_ui_ne_authority": {
+                "const": true
+              },
+              "grants_no_mutation": {
+                "const": true
+              }
+            }
+          }
+        }
       }
     },
     "provenance": {
@@ -131,6 +162,38 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "studio_panel": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "notes"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "OK",
+            "DEGRADED",
+            "UNKNOWN"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "type": [
+            "object",
+            "null"
+          ]
         }
       }
     }

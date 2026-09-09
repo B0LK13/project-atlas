@@ -84,12 +84,134 @@ def validator_for(name: str) -> Draft202012Validator:
     return Draft202012Validator(_load_schema(name), format_checker=FormatChecker())
 
 
+def _honesty_false_paths(honesty: Any, *, prefix: str) -> list[str]:
+    """Any honesty flag that is not strictly True is a contract failure."""
+    if not isinstance(honesty, dict):
+        return [f"{prefix}: honesty must be an object"]
+    errors: list[str] = []
+    for key, value in sorted(honesty.items()):
+        if value is not True:
+            errors.append(f"{prefix}/{key}: honesty flag must be true (got {value!r})")
+    return errors
+
+
+def _nested_packet_errors(
+    body: dict | None,
+    *,
+    panel: str,
+    expected_schema: str,
+    validate_fn: Callable[[dict], list[str]] | None,
+) -> list[str]:
+    if body is None:
+        return []
+    if not isinstance(body, dict):
+        return [f"panels/{panel}/body: must be an object"]
+    errors: list[str] = []
+    schema = body.get("schema")
+    if schema != expected_schema:
+        errors.append(
+            f"panels/{panel}/body/schema: expected {expected_schema!r}, got {schema!r}"
+        )
+    errors.extend(_honesty_false_paths(body.get("honesty"), prefix=f"panels/{panel}/body/honesty"))
+    if validate_fn is not None and schema == expected_schema:
+        for err in validate_fn(body):
+            errors.append(f"panels/{panel}/body: {err}")
+    return errors
+
+
 def validate_studio_snapshot(packet: dict) -> list[str]:
+    """Validate outer Studio schema plus nested F15/F14 honesty/contracts."""
     validator = validator_for(SCHEMA_FILE)
-    return sorted(
+    errors = [
         f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}"
         for e in validator.iter_errors(packet)
-    )
+    ]
+    panels = packet.get("panels") if isinstance(packet, dict) else None
+    if isinstance(panels, dict):
+        cv_panel = panels.get("control_view")
+        tel_panel = panels.get("telemetry")
+        metrics_panel = panels.get("efficiency_metrics")
+        if isinstance(cv_panel, dict):
+            try:
+                from atlas_dag.control_view import validate_control_view
+            except ImportError:  # pragma: no cover - scripts path required
+                validate_control_view = None  # type: ignore[assignment]
+            errors.extend(
+                _nested_packet_errors(
+                    cv_panel.get("body"),
+                    panel="control_view",
+                    expected_schema="ATLAS_GLOBAL_CONTROL_VIEW_V1",
+                    validate_fn=validate_control_view,
+                )
+            )
+        if isinstance(tel_panel, dict):
+            try:
+                from atlas_dag.telemetry import validate_telemetry
+            except ImportError:  # pragma: no cover
+                validate_telemetry = None  # type: ignore[assignment]
+            errors.extend(
+                _nested_packet_errors(
+                    tel_panel.get("body"),
+                    panel="telemetry",
+                    expected_schema="ATLAS_COORDINATION_TELEMETRY_V1",
+                    validate_fn=validate_telemetry,
+                )
+            )
+        if isinstance(metrics_panel, dict) and metrics_panel.get("body") is not None:
+            body = metrics_panel.get("body")
+            if isinstance(body, dict) and body.get("schema") == "ATLAS_EFFICIENCY_METRICS_V1":
+                try:
+                    from atlas_dag.telemetry import validate_metrics
+                except ImportError:  # pragma: no cover
+                    validate_metrics = None  # type: ignore[assignment]
+                if validate_metrics is not None:
+                    for err in validate_metrics(body):
+                        errors.append(f"panels/efficiency_metrics/body: {err}")
+                errors.extend(
+                    _honesty_false_paths(
+                        body.get("honesty"),
+                        prefix="panels/efficiency_metrics/body/honesty",
+                    )
+                )
+        # OK slice cannot wrap nested DEGRADED/UNKNOWN or invalid honesty.
+        if packet.get("slice_status") == OK:
+            for name in ("control_view", "telemetry", "efficiency_metrics", "residuals"):
+                panel = panels.get(name)
+                if isinstance(panel, dict) and panel.get("status") in (DEGRADED, UNKNOWN):
+                    errors.append(
+                        f"slice_status: cannot be OK while panels/{name}/status="
+                        f"{panel.get('status')}"
+                    )
+    for ev in (packet.get("observation_events") or []) if isinstance(packet, dict) else []:
+        if isinstance(ev, dict):
+            errors.extend(
+                f"observation_events: {e}" for e in validate_studio_event(ev)
+            )
+    return sorted(set(errors))
+
+
+def _assess_nested_body(
+    body: dict | None,
+    *,
+    expected_schema: str,
+    validate_fn: Callable[[dict], list[str]],
+) -> tuple[str, list[str]]:
+    """Return panel status and notes for a nested coordination packet."""
+    if body is None:
+        return UNKNOWN, ["body_absent"]
+    honesty_errs = _honesty_false_paths(body.get("honesty"), prefix="honesty")
+    if honesty_errs:
+        # Fail closed: dishonest nested packets must never present as OK.
+        raise StudioSnapshotError(
+            "nested honesty contract failed: " + "; ".join(honesty_errs)
+        )
+    if body.get("schema") != expected_schema:
+        return DEGRADED, [f"unexpected_schema:{body.get('schema')!r}"]
+    schema_errs = validate_fn(body)
+    if schema_errs:
+        return DEGRADED, [f"nested_schema:{e}" for e in schema_errs[:5]]
+    return OK, []
+
 
 
 def validate_studio_event(packet: dict) -> list[str]:
@@ -267,30 +389,66 @@ def build_studio_snapshot(
         )
 
     honesty = honesty_block()
-    panels = {
-        "control_view": _panel_wrap(
-            OK if cv is not None else UNKNOWN,
+
+    from atlas_dag.control_view import validate_control_view
+    from atlas_dag.telemetry import validate_metrics, validate_telemetry
+
+    cv_status, cv_notes = (UNKNOWN, ["control_view_unavailable"])
+    tel_status, tel_notes = (UNKNOWN, ["telemetry_unavailable"])
+    metrics_status, metrics_notes = (UNKNOWN, ["metrics_unavailable"])
+
+    if cv is not None:
+        cv_status, cv_notes = _assess_nested_body(
             cv,
-            notes=["reuse:atlas_dag.control_view"] if cv is not None else ["control_view_unavailable"],
-        ),
-        "telemetry": _panel_wrap(
-            OK if tel is not None else UNKNOWN,
+            expected_schema="ATLAS_GLOBAL_CONTROL_VIEW_V1",
+            validate_fn=validate_control_view,
+        )
+        cv_notes = ["reuse:atlas_dag.control_view", *cv_notes]
+    if tel is not None:
+        tel_status, tel_notes = _assess_nested_body(
             tel,
-            notes=["reuse:atlas_dag.telemetry"] if tel is not None else ["telemetry_unavailable"],
-        ),
-        "efficiency_metrics": _panel_wrap(
-            OK if metrics is not None else UNKNOWN,
-            metrics,
-            notes=["reuse:atlas_dag.telemetry.build_efficiency_metrics"]
-            if metrics is not None
-            else ["metrics_unavailable"],
-        ),
+            expected_schema="ATLAS_COORDINATION_TELEMETRY_V1",
+            validate_fn=validate_telemetry,
+        )
+        tel_notes = ["reuse:atlas_dag.telemetry", *tel_notes]
+    if metrics is not None:
+        if isinstance(metrics, dict) and metrics.get("schema") == "ATLAS_EFFICIENCY_METRICS_V1":
+            metrics_status, metrics_notes = _assess_nested_body(
+                metrics,
+                expected_schema="ATLAS_EFFICIENCY_METRICS_V1",
+                validate_fn=validate_metrics,
+            )
+            metrics_notes = [
+                "reuse:atlas_dag.telemetry.build_efficiency_metrics",
+                *metrics_notes,
+            ]
+        else:
+            metrics_status, metrics_notes = DEGRADED, [
+                "reuse:atlas_dag.telemetry.build_efficiency_metrics",
+                "metrics_shape_unexpected",
+            ]
+
+    # Live path honesty: seal/evidence often absent by construction.
+    if "live_mode" in notes:
+        notes.append("LIVE_SEAL_SCAN=DEFERRED_OR_SKIPPED")
+        notes.append("LIVE_EVIDENCE_STORE_MAY_BE_ABSENT")
+
+    panels = {
+        "control_view": _panel_wrap(cv_status, cv, notes=cv_notes),
+        "telemetry": _panel_wrap(tel_status, tel, notes=tel_notes),
+        "efficiency_metrics": _panel_wrap(metrics_status, metrics, notes=metrics_notes),
         "residuals": _residuals_panel(residuals),
     }
 
     slice_status = _derive_slice_status(
         control_view=cv, telemetry=tel, agent_status=agent_status,
     )
+    if any(
+        panels[name]["status"] in (DEGRADED, UNKNOWN)
+        for name in ("control_view", "telemetry")
+    ):
+        if slice_status == OK:
+            slice_status = DEGRADED
     if cv is None and tel is None:
         slice_status = UNKNOWN
         obs.append(
@@ -323,7 +481,7 @@ def build_studio_snapshot(
     }
     snapshot_fp = _canonical_sha256(fp_body)
 
-    return {
+    packet = {
         "schema": SCHEMA_CONST,
         "generated_at_utc": clock(),
         "repository": repository,
@@ -347,6 +505,7 @@ def build_studio_snapshot(
             **honesty,
         },
     }
+    return packet
 
 
 def _build_from_dag_inputs(

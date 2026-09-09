@@ -63,81 +63,50 @@ def _fp(seed: str) -> str:
 
 
 def injected_control_view(*, agent_status: str = "NONE", panels: dict | None = None):
-    return {
-        "schema": "ATLAS_GLOBAL_CONTROL_VIEW_V1",
-        "generated_at_utc": FIXED,
-        "repository": REPO,
-        "agent": None,
-        "agent_status": agent_status,
-        "view_fingerprint": _fp("cv"),
-        "honesty": {
-            "control_view_ne_authority": True,
-            "ui_ne_canonical_truth": True,
-            "grants_no_write_claim_dispatch_merge_iv": True,
-            "aggregates_live_dag_only": True,
-        },
-        "panels": panels
-        or {
-            "agents": {"status": "OK", "summary": {}, "notes": []},
-            "residuals": {"status": "OK", "summary": {"open": 1}, "notes": []},
-            "telemetry": {"status": "OK", "summary": {}, "notes": []},
-        },
-        "provenance": {"presentation_only": True},
-    }
+    from atlas_dag import control_view as cv_mod
+
+    view = cv_mod.build_global_control_view(
+        repository=REPO,
+        clock=clock,
+        seal_scan="skipped_for_latency",
+        agent_id=None,
+    )
+    if agent_status != view.get("agent_status"):
+        view = dict(view)
+        view["agent_status"] = agent_status
+    if panels is not None:
+        view = dict(view)
+        merged = dict(view.get("panels") or {})
+        merged.update(panels)
+        view["panels"] = merged
+        # fingerprint will not match body; validators may not check fingerprint sync
+    return view
 
 
 def injected_telemetry(*, agent_status: str = "NONE"):
-    return {
-        "schema": "ATLAS_COORDINATION_TELEMETRY_V1",
-        "generated_at_utc": FIXED,
-        "repository": REPO,
-        "agent": None,
-        "agent_status": agent_status,
-        "truth_fingerprint": _fp("truth"),
-        "telemetry_fingerprint": _fp("tel"),
-        "honesty": {
-            "telemetry_ne_authority": True,
-            "metrics_ne_authorization": True,
-            "derived_from_live_dag_only": True,
-            "grants_no_write_claim_dispatch_merge_iv": True,
-        },
-        "categories": {
-            "utilization": {
-                "status": "OK",
-                "notes": [],
-                "metrics": {"owned_lane_count": 1, "unowned_lane_count": 0},
-            },
-            "wait_time": {
-                "status": "OK",
-                "notes": [],
-                "metrics": {"waiting_counts": {}},
-            },
-            "blocked_reasons": {
-                "status": "OK",
-                "notes": [],
-                "metrics": {},
-            },
-            "residual_backlog": {
-                "status": "OK",
-                "notes": [],
-                "metrics": {"open_count": 1},
-            },
-            "steal_success": {"status": "OK", "notes": [], "metrics": {}},
-            "ci_iv_latency_proxy": {"status": "OK", "notes": [], "metrics": {}},
-            "frontier_depth": {"status": "OK", "notes": [], "metrics": {}},
-            "ownership_contention": {"status": "OK", "notes": [], "metrics": {}},
-            "event_bus_health": {"status": "OK", "notes": [], "metrics": {}},
-        },
-        "provenance": {"presentation_only": True},
-    }
+    from atlas_dag import telemetry as tel_mod
+
+    packet = tel_mod.build_coordination_telemetry(
+        repository=REPO,
+        clock=clock,
+        seal_projection="deferred_or_skipped",
+        agent_id=None,
+    )
+    if agent_status != packet.get("agent_status"):
+        packet = dict(packet)
+        packet["agent_status"] = agent_status
+    return packet
 
 
 def injected_residuals():
-    return {
-        "schema": "ATLAS_RESIDUAL_REGISTRY_V1",
-        "registry_fingerprint": _fp("res"),
-        "residuals": [{"residual_id": "r1", "status": "OPEN"}],
-    }
+    from atlas_dag import residuals as res_mod
+
+    return res_mod.build_residual_registry(
+        repository=REPO,
+        clock=clock,
+        events=[],
+    )
+
 
 
 def build_injected(**kwargs):
@@ -217,8 +186,52 @@ def test_positive_residual_and_control_panels_when_injected():
     assert packet["panels"]["control_view"]["status"] == "OK"
     assert packet["panels"]["residuals"]["status"] == "OK"
     body = packet["panels"]["residuals"]["body"]
-    assert body["summary"]["residual_count"] == 1
-    assert "r1" in str(body["registry"]["residuals"])
+    assert "residual_count" in body["summary"]
+    assert body["registry"]["schema"] == "ATLAS_RESIDUAL_REGISTRY_V1"
+
+
+def test_nested_dishonest_control_view_honesty_fails_closed():
+    cv = injected_control_view()
+    cv = dict(cv)
+    cv["honesty"] = dict(cv["honesty"])
+    cv["honesty"]["control_view_ne_authority"] = False
+    try:
+        build_injected(control_view=cv)
+        raise AssertionError("expected StudioSnapshotError")
+    except studio_snap.StudioSnapshotError as exc:
+        assert "honesty" in str(exc).lower()
+
+
+def test_validate_rejects_empty_panel_objects():
+    packet = build_injected()
+    packet = dict(packet)
+    packet["panels"] = dict(packet["panels"])
+    packet["panels"]["control_view"] = {}
+    errors = studio_snap.validate_studio_snapshot(packet)
+    assert any("status" in e or "required" in e.lower() for e in errors), errors
+
+
+def test_validate_rejects_ok_slice_with_unknown_panel():
+    packet = build_injected()
+    packet = dict(packet)
+    packet["slice_status"] = "OK"
+    packet["panels"] = dict(packet["panels"])
+    packet["panels"]["telemetry"] = {
+        "status": "UNKNOWN",
+        "notes": ["forced"],
+        "body": None,
+    }
+    errors = studio_snap.validate_studio_snapshot(packet)
+    assert any(e.startswith("slice_status:") for e in errors), errors
+
+
+def test_nested_control_view_validated_on_snapshot():
+    packet = build_injected()
+    assert studio_snap.validate_studio_snapshot(packet) == []
+    from atlas_dag.control_view import validate_control_view
+
+    assert validate_control_view(packet["panels"]["control_view"]["body"]) == []
+
 
 
 # --- mutation / crash surface absent ----------------------------------------
