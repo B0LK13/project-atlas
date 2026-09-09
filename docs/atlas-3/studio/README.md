@@ -99,14 +99,28 @@ DISPATCH_STEAL_AUTO = NOT_STARTED
 BUTTON != MUTATION
 REQUESTED != CLAIMED
 PREVIEW != EXECUTION
+FORMAL_IV = PASS_ON_TIP_2debb778 (see a2/A2-001-STATUS-CURRENT.md + a2/iv/)
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+## A2-002 Mission Journey (lane)
+
+See [`a2-002/`](./a2-002/).
+
+```text
+AS_STUDIO_A2_002 = IMPLEMENTED_IN_LANE (RO journey packet)
+BASE = certified A2 tip 2debb778 (explicit dependency)
+JOURNEY != MUTATION
+KNOWLEDGE != PERMISSION
 FORMAL_IV = NOT_STARTED
 ```
 
 ## Next
 
 1. Owner merge/IV decisions for A0/A1/A2-001 remain separate from technical completeness.
-2. Later A2.x: dispatch / steal-auto / handoff delivery / worktree behind the same intent bridge.
-3. Formal IV / verifier bind remains `EXTERNAL_IV_GATED` / NOT_STARTED for A2.
+2. Human review-thread adjudication on #776 remains external.
+3. Later A2.x: dispatch / steal-auto / handoff delivery / worktree behind the same intent bridge.
+4. A2-002 successor requires its own exact-head CI + formal IV (does not inherit A2-001 IV).
 
 ## A0 package
 

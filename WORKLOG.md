@@ -14795,3 +14795,16 @@ AS_STUDIO_A1 = NOT_STARTED
   NOT_STARTED); A0/A1 modules; no force-push; no merge; no self-IV
 - Review threads: replied with fix pointers; resolution left to human reviewer
 - FORMAL_IV = PENDING on the new exact head; MERGE_AUTHORIZATION = NOT_GRANTED
+
+## AS-STUDIO-A2-002 — Mission Journey RO slice (2026-09-09)
+
+Directive: `D-CODEX-ATLAS-STUDIO-A2-CERTIFIED-CONTINUATION-002`
+
+- Preserved certified A2 tip `2debb778` / tree `2ae9a686` (no commits on `feat/as-studio-a2-001`).
+- Recovered Formal IV handoff into `docs/atlas-3/studio/a2/iv/`; added `A2-001-STATUS-CURRENT.md`.
+- Reconciled PR #776 description (test-count scopes, replace= removal, Formal IV PASS vs merge pending).
+- New isolated branch `feat/as-studio-a2-002-mission-journey` from certified tip.
+- Implemented `ATLAS_STUDIO_MISSION_JOURNEY_V1` + CLI `mission-journey` / `journey`.
+- Studio suite: 101 passed; doctor a2_002_* PASS.
+- Overlap avoided: #782 repo-binding, #781 visual shell.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; A2-002 Formal IV = NOT_STARTED.

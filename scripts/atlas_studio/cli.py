@@ -357,6 +357,44 @@ def cmd_claim_execute(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_mission_journey(args: argparse.Namespace) -> int:
+    """AS-STUDIO-A2-002 RO mission journey — never mutates."""
+    from atlas_studio.mission_journey import (
+        build_mission_journey,
+        format_mission_journey_tui,
+        validate_mission_journey,
+    )
+
+    try:
+        docs_root = args.docs_root
+        if docs_root is None and not args.no_docs:
+            # Default: repository docs/ when running inside a checkout.
+            candidate = Path(__file__).resolve().parents[2] / "docs"
+            docs_root = str(candidate) if candidate.is_dir() else None
+        packet = build_mission_journey(
+            agent_id=args.agent,
+            repo=args.repo,
+            live=bool(args.live),
+            docs_root=docs_root,
+            preview_lane=args.preview_lane,
+            verifier_pool_path=args.verifier_registry,
+            weights_path=args.weights,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"atlas-studio mission-journey: FAIL {exc}", file=sys.stderr)
+        return 1
+    errors = validate_mission_journey(packet)
+    if errors:
+        for err in errors:
+            print(f"  SCHEMA: {err}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(packet, indent=2, sort_keys=True))
+    else:
+        print(format_mission_journey_tui(packet))
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "schema": "ATLAS_STUDIO_DOCTOR_V0",
@@ -538,6 +576,55 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001
         add("a2_action_intent_import", False, f"{type(exc).__name__}:{exc}")
 
+    # A2-002: mission journey RO composition.
+    try:
+        from atlas_studio import mission_journey as mj
+
+        j_honesty = mj.honesty_block()
+        add(
+            "a2_002_journey_honesty",
+            j_honesty.get("journey_ne_mutation") is True
+            and j_honesty.get("knowledge_ne_permission") is True
+            and j_honesty.get("preview_ne_execution") is True,
+            json.dumps(j_honesty, sort_keys=True),
+        )
+        fixture_mc = {
+            "schema": MC_SCHEMA_CONST,
+            "generated_at_utc": "2026-09-09T12:00:00Z",
+            "repository": "B0LK13/project-atlas",
+            "agent": None,
+            "agent_status": "NONE",
+            "slice_status": "UNKNOWN",
+            "mission_status": "UNKNOWN",
+            "snapshot_fingerprint": "a" * 64,
+            "freshness": {"state": "UNKNOWN"},
+            "honesty": {},
+            "views": {},
+            "attention": {"items": []},
+            "studio_snapshot": {"schema": SCHEMA_CONST, "slice_status": "UNKNOWN"},
+            "provenance": {},
+        }
+        # Minimal injected journey — may not pass full MC schema; journey tolerates warn.
+        journey = mj.build_mission_journey(
+            mission_control=fixture_mc,
+            claim_listing={"schema": "ATLAS_STUDIO_CLAIM_CANDIDATES_V1", "candidates": []},
+            knowledge_items=[],
+            clock=lambda: "2026-09-09T12:00:00Z",
+        )
+        j_errs = mj.validate_mission_journey(journey)
+        add(
+            "a2_002_mission_journey_schema",
+            not j_errs and journey.get("schema") == mj.SCHEMA_CONST,
+            "ok" if not j_errs else "; ".join(j_errs[:5]),
+        )
+        add(
+            "a2_002_journey_no_execute_surface",
+            "Never mutates; never executes claims" in Path(mj.__file__).read_text(encoding="utf-8"),
+            "journey build docstring forbids execute",
+        )
+    except Exception as exc:  # noqa: BLE001
+        add("a2_002_mission_journey", False, f"{type(exc).__name__}:{exc}")
+
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -657,6 +744,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Evaluate and allow path without emit_event",
     )
     cx.set_defaults(func=cmd_claim_execute)
+
+    journey = sub.add_parser(
+        "mission-journey",
+        aliases=["journey"],
+        help="AS-STUDIO-A2-002 RO mission journey (MC+knowledge+dev+claim next steps)",
+    )
+    journey.add_argument("--agent", default=None, help="Agent id (optional)")
+    journey.add_argument("--repo", default=None, help="owner/name override for gh")
+    journey.add_argument(
+        "--live",
+        action="store_true",
+        help="Build live Mission Control (RO); default uses builders when injected N/A",
+    )
+    journey.add_argument(
+        "--docs-root",
+        default=None,
+        help="Docs root for knowledge projection (default: repo docs/)",
+    )
+    journey.add_argument(
+        "--no-docs",
+        action="store_true",
+        help="Skip default docs/ scan; knowledge state UNAVAILABLE unless injected",
+    )
+    journey.add_argument(
+        "--preview-lane",
+        default=None,
+        help="Optional lane (e.g. pr/123) to attach claim preview (never executes)",
+    )
+    journey.add_argument("--verifier-registry", default=None)
+    journey.add_argument("--weights", default=None)
+    journey.add_argument("--json", action="store_true")
+    journey.set_defaults(func=cmd_mission_journey)
 
     doc = sub.add_parser("doctor", help="Import/honesty/schema diagnostics")
     doc.add_argument("--json", action="store_true")
