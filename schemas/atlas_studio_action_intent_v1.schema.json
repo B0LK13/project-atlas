@@ -58,6 +58,11 @@
     "target_head": {
       "type": ["string", "null"]
     },
+    "target_repo": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "description": "owner/name bound at mint time from Mission Control's observed repository; revalidated at evaluate (vs live MC) and at execute (vs the explicit expected_repo). Null = unbound (legacy); execution still requires an explicit expected_repo."
+    },
     "source_mc_fingerprint": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
