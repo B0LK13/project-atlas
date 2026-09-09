@@ -1,6 +1,6 @@
 # AS-OBSIDIAN-CAPTURE-001-F9 — one marker diagnosis, whichever writer refuses
 
-**Status:** implemented, awaiting independent verification. **Not sealed.**
+**Status:** integrated on `main` and **SEALED** (PR #748). See the post-merge seal at the end of this file.
 
 ## The defect
 
@@ -120,3 +120,30 @@ missing is the owner decision, not engineering. Carried as a residual.
 - **Not that `_generated_span`'s guard is reachable in production.** It is
   demonstrably not, through the public path; it is pinned by direct call and
   described as defence in depth, which is what it is.
+
+---
+
+## Post-merge seal
+
+Integrated as PR #748: merge commit `dbf8d838`, second parent `f11d89ec`, base
+`7f3dff69`. Merged **unrebased at the verified object** — `git diff f11d89ec
+dbf8d838` is empty and the merge trees are hash-identical to the certified one.
+
+**Diagnosis parity on the integrated result: 7 of 7**, including two shapes this
+package never tested. Measured on the merge object: F9 suite 33; the five
+pre-existing suites 100; freeze guard and label sweep 81; full suite 5,726
+passed / 8 skipped / 4 xfailed; ruff and mypy clean (405 files). All five
+controls reproduce on `main` at 33 → 12/4/4/1/2, sources restored byte-identical.
+
+Four verification rounds across four heads, no P0 and no P1. Beyond this
+package's own claims it established: the defect real on the base (12 of 19 shapes
+diverging), byte-identical diagnoses at head across all 19 including 14 shapes
+constructed independently, the refusal set unmoved across 38,248 differential
+cases, and `_generated_span`'s guard unreachable under 32,488 instrumented
+invocations.
+
+**Owner-gated and unchanged:** `ingestion.py`'s three sites, a certified surface
+needing an owner-approved §9.1 exception this lane cannot self-grant.
+
+**Citation boundary:** IV reports are session artifacts, not in this repository.
+No verdict is asserted here as fact; every measurement is re-runnable.
