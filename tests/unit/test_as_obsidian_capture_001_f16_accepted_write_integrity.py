@@ -50,6 +50,7 @@ from project_atlas.protected_regions import (
     ProtectedRegionError,
     extract_human_regions,
     merge_protected_regions,
+    read_note_text,
 )
 
 GENERATED_START = "<!-- atlas:generated:start -->"
@@ -106,11 +107,7 @@ def _pairs() -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = []
     for body, name in itertools.product(BODIES, NAMES):
         prior = f"{GENERATED_START}\nold\n{GENERATED_END}\n" + _region(name, body) + "\n"
-        fresh = (
-            f"{GENERATED_START}\nnew\n{GENERATED_END}\n"
-            + _region(name, "PLACEHOLDER")
-            + "\n"
-        )
+        fresh = f"{GENERATED_START}\nnew\n{GENERATED_END}\n" + _region(name, "PLACEHOLDER") + "\n"
         out.append((f"{name!r}/{body!r}"[:60], prior, fresh))
     for first, second in itertools.product(BODIES[:8], repeat=2):
         prior = (
@@ -165,10 +162,7 @@ class Report:
         self.changed: list[str] = []
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostic only
-        return (
-            f"<accepted={self.accepted} refused={self.refused} "
-            f"changed={len(self.changed)}>"
-        )
+        return f"<accepted={self.accepted} refused={self.refused} changed={len(self.changed)}>"
 
 
 def _sweep(corrupt: Callable[[str], str] | None = None) -> Report:
@@ -234,8 +228,7 @@ def test_f16_human_bytes_survive_every_accepted_merge() -> None:
     """
     report = _sweep()
     assert not report.changed, (
-        f"{len(report.changed)} accepted writes altered operator bytes: "
-        f"{report.changed[:5]}"
+        f"{len(report.changed)} accepted writes altered operator bytes: {report.changed[:5]}"
     )
     assert report.accepted >= MIN_ACCEPTED, f"corpus shrank: {report!r}"
     assert report.refused >= MIN_REFUSED, (
@@ -277,11 +270,18 @@ def test_f16_the_zero_is_falsifiable_by_newline_normalisation() -> None:
 
 
 def test_f16_human_bytes_survive_the_round_trip_to_disk(tmp_path: Path) -> None:
-    """The success path end to end: merge, write, read back from disk.
+    """The success path end to end, through the entry points the writers use.
 
-    The merge is where the splice happens, but the operator's bytes are only
-    safe if they are still intact in the file. All three atomic writers are exercised
-    because a defect in either would be invisible to a merge-layer sweep.
+    Each writer's real sequence is ``read_note_text(path)`` -> ``merge`` ->
+    atomic write (`graph_projections.py:687`, `obsidian_projection.py:416`,
+    `obsidian_capture_note.py:403`). An earlier revision of this test seeded a
+    file and then merged the *in-memory* prior text, so the seeded bytes were
+    never read: the read leg was dead weight and a defect in it could not have
+    failed this test. The merge input is now the bytes that came back off disk,
+    which is what makes the seeding write load-bearing.
+
+    All three atomic writers are exercised because a defect in any one of them
+    would be invisible to a merge-layer sweep.
     """
     vault = tmp_path / "vault"
     vault.mkdir()
@@ -290,8 +290,18 @@ def test_f16_human_bytes_survive_the_round_trip_to_disk(tmp_path: Path) -> None:
         before = _safe_extract(prior)
         if not before:
             continue
+
+        # The read leg, exercised rather than assumed. `read_note_text` is the
+        # one entry point all three writers read through; if it translated line
+        # endings or otherwise altered the stored bytes, every merge downstream
+        # would splice into text the operator never wrote.
+        seed = vault / f"s{index}.md"
+        seed.write_bytes(prior.encode("utf-8"))
+        existing = read_note_text(seed)
+        assert existing == prior, f"read entry point altered stored bytes: {label}"
+
         try:
-            merged = merge_protected_regions(existing=prior, rendered=fresh, path="n.md")
+            merged = merge_protected_regions(existing=existing, rendered=fresh, path="n.md")
         except (ProtectedRegionError, ValueError):
             continue
         payload = merged.encode("utf-8")
@@ -504,6 +514,7 @@ def test_f16_every_splicing_writer_is_covered_or_explicitly_excluded() -> None:
         "A coverage claim outliving its subject is how this record rots."
     )
 
+
 def test_f16_the_derivation_survives_renaming_and_re_export(tmp_path: Path) -> None:
     """Two evasions that MUST be caught, exercised rather than asserted about.
 
@@ -598,9 +609,7 @@ def test_f16_the_alias_list_still_matches_the_tree() -> None:
             continue
         for node in ast.walk(ast.parse(path.read_text(errors="replace"))):
             if isinstance(node, ast.ImportFrom):
-                actual |= {
-                    a.asname for a in node.names if a.name == canonical and a.asname
-                }
+                actual |= {a.asname for a in node.names if a.name == canonical and a.asname}
 
     assert actual <= claimed, (
         f"local alias(es) of the canonical merge exist in the tree but are not in "
