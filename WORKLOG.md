@@ -14957,8 +14957,8 @@ a test now asserts every NAME actually parses, because an inert column inside a
 corpus is the same defect as an inert corpus, only harder to see. A corpus that
 drifted to all-accept would report the same zero while proving less.
 
-**Twelve controls, each under an anchor assertion with the file restored
-byte-identical (`5ed8aea2`)**: baseline 8 passed; real merge normalising CRLF 1
+**Sixteen controls, each under an anchor assertion with the file restored
+byte-identical (`3f2f4cba`)**: baseline 8 passed; real merge normalising CRLF 1
 failed; real merge dropping a byte 1 failed; comparison neutered 2 failed; corpus
 truncated 2 failed; the only CRLF body removed 2 failed; refusal counting removed
 1 failed; an unparseable NAME reintroduced 1 failed; `capture_io` write path
@@ -15004,8 +15004,9 @@ changed; or that any `src/` file is modified -- none is.
 earlier revision of this package swept two merge paths and two atomic writers and
 called that the full set. Derived mechanically from the source tree -- every
 module importing or calling `merge_protected_regions`, `read_note_text` or
-`_generated_content`, the only three ways to obtain a prior note's human content
-in order to write it back -- there are FOUR: `graph_projections`,
+`_generated_content`, or a local alias they are re-exported under -- which are the
+ways this derivation can SEE, not the only ways such content can be reached; that
+stronger claim is retracted below -- there are FOUR: `graph_projections`,
 `obsidian_projection`, `obsidian_capture_note`, and the frozen `ingestion`.
 
 `obsidian_capture_note` was the miss. It shares the canonical merge but has its
@@ -15018,14 +15019,34 @@ The set is enforced by derivation at test time: a module that can splice human
 regions and is neither swept nor explicitly excluded with a recorded reason fails
 `test_f16_every_splicing_writer_is_covered_or_explicitly_excluded`. Measured by
 dropping a hypothetical fifth splicing module into `src/` -- it fails
-immediately. The derivation follows ALIASED imports, which matters because all
-three non-frozen writers rename the canonical merge on import; a derivation
-matching only the original name would have missed every one of them, so that is
-asserted too.
+immediately. The derivation keys on the ORIGINAL imported name, so renaming on import cannot
+hide a writer, and on the known local aliases too, so re-exporting through a
+third module cannot either. An earlier revision claimed alias-following was
+pinned by an assertion; it was not -- discovery filters on the un-aliased name,
+so that assertion passed just as readily on a derivation resolving no aliases at
+all. Verification measured it. It is replaced by feeding the detector synthetic
+modules and requiring the right verdict.
 
-**The guard caught its author on its first run**: an earlier revision of the
-coverage table listed `protected_regions.py`, which DEFINES the merge rather than
-splicing into a prior note. The stale-entry assertion fired. That is the
-difference between a test that watches the code and a list that rots.
+**What the derivation does NOT close**, measured across two verification rounds
+rather than reasoned. A second round found a FIFTH evasion class in three
+idiomatic spellings -- a splicer reached as an attribute in non-call position
+(`_F = pr.merge_...` then `_F(...)`, `functools.partial`, `staticmethod`). Those
+are not route-arounds; they are what someone writes without thinking, which made
+them materially more reachable than the evasions already documented. Closed by an
+`ast.Attribute` clause, measured free: the discovered set is unchanged. The scan
+root widened from one package to all of `src/` in the same round, since
+`src/atlas_contracts/` is a real shipped package a writer could sit in.
+
+Three evasions survive and are stated rather than implied away:
+`importlib.import_module` plus `getattr` with split literals;
+`module.__dict__["merge_protected_regions"]`; and a hand-rolled splice using
+`Path.read_bytes` and its own regex, which mentions none of these names at all --
+that last one falsifying the premise directly. Two further limits are pinned
+rather than argued: a two-hop re-export under an unlisted name evades at the
+writer module, and the alias list itself ROTS if a writer renames its local
+alias, so a test now checks the list against the tree in both directions.
+
+The guard makes the ACCIDENTAL new writer hard to introduce. It does not close
+the set, and an earlier revision of this entry said it did.
 
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F16-ACCEPTED-WRITE-INTEGRITY.md`.

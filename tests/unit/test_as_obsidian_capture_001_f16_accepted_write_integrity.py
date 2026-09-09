@@ -216,8 +216,8 @@ def _normalise_newlines(text: str) -> str:
 
 #: Floors, not exact counts. They exist so an inert or truncated corpus cannot
 #: pass by scanning nothing -- the failure this lane has shipped twice -- while
-#: leaving room for the corpus to grow. The measured values at `b87b4a22` are
-#: 332 accepted and 12 refused.
+#: leaving room for the corpus to grow. The measured values are 366 accepted
+#: and 14 refused; they moved from 332/12 when an inert name column was fixed.
 MIN_ACCEPTED = 300
 MIN_REFUSED = 1
 
@@ -280,7 +280,7 @@ def test_f16_human_bytes_survive_the_round_trip_to_disk(tmp_path: Path) -> None:
     """The success path end to end: merge, write, read back from disk.
 
     The merge is where the splice happens, but the operator's bytes are only
-    safe if they are still intact in the file. Both atomic writers are exercised
+    safe if they are still intact in the file. All three atomic writers are exercised
     because a defect in either would be invisible to a merge-layer sweep.
     """
     vault = tmp_path / "vault"
@@ -424,6 +424,14 @@ def _splices(source: str) -> list[str]:
             names |= {a.name for a in node.names if a.name in _SPLICER_NAMES}
         elif isinstance(node, ast.Call):
             names |= {ast.unparse(node.func).split(".")[-1]} & _SPLICER_NAMES
+        elif isinstance(node, ast.Attribute):
+            # A splicer reached as an attribute in NON-call position. Without
+            # this, three idiomatic spellings evade: `f = pr.merge_protected_
+            # regions` then `f(...)`, `functools.partial(pr.merge_...)`, and
+            # `staticmethod(pr.merge_...)` as a class attribute. Verification
+            # found them and measured this clause as free -- it adds no module
+            # to the discovered set of this repository.
+            names |= {node.attr} & _SPLICER_NAMES
     return sorted(names)
 
 
@@ -455,11 +463,17 @@ def _splicing_modules() -> dict[str, list[str]]:
     reviewed set" is a stronger claim than this mechanism supports.
     """
     found: dict[str, list[str]] = {}
-    root = Path(__file__).resolve().parents[2] / "src" / "project_atlas"
+    # The whole of `src/`, not just `project_atlas`. `src/atlas_contracts/` is a
+    # real shipped package in this repository, and a writer placed there was
+    # invisible to an earlier revision that scanned one package -- a scope hole
+    # rather than a syntax one, and the kind that survives every syntactic fix.
+    root = Path(__file__).resolve().parents[2] / "src"
     for path in sorted(root.rglob("*.py")):
+        if ".egg-info" in path.parts:
+            continue
         names = _splices(path.read_text(errors="replace"))
         if names:
-            found[path.relative_to(root.parents[1]).as_posix()] = names
+            found[path.relative_to(root.parent).as_posix()] = names
     return found
 
 
@@ -518,10 +532,82 @@ def test_f16_the_derivation_survives_renaming_and_re_export(tmp_path: Path) -> N
         "    p.write_text(_merge_protected_regions(existing=p.read_text(), "
         "rendered=r, path=str(p)))\n"
     )
-    for label, source in (("renamed on import", renamed), ("re-exported", re_exported)):
+    # Bound to a name first, then called -- idiomatic Python, and the shape that
+    # made verification's point: this is not a deliberate route-around, it is
+    # what someone writes without thinking about it.
+    indirect = (
+        "from project_atlas import protected_regions as pr\n"
+        "_F = pr.merge_protected_regions\n"
+        "def w(p, r):\n"
+        "    p.write_text(_F(existing=p.read_text(), rendered=r, path=str(p)))\n"
+    )
+    partial = (
+        "import functools\n"
+        "from project_atlas import protected_regions as pr\n"
+        "_F = functools.partial(pr.merge_protected_regions)\n"
+        "def w(p, r):\n"
+        "    p.write_text(_F(existing=p.read_text(), rendered=r, path=str(p)))\n"
+    )
+    # Imported from a third module AND rebound before use, so neither the call
+    # branch nor the attribute branch sees a splicer name at the call site. Only
+    # matching the imported name regardless of which module it came from catches
+    # this -- an earlier revision filtered `ImportFrom` on the module path, and
+    # verification showed that regression left the whole suite green because
+    # every other synthetic case was caught by a different branch.
+    third_party_rebound = (
+        "from some_helpers import merge_protected_regions\n"
+        "_F = merge_protected_regions\n"
+        "def w(p, r):\n"
+        "    p.write_text(_F(existing=p.read_text(), rendered=r, path=str(p)))\n"
+    )
+    shapes = {
+        "renamed on import": renamed,
+        "re-exported": re_exported,
+        "bound to a name, then called": indirect,
+        "wrapped in functools.partial": partial,
+        "imported from a third module and rebound": third_party_rebound,
+    }
+    for label, source in shapes.items():
         assert _splices(source), f"a writer that is {label} evades the derivation"
 
     # And the negative side: a module that merely mentions the words must not be
     # flagged, or the guard degenerates into "any file containing this string".
     prose_only = '"""Discusses merge_protected_regions and read_note_text."""\nX = 1\n'
     assert not _splices(prose_only), "the derivation flags a module that only mentions"
+
+
+def test_f16_the_alias_list_still_matches_the_tree() -> None:
+    """`_SPLICER_NAMES`' aliases must be the ones the tree actually uses.
+
+    The re-export case is caught by name-matching local aliases, which rots the
+    moment a writer renames its alias: verification renamed
+    `obsidian_projection`'s `_merge_protected_regions` to `_splice` and all eight
+    tests stayed green, while the alias list silently stopped covering it.
+
+    That is the same rot the `stale` assertion prevents one level up, so it is
+    pinned the same way: every alias claimed here must appear in the tree, and
+    every local alias of the canonical merge in the tree must be claimed.
+    """
+    canonical = "merge_protected_regions"
+    claimed = {n for n in _SPLICER_NAMES if n.endswith(canonical) and n != canonical}
+
+    actual: set[str] = set()
+    root = Path(__file__).resolve().parents[2] / "src"
+    for path in sorted(root.rglob("*.py")):
+        if ".egg-info" in path.parts:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(errors="replace"))):
+            if isinstance(node, ast.ImportFrom):
+                actual |= {
+                    a.asname for a in node.names if a.name == canonical and a.asname
+                }
+
+    assert actual <= claimed, (
+        f"local alias(es) of the canonical merge exist in the tree but are not in "
+        f"_SPLICER_NAMES: {sorted(actual - claimed)}. A re-export under that name "
+        "would be invisible to the derivation."
+    )
+    assert claimed <= actual, (
+        f"_SPLICER_NAMES claims alias(es) no module uses: {sorted(claimed - actual)}. "
+        "An alias list outliving its subject is how this guard rots."
+    )

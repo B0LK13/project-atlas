@@ -101,10 +101,11 @@ fail.** I had "removed the disk assertion" and "neutered the exclusion assertion
 break the thing each guard *protects*: corrupt the writer, and actually add the
 frozen writer to the sweep. Both then bit immediately.
 
-The last row is worth its own line: adding `ingestion` fails the **invariant**
-test as well as the exclusion test, which demonstrates the #759 CRLF defect
-through this harness. The exclusion is protecting the suite from a real,
-reproduced defect rather than a hypothetical one.
+Adding `ingestion` to the sweep fails the **invariant** test, not merely an
+exclusion test, which demonstrates the #759 CRLF defect through this harness.
+That control is exercised directly by
+`test_f16_the_frozen_writer_is_excluded_on_purpose` rather than published as a
+table row -- an earlier revision pointed prose at a row that had been dropped.
 
 ## The full set of writers, derived rather than declared
 
