@@ -37,6 +37,7 @@ from project_atlas.protected_regions import (
     ProtectedRegionError,
     generated_marker_diagnosis,
     read_note_text,
+    reject_ambiguous_region_identity,
 )
 from project_atlas.protected_regions import (
     merge_protected_regions as _canonical_merge_protected_regions,
@@ -219,6 +220,16 @@ def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) 
         # render in this case, which would discard that text.
         _validate_protected_markers(existing, path=path)
         _validate_protected_markers(rendered, path=path)
+        # This branch splices by hand instead of delegating to the canonical
+        # core, so it never reaches the core's structural parse -- and the
+        # marker validation above compares counts and names, never ORDER. A
+        # rendered document whose HUMAN markers are reversed or crossed
+        # therefore passed here and was WRITTEN, while the canonical core
+        # refuses it as `unpaired`. Graph accepted what canonical rejected.
+        try:
+            reject_ambiguous_region_identity(rendered, path=path)
+        except ProtectedRegionError as exc:
+            raise GraphProjectionError(str(exc)) from exc
         existing_span = _generated_span(existing, path=path)
         if existing_span is None:
             return rendered
