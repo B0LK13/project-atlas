@@ -6,6 +6,7 @@ import contextlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -19,6 +20,7 @@ from project_atlas.orchestration.autonomy.return_gate import (
 )
 from project_atlas.orchestration.sdk import resident_windows
 from project_atlas.orchestration.sdk.ci_observer import CiObservation, classify_watch_session
+from project_atlas.orchestration.sdk.host import no_window_creationflags
 from project_atlas.orchestration.sdk.resident_driver import (
     LOCK_NAME,
     acquire_primary_lock,
@@ -30,9 +32,17 @@ from project_atlas.orchestration.sdk.resident_windows import (
     ensure_resident_alive,
 )
 
+# `signal.SIGKILL` does not exist as an attribute on Windows at all (not
+# merely unsupported at the OS level) -- this module is developed/tested on
+# a Windows host but its POSIX cleanup branch below must still be
+# reference-safe there, so resolve it once, defensively, rather than at
+# every call site.
+_POSIX_KILL_SIGNAL: int = getattr(signal, "SIGKILL", signal.SIGTERM)
+
 
 def _terminate_resident_tree(pid: int) -> None:
-    """Best-effort test cleanup for a `detach_resident_driver()`-spawned tree.
+    """Best-effort, platform-aware test cleanup for a
+    `detach_resident_driver()`-spawned tree.
 
     D146 (native-Windows evidence, found while validating this successor):
     `os.kill(pid, signal.SIGTERM)` against these DETACHED_PROCESS /
@@ -40,19 +50,37 @@ def _terminate_resident_tree(pid: int) -> None:
     ``OSError: [WinError 87] The parameter is incorrect`` on this class of
     host and never actually terminated the process -- a real, silent
     cleanup failure previously masked by `contextlib.suppress(OSError,
-    ProcessLookupError)`. ``taskkill /F /T /PID`` reliably terminates both
-    the target and any live descendants (verified: it also caught a child
-    of the resident that `os.kill` alone would have missed entirely).
+    ProcessLookupError)`. On Windows, ``taskkill /F /T /PID`` reliably
+    terminates both the target and any live descendants (verified: it also
+    caught a child of the resident that `os.kill` alone would have missed
+    entirely) -- ``creationflags=no_window_creationflags()`` matches this
+    repo's own established convention (``host.py``) for never popping a
+    console window from a subprocess call made on behalf of a detached
+    process. ``os.kill(pid, SIGTERM)`` has no such Windows-specific failure
+    on POSIX -- `detach_resident_driver()` also spawns with
+    ``start_new_session=True`` there, so a first attempt via
+    ``os.killpg`` reaches the whole session/process group, not just the
+    one PID, with a per-PID fallback if the group lookup itself fails.
+    An unconditionally-Windows tool must never become the only cleanup
+    path: this repo's CI runs this exact test file on `ubuntu-latest` too.
     Best-effort only -- this is cleanup, not an assertion.
     """
     if pid <= 0:
         return
-    with contextlib.suppress(OSError):
-        subprocess.run(
-            ["taskkill", "/F", "/T", "/PID", str(pid)],
-            capture_output=True,
-            check=False,
-        )
+    if os.name == "nt":
+        with contextlib.suppress(OSError):
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True,
+                check=False,
+                creationflags=no_window_creationflags(),
+            )
+        return
+    with contextlib.suppress(OSError, ProcessLookupError):
+        os.killpg(os.getpgid(pid), _POSIX_KILL_SIGNAL)
+        return
+    with contextlib.suppress(OSError, ProcessLookupError):
+        os.kill(pid, _POSIX_KILL_SIGNAL)
 
 
 def test_watchdog_waits_for_lock_holder_no_second_spawn(tmp_path: Path) -> None:
@@ -173,6 +201,63 @@ def test_read_primary_lock_pid_refuses_malformed_or_stale_lock(tmp_path: Path) -
     assert read_primary_lock_pid(root) == os.getpid()
 
 
+def test_terminate_resident_tree_dispatches_by_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """D146 review R2: the Windows-only ``taskkill`` fix must not become a
+    non-Windows cleanup regression -- this repo's CI runs this exact test
+    file on ``ubuntu-latest`` too. Verify dispatch without spawning any
+    real process: the Windows branch calls ``taskkill`` (and nothing
+    POSIX-only); the non-Windows branch never calls ``taskkill`` at all."""
+    calls: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda args, **kw: calls.append(("run", args)),
+    )
+    # os.killpg/os.getpgid do not exist on Windows -- raising=False lets
+    # this test define them for the duration of the test regardless of the
+    # host platform it actually runs on.
+    monkeypatch.setattr(
+        os,
+        "killpg",
+        lambda pgid, sig: calls.append(("killpg", (pgid, sig))),
+        raising=False,
+    )
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid, raising=False)
+    monkeypatch.setattr(
+        os, "kill", lambda pid, sig: calls.append(("kill", (pid, sig)))
+    )
+
+    monkeypatch.setattr(os, "name", "nt")
+    calls.clear()
+    _terminate_resident_tree(4321)
+    assert calls == [("run", ["taskkill", "/F", "/T", "/PID", "4321"])]
+
+    monkeypatch.setattr(os, "name", "posix")
+    calls.clear()
+    _terminate_resident_tree(4321)
+    assert calls == [("killpg", (4321, _POSIX_KILL_SIGNAL))]
+    assert not any(name == "run" for name, _ in calls), (
+        "non-Windows cleanup must never depend on taskkill"
+    )
+
+    # killpg unavailable/failing -> per-PID os.kill fallback, still no taskkill.
+    def _raise_killpg(pgid: int, sig: int) -> None:
+        raise OSError("no such process group")
+
+    monkeypatch.setattr(os, "killpg", _raise_killpg)
+    calls.clear()
+    _terminate_resident_tree(4321)
+    assert calls == [("kill", (4321, _POSIX_KILL_SIGNAL))]
+    assert not any(name == "run" for name, _ in calls)
+
+    # pid <= 0 is always a no-op on either platform.
+    calls.clear()
+    _terminate_resident_tree(0)
+    assert calls == []
+
+
 class _FakePopen:
     """Minimal Popen stand-in: only ``pid``/``poll`` are consumed by the launch path."""
 
@@ -253,34 +338,93 @@ def test_detach_resident_driver_returns_zero_when_never_announced(
     assert all(sec == resident_windows._RESIDENT_STARTUP_POLL_INTERVAL_SEC for sec in sleeps)
 
 
-def test_detach_resident_driver_stops_polling_once_launcher_exits(
+def test_detach_resident_driver_returns_delayed_lock_after_launcher_exit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test-matrix item 5 (Finding A, correctly scoped -- not a blind
-    `proc.poll() is not None: break`): once the launched process object has
-    exited, continuing to sleep out the rest of the poll budget cannot
-    produce a different outcome -- the fallback is 0 either way now, so
-    stopping early is a pure latency win, never a risk of returning a wrong
-    PID (that risk existed only under the old "fall back to the launcher
-    PID" semantics this successor removes). One immediate final check
-    happens before giving up, so a holder announced in the same instant the
-    launcher exits is still observed."""
+    """D146 review R1 (test-matrix items B/2): a launcher/trampoline that
+    exits *before* its real-interpreter child acquires the primary lock is
+    a valid, not-failed startup sequence -- venv launcher spawns the real
+    interpreter, the launcher exits, the child keeps importing and later
+    acquires the lock. The bounded wait must keep watching the lock itself
+    for its full budget regardless of the launched process object's own
+    liveness, and must return the confirmed identity once it appears --
+    never 0 merely because the launcher was already gone when it did.
+
+    Negative control: this fails against predecessor candidate
+    `37b1619e431a0dd83c86bd9ebbf01f6a35924984`, whose poll loop broke
+    (returning 0) the instant `proc.poll() is not None`, before the delayed
+    lock below had a chance to appear.
+    """
+    root = tmp_path / "runtime"
+    package_src = tmp_path / "repo" / "src"
+    package_src.mkdir(parents=True)
+    # The launched process object is already gone from the very first poll.
+    _capture_popen(monkeypatch, fake_pid=4242, exited=True)
+    # The real resident child announces the lock only on the 5th poll --
+    # well within budget, but after the (already-exited) launcher.
+    polls: list[int] = []
+
+    def _delayed_lock(_root: Path) -> int:
+        polls.append(1)
+        return 9999 if len(polls) >= 5 else 0
+
+    monkeypatch.setattr(resident_windows, "read_primary_lock_pid", _delayed_lock)
+    monkeypatch.setattr(resident_windows, "_RESIDENT_STARTUP_POLL_ATTEMPTS", 80)
+    monkeypatch.setattr(resident_windows.time, "sleep", lambda _sec: None)
+    resolved = detach_resident_driver(root=root, package_src=package_src)
+    assert resolved == 9999
+    assert resolved != 0
+    assert len(polls) == 5
+
+
+def test_detach_resident_driver_returns_zero_after_launcher_exit_with_no_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D146 review R1 (test-matrix item C): removing the launcher-exit
+    early-exit must not weaken the *bounded* failure case -- a launcher
+    that exits and never produces a confirmable resident still returns 0
+    only after the full poll budget, not before and not after."""
     root = tmp_path / "runtime"
     package_src = tmp_path / "repo" / "src"
     package_src.mkdir(parents=True)
     _capture_popen(monkeypatch, fake_pid=4242, exited=True)
     monkeypatch.setattr(resident_windows, "read_primary_lock_pid", lambda _root: 0)
-    monkeypatch.setattr(resident_windows, "_RESIDENT_STARTUP_POLL_ATTEMPTS", 80)
+    monkeypatch.setattr(resident_windows, "_RESIDENT_STARTUP_POLL_ATTEMPTS", 5)
     sleeps: list[float] = []
     monkeypatch.setattr(
         resident_windows.time, "sleep", lambda sec: sleeps.append(float(sec))
     )
     resolved = detach_resident_driver(root=root, package_src=package_src)
     assert resolved == 0
-    # Stopped on the very first iteration -- never slept out the full
-    # 80-attempt budget just because the (already-exited) process object
-    # said so before this fix.
-    assert sleeps == []
+    # Full budget consumed -- the (already-exited) launcher does not
+    # truncate the wait.
+    assert len(sleeps) == 5
+
+
+def test_detach_resident_driver_confirms_identity_with_launcher_still_alive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D146 review R1 (test-matrix items A/D): the ordinary case -- the
+    launcher never exits during the poll (this host's own observed
+    behavior) -- must still resolve correctly, both when the lock appears
+    immediately and when it never appears within budget."""
+    root = tmp_path / "runtime"
+    package_src = tmp_path / "repo" / "src"
+    package_src.mkdir(parents=True)
+    _capture_popen(monkeypatch, fake_pid=4242, exited=False)
+    monkeypatch.setattr(resident_windows, "read_primary_lock_pid", lambda _root: 8888)
+    resolved = detach_resident_driver(root=root, package_src=package_src)
+    assert resolved == 8888
+
+    root2 = tmp_path / "runtime2"
+    package_src2 = tmp_path / "repo2" / "src"
+    package_src2.mkdir(parents=True)
+    _capture_popen(monkeypatch, fake_pid=4243, exited=False)
+    monkeypatch.setattr(resident_windows, "read_primary_lock_pid", lambda _root: 0)
+    monkeypatch.setattr(resident_windows, "_RESIDENT_STARTUP_POLL_ATTEMPTS", 3)
+    monkeypatch.setattr(resident_windows.time, "sleep", lambda _sec: None)
+    resolved2 = detach_resident_driver(root=root2, package_src=package_src2)
+    assert resolved2 == 0
 
 
 def test_detach_resident_driver_invokes_exact_interpreter_module_cli(
