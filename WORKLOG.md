@@ -14702,3 +14702,12 @@ VAULT_DOCUMENTATION_RECEIPT = PENDING_MDA
 AS_STUDIO_A0_001 = READY_FOR_IMPLEMENTATION_PACKAGE
 AS_STUDIO_A1 = NOT_STARTED
 ```
+
+## AS-STUDIO-A0-001 — foundation package (lane)
+
+- Branch: `feat/as-studio-a0-001` on exact #751 tip + Studio docs merge
+- Deliverables: `docs/atlas-3/studio/a0/*`, ADR-034, schemas, `scripts/atlas_studio`, RO CLI
+- Validation: 11 unit tests PASS; ruff PASS; doctor PASS; live snapshot exercised
+- Honesty: STUDIO_UI != AUTHORITY; MERGE_AUTHORIZATION = NOT_GRANTED; A1 NOT_STARTED
+- Evidence: `docs/atlas-3/studio/a0/EVIDENCE.md`
+

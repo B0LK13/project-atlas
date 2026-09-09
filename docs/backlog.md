@@ -830,7 +830,7 @@ Honesty: `PREP != IMPLEMENTED` · `STUDIO_UI != AUTHORITY` ·
 `EXTERNAL_IV_GATED != VERIFIED`.
 
 - [x] AS-STUDIO-INTAKE-20260908-01 Canonical documentation package synchronized from GitHub epic #746 (requirements register, A0–A8 gates, north-star cross-links; vault MDA normalize/route still BLOCKED without production `mda`)
-- [ ] AS-STUDIO-A0-001 Foundation: reuse map, Studio↔daemon ADR, typed contracts, authz boundary, threat model, migration policy, smallest Linux read-only Studio slice over real Atlas + F1–F16 primitives
+- [x] AS-STUDIO-A0-001 Foundation: reuse map, Studio↔daemon ADR, typed contracts, authz boundary, threat model, migration policy, smallest Linux read-only Studio slice over real Atlas + F1–F16 primitives (`feat/as-studio-a0-001`; IMPLEMENTED_IN_LANE; not merged; EXTERNAL_IV not claimed)
 - [ ] AS-STUDIO-A1 Read-only Mission Control (blocked on A0 exit evidence)
 - [ ] AS-STUDIO-A2 Governed mutations (claim/dispatch/handoff/worktree/terminal)
 - [ ] AS-STUDIO-A3 Runtime / provider harness integration

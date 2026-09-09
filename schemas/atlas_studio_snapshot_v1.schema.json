@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_SNAPSHOT_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "repository",
+    "slice_status",
+    "snapshot_fingerprint",
+    "honesty",
+    "panels",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_SNAPSHOT_V1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "agent": {
+      "type": ["string", "null"]
+    },
+    "agent_status": {
+      "type": "string"
+    },
+    "slice_status": {
+      "type": "string",
+      "enum": ["OK", "DEGRADED", "UNKNOWN"]
+    },
+    "snapshot_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "studio_ui_ne_authority",
+        "ui_state_is_projection",
+        "grants_no_mutation",
+        "no_cli_text_parsing_as_protocol"
+      ],
+      "properties": {
+        "studio_ui_ne_authority": {
+          "const": true
+        },
+        "ui_state_is_projection": {
+          "const": true
+        },
+        "grants_no_mutation": {
+          "const": true
+        },
+        "no_cli_text_parsing_as_protocol": {
+          "const": true
+        },
+        "atlas_daemon_is_authoritative_runtime": {
+          "const": true
+        },
+        "studio_crash_ne_agent_task_termination": {
+          "const": true
+        },
+        "model_provider_ne_atlas_architecture": {
+          "const": true
+        },
+        "no_wholesale_core_rewrite": {
+          "const": true
+        },
+        "reuse_before_reimplement": {
+          "const": true
+        }
+      }
+    },
+    "panels": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "control_view",
+        "telemetry",
+        "efficiency_metrics",
+        "residuals"
+      ],
+      "properties": {
+        "control_view": {
+          "type": "object"
+        },
+        "telemetry": {
+          "type": "object"
+        },
+        "efficiency_metrics": {
+          "type": "object"
+        },
+        "residuals": {
+          "type": "object"
+        }
+      }
+    },
+    "observation_events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "generator",
+        "presentation_only"
+      ],
+      "properties": {
+        "generator": {
+          "type": "string"
+        },
+        "presentation_only": {
+          "const": true
+        },
+        "truth_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

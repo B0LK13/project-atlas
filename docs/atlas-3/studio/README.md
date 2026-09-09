@@ -63,8 +63,18 @@ EXTERNAL_IV_GATED != VERIFIED
 - Not merge authorization.
 - Not independent verification of #746 research leads / numerical examples.
 
+## A0 package (lane)
+
+See [`a0/`](./a0/) and [ADR-034](../../adr/ADR-034-studio-daemon-authority.md).
+Status: **IMPLEMENTED_IN_LANE** on `feat/as-studio-a0-001` — not merged;
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+
 ## Next
 
 1. Keep this package synchronized when #746 is amended.
-2. Execute `AS-STUDIO-A0-001` (see [A0-BRIEF.md](A0-BRIEF.md)).
-3. Do not start `AS-STUDIO-A1` until A0 exit evidence exists.
+2. Owner review / IV of `AS-STUDIO-A0-001` exit evidence (`a0/EVIDENCE.md`).
+3. Do not start `AS-STUDIO-A1` until A0 is accepted.
+
+## A0 package
+
+See [`a0/`](./a0/) and [ADR-034](../../adr/ADR-034-studio-daemon-authority.md).
