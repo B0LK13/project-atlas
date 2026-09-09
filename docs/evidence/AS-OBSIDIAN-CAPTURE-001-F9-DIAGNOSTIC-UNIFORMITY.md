@@ -74,8 +74,15 @@ refresh, which holds regardless of naming. And the underlying fact is stronger
 than "no residue": the merge raises while the write plan is still being built,
 so `_promote` is never reached at all -- measured at **zero invocations** during
 a refusal. Residue is structurally impossible, not merely absent. Controlled
-with the code's own convention: leaking a `.atlas-stage` file fails 5 of 33,
-where the old glob would have missed it entirely.
+with the code's own convention: leaking a uuid-unique `.atlas-stage` file **on the refusing pass only** fails
+exactly **1** of 33 -- this test and nothing else. Two ways to get that number
+wrong, both encountered: an earlier revision said 5, which a note-clobber alone
+fully produces with the residue contributing none of it; and a mutation that
+leaks on *every* call also fails 4 unrelated tests, because during setup the
+parent directory does not exist yet and the leak breaks the write path itself.
+The true figure is the better story: this test is the *only* thing that can
+detect residue, which is precisely why it had to exist. The old `*.tmp` glob
+detected none of it.
 
 **Controls C and E earned their place by first failing to fail.** On the initial
 test set, reverting the `_generated_span` site left the suite at **27 passed** —

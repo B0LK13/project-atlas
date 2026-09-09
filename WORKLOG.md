@@ -14390,8 +14390,11 @@ against itself. It now compares the whole vault byte for byte, which holds
 regardless of naming, and the underlying fact is stronger than "no residue":
 the merge raises while the plan is still being built, so `_promote` is never
 reached -- zero invocations measured during a refusal. Residue is structurally
-impossible. Controlled with the code's own convention: leaking a `.atlas-stage`
-file fails 5 of 33, where the old glob missed it entirely.
+impossible. Controlled with the code's own convention: leaking a uuid-unique
+`.atlas-stage` file fails exactly **1** of 33 -- this test and nothing else. An
+earlier revision said 5, which a note-clobber alone fully produces; the residue
+contributed none of it. The true figure is the better story: this test is the
+only thing that can detect residue. The old `*.tmp` glob detected none.
 
 **Controls C and E earned their place by first failing to fail.** On the initial
 test set, reverting the `_generated_span` site left the suite at **27 passed** --
