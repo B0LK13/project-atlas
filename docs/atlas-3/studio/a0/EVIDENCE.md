@@ -13,8 +13,9 @@ Filled after validation commands in the `studio-a0` worktree
 |---|---|
 | PR | https://github.com/B0LK13/project-atlas/pull/763 |
 | Base | `feat/atlas-dag-e2e-harden` (#751) |
-| HEAD | `4c0077cd25e4149cfd3cecdbaf0537bac6b7d4ed` |
-| Docs PR (main) | https://github.com/B0LK13/project-atlas/pull/762 |
+| HEAD | `049f4b10a6f730933c18cffd5d33a08dc61bbd9d` |
+| Exact-head CI | **PASS** run `34322763860` |
+| Docs PR (main) | https://github.com/B0LK13/project-atlas/pull/762 (CI **PASS** run `34321239064`) |
 | Epic | https://github.com/B0LK13/project-atlas/issues/746 |
 | Merge | `MERGE_AUTHORIZATION = NOT_GRANTED` |
 | A1 | `ATLAS_STUDIO_A1 = NOT_STARTED` |
