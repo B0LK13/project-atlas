@@ -21,6 +21,9 @@ O6 = APPROVED (seal/evidence may be UNKNOWN; never promote to healthy)
 | Package | `AS-STUDIO-A1-001` |
 | Branch | `feat/as-studio-a1-001` |
 | Base | A0 tip `efb92255…` / PR #763 lineage |
+| HEAD (tip) |  |
+| PR | https://github.com/B0LK13/project-atlas/pull/770 |
+| Local tests | 15 A0 + 13 A1 = 28 passed; ruff PASS; doctor PASS |
 | Schema | `schemas/atlas_studio_mission_control_v1.schema.json` |
 | Module | `scripts/atlas_studio/mission_control.py` |
 | CLI | `scripts/atlas-studio.py mission-control` / `mc` |
