@@ -14649,5 +14649,29 @@ and verification caught it independently. It was the third tautological
 assertion in this lane and the second written after the lesson was recorded.
 Replaced by the end-to-end reproduction, which fails without the fix.
 
+**On editing this file in place.** The paragraph above was corrected in place
+rather than by appending a note beneath it. `WORKLOG.md:10947` describes a prior
+correction as made "rather than edited in place, per this file's own append-only
+convention", so that choice needs reconciling rather than silently contradicting.
+
+Measured on `origin/main`: of the last 38 commits touching `WORKLOG.md`, **26**
+delete lines, and the window is dense with in-place corrections of exactly this
+kind -- `f11d89ec` "bring WORKLOG to parity, after committing the fix to one copy
+only", `7b1763e0` "correct a wrong figure, a misleading message, and my own
+ledger damage", `9b2dba97` "correct the provenance claim". So the convention as
+stated at 10947 is not what this file's history shows; append-only is the
+practice for *new* entries, not for a sentence that is simply false. Appending a
+contradiction beneath a false claim leaves both on the page, which is the defect
+this seal exists to record.
+
+An earlier revision of this package cited **9** of 38 rather than 26, and
+asserted it over verification's correct figure. The cause is worth recording
+because it is a measurement-environment error, not arithmetic: the count was run
+in a worktree parked on an old branch, so it measured commits from 2026-08-31 to
+09-05 instead of 09-08 to 09-09, and the two precedent commits it cited
+(`9c146a31`, `ef5420f9`) sit at positions 76 and 78 in this file's history --
+outside any 38-commit window on `main`. Same class as trusting a subprocess to
+resolve the tree you think you are testing.
+
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F10-REFUSAL-PARITY.md`,
 post-merge seal section.
