@@ -15,11 +15,18 @@ clock-free (this package is the only place observation launches a process).
   through environment-level config, the remote is read raw via
   `git config --get-all` and must be exactly one value (`--get` would report
   the last url while a fetch contacts the first → `REMOTE_URL_AMBIGUOUS`),
-  and a checkout with any configured content filter bound to a path is
+  and a checkout with any configured content filter bound to a tracked path
+  (or an untracked path visible to the index-based attribute scan) is
   refused before `git status` (`REPO_CONTENT_FILTERS_CONFIGURED`; git-lfs
-  checkouts are therefore not observable in this slice); submodule work
-  trees are not observed (`--ignore-submodules=dirty`; a moved gitlink is
-  dirty, a dirty submodule work tree is not part of the observed object);
+  checkouts are therefore not observable in this slice; a purely untracked
+  path bound only through an untracked `.gitattributes` is instead refused
+  by `git status` as `WORKTREE_NOT_CLEAN`, and git runs no filter for
+  untracked paths); submodule work trees are not observed
+  (`--ignore-submodules=dirty`; a moved gitlink is dirty, a dirty submodule
+  work tree is not part of the observed object); configuration that only
+  shapes what git *reports* without executing anything (`core.excludesFile`,
+  `core.ignoreStat`, index bits) can make git's own cleanliness view more
+  permissive — the same principal controls `.git`; pins are unaffected;
   local-path/hostless remotes refused; a symlinked root is resolved and the
   real tree is what is observed):
   repository identity (remote URL normalized, never persisted), base head +

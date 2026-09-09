@@ -1,0 +1,273 @@
+{
+ "baseline": {
+  "tests": 118,
+  "failures": 0
+ },
+ "OC-A dirty worktree accepted": {
+  "tests": 118,
+  "failures": 4,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_dirty_worktree_is_refused_live",
+   "tests.integration.test_execution_observation_live_01b::test_git_content_configuration_is_honoured_not_bypassed",
+   "tests.integration.test_execution_observation_live_01b::test_submodule_work_trees_are_not_observed_but_gitlink_moves_are",
+   "tests.unit.test_execution_observation_01b::test_dirty_worktree_refuses_before_any_pin_is_read"
+  ]
+ },
+ "OC-B pin validation dropped": {
+  "tests": 118,
+  "failures": 5,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_non_canonical_pins_are_refused[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\\n]",
+   "tests.unit.test_execution_observation_01b::test_non_canonical_pins_are_refused[HEAD is at aaaa\\n]",
+   "tests.unit.test_execution_observation_01b::test_non_canonical_pins_are_refused[\\n]",
+   "tests.unit.test_execution_observation_01b::test_non_canonical_pins_are_refused[abc1234\\n]",
+   "tests.unit.test_execution_observation_01b::test_non_canonical_pins_are_refused[ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\\n]"
+  ]
+ },
+ "OC-C userinfo remote accepted": {
+  "tests": 118,
+  "failures": 4,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_remote_urls_with_userinfo_or_junk_are_refused_without_echo[https://token@github.com/b0lk13/project-atlas.git]",
+   "tests.unit.test_execution_observation_01b::test_remote_urls_with_userinfo_or_junk_are_refused_without_echo[https://user:pass@github.com/b0lk13/project-atlas]",
+   "tests.unit.test_execution_observation_01b::test_remote_urls_with_userinfo_or_junk_are_refused_without_echo[https://x-access-token:ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@github.com/b0lk13/project-atlas.git]",
+   "tests.unit.test_execution_observation_01b::test_remote_urls_with_userinfo_or_junk_are_refused_without_echo[ssh://deploy@github.com/b0lk13/project-atlas.git]"
+  ]
+ },
+ "OC-D child env inherited": {
+  "tests": 118,
+  "failures": 3,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_inherited_git_env_cannot_redirect_the_observation",
+   "tests.integration.test_execution_observation_live_01b::test_process_environment_poisoning_does_not_reach_the_default_runner",
+   "tests.unit.test_execution_observation_01b::test_child_env_is_constructed_not_inherited"
+  ]
+ },
+ "OC-E windows wrapper accepted": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_resolve_executable_refuses_wrappers_on_windows_and_bad_names"
+  ]
+ },
+ "OC-F unmapped arch guessed": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_unmapped_environment_stays_unknown_not_guessed[Linux-riscv64-ARCH_UNMAPPED]"
+  ]
+ },
+ "OC-G toolchain invalid version accepted": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_toolchain_uses_metadata_only_and_records_absence"
+  ]
+ },
+ "OC-H receipt dimension/identity consistency dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_dimension_status_must_agree_with_identity_blocks"
+  ]
+ },
+ "OC-I receipt hash recomputation skipped": {
+  "tests": 118,
+  "failures": 6,
+  "failing": [
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_caller_supplied_hash_on_seal_is_refused_and_placeholder_not_loadable",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_tampering_after_seal_is_detected[path0-True]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_tampering_after_seal_is_detected[path1-origin/other]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_tampering_after_seal_is_detected[path2-value2]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_tampering_after_seal_is_detected[path3-other-observer]",
+   "tests.unit.test_execution_observation_01b::test_proof_v2_refuses_a_receipt_for_another_identity_or_tampered"
+  ]
+ },
+ "OC-J method refs may carry urls": {
+  "tests": 118,
+  "failures": 6,
+  "failing": [
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_method_refs_cannot_carry_urls_or_userinfo[]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_method_refs_cannot_carry_urls_or_userinfo[git clone https://token@github.com/x/y]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_method_refs_cannot_carry_urls_or_userinfo[git remote get-url https://github.com/x/y]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_method_refs_cannot_carry_urls_or_userinfo[git remote get-url\\n]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_method_refs_cannot_carry_urls_or_userinfo[git@github.com:x/y]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_method_refs_cannot_carry_urls_or_userinfo[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]"
+  ]
+ },
+ "OC-K proof linkage identity check dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_proof_v2_refuses_a_receipt_for_another_identity_or_tampered"
+  ]
+ },
+ "OC-M store symlink walk dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_store_refuses_symlinked_components_and_foreign_digests"
+  ]
+ },
+ "OC-O root must be toplevel dropped": {
+  "tests": 118,
+  "failures": 2,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_nul_in_toplevel_is_a_coded_refusal",
+   "tests.unit.test_execution_observation_01b::test_timeouts_and_failures_are_coded_not_raised_raw"
+  ]
+ },
+ "OC-P base-ref validation dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_missing_base_ref_is_a_distinct_refusal_and_override_is_recorded"
+  ]
+ },
+ "OC-Q timeout not distinguished": {
+  "tests": 118,
+  "failures": 2,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_hostile_git_on_path_cannot_produce_a_receipt",
+   "tests.unit.test_execution_observation_01b::test_timeouts_and_failures_are_coded_not_raised_raw"
+  ]
+ },
+ "OC-R secret scan of receipt dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_secret_shaped_project_id_never_reaches_a_receipt"
+  ]
+ },
+ "OC-S receipt observer kind widened to model": {
+  "tests": 118,
+  "failures": 4,
+  "failing": [
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_observer_must_be_a_tool[agent]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_observer_must_be_a_tool[ci]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_observer_must_be_a_tool[human]",
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_observer_must_be_a_tool[model]"
+  ]
+ },
+ "OC-T unsafe project id accepted": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_unsafe_project_id_is_refused_before_observation"
+  ]
+ },
+ "OC-U core.fsmonitor pin dropped (repo/global hook command would run)": {
+  "tests": 118,
+  "failures": 2,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_repo_local_fsmonitor_command_is_never_executed",
+   "tests.unit.test_execution_observation_01b::test_child_env_pins_fsmonitor_off_and_reads_git_config_as_git_does"
+  ]
+ },
+ "OC-V remote read through get-url (insteadOf applied)": {
+  "tests": 118,
+  "failures": 23,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_global_git_config_cannot_rewrite_the_repository_identity",
+   "tests.integration.test_execution_observation_live_01b::test_multi_url_remote_is_refused_as_ambiguous",
+   "tests.unit.test_execution_observation_01b::test_bound_content_filter_is_refused_before_status_runs",
+   "tests.unit.test_execution_observation_01b::test_filter_driver_scan_is_bounded_and_fails_closed",
+   "tests.unit.test_execution_observation_01b::test_git_observation_happy_path_records_methods_not_urls",
+   "tests.unit.test_execution_observation_01b::test_missing_base_ref_is_a_distinct_refusal_and_override_is_recorded",
+   "tests.unit.test_execution_observation_01b::test_multi_valued_remote_url_is_ambiguous_not_last_wins",
+   "tests.unit.test_execution_observation_01b::test_observation_is_deterministic_across_calls",
+   "tests.unit.test_execution_observation_01b::test_observation_seals_identity_and_receipt_through_the_canonical_paths",
+   "tests.unit.test_execution_observation_01b::test_proof_v2_links_a_verified_receipt_and_stays_false_without_one",
+   "tests.unit.test_execution_observation_01b::test_proof_v2_refuses_a_receipt_for_another_identity_or_tampered",
+   "tests.unit.test_execution_observation_01b::test_receipt_cannot_make_a_stage_present",
+   "tests.unit.test_execution_observation_01b::test_receipt_helper_refuses_observed_is_current_zero_and_dotdot_base_ref",
+   "tests.unit.test_execution_observation_01b::test_receipt_helper_seal_mode_does_not_bypass_identity_verification",
+   "tests.unit.test_execution_observation_01b::test_secret_shaped_project_id_never_reaches_a_receipt",
+   "tests.unit.test_execution_observation_01b::test_store_never_replaces_a_different_receipt_for_the_same_identity",
+   "tests.unit.test_execution_observation_01b::test_store_refuses_symlinked_components_and_foreign_digests",
+   "tests.unit.test_execution_observation_01b::test_store_requires_a_known_project",
+   "tests.unit.test_execution_observation_01b::test_store_validates_the_digest_argument_and_distinguishes_unreadable",
+   "tests.unit.test_execution_observation_01b::test_store_writes_content_addressed_receipt_and_loads_it_back",
+   "tests.unit.test_execution_observation_01b::test_timeouts_and_failures_are_coded_not_raised_raw",
+   "tests.unit.test_execution_observation_01b::test_unknown_environment_and_toolchain_seal_honestly",
+   "tests.unit.test_execution_observation_01b::test_unparsable_git_version_is_absent_not_fatal"
+  ]
+ },
+ "OC-W hostless/local-path remote accepted": {
+  "tests": 118,
+  "failures": 3,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_local_path_remote_is_refused_not_persisted",
+   "tests.unit.test_execution_observation_01b::test_remote_urls_with_userinfo_or_junk_are_refused_without_echo[/home/someone/.cache/origin.git]",
+   "tests.unit.test_execution_observation_01b::test_remote_urls_with_userinfo_or_junk_are_refused_without_echo[localhost/x/y]"
+  ]
+ },
+ "OC-X same-identity different receipt overwritten": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_store_never_replaces_a_different_receipt_for_the_same_identity"
+  ]
+ },
+ "OC-Y raw remote url secret scan dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_secret_shaped_remote_path_is_refused_before_normalization_lowercases_it"
+  ]
+ },
+ "OC-Z observed_is_current strictness dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_atlas_contracts_observation_receipt_01b::test_authority_current_and_time_claims_are_refused[extra2]"
+  ]
+ },
+ "OC-AA store digest argument unvalidated": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_store_validates_the_digest_argument_and_distinguishes_unreadable"
+  ]
+ },
+ "OC-AB base-ref length ceiling dropped": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_remote_name_and_long_base_ref_are_validated"
+  ]
+ },
+ "OC-AC multi-valued remote url accepted (first taken)": {
+  "tests": 118,
+  "failures": 2,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_multi_url_remote_is_refused_as_ambiguous",
+   "tests.unit.test_execution_observation_01b::test_multi_valued_remote_url_is_ambiguous_not_last_wins"
+  ]
+ },
+ "OC-AD bound content filter scan dropped": {
+  "tests": 118,
+  "failures": 2,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_bound_content_filter_is_refused_and_never_executed",
+   "tests.unit.test_execution_observation_01b::test_bound_content_filter_is_refused_before_status_runs"
+  ]
+ },
+ "OC-AE submodule work trees observed (nested git status spawned)": {
+  "tests": 118,
+  "failures": 2,
+  "failing": [
+   "tests.integration.test_execution_observation_live_01b::test_submodule_work_trees_are_not_observed_but_gitlink_moves_are",
+   "tests.unit.test_execution_observation_01b::test_git_observation_happy_path_records_methods_not_urls"
+  ]
+ },
+ "OC-AF filter driver name not validated": {
+  "tests": 118,
+  "failures": 1,
+  "failing": [
+   "tests.unit.test_execution_observation_01b::test_filter_driver_scan_is_bounded_and_fails_closed"
+  ]
+ },
+ "pairwise_distinct": true,
+ "each_nonempty": true
+}

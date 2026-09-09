@@ -14728,3 +14728,66 @@ SLSA; Windows execution beyond CI's test run; protection against a writer
 already inside the vault; principal verification of independence; ULT-01b
 readiness beyond the owner's gate. `MERGE_AUTHORIZATION = NOT_GRANTED`;
 `AT3-052` `adv_result=PASS` is not self-bound by the implementer.
+
+## ULT-01b-1 — live execution observation (2026-09-09)
+
+First slice of ULT-01b, authorized by the owner's
+`GOAL = IMPLEMENT_TRUSTWORTHY_LIVE_EXECUTION_OBSERVATION` directive with
+decisions O1–O8 (isolated observation package; agent observation deferred to
+ULT-01b-3; dedicated `execution.observe` capability, default off; canonical
+arch normalization with unknown staying UNKNOWN; declared toolchain set, no raw
+executable paths persisted; context digest to ULT-03a; IV/ADV observation
+integration to ULT-01b-2; `origin/main` default base with a recorded
+override). PR #765, stacked on AT3-103 (#743 @ `0ff843aa`, unmerged).
+Planning source PR #764.
+
+**Plan.** `project_atlas.execution_observation` (runner / git / host / observe /
+store) as the only process-launching surface; `atlas3/` stays subprocess- and
+clock-free. Git observed argv-only in a child environment constructed from
+nothing (global and system git config disabled), candidate pins only on a
+clean worktree, base pins from `origin/main`, remote read raw and normalized
+through the reused `trust.py` rules, never persisted. Environment and toolchain
+in-process with a fixed vocabulary. `atlas.observation-receipt.v1` embeds the
+sealed identity, self-verifies, carries no timestamp and can never claim
+currency or authority. Storage through a shared locator helper lifted out of
+proof v2. Proof v2 links a same-identity receipt (`live_observation_wired`).
+CLI `observe-execution` fails closed until the owner registers the capability
+in the frozen `authz.py` (patch committed as evidence, file untouched).
+
+**Three verified objects, one certified.** Round 1 `0ed99584`: IV
+PASS_WITH_NONBLOCKING_FINDINGS, ADV PASS_WITH_FINDINGS, one shared P2 (`HOME`
+passthrough let a global `.gitconfig` `url.insteadOf` rewrite the observed
+repository identity through `git remote get-url`) — superseded. Round 2
+`c549affe`: IV P0=P1=P2=0; ADV two P2s (`git config --get` records the last
+of a multi-valued remote url while a fetch contacts the first; a repo-local
+`core.fsmonitor` command executed under the observer's `git status`) and the
+Windows CI job red (`GIT_CONFIG_NOSYSTEM` bypassed `core.autocrlf`, honest
+checkouts observed dirty) — superseded. Round 3 `e3708077` / tree
+`594dc44d`: remote read `--get-all` and unambiguous; `core.fsmonitor`
+pinned off at environment level; content-filter-bound checkouts refused
+before `git status` (git evaluates the attributes, nothing executes);
+submodule work trees excluded; git configuration read as git reads it. IV
+PASS_WITH_NONBLOCKING_FINDINGS (**P0=P1=P2=0**, P3×4); ADV PASS_WITH_FINDINGS (**P0=P1=P2=0**, P3 only: over-refusal of smudge-only/ignored/sparse/LFS-bound checkouts, HOME-supplied identity for remote-less repos, unchanged normalization/storage nits, two untested-but-holding filter-scan guards). Predecessor evidence retained; none transfers.
+
+**Commands (at `e3708077`, worktree venv, junit counts).** ruff clean; mypy 415
+files clean; new suites 118 passed; affected 452 passed; full suite
+6086 collected, 6074 passed, 8 skipped, 4 xfailed, 0 failed.
+`docs/scripts/ult_01b_1_negative_controls.py`: 30 controls, 30/30 kill, 30
+distinct failing sets; `at3_103_negative_controls.py` 28/28 (re-anchored to
+the shared helper). ADV round-3 harness: 124 mutants, 92 killed, 31 survivors all equivalent/redundant/test-gap for guards that hold on probe. Proof v1 goldens 11/11. Exact-head CI run
+34336249016: all four jobs success (ubuntu 3.12 full `6074 passed, 8 skipped, 4 xfailed`; ubuntu 3.13 compat same; Windows `6017 passed, 62 skipped, 3 deselected, 4 xfailed`; control-plane) — the round-2 Windows failure is gone.
+
+**This entry's commit is docs-only**; `src` (`851943cd…`) and `tests`
+(`ef1a7692…`) are hash-identical to the certified object, so certification
+transfers by hash. Receipt: `docs/evidence/ULT-01B-1-LIVE-EXECUTION-OBSERVATION.md`
+(residual register incl. the git-binary trust boundary, content-filter
+checkouts refused, report-shaping config, TOCTOU, Windows junctions,
+`normalize_repository_identity` canonicalization nits, single-label hosts
+refused, the owner-gated `authz.py` registration).
+
+**Not claimed:** merge authority; independent verification by the
+implementer; agent/context/capability observation; IV/ADV attestation
+ingestion (ULT-01b-2); any freshness claim (`observed_is_current` is fixed
+`false`); provenance of the `git` binary; Windows execution beyond CI's test
+run. `MERGE_AUTHORIZATION = NOT_GRANTED`; `ULT_01B_SLICE_2 = NOT_STARTED`;
+`ULT_01B_SLICE_3 = NOT_STARTED`.
