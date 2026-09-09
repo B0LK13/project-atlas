@@ -6,7 +6,7 @@ All checkboxes below are **future acceptance**, not existing implementation.
 | Phase | Deliverable | Required exit evidence |
 |---|---|---|
 | A0 | Repository reuse map; daemon/Studio ADR; API/events, permissions and plugin contracts; Linux shell spike | **TECHNICALLY_COMPLETE** in PR #763 (exact-head CI); see `a0/A0-CLOSURE.md`. Owner decisions O1–O5 remain explicit. Not merged. |
-| A1 | Read-only Mission Control projection over F15 panels (+ freshness/attention) | See reconciled `a1/A1-SCOPE.md` and READY package `a1/A1-FIRST-WORK-PACKAGE.md`. Prefer useful RO Mission Control before Tauri shell. No mutation. Implementation NOT_STARTED pending O1. |
+| A1 | Read-only Mission Control projection over F15 panels (+ freshness/attention) | `AS-STUDIO-A1-001` IMPLEMENTED_IN_LANE — see `a1/A1-EVIDENCE.md`. O1/O6 APPROVED. CLI/TUI `mc`; no mutation; Tauri deferred. Not merged. |
 | A2 | Governed claim/dispatch/handoff/open-worktree/terminal | Denial and authorization tests; lease/state race tests; idempotency; scoped PTY behavior; audit/receipt capture |
 | A3 | Runtime and provider/harness integration | Model neutrality across ≥2 adapters; secrets isolation; sandbox/cost enforcement; durable tasks across UI failure |
 | A4 | Code/diff/test/terminal/PR lifecycle | End-to-end isolated feature with exact-object CI/IV, authorized merge, postmerge and seal; external IDE handoff |

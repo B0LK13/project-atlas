@@ -78,7 +78,7 @@ MERGE_AUTHORIZATION = NOT_GRANTED
 ## A1 preparation (not started)
 
 See [`a1/`](./a1/). Scope reconciled from repository truth; first package
-`AS-STUDIO-A1-001` is **READY**. Implementation waits on owner gate **O1**
+`AS-STUDIO-A1-001` is **IMPLEMENTED_IN_LANE** (O1/O6 APPROVED). See `a1/`. Not merged
 (daemon transport) unless waived — see A0-CLOSURE.
 
 ## Next

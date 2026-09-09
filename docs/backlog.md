@@ -831,7 +831,7 @@ Honesty: `PREP != IMPLEMENTED` · `STUDIO_UI != AUTHORITY` ·
 
 - [x] AS-STUDIO-INTAKE-20260908-01 Canonical documentation package synchronized from GitHub epic #746 (requirements register, A0–A8 gates, north-star cross-links; vault MDA normalize/route still BLOCKED without production `mda`)
 - [x] AS-STUDIO-A0-001 Foundation TECHNICALLY_COMPLETE (PR #763 exact-head CI; A0-CLOSURE; owner decisions O1–O5 explicit; not merged; CI_PASS != FORMAL_IV)
-- [ ] AS-STUDIO-A1 Read-only Mission Control — scope READY (`docs/atlas-3/studio/a1/`); implementation NOT_STARTED pending owner O1
+- [x] AS-STUDIO-A1-001 Read-only Mission Control — IMPLEMENTED_IN_LANE (`docs/atlas-3/studio/a1/`; O1/O6 APPROVED; CLI/TUI `mc`; not merged; no Tauri; CI_PASS != FORMAL_IV)
 - [ ] AS-STUDIO-A2 Governed mutations (claim/dispatch/handoff/worktree/terminal)
 - [ ] AS-STUDIO-A3 Runtime / provider harness integration
 - [ ] AS-STUDIO-A4 Code/diff/test/PR lifecycle vertical

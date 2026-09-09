@@ -14720,3 +14720,13 @@ AS_STUDIO_A1 = NOT_STARTED
 - A1 scope reconciled + AS-STUDIO-A1-001 READY under `docs/atlas-3/studio/a1/`
 - A1 implementation NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
 
+
+
+## AS-STUDIO-A1-001 — Read-only Mission Control (lane)
+
+- Branch: `feat/as-studio-a1-001` on A0 tip `efb92255…` / PR #763
+- Owner: **O1 APPROVED** (in-process atlas_dag RO runtime); **O6 APPROVED** (seal/evidence UNKNOWN ok)
+- Deliverables: `ATLAS_STUDIO_MISSION_CONTROL_V1` schema; `mission_control.py`; CLI `mc`/`mission-control`; docs; unit tests
+- Honesty: STUDIO_UI!=AUTHORITY; ATTENTION!=AUTHORIZATION; STALE!=CURRENT; UNKNOWN!=HEALTHY; NO_MUTATION; A0 nested honesty preserved
+- Non-goals: Tauri, A2 mutations, commit/push/PR/merge, formal IV
+- Evidence: `docs/atlas-3/studio/a1/A1-EVIDENCE.md`
