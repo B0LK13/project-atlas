@@ -5,6 +5,7 @@ UNOWNED != PERMITTED · AMBIGUOUS != OWNED · UNKNOWN != OWNED · GUARD != AUTHO
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -223,7 +224,8 @@ def test_install_hook_writes_marked_executable_script(tmp_path):
     assert f'--agent "{ME}"' in text
     assert '--repo "B0LK13/project-atlas"' in text
     assert str(dag.resolve()) in text
-    assert target.stat().st_mode & 0o111
+    if os.name == "posix":  # Windows has no mode bits; Git for Windows runs hooks via sh
+        assert target.stat().st_mode & 0o111
 
 
 def test_install_hook_refuses_to_clobber_foreign_hook(tmp_path):
