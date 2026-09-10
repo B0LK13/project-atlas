@@ -134,3 +134,78 @@ Import leakage in the *caller's* environment is a hard failure for the
 in-process path and only **informational** under `--isolated-execution`, where
 the engine deliberately does not run from the caller's environment. Repository
 identity, partial assembly and component pins are still enforced in both modes.
+
+## ATLAS-DOC-RECEIPT — AS-PROV-006
+
+```text
+PACKAGE                 = AS-PROV-006
+BRANCH                  = feat/atlas-execution-provenance-006
+PR                      = #796 (DRAFT)
+BASE                    = 58081e17243f79766b6895dc210e956e9bdc2547  (#794, unmodified)
+RELATIONSHIP            = extends #794; does NOT supersede it. #794's CI
+                          conclusions are NOT transferred here, nor #793's.
+
+CONTRACT                = DISTRIBUTION_BUILT_FROM_SELECTED_TREE
+                          (not "direct execution from the source checkout")
+ISOLATION               = venv containing only a wheel built from `git archive
+                          <commit>` + `python -I` (implies -E, -s) on every worker
+VERIFICATION_POINT      = INSIDE the worker process; the parent verifies the
+                          worker's own report, never its own import
+FAIL_MODE               = fail closed; exit 3, nothing executed, no fallback
+
+POSITIVE_EVIDENCE       = installed orchestration/mission/execution.py is
+                          BYTE-IDENTICAL to `git show HEAD:src/.../execution.py`
+NEGATIVE_EVIDENCE       = decoy install / foreign origin / editable-style origin /
+                          missing distribution / non-isolated worker / user-site
+                          enabled / unreadable metadata -> all REJECTED
+DECOY_CONTROL           = the test first asserts the decoy DOES win without -I,
+                          so the attack is exercised before it is defeated
+
+MISSIONS_RERUN          = 4/4 through the isolated path, all provenance verified
+                          passing_change            task ok      (expected ok)
+                          intentional_test_failure  task FAILED  (expected fail)
+                          real_checkout             task ok      (expected ok)
+                          interrupted_task          UNCERTAIN_REQUIRES_RECONCILIATION
+                                                    safe_to_retry=False
+                                                    auto_replay_prevented=True
+COMMAND_VS_TASK         = kept distinct; a spawned, cleanly-exited command that
+                          fails its tests is NOT task completion
+
+LOCAL_GATES             = ruff clean | mypy 413 files clean
+LOCAL_SUITE             = 6496 passed, 8 skipped, 4 xfailed, 0 failed (409s)
+LOCAL_SUITE_CAVEAT      = --no-cov --basetemp=<disk>. TWO earlier attempts ABORTED
+                          on OSError(122) 'Disk quota exceeded' (/tmp is a small
+                          tmpfs shared with other agents). An aborted run is
+                          NEITHER a pass NOR a fail and is not counted.
+CI_EXACT_HEAD           = PENDING on 179b1e9b at time of writing
+CI_BLOCKER              = GitHub Actions API rate limit exhausted (~60 min reset);
+                          caused by my own unguarded poll loop. Push succeeded;
+                          only the status read is blocked.
+
+RESOURCE_DEFECTS_FIXED  = env cache key included the wheel digest (wheels embed
+                            timestamps; one tree built twice -> 4596e393.. then
+                            a82195608..) -> keyed on tree+interpreter+platform;
+                            reuse verified 5.11s cold -> 0.06s warm, ONE env
+                          cache defaulted under the run temp dir on a tmpfs ->
+                            now ~/.cache/atlas-acceptance/envs, pruned to a bound
+PORTABILITY_FIX         = stdlib tarfile (filter="data") instead of shelling out
+                          to `tar`, which is not safe to assume on Windows
+
+COVERS                  = project_atlas, atlas_contracts
+DOES_NOT_COVER          = atlas_studio -- lives in scripts/, NOT in the wheel
+                          (verified by inspecting the wheel, not assumed);
+                          --probe-boundaries still runs in the caller's env
+PLATFORM                = Linux x86_64 / CPython 3.12.14 local only. Windows
+                          behaviour established ONLY by windows-latest CI on this
+                          PR. macOS never exercised.
+
+UPSTREAM_789            = re-checked: still 1c6bd038, unchanged, NO successor.
+                          Adapter-digest keys remain a MITIGATION IN THIS CALLER
+                          and do not repair #789's default. Branch not modified.
+BASELINE_FAILURE        = atlas validate still exits 1 (unmasked code span);
+                          pre-existing, owned by #700, not duplicated here.
+
+FORMAL_IV               = NOT_STARTED (no self-IV claimed)
+MERGE_AUTHORIZATION     = NOT_GRANTED
+CONSTITUENT_BRANCHES    = unmodified
+```
