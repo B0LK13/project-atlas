@@ -1,35 +1,46 @@
 {
-  "schema_version": 1,
-  "producer": {
-    "role": "local",
-    "agent_id": "cursor-impr-plane-20260910"
-  },
-  "task": {
-    "id": "ATLAS-PARALLEL-IMPROVEMENT-PLANE-20260910",
-    "attempt": 1
+  "blockers": [
+    {
+      "code": "MERGE_AUTHORIZATION_NOT_GRANTED"
+    },
+    {
+      "code": "CI_NOT_RUN_FOR_THIS_LANE"
+    },
+    {
+      "code": "INDEPENDENT_VERIFICATION_NOT_CLAIMED"
+    },
+    {
+      "code": "CANONICAL_VAULT_SYNC_NOT_PERFORMED"
+    }
+  ],
+  "observations": {
+    "extras": {
+      "branch": "feat/as-impr-plane-001-delivery-evidence-report",
+      "directive": "ATLAS-IMPROVEMENT-PLANE-DECISION-QUALITY-003",
+      "dq_baseline_head": "a1b3ee413d1ce5bc49e9ad1c083836fb3cada8b7",
+      "everyday_trust": "conditional",
+      "focused_tests_result": "PASS_24",
+      "impl_head": "34ca05a3ebc849ec96f1f92a0ef78c7fb507a347",
+      "package_id": "AS-IMPR-PLANE-001",
+      "pr": "https://github.com/B0LK13/project-atlas/pull/792",
+      "sync_state": "pending",
+      "tip_head": "f11ec826fdd106cc145fce3da684ddaecb8f822e",
+      "worktree": "/home/gebruiker/Projects/project-atlas-worktrees/improvement-plane"
+    },
+    "target_moved": false,
+    "unauthorized_mutations": 0
   },
   "outcome": "PASS",
-  "state": "COMPLETE",
-  "observations": {
-    "target_moved": false,
-    "unauthorized_mutations": 0,
-    "extras": {
-      "package_id": "AS-IMPR-PLANE-001",
-      "worktree": "/home/gebruiker/Projects/project-atlas-worktrees/improvement-plane",
-      "branch": "feat/as-impr-plane-001-delivery-evidence-report",
-      "source_pin_head": "b87b4a226f4aa8b2f669edf112aa3476454f754f",
-      "source_pin_tree": "46d1989b026a2f15920ec5e1c78a106799bd1249",
-      "tests": "tests/unit/test_as_impr_plane_001.py PASS (6)",
-      "demo_report": "docs/evidence/AS-IMPR-PLANE-001-DEMO-REPORT.json",
-      "entry_point": "python -m project_atlas.improvement_plane",
-      "shared_cli_modified": false,
-      "studio_modified": false,
-      "merge_authorized": false,
-      "execution_authorized": false,
-      "measured_productivity_gain": "not_demonstrated"
-    }
+  "producer": {
+    "agent_id": "cursor-impr-plane-dq-003-20260910",
+    "role": "local"
   },
   "receipt": null,
-  "blockers": [],
-  "requested_transition": null
+  "requested_transition": null,
+  "schema_version": 1,
+  "state": "COMPLETE",
+  "task": {
+    "attempt": 1,
+    "id": "ATLAS-IMPROVEMENT-PLANE-DECISION-QUALITY-003"
+  }
 }
