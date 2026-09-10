@@ -262,6 +262,15 @@ def mission_repo_checkout(ws: Path) -> tuple[str, ...]:
     from the synthetic missions: operational state must land under
     `.atlas-mission/` rather than loose in the repo root, and the disposable
     checkout must be removable afterwards without touching the caller's repo.
+
+    LIMIT, stated because it is easy to over-read: the workspace is a real
+    checkout, but the Python code under test still resolves through the
+    editable install in the CALLER's environment, not from this worktree's own
+    `src/`. Verified directly -- running inside the worktree,
+    `project_atlas.__file__` points back at the clone. So this mission covers
+    the lease, workspace hygiene and cleanup; it does NOT prove anything about
+    the worktree's own source copy. That is the same editable-install
+    resolution that `preflight` guards against, wearing a different hat.
     """
     return (sys.executable, "-m", "pytest",
             "tests/unit/test_atlas_studio_mission_bridge.py",

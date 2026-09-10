@@ -101,6 +101,31 @@ This runner always passes an explicit key including an adapter digest — a
 | same key, **different command** | silently deduplicated, misattributed | **defect (#789)** |
 | different mission, same workspace | prior checkpoint overwritten | limitation, appears intentional |
 
+## Clean-environment reproduction — what was actually verified
+
+Performed on a `git clone` of this branch into a new directory with its own
+fresh `.venv`, using **only** the documented commands above. Verified that the
+clone carried no `rr-cache` (no rerere state), registered only itself as a
+worktree, and resolved `project_atlas` from its own `src/`.
+
+```
+clone head              a85c5e7f
+rerere cache entries    0
+worktrees registered    1 (itself), unchanged after the run
+preflight               PASS -- all four component pins present
+missions                4/4 as expected
+cleanup                 run root removed; disposable checkout unregistered
+wall clock              1.78 s for the whole run
+```
+
+Nothing from the original session was needed: no vault, no Studio packet, no
+environment variables, no undocumented files, no reliance on the original
+working directory.
+
+**This is clean-environment reproduction, not second-operator verification.**
+It was performed by the same session on the same machine. No genuinely
+separate operator has run it.
+
 ## Scope of the evidence — read before quoting it
 
 - **Resume proves one measured action.** A shell script appending `EFFECT-RAN`
@@ -114,5 +139,11 @@ This runner always passes an explicit key including an adapter digest — a
 - **"Clean-environment reproduction", not a second operator.** The clean-venv
   runs described here were performed by the same session on the same machine.
   No genuinely separate operator has run this.
+- **`real_checkout` does not test the worktree's own source.** Its workspace
+  is a genuine disposable checkout, which is what exercises the lease and
+  workspace hygiene, but Python still resolves `project_atlas` through the
+  caller's editable install. Verified: inside the worktree,
+  `project_atlas.__file__` points back at the clone. The mission proves lease
+  and cleanup behaviour, not that the worktree's `src/` was executed.
 - `atlas validate` still exits 1 on this repository (unmasked code span in
   compiled claim text). Pre-existing, owned by **#700**, not fixed here.
