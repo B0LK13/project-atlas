@@ -1,0 +1,108 @@
+{
+  "authentication_checked": false,
+  "authentication_note": "not probed: a probe costs a model call. A credential or quota problem surfaces at first dispatch as QUOTA_OR_CREDENTIAL",
+  "runtimes": [
+    {
+      "adapter": "claude-code",
+      "capabilities": {
+        "accepts_assigned_session": true,
+        "reports_cost": true,
+        "supports_cost_limit": true,
+        "supports_result_schema": true,
+        "supports_resume": true,
+        "supports_session_probe": true
+      },
+      "executable": "claude",
+      "installed": true,
+      "is_fixture": false,
+      "notes": [
+        "session identity can be assigned before launch (--session-id), so an interrupted attempt stays addressable",
+        "resume by session id works from any directory from 2.1.223",
+        "--permission-prompts requires 2.1.259; below that an unattended run would wait for an approval nobody can give",
+        "prefers ANTHROPIC_API_KEY over a logged-in subscription when both are present"
+      ],
+      "runtime_enforced": [
+        "--permission-mode",
+        "--allowedTools / --disallowedTools / --tools",
+        "--permission-prompts none",
+        "--restricted (file tools confined to the working directories)",
+        "--max-budget-usd (against the runtime's own estimate)"
+      ],
+      "unsupported": [
+        "attach to a running interactive session",
+        "adopt a process this supervisor did not start",
+        "guarantee a worker stays inside its declared mutation paths",
+        "filesystem confinement without --restricted",
+        "a cost figure that is an actual charge rather than an estimate"
+      ],
+      "version": "2.1.267"
+    },
+    {
+      "adapter": "codex",
+      "capabilities": {
+        "accepts_assigned_session": false,
+        "reports_cost": false,
+        "supports_cost_limit": false,
+        "supports_result_schema": true,
+        "supports_resume": true,
+        "supports_session_probe": true
+      },
+      "executable": "codex",
+      "installed": true,
+      "is_fixture": false,
+      "notes": [
+        "mints its own thread id and announces it in the first thread.started event; the adapter streams that event file to disk so the identity survives a supervisor crash",
+        "resume is `codex exec resume <thread-id>`",
+        "reports token usage only, so this package reports cost as unknown rather than estimating one",
+        "exits 0 on a task it could not perform: observed refusing a write under --sandbox read-only with a completed turn"
+      ],
+      "runtime_enforced": [
+        "--sandbox read-only | workspace-write | danger-full-access (a real filesystem boundary, verified by observation)",
+        "--add-dir (additional writable roots)",
+        "--cd (working root)"
+      ],
+      "unsupported": [
+        "attach to a running interactive session",
+        "adopt a process this supervisor did not start",
+        "guarantee a worker stays inside its declared mutation paths",
+        "assigning a session id before launch",
+        "reporting cost in any currency",
+        "a per-launch spend cap",
+        "a single structured result object (events are JSONL)"
+      ],
+      "version": "0.153.4"
+    },
+    {
+      "adapter": "local-command",
+      "capabilities": {
+        "accepts_assigned_session": true,
+        "reports_cost": false,
+        "supports_cost_limit": false,
+        "supports_result_schema": false,
+        "supports_resume": false,
+        "supports_session_probe": true
+      },
+      "executable": null,
+      "installed": true,
+      "is_fixture": true,
+      "notes": [
+        "FIXTURE. Proves supervisor behaviour deterministically and without a model call. FIXTURE_RUN != REAL_RUNTIME_COMPATIBILITY"
+      ],
+      "runtime_enforced": [
+        "nothing; it runs a fixed argv"
+      ],
+      "unsupported": [
+        "attach to a running interactive session",
+        "adopt a process this supervisor did not start",
+        "guarantee a worker stays inside its declared mutation paths",
+        "anything a model does"
+      ],
+      "version": "FIXTURE"
+    }
+  ],
+  "universally_unsupported": [
+    "attach to a running interactive session",
+    "adopt a process this supervisor did not start",
+    "guarantee a worker stays inside its declared mutation paths"
+  ]
+}

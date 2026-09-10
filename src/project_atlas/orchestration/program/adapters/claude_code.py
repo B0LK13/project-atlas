@@ -159,6 +159,7 @@ class ClaudeCodeAdapter:
             adapter_id=ADAPTER_ID,
             supports_resume=version_at_least(version, MIN_VERSION_FOR_CROSS_DIR_RESUME),
             supports_session_probe=True,
+            accepts_assigned_session=True,
             supports_cost_limit=True,
             reports_cost=True,
             supports_result_schema=True,

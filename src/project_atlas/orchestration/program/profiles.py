@@ -45,9 +45,17 @@ _ENV_NAME_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
 
 class AdapterKind(StrEnum):
-    """Runtime adapters this package ships. Unknown values fail closed."""
+    """Runtime adapters this package ships. Unknown values fail closed.
+
+    A value exists here only when a real adapter has been written against the
+    runtime's verified interface. There is deliberately no generic
+    "any-CLI" member: a subprocess wrapper that launches anything would let a
+    program claim support for a runtime nobody has checked, which is exactly
+    the claim `SUPPORT-MATRIX.md` exists to prevent.
+    """
 
     CLAUDE_CODE = "claude-code"
+    CODEX = "codex"
     LOCAL_COMMAND = "local-command"
 
 

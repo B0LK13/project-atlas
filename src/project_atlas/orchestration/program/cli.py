@@ -35,6 +35,10 @@ from project_atlas.orchestration.program.loader import (
 )
 from project_atlas.orchestration.program.models import ProgramError
 from project_atlas.orchestration.program.profiles import UNENFORCED_MODES
+from project_atlas.orchestration.program.runtimes import (
+    UNIVERSALLY_UNSUPPORTED,
+    describe_all,
+)
 from project_atlas.orchestration.program.store import read_events
 from project_atlas.orchestration.program.supervisor import ProgramSupervisor
 
@@ -154,6 +158,40 @@ def run_reconcile(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     )
 
 
+def run_runtimes(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """Report which runtimes this machine supports, and what they cannot do.
+
+    Takes no program: it is a property of the host, and it is the answer to
+    "can I write a program against this runtime" asked before writing one.
+    """
+    _ = args
+    return (
+        {
+            "runtimes": [support.to_public_dict() for support in describe_all()],
+            "universally_unsupported": list(UNIVERSALLY_UNSUPPORTED),
+            "authentication_checked": False,
+            "authentication_note": (
+                "not probed: a probe costs a model call. A credential or quota "
+                "problem surfaces at first dispatch as QUOTA_OR_CREDENTIAL"
+            ),
+        },
+        EXIT_OK,
+    )
+
+
+def run_handoff(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    supervisor = _supervisor(args)
+    return (
+        supervisor.enroll_session(
+            task_id=str(args.task),
+            session_id=str(args.session_id),
+            enrolled_by=str(args.enrolled_by),
+            note=str(getattr(args, "note", "") or ""),
+        ),
+        EXIT_OK,
+    )
+
+
 def run_events(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     loaded = load_program(Path(args.program))
     root = _state_root(args, loaded)
@@ -168,7 +206,20 @@ _HANDLERS = {
     "cancel": run_cancel,
     "reconcile": run_reconcile,
     "events": run_events,
+    "runtimes": run_runtimes,
+    "handoff": run_handoff,
 }
+
+#: Commands that operate on a program file. ``runtimes`` does not.
+_PROGRAM_SCOPED = (
+    "validate",
+    "start",
+    "status",
+    "cancel",
+    "reconcile",
+    "events",
+    "handoff",
+)
 
 
 def register_program_parser(
@@ -199,23 +250,47 @@ def register_program_parser(
         ("cancel", "Ask a running supervisor to stop before its next launch."),
         ("reconcile", "Inspect interrupted attempts; optionally settle one."),
         ("events", "Print the tail of the durable event log."),
+        ("runtimes", "Report supported runtimes and what they cannot do."),
+        (
+            "handoff",
+            "Enrol an existing stored session so the next dispatch continues "
+            "it in a new supervised run.",
+        ),
     ):
         child = sub.add_parser(name, help=help_text)
-        child.add_argument(
-            "--program",
-            required=True,
-            type=Path,
-            help="Path to the approved program JSON file.",
-        )
-        child.add_argument(
-            "--state-root",
-            type=Path,
-            default=None,
-            help=(
-                "Directory holding program state (default: the program file's "
-                "own directory). State never lives inside the workspace."
-            ),
-        )
+        if name in _PROGRAM_SCOPED:
+            child.add_argument(
+                "--program",
+                required=True,
+                type=Path,
+                help="Path to the approved program JSON file.",
+            )
+            child.add_argument(
+                "--state-root",
+                type=Path,
+                default=None,
+                help=(
+                    "Directory holding program state (default: the program "
+                    "file's own directory). State never lives inside the "
+                    "workspace."
+                ),
+            )
+        if name == "handoff":
+            child.add_argument("--task", required=True, help="Task to hand the session to.")
+            child.add_argument(
+                "--session-id",
+                required=True,
+                help=(
+                    "The runtime's own id for a session it has STORED. No live "
+                    "process is adopted."
+                ),
+            )
+            child.add_argument(
+                "--enrolled-by",
+                required=True,
+                help="Who is making this enrolment. Recorded in program state.",
+            )
+            child.add_argument("--note", default="", help="Why, for the record.")
         if name == "reconcile":
             child.add_argument(
                 "--resolve-uncertain",

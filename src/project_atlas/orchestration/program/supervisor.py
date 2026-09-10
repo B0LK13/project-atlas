@@ -68,6 +68,7 @@ from project_atlas.orchestration.program.adapters.claude_code import (
     ClaudeCodeAdapter,
     new_session_id,
 )
+from project_atlas.orchestration.program.adapters.codex import CodexAdapter
 from project_atlas.orchestration.program.adapters.local_command import LocalCommandAdapter
 from project_atlas.orchestration.program.loader import LoadedProgram, profile_digest
 from project_atlas.orchestration.program.models import (
@@ -83,6 +84,7 @@ from project_atlas.orchestration.program.profiles import AdapterKind, AgentProfi
 from project_atlas.orchestration.program.recovery import RecoveryAction, classify_attempt
 from project_atlas.orchestration.program.store import (
     AttemptRecord,
+    HandoffRecord,
     ProgramStateRecord,
     TaskRecord,
     append_event,
@@ -206,6 +208,8 @@ def build_default_adapters(loaded: LoadedProgram) -> dict[str, RuntimeAdapter]:
 def _build_adapter(profile: AgentProfile) -> RuntimeAdapter:
     if profile.adapter is AdapterKind.CLAUDE_CODE:
         return ClaudeCodeAdapter()
+    if profile.adapter is AdapterKind.CODEX:
+        return CodexAdapter()
     if profile.adapter is AdapterKind.LOCAL_COMMAND:
         return LocalCommandAdapter(profile.command_argv())
     raise SupervisorError(  # pragma: no cover - the enum is closed
@@ -614,6 +618,123 @@ class ProgramSupervisor:
             ),
         }
 
+    def enroll_session(
+        self,
+        *,
+        task_id: str,
+        session_id: str,
+        enrolled_by: str,
+        note: str = "",
+    ) -> dict[str, Any]:
+        """Hand an existing stored session to this program, explicitly.
+
+        This is the controlled alternative to attaching to a live session,
+        which neither supported runtime offers and which this package would
+        refuse anyway: a supervisor that adopts processes it did not start
+        cannot say what those processes were authorized to do.
+
+        What actually happens is narrow and stated: the next dispatch for
+        ``task_id`` continues ``session_id`` in a NEW supervised run, under
+        this program's profile, limits, acceptance and ownership. The prior
+        session's own permissions do not carry over -- the profile decides,
+        as it does for any other dispatch.
+        """
+        state = load_state(self.root)
+        if state is None:
+            state = self.load_or_init_state()
+        task = self.program.task(task_id)
+        profile = self.loaded.effective_profile(task_id)
+        adapter = self._adapter_for(profile)
+        capabilities = adapter.capabilities
+
+        if not capabilities.supports_resume:
+            raise SupervisorError(
+                f"the {capabilities.adapter_id} adapter cannot continue a "
+                "stored session, so there is nothing to hand off to",
+                code="RESUME_UNSUPPORTED",
+            )
+        existing = state.handoffs.get(task_id)
+        if existing is not None and existing.consumed_by_attempt_id is None:
+            raise SupervisorError(
+                f"task {task_id} already has a pending handoff to session "
+                f"{existing.session_id}",
+                code="HANDOFF_ALREADY_PENDING",
+            )
+        record = state.tasks[task_id]
+        if record.state in DONE_STATES:
+            raise SupervisorError(
+                f"task {task_id} is already {record.state.value}",
+                code="TASK_ALREADY_DONE",
+            )
+
+        # Corroborate the session id where the adapter can, and record what it
+        # said either way. An operator naming an id the runtime has never seen
+        # should be able to see that nothing backed it up, rather than finding
+        # out when the resume fails.
+        probe_attempt = AttemptRecord(
+            attempt_id=f"{self.program.program_id}.{task_id}.handoff-probe",
+            task_id=task_id,
+            attempt_number=1,
+            idempotency_key="handoff-probe",
+            profile_id=profile.profile_id,
+            agent_id=profile.agent_id,
+            adapter=capabilities.adapter_id,
+            profile_digest=profile_digest(profile),
+            base_pin=self.program.base_pin,
+            runtime_session_id=session_id,
+        )
+        observed = adapter.probe_run_started(
+            self._build_request(
+                task=task,
+                profile=profile,
+                attempt=probe_attempt,
+                resume_session_id=None,
+                cancel_check=None,
+            )
+        )
+
+        handoff = HandoffRecord(
+            task_id=task_id,
+            adapter=capabilities.adapter_id,
+            session_id=session_id,
+            enrolled_by=enrolled_by,
+            note=note,
+            session_observed=observed,
+        )
+        state.handoffs[task_id] = handoff
+        persist_state(self.root, state)
+        append_event(
+            self.root,
+            "SESSION_ENROLLED",
+            {
+                "task_id": task_id,
+                "adapter": capabilities.adapter_id,
+                "session_id": session_id,
+                "enrolled_by": enrolled_by,
+                "session_observed": observed,
+            },
+        )
+        return {
+            "program_id": self.program.program_id,
+            "task_id": task_id,
+            "adapter": capabilities.adapter_id,
+            "session_id": session_id,
+            "session_observed": observed,
+            "session_observed_note": (
+                "the adapter found evidence of this session"
+                if observed
+                else "the adapter could not corroborate this session id; the "
+                "enrolment is recorded on your assertion alone"
+            ),
+            "effect": (
+                "the next dispatch for this task continues that session in a "
+                "NEW supervised run under this program's profile, limits, "
+                "acceptance and ownership; no live process is adopted and the "
+                "prior session's permissions do not carry over"
+            ),
+            "merge_authorized": False,
+        }
+
     def reconcile(self, *, resolve_uncertain: str | None = None) -> dict[str, Any]:
         """Inspect interrupted attempts, and optionally settle one explicitly.
 
@@ -1005,6 +1126,17 @@ class ProgramSupervisor:
         nodes = self._nodes(state)
         decision = select_next(nodes)
         if decision.next_package_id is not None:
+            handoff = state.handoffs.get(decision.next_package_id)
+            if handoff is not None and handoff.consumed_by_attempt_id is None:
+                return DispatchChoice(
+                    task_id=decision.next_package_id,
+                    mode=DispatchMode.RESUME,
+                    reason=(
+                        f"continuing session {handoff.session_id} enrolled by "
+                        f"{handoff.enrolled_by}"
+                    ),
+                    resume_session_id=handoff.session_id,
+                )
             return DispatchChoice(
                 task_id=decision.next_package_id,
                 mode=DispatchMode.NEW,
@@ -1385,13 +1517,27 @@ class ProgramSupervisor:
             profile_digest=sha,
             base_pin=self.program.base_pin,
             lease_id=_lease_id_for(self._leases, task.task_id, verifying=verifying),
+            # A session id is pre-assigned only for a runtime that will accept
+            # the one we hand it. Codex mints its own and announces it on its
+            # event stream, so writing a made-up id into the checkpoint here
+            # would record an identity that names nothing -- worse than
+            # recording none, because a recovery probe would then look for it.
             runtime_session_id=(
                 choice.resume_session_id
-                or (new_session_id() if capabilities.supports_session_probe else None)
+                or (new_session_id() if capabilities.accepts_assigned_session else None)
             ),
         )
         if choice.resume_session_id:
             attempt.runtime_session_id = choice.resume_session_id
+
+        if choice.mode is DispatchMode.RESUME:
+            handoff = state.handoffs.get(task.task_id)
+            if handoff is not None and handoff.consumed_by_attempt_id is None:
+                # Spent at the moment of dispatch, not after the run returns:
+                # a handoff still marked pending when the supervisor dies would
+                # resume the same session again on the next start, which is a
+                # duplicate dispatch under another name.
+                handoff.consumed_by_attempt_id = attempt_id
 
         # DISPATCH INTENT, persisted BEFORE the launch. A crash between here
         # and the adapter returning leaves exactly this record on disk, and

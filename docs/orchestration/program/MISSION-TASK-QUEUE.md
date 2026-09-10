@@ -28,13 +28,24 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
 - [x] T15 Documentation (`README.md`, `PERMISSIONS.md`)
 - [x] T16 Gates: ruff clean, mypy clean (419 files), targeted pytest green
 
-## M2 — Support Codex and Claude
+## M2 — Support Codex and Claude  ✅ COMPLETE
 
-- [ ] T20 Inventory installed runtimes and existing adapters before adding any
-- [ ] T21 Codex adapter against the actual installed CLI's verified interface
-- [ ] T22 Capability contracts: launch, output, permission, resume per runtime
-- [ ] T23 Controlled handoff where session attachment is unsupported
-- [ ] T24 Per-runtime support matrix, unsupported capabilities visible
+- [x] T20 Inventory installed runtimes and existing adapters before adding any
+      (existing: Cursor SDK `sdk/backend.py`, cursor-agent
+      `sdk/cli_execution_port.py`, generic `local_process_transport.py`;
+      `atlas3/memory/codex.py` is a history connector, not an execution
+      adapter. No Codex execution adapter existed)
+- [x] T21 Codex adapter against the verified `codex exec` interface
+      (`codex-cli 0.153.4`), including streamed JSONL and thread-id recovery
+- [x] T22 Capability contracts: `accepts_assigned_session` added and consulted;
+      per-runtime launch, output, permission and resume behaviour encoded
+- [x] T23 Controlled handoff (`program handoff`) — neither runtime attaches to
+      a live session; an operator enrols a STORED session and the next dispatch
+      continues it in a new supervised run
+- [x] T24 `program runtimes` + `SUPPORT-MATRIX.md`; unsupported capabilities
+      named, not omitted
+- [x] T25 Real Codex demonstration (`evidence/REAL-RUNTIME-DEMO-CODEX.md`)
+- [x] T26 31 further tests (`test_orchestration_program_runtimes.py`)
 
 ## M3 — Shared enrollment
 

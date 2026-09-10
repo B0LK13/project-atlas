@@ -67,6 +67,10 @@ class LocalCommandAdapter:
             # It does, however, leave a durable marker before doing anything
             # else, which is a genuine "did this ever start" signal.
             supports_session_probe=True,
+            # The fixture worker is handed its session id in the environment
+            # and writes it into its own start marker, so an assigned identity
+            # is genuinely used rather than merely recorded.
+            accepts_assigned_session=True,
             supports_cost_limit=False,
             reports_cost=False,
             supports_result_schema=False,

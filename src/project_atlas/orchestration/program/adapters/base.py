@@ -24,6 +24,7 @@ adapter's name.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import signal
@@ -69,6 +70,14 @@ class AdapterCapabilities:
     supports_resume: bool
     #: Can the adapter tell, after a crash, whether a given run ever started?
     supports_session_probe: bool
+    #: Will the runtime use a session identity the supervisor assigns *before*
+    #: launch? Distinct from ``supports_session_probe``, and the distinction is
+    #: load-bearing: Claude Code takes ``--session-id`` and can be addressed
+    #: from the moment the intent is written, while Codex mints its own and
+    #: only reveals it once running. Both are probeable; only one can be
+    #: addressed in advance, and conflating them makes a checkpoint record an
+    #: identity the runtime never heard of.
+    accepts_assigned_session: bool
     #: Does the runtime enforce a per-launch spend cap?
     supports_cost_limit: bool
     #: Does the runtime report a (client-side estimated) cost?
@@ -249,11 +258,20 @@ def run_child_to_completion(
     timeout_seconds: int,
     cancel_requested: Callable[[], bool] | None,
     poll_interval: float = 0.25,
+    stdout_path: Path | None = None,
 ) -> tuple[int | None, str, str, int | None, str | None, str]:
     """Run one child process, honouring cancellation and a wall-clock bound.
 
     Returns ``(exit_status, stdout, stderr, pid, start_identity, terminal)``
     where ``terminal`` is one of ``completed`` / ``timeout`` / ``cancelled``.
+
+    ``stdout_path`` redirects the child's stdout straight to that file instead
+    of a pipe, and the content is read back before returning. This is not a
+    convenience: a runtime that announces its session identity on its own
+    output stream only tells us that identity if the stream survives the
+    supervisor dying. Buffered in a pipe it is lost with the process; written
+    to a file it is still there for the next start to read -- the difference
+    between an interrupted run being resumable and being unknowable.
 
     The child is started in its own process group and signalled as a group:
     an agent runtime spawns its own children (shells, test runners), and
@@ -264,10 +282,14 @@ def run_child_to_completion(
     both paths report a non-``completed`` terminal state that the caller turns
     into ``UNCERTAIN`` rather than into a failure.
     """
+    stdout_handle = None
+    if stdout_path is not None:
+        stdout_path.parent.mkdir(parents=True, exist_ok=True)
+        stdout_handle = stdout_path.open("wb")
     popen_kwargs: dict[str, Any] = {
         "cwd": str(cwd),
         "env": dict(env),
-        "stdout": subprocess.PIPE,
+        "stdout": stdout_handle if stdout_handle is not None else subprocess.PIPE,
         "stderr": subprocess.PIPE,
         "stdin": subprocess.PIPE if stdin_text is not None else subprocess.DEVNULL,
         "text": True,
@@ -280,7 +302,12 @@ def run_child_to_completion(
         )
 
     started = time.monotonic()
-    process = subprocess.Popen(argv, **popen_kwargs)
+    try:
+        process = subprocess.Popen(argv, **popen_kwargs)
+    except BaseException:
+        if stdout_handle is not None:
+            stdout_handle.close()
+        raise
     pid = process.pid
     identity = process_start_identity(pid)
     if stdin_text is not None and process.stdin is not None:
@@ -301,10 +328,8 @@ def run_child_to_completion(
             # and the caller classifies from those.
             pass
         finally:
-            try:
+            with contextlib.suppress(BrokenPipeError, OSError, ValueError):
                 process.stdin.close()
-            except (BrokenPipeError, OSError, ValueError):
-                pass
             process.stdin = None
 
     terminal = "completed"
@@ -328,6 +353,17 @@ def run_child_to_completion(
     except subprocess.TimeoutExpired:  # pragma: no cover - stubborn child
         process.kill()
         stdout, stderr = process.communicate()
+
+    if stdout_handle is not None:
+        stdout_handle.close()
+        assert stdout_path is not None
+        try:
+            stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            # The stream is on disk either way; failing to read it back must
+            # not turn a completed run into an error. The file is named in the
+            # outcome's evidence regardless.
+            stdout = ""
     return process.returncode, stdout or "", stderr or "", pid, identity, terminal
 
 

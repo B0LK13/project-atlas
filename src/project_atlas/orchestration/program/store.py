@@ -121,6 +121,37 @@ class TaskRecord(BaseModel):
     reason: str = Field(default="", max_length=512)
 
 
+class HandoffRecord(BaseModel):
+    """An operator explicitly enrolling an existing stored session.
+
+    Neither supported runtime can attach to a *running* interactive session,
+    and this package never adopts a process it did not start. What it does
+    support is the controlled alternative: an operator names a session the
+    runtime has stored, and the next dispatch for that task continues that
+    conversation in a new supervised run instead of starting from nothing.
+
+    The enrolment is a recorded human act -- ``enrolled_by`` and ``note`` say
+    who asked and why. It is consumed exactly once: a handoff that fired and
+    then sat around would resume the same session on a later attempt, which is
+    a duplicate dispatch wearing a different name.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str = Field(min_length=1, max_length=128)
+    adapter: str = Field(min_length=1, max_length=64)
+    session_id: str = Field(min_length=1, max_length=256)
+    enrolled_by: str = Field(min_length=1, max_length=256)
+    enrolled_at: str = Field(default_factory=_utc_now)
+    note: str = Field(default="", max_length=1024)
+    consumed_by_attempt_id: str | None = None
+    #: What the adapter's own probe said about this session at enrolment time.
+    #: ``None`` means the adapter could not tell, which is recorded rather
+    #: than smoothed over -- an operator enrolling an id the runtime has never
+    #: heard of should be able to see that nothing corroborated it.
+    session_observed: bool | None = None
+
+
 class ProgramStateRecord(BaseModel):
     """The reconciled picture of one approved program."""
 
@@ -146,6 +177,8 @@ class ProgramStateRecord(BaseModel):
     last_stop_reason: ProgramStopReason | None = None
     tasks: dict[str, TaskRecord] = Field(default_factory=dict)
     attempts: dict[str, AttemptRecord] = Field(default_factory=dict)
+    #: Pending and spent session hand-offs, keyed by task id.
+    handoffs: dict[str, HandoffRecord] = Field(default_factory=dict)
     merge_authorized: Literal[False] = False
     execution_authorized: Literal[False] = False
 

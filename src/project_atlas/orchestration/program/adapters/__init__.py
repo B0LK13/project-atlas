@@ -18,6 +18,7 @@ from project_atlas.orchestration.program.adapters.base import (
     version_at_least,
 )
 from project_atlas.orchestration.program.adapters.claude_code import ClaudeCodeAdapter
+from project_atlas.orchestration.program.adapters.codex import CodexAdapter
 from project_atlas.orchestration.program.adapters.local_command import (
     FIXTURE_LABEL,
     LocalCommandAdapter,
@@ -31,6 +32,7 @@ __all__ = [
     "AdapterRequest",
     "AdapterUnavailableError",
     "ClaudeCodeAdapter",
+    "CodexAdapter",
     "LocalCommandAdapter",
     "RuntimeAdapter",
     "build_child_env",
