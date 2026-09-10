@@ -30,8 +30,8 @@ identity:
   implementation_v1_tree: e1b63377c37924dfa3f60f8d91efdd0ae25effeb
   implementation_v2_head: 619349986b25a5c19116aef894f48173e120ba5b
   implementation_v2_tree: d15d90bc95d66846bbc6e02f946ff116cb5a7707
-  tip_head: 6431c999553b8a14e30f48b9470a9b33a6d5dbf4
-  tip_tree: 1a783a1788497fb343fcdc94d4c797597858289e
+  tip_head: 263350d08588f086a828e8134de49255f18a1c1b
+  tip_tree: b8cab867566832580aa516cc31f22c042e00b0e2
   note: >
     Source pin is analysis baseline only. Implementation commits are lane
     checkpoints. Tip HEAD after this receipt commit will differ from v2 if
