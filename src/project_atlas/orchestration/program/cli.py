@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from project_atlas.orchestration.program import service
+from project_atlas.orchestration.program import control, service
 from project_atlas.orchestration.program.enrollment import (
     AgentStatus,
     EnrollmentError,
@@ -211,6 +211,33 @@ def run_events(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root = _state_root(args, loaded)
     rows = read_events(root, limit=int(getattr(args, "limit", 50) or 50))
     return {"program_id": loaded.program.program_id, "events": rows}, EXIT_OK
+
+
+# ------------------------------------------------------------------ control
+
+
+def run_control(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """The stable read-only contract, or one governed action request."""
+    loaded = load_program(Path(args.program))
+    root = _state_root(args, loaded)
+    action = getattr(args, "action", None)
+    if not action:
+        return (
+            control.control_view(
+                root, loaded, event_limit=int(getattr(args, "events", 25) or 25)
+            ),
+            EXIT_OK,
+        )
+    return (
+        control.request_action(
+            root,
+            loaded,
+            action=str(action),
+            requested_by=str(args.requested_by),
+            attempt_id=getattr(args, "attempt_id", None),
+        ),
+        EXIT_OK,
+    )
 
 
 # ------------------------------------------------------------------ service
@@ -409,6 +436,7 @@ _HANDLERS = {
     "runtimes": run_runtimes,
     "handoff": run_handoff,
     "service": run_service,
+    "control": run_control,
 }
 
 _AGENT_HANDLERS = {
@@ -430,6 +458,7 @@ _PROGRAM_SCOPED = (
     "events",
     "handoff",
     "service",
+    "control",
 )
 
 
@@ -468,6 +497,11 @@ def register_program_parser(
             "it in a new supervised run.",
         ),
         ("service", "Install, start, stop or inspect a durable supervisor service."),
+        (
+            "control",
+            "The stable read-only control contract, or one governed action "
+            "request (pause / resume / cancel / reconcile).",
+        ),
     ):
         child = sub.add_parser(name, help=help_text)
         if name in _PROGRAM_SCOPED:
@@ -517,6 +551,24 @@ def register_program_parser(
             )
         if name == "events":
             child.add_argument("--limit", type=int, default=50)
+        if name == "control":
+            child.add_argument(
+                "--action",
+                default=None,
+                choices=control.SUPPORTED_ACTIONS,
+                help="Omit for the read-only view.",
+            )
+            child.add_argument(
+                "--requested-by",
+                default="unknown",
+                help="Who is asking. Recorded with the request.",
+            )
+            child.add_argument(
+                "--attempt-id",
+                default=None,
+                help="With --action reconcile: the attempt to settle.",
+            )
+            child.add_argument("--events", type=int, default=25)
         if name == "service":
             child.add_argument(
                 "service_action",

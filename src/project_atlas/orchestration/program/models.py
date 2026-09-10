@@ -151,6 +151,10 @@ class ProgramStopReason(StrEnum):
 
     PROGRAM_COMPLETE = "PROGRAM_COMPLETE"
     OWNER_DECISION_REQUIRED = "OWNER_DECISION_REQUIRED"
+    #: Deliberately not CANCELLED. A pause stops NEW work and lets workers
+    #: already running finish, so nothing becomes UNCERTAIN just because an
+    #: operator wanted a breather. Cancel is the one that interrupts.
+    PAUSED = "PAUSED"
     WAITING_ON_EXTERNAL_EVENT = "WAITING_ON_EXTERNAL_EVENT"
     AWAITING_INDEPENDENT_VERIFICATION = "AWAITING_INDEPENDENT_VERIFICATION"
     RECONCILE_REQUIRED = "RECONCILE_REQUIRED"

@@ -176,6 +176,11 @@ class ProgramStateRecord(BaseModel):
     idle_cycles: int = Field(default=0, ge=0, le=1_000_000)
     estimated_cost_usd: float = Field(default=0.0, ge=0.0)
     cancel_requested: bool = False
+    #: Stops NEW dispatch while leaving running workers alone. Reversible;
+    #: cancellation is not.
+    paused: bool = False
+    paused_by: str | None = None
+    paused_at: str | None = None
     complete: bool = False
     last_stop_reason: ProgramStopReason | None = None
     tasks: dict[str, TaskRecord] = Field(default_factory=dict)

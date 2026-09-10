@@ -73,6 +73,11 @@ RESUMABLE: Final[frozenset[ProgramStopReason]] = frozenset(
         ProgramStopReason.NO_ELIGIBLE_WORK,
         ProgramStopReason.WAITING_ON_EXTERNAL_EVENT,
         ProgramStopReason.CYCLE_BUDGET_REACHED,
+        # A paused program is waiting for an operator to unpause it, which is
+        # a thing that happens while the service is still there. Exiting on
+        # pause would make "resume" mean "start the service again", which is
+        # not a pause.
+        ProgramStopReason.PAUSED,
     }
 )
 

@@ -92,11 +92,18 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
 - [x] T55 17 further tests (`test_orchestration_program_service.py`), including
       the CLI's one-JSON-object error contract
 
-## M6 — Central control
+## M6 — Central control  ✅ COMPLETE
 
-- [ ] T60 Stable read-only status contract for Atlas Studio
-- [ ] T61 Pause / resume / cancel / limits / intervention through governance
-- [ ] T62 Closing Studio must not terminate supervisor-owned work
+- [x] T60 `program control` — versioned read-only contract
+      (`atlas.program.control` v1): program, tasks, ownership, limits, service
+      liveness, reconciliation queue, events, agents
+- [x] T61 pause / resume / cancel / reconcile as governed REQUESTS; pause is
+      reversible and lets running workers finish, cancel is not and does not
+- [x] T62 The read path writes nothing — asserted byte-for-byte on `state.json`
+      and `events.jsonl`, with no stop file created
+- [x] T63 The contract names what no interface can do (owner gates, limits,
+      merge, process adoption, task edits), each with its reason
+- [x] T64 15 further tests (`test_orchestration_program_control.py`)
 
 ## M7 — Other runtimes
 

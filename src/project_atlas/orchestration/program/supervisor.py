@@ -949,6 +949,20 @@ class ProgramSupervisor:
                 "CANCELLED", "the program was cancelled", {}
             )
             return result
+        if state.paused:
+            # A pause lets running workers finish. Interrupting them would
+            # convert a reversible operator decision into a set of uncertain
+            # outcomes needing reconciliation, which is not what "pause" means
+            # to anybody.
+            if self._running:
+                self._drain(state, result)
+                result.progressed = True
+            result.stop_reason = ProgramStopReason.PAUSED
+            result.notes.append(
+                f"paused by {state.paused_by or 'an operator'}; running workers "
+                "were allowed to finish"
+            )
+            return result
         if state.total_launches >= self.program.limits.max_task_launches:
             result.stop_reason = ProgramStopReason.LIMIT_REACHED
             self._notify(
