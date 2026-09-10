@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadMissionJourney, loadTaskContext } from "./missionContracts";
 import type { MissionJourneyProjection, TaskContextProjection } from "../types";
 
+const presentationStateVersion = 1;
+
 export function useMissionContracts(enabled: boolean, repository?: string) {
   const [journey, setJourney] = useState<MissionJourneyProjection | null>(null);
   const [journeyError, setJourneyError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function useMissionContracts(enabled: boolean, repository?: string) {
     try {
       const packet = await loadTaskContext(lane, controller.signal);
       setTaskContext(packet);
-      try { window.localStorage.setItem("atlas.selectedLane", JSON.stringify({ lane: packet.lane, repository: packet.repository ?? repository ?? null })); } catch { /* optional presentation state */ }
+      try { window.localStorage.setItem("atlas.selectedLane", JSON.stringify({ version: presentationStateVersion, sourceMode: "PROJECTION", lane: packet.lane, repository: packet.repository ?? repository ?? null })); } catch { /* optional presentation state */ }
     }
     catch (error) { if (!controller.signal.aborted) setTaskError(error instanceof Error ? error.message : "Task Context unavailable"); }
     finally { if (taskRequest.current === controller) { taskRequest.current = null; setTaskLoading(false); } }
@@ -40,7 +42,7 @@ export function useMissionContracts(enabled: boolean, repository?: string) {
     try {
       const raw = window.localStorage.getItem("atlas.selectedLane");
       const parsed: unknown = raw ? JSON.parse(raw) : null;
-      if (parsed && typeof parsed === "object" && "lane" in parsed && typeof parsed.lane === "string"
+      if (parsed && typeof parsed === "object" && "version" in parsed && parsed.version === presentationStateVersion && "sourceMode" in parsed && parsed.sourceMode === "PROJECTION" && "lane" in parsed && typeof parsed.lane === "string"
         && (!("repository" in parsed) || parsed.repository == null || !repository || parsed.repository === repository)) storedLane = parsed.lane;
       else if (raw) window.localStorage.removeItem("atlas.selectedLane");
     } catch { /* optional presentation state */ }

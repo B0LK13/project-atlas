@@ -56,3 +56,19 @@ test("secondary routes keep global attention compact and lead with their purpose
   await expect(page.getByRole("heading", { name: /What knowledge and provenance/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /attention items.*Mission Control/i })).toBeVisible();
 });
+
+test("loaded attention filter has scoped matching, empty, and reset states", async ({ page }) => {
+  await page.route(`${base}/v1/mission-control`, (route) => route.fulfill({ json: a1 }));
+  await page.route(`${base}/v1/mission-journey`, (route) => route.fulfill({ status: 503, json: { reason: "MISSION_JOURNEY_OFFLINE" } }));
+  await page.goto("/#/mission-control");
+  const filter = page.getByRole("searchbox", { name: "Filter loaded attention records" });
+  await expect(filter).toBeVisible();
+  await expect(page.getByText(`${a1.attention.length} loaded attention records`)).toBeVisible();
+  await filter.fill("EXTERNAL_IV_GATED");
+  await expect(page.getByText(/matching records$/)).toBeVisible();
+  await filter.fill("no-such-loaded-record");
+  await expect(page.getByText(/No loaded attention records match this filter/)).toBeVisible();
+  await page.getByRole("button", { name: "Clear filter" }).click();
+  await expect(filter).toHaveValue("");
+  await expect(page.getByText(`${a1.attention.length} loaded attention records`)).toBeVisible();
+});

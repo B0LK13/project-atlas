@@ -17,6 +17,19 @@ export function groupAttention(items: AttentionItem[]): AttentionGroup[] {
   return [...groups.entries()].map(([cause, grouped]) => ({ cause, items: grouped }));
 }
 
+/** Search only records loaded in the current projection. */
+export function filterAttention(items: AttentionItem[], query: string): AttentionItem[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return items;
+  return items.filter((item) => [
+    item.attention_id,
+    item.kind,
+    item.title,
+    item.detail,
+    ...(item.references ?? []).map((reference) => `${reference.kind} ${reference.id}`),
+  ].some((value) => String(value ?? "").toLocaleLowerCase().includes(needle)));
+}
+
 export function attentionLabel(item: AttentionItem): { primary: string; exact: string } {
   if (item.kind === "EXTERNAL_IV_GATED") return { primary: "Independent verification unavailable", exact: item.kind };
   if (item.kind === "HUMAN_GATE") {

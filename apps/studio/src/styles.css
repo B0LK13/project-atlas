@@ -888,6 +888,13 @@ code, kbd, time, .mono { font-family: "SFMono-Regular", "Cascadia Code", "Libera
 .mission-boundary span { font-size: 12px; line-height: 1.45; }
 .attention-queue-layout { display: grid; grid-template-columns: minmax(230px, .8fr) minmax(0, 1.2fr); min-height: 220px; }
 .attention-groups { display: grid; align-content: start; gap: 5px; padding-right: 14px; border-right: 1px solid var(--line); }
+.attention-filter { display: grid; gap: 5px; margin-bottom: 4px; }
+.attention-filter label { color: var(--text); font-size: 12px; font-weight: 600; }
+.attention-filter-row { display: flex; align-items: center; gap: 8px; }
+.attention-filter input { min-width: 0; flex: 1; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-raised); color: var(--text); font: inherit; font-size: 12px; }
+.attention-filter input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.attention-filter small, .attention-result-count { color: var(--text-soft); font-size: 11px; }
+.attention-result-count { margin: 2px 0 3px; }
 .attention-group { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 9px; width: 100%; padding: 9px 8px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .attention-group:hover, .attention-group:focus-visible { border-color: var(--line-strong); background: var(--surface-soft); outline: none; }
 .attention-group.is-selected { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, transparent); }

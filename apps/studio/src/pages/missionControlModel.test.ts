@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AttentionItem } from "../types";
-import { groupAttention, attentionLabel, attentionGroupLabel, metricLabel, freshnessLabel } from "./missionControlModel";
+import { groupAttention, filterAttention, attentionLabel, attentionGroupLabel, metricLabel, freshnessLabel } from "./missionControlModel";
 
 const item = (id: string, kind: string, title = kind): AttentionItem => ({
   attention_id: id, kind, tier: 60, title, detail: `${kind} detail`, attention_ne_authorization: true,
@@ -22,6 +22,13 @@ describe("mission control decision support", () => {
   it("labels groups by their source cause rather than a record title", () => {
     expect(attentionGroupLabel("HUMAN_GATE")).toBe("Owner decisions");
     expect(attentionGroupLabel("EXTERNAL_IV_GATED")).toBe("Independent verification unavailable");
+  });
+
+  it("filters only loaded records and matches source details", () => {
+    const records = [item("lane-1", "EXTERNAL_IV_GATED"), item("pr-793", "HUMAN_GATE", "Owner decision PR/793")];
+    expect(filterAttention(records, "pr/793").map((entry) => entry.attention_id)).toEqual(["pr-793"]);
+    expect(filterAttention(records, "")).toBe(records);
+    expect(filterAttention(records, "missing")).toEqual([]);
   });
 
   it("names metrics by their actual entity and keeps freshness precise", () => {
