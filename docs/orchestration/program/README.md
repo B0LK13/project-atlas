@@ -27,13 +27,35 @@ and never treats anything a worker wrote as authority.
 ## Invocation
 
 ```bash
-python -m project_atlas.orchestration.program.cli program validate  --program PROGRAM.json
-python -m project_atlas.orchestration.program.cli program start     --program PROGRAM.json
-python -m project_atlas.orchestration.program.cli program status    --program PROGRAM.json
-python -m project_atlas.orchestration.program.cli program cancel    --program PROGRAM.json
-python -m project_atlas.orchestration.program.cli program reconcile --program PROGRAM.json
-python -m project_atlas.orchestration.program.cli program events    --program PROGRAM.json --limit 50
+M=python -m project_atlas.orchestration.program.cli   # shorthand for the lines below
+
+$M program validate  --program PROGRAM.json   # validate; report the enforcement picture
+$M program start     --program PROGRAM.json   # run until a stop reason
+$M program status    --program PROGRAM.json   # compact status; dispatches nothing
+$M program cancel    --program PROGRAM.json   # stop before the next launch
+$M program reconcile --program PROGRAM.json   # inspect / settle interrupted attempts
+$M program events    --program PROGRAM.json --limit 50
+$M program runtimes                            # what this machine supports, and cannot
+$M program handoff   --program PROGRAM.json --task T --session-id S --enrolled-by you
+$M program control   --program PROGRAM.json   # the versioned read-only contract
+$M program service   install|start|stop|status|run --program PROGRAM.json
+
+$M agent enroll  --registry R --agent-id A --role implementer \
+                 --adapter claude-code --workspace W --enrolled-by you
+$M agent assign  --registry R --agent-id A --program PROGRAM.json --assigned-by you
+$M agent launch  --registry R --agent-id A
+$M agent list|status|set-status --registry R [--agent-id A]
 ```
+
+| Topic | Page |
+| --- | --- |
+| Which runtimes are supported and what they cannot do | `SUPPORT-MATRIX.md` |
+| Who enforces which permission | `PERMISSIONS.md` |
+| Registering agents and the four identities | `ENROLLMENT.md` |
+| Running as a durable service | `SERVICE.md` |
+| The contract Atlas Studio consumes | `CONTROL.md` |
+| What was reused from the existing control plane | `REUSE-MAP.md` |
+| Real-runtime evidence | `evidence/` |
 
 Every command prints one JSON object. Exit codes follow the repository
 convention: `0` success, `1` operational error, `2` usage error.
@@ -161,11 +183,37 @@ budget flag and compared against the runtime's client-side estimate.
 | `NO_ELIGIBLE_WORK` with tasks left | Look at `status.blocked` and `status.owner_decision_required` |
 | Program never finishes, `waiting_on_external_event` non-empty | The precondition's probe is not reporting its pass status. `events` shows each poll |
 
+## Concurrency
+
+`max_concurrent_workers` defaults to **1**. Sequential execution is the proven
+case, and a program gets concurrency because it asked for it.
+
+Raising it relaxes nothing else. The surface-overlap gate still refuses two
+tasks that share a mutation path or semantic; the durable lease projection
+still refuses a second active lease for one task **or one agent** — an enrolled
+agent is one worker, not a pool — and owner gates still hold. What the number
+bounds is how many *non-conflicting* tasks may be in flight.
+
+Only `adapter.run()` leaves the supervisor's thread. Leases, dispatch intent,
+transitions, acceptance and settlement all happen on the supervisor's own
+thread, so program state is never mutated from more than one place.
+
+`max_concurrent_workers_observed` in the report is measured, not configured: a
+program that permits four workers and never ran more than one has not
+demonstrated concurrency.
+
 ## Limitations
 
-* One worker at a time. The overlap gate is enforced but not yet exercised by
-  concurrency.
-* The Claude Code adapter is the only real runtime implemented so far.
-* No service/daemon wrapper yet — `start` runs in the foreground and stops at a
-  stop reason.
-* Acceptance is only as good as the conditions a program declares.
+* Cursor and Copilot are inventoried but **not adapted** — their output
+  contracts could not be verified because both accounts are at a limit. See
+  `SUPPORT-MATRIX.md`; the reason is recorded rather than glossed.
+* Acceptance is only as good as the conditions a program declares. These
+  conditions are checked; the *right* conditions are the program author's job.
+* `mutation_paths` bounds what Atlas will dispatch, not what a running worker
+  can touch. Only Codex's `--sandbox` and Claude Code's `--restricted` are real
+  filesystem boundaries.
+* Cost is an estimate where it is reported at all, and Codex reports none.
+* A program file is immutable while it runs; changing it is
+  `PROGRAM_DIGEST_DRIFT`, not a hot reload.
+* Independent verification uses a second configured agent or waits for a
+  person. There is no third option.
