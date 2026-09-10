@@ -72,9 +72,42 @@ def _state_root(args: argparse.Namespace, loaded: LoadedProgram) -> Path:
     return loaded.source_path.parent
 
 
+def _enrolled_for(
+    args: argparse.Namespace, loaded: LoadedProgram
+) -> tuple[tuple[Any, ...], Path | None]:
+    """Every ACTIVE enrolled agent whose role this program declares.
+
+    Only present when the operator passes `--registry`, so a program can still
+    be run without a roster. Binding here is what makes enrolment actually
+    govern a run: the agent's identity becomes the principal on the lease, its
+    narrowing applies, and its authority is re-read before every dispatch.
+
+    A SUSPENDED or RETIRED agent is skipped rather than bound. Binding it and
+    then refusing every dispatch would be the same outcome reached noisily.
+    """
+    registry_arg = getattr(args, "registry", None)
+    if not registry_arg:
+        return (), None
+    root = Path(registry_arg).expanduser().resolve()
+    registry = load_registry(root)
+    roles = set(loaded.profiles.profiles)
+    agents = tuple(
+        agent
+        for agent in sorted(registry.agents.values(), key=lambda item: item.agent_id)
+        if agent.role in roles and agent.status is AgentStatus.ACTIVE
+    )
+    return agents, root
+
+
 def _supervisor(args: argparse.Namespace) -> ProgramSupervisor:
     loaded = load_program(Path(args.program))
-    return ProgramSupervisor(loaded, state_root=_state_root(args, loaded))
+    agents, registry_root = _enrolled_for(args, loaded)
+    return ProgramSupervisor(
+        loaded,
+        state_root=_state_root(args, loaded),
+        enrolled_agents=agents,
+        registry_root=registry_root,
+    )
 
 
 def run_validate(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -153,7 +186,11 @@ def run_validate(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 def run_start(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     supervisor = _supervisor(args)
     report = supervisor.start()
-    return report.to_public_dict(), EXIT_OK
+    payload = report.to_public_dict()
+    payload["enrolled_agents_bound"] = [
+        agent.agent_id for agent in supervisor.enrolled_agents
+    ]
+    return payload, EXIT_OK
 
 
 def run_status(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -586,6 +623,17 @@ def register_program_parser(
             )
         if name == "events":
             child.add_argument("--limit", type=int, default=50)
+        if name in {"start", "status", "control"}:
+            child.add_argument(
+                "--registry",
+                type=Path,
+                default=None,
+                help=(
+                    "Bind every ACTIVE enrolled agent whose role this program "
+                    "declares. Their identities become the principals on the "
+                    "leases and their authority is re-read before each dispatch."
+                ),
+            )
         if name == "control":
             child.add_argument(
                 "--action",

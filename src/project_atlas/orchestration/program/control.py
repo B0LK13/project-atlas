@@ -436,23 +436,36 @@ def _agent_rows(root: Path) -> list[dict[str, Any]]:
     ]
 
 
-def _require_state(root: Path) -> ProgramStateRecord:
+def _require_state(
+    root: Path, loaded: LoadedProgram | None = None
+) -> ProgramStateRecord:
+    """The program's durable record, initialising it when that is legitimate.
+
+    An operator must be able to pause a program BEFORE starting it -- that is
+    the safest moment to pause one, and refusing it would force the only way to
+    create state to be a dispatch. With ``loaded`` supplied, the record is
+    initialised exactly as `start` would; nothing is dispatched.
+    """
     state = load_state(root)
-    if state is None:
+    if state is not None:
+        return state
+    if loaded is None:
         raise ControlError(
             "this program has never been started", code="NO_STATE"
         )
-    return state
+    return ProgramSupervisor(loaded, state_root=root).load_or_init_state()
 
 
-def pause(root: Path, *, requested_by: str) -> dict[str, Any]:
+def pause(
+    root: Path, *, requested_by: str, loaded: LoadedProgram | None = None
+) -> dict[str, Any]:
     """Stop starting new work. Workers already running are left alone.
 
     Reversible, and deliberately gentler than cancellation: interrupting a
     running worker turns a reversible operator decision into a set of uncertain
     outcomes that need reconciling, which is not what anyone means by "pause".
     """
-    state = _require_state(root)
+    state = _require_state(root, loaded)
     state.paused = True
     state.paused_by = requested_by
     state.paused_at = _utc_now()
@@ -507,9 +520,11 @@ def _agent_for(root: Path, state: ProgramStateRecord, task_id: str) -> str | Non
     return attempt.agent_id if attempt is not None else None
 
 
-def resume(root: Path, *, requested_by: str) -> dict[str, Any]:
+def resume(
+    root: Path, *, requested_by: str, loaded: LoadedProgram | None = None
+) -> dict[str, Any]:
     """Clear a pause. Does not clear a cancellation, which is not reversible."""
-    state = _require_state(root)
+    state = _require_state(root, loaded)
     if state.cancel_requested:
         raise ControlError(
             "this program was cancelled, not paused. Cancellation is not "
@@ -555,9 +570,9 @@ def request_action(
             code="ACTION_NOT_SUPPORTED",
         )
     if action == "pause":
-        return pause(root, requested_by=requested_by)
+        return pause(root, requested_by=requested_by, loaded=loaded)
     if action == "resume":
-        return resume(root, requested_by=requested_by)
+        return resume(root, requested_by=requested_by, loaded=loaded)
 
     supervisor = ProgramSupervisor(loaded, state_root=root)
     if action == "cancel":

@@ -528,3 +528,48 @@ def test_retry_eligibility_distinguishes_permanent_from_retryable(
         action["action"] == "investigate_blocked_task"
         for action in view["required_operator_actions"]
     )
+
+
+def test_pausing_an_unstarted_program_creates_no_dispatch(tmp_path: Path) -> None:
+    """Regression from the operator journey.
+
+    An earlier draft of the journey ran a throwaway `start` to create the
+    durable record before pausing -- which executed the whole program and made
+    the next step's narrative false. Pausing an unstarted program is
+    legitimate, is the safest moment to pause one, and must initialise the
+    record without dispatching anything.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    loaded = load_program(program)
+    root = tmp_path / "state"
+
+    assert load_state(root) is None
+    paused = control.pause(root, requested_by="wesley", loaded=loaded)
+    assert paused["paused"] is True
+    assert paused["still_running"] == []
+
+    state = load_state(root)
+    assert state is not None
+    assert state.attempts == {}, "pausing must not have launched anything"
+    assert state.total_launches == 0
+
+    report = ProgramSupervisor(loaded, state_root=root, sleeper=lambda _s: None).start()
+    assert report.stop_reason is ProgramStopReason.PAUSED
+    assert report.launches_this_run == 0
+
+    control.resume(root, requested_by="wesley", loaded=loaded)
+    resumed = ProgramSupervisor(
+        loaded, state_root=root, sleeper=lambda _s: None
+    ).start()
+    assert resumed.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert resumed.launches_this_run == 2
+
+
+def test_pause_without_a_program_still_refuses_when_it_cannot_initialise(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(control.ControlError) as excinfo:
+        control.pause(tmp_path / "nowhere", requested_by="wesley")
+    assert excinfo.value.code == "NO_STATE"
