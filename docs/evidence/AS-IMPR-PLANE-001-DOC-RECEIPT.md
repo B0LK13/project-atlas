@@ -34,15 +34,16 @@ identity:
   dq_baseline_tree: 829ac6015ba3e1933ac0087b19317c81aaf25a94
   decision_quality_impl_head: 7aecdc3fa6312335a0c237cba62f3dfa0365b29a
   decision_quality_impl_tree: b3fc11990973fcbd47108066af383990fcf69087
-  tip_head: c144c632288d941aeb5455a9f63ca5475875407c
-  tip_tree: cb48e0b0ce2236ba2e4585f74fd2d7c161780031
+  tip_head: 7aecdc3fa6312335a0c237cba62f3dfa0365b29a
+  tip_tree: b3fc11990973fcbd47108066af383990fcf69087
   note: >
     Source pin is analysis baseline only. DQ baseline freeze is a1b3ee41.
-    Decision-quality implementation checkpoint is 7aecdc3f / tree b3fc1199.
-    Branch tip after this receipt identity correction is recorded separately.
-    Generated *-REPORT artifacts are self-ingest excluded. Outcomes under
-    .atlas/ are local annotations. Tests/corpus are controlled evidence, not
-    authentic longitudinal history; sample=1 demos establish only that case.
+    tip_head/tip_tree name the decision-quality delivery checkpoint (7aecdc3f),
+    not later docs-only receipt pins. PR head / git rev-parse HEAD may be
+    ahead with documentation-only commits. Generated *-REPORT artifacts are
+    self-ingest excluded. Outcomes under .atlas/ are local annotations.
+    Tests/corpus are controlled evidence, not authentic longitudinal history;
+    sample=1 demos establish only that case.
 focused_tests:
   - tests/unit/test_as_impr_plane_001.py
   - tests/unit/test_as_impr_plane_002_cycle.py
