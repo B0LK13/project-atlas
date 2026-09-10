@@ -127,21 +127,36 @@ def test_keep_retains_and_says_so(tmp_path: Path):
     shutil.rmtree(res.root, ignore_errors=True)
 
 
+def _registered_worktrees() -> set[Path]:
+    """Registered worktree paths, RESOLVED.
+
+    Never compare these as raw strings: on Windows `git worktree list` prints
+    forward slashes and the long account name (`.../runneradmin/...`) while
+    `str(Path(...))` gives backslashes and may carry an 8.3 short name
+    (`RUNNER~1`). Both spellings denote one path, so resolve before comparing.
+    """
+    out = subprocess.run(["git", "worktree", "list", "--porcelain"],
+                         cwd=str(REPO_ROOT), capture_output=True, text=True).stdout
+    paths: set[Path] = set()
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            paths.add(Path(line[len("worktree "):].strip()).resolve())
+    return paths
+
+
 def test_worktree_cleanup_leaves_no_registration():
     """A disposable checkout must not linger in the caller's .git/worktrees."""
-    before = subprocess.run(["git", "worktree", "list"], cwd=str(REPO_ROOT),
-                            capture_output=True, text=True).stdout
+    before = _registered_worktrees()
     res = ma.RunResources(REPO_ROOT, keep=False)
     wt = res.worktree("probe", "HEAD")
     assert wt.is_dir()
-    during = subprocess.run(["git", "worktree", "list"], cwd=str(REPO_ROOT),
-                            capture_output=True, text=True).stdout
-    assert str(wt) in during
+    during = _registered_worktrees()
+    assert wt.resolve() in during, f"{wt.resolve()} not among {during}"
+    assert during == before | {wt.resolve()}
     res.cleanup()
-    after = subprocess.run(["git", "worktree", "list"], cwd=str(REPO_ROOT),
-                           capture_output=True, text=True).stdout
-    assert str(wt) not in after
-    assert len(after.splitlines()) == len(before.splitlines())
+    after = _registered_worktrees()
+    assert wt.resolve() not in after
+    assert after == before
 
 
 def test_studio_packet_supplies_context_not_authority(tmp_path: Path):
