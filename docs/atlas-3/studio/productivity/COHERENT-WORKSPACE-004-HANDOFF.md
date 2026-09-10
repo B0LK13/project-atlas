@@ -10,6 +10,7 @@ smallest supported continuation increment.
 - Accepted candidate tag: `atlas-studio-page-purpose-003`
 - Accepted candidate commit: `664325fc539ebbca73254084f56d0edd62c38848`
 - Accepted candidate tree: `ca925adddf2128dc4a0f2d636c9622b25ee651c3`
+- Continuation UI HEAD: `576c8964b265469ad3a22d306f8d72dbf265a0d6` (tree `5b5ac6daeb54ff9d2f72660ca758a2a7384d2172`)
 - Working branch: `feat/atlas-native-daily-workspace-001`
 - Remote: `origin https://github.com/B0LK13/project-atlas.git`
 - Remote branch: no `origin/feat/atlas-native-daily-workspace-001` ref was present at handoff time.
@@ -22,6 +23,7 @@ durable in the candidate evidence directory:
 
 - executable SHA-256: `025a932ef9a03e6ddc739836bf511b28d67fb24b3efc8bfa4bd1d9507df96c0b`
 - Debian package SHA-256: `3ff6d51b58929e9596418e99796063adb3b0af50f59c38cec87fd8504f32ee54`
+- Continuation executable SHA-256 after the context-strip rebuild: `95128e7c962ff1fa989d3fd9883296de1e15380168c6ceb5bdfd7c371201387a`
 - screenshots: `docs/atlas-3/studio/desktop/evidence/page-purpose-003-before.png` and `page-purpose-003-after.png`
 
 Reproducible build: `cd apps/studio && npm ci && npm run check`; native packaging
@@ -78,4 +80,3 @@ attempt was blocked by the recorded HTTP 400 insufficient Anthropic API credits.
 Raw work and validation evidence remain preserved in git and the candidate
 records; no canonical receipt is invented. Retry only after the credit or
 supported synchronization prerequisite changes.
-
