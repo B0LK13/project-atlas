@@ -101,7 +101,7 @@ atlas program control --program ./my-program.json --state-root ~/atlas-state \
 
 # If it was started as a detached service:
 atlas program service stop --program ./my-program.json --state-root ~/atlas-state
-atlas program service status --program ./my-program.json --state-root ~/atlas-state
+atlas program service status --program ./my-program.json --state-root ~/atlas-state --registry ~/atlas-agents
 ```
 
 A worker is terminated as a **process group**, so the runtime's own children go

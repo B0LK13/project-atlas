@@ -143,6 +143,17 @@ def test_install_writes_a_launcher_and_activates_nothing(tmp_path: Path) -> None
     assert "SERVICE_INSTALLED != SERVICE_RUNNING" in report["truth_boundary"]
 
 
+def test_install_persists_registry_binding_in_launcher(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    registry = tmp_path / "registry"
+    report = service.install(tmp_path / "state", program, registry_root=registry)
+
+    launcher = Path(report["launcher"]).read_text(encoding="utf-8")
+    assert f"--registry {str(registry.resolve())!r}" in launcher
+
+
 def test_status_before_anything_started(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()
@@ -204,9 +215,10 @@ def test_the_service_records_its_own_identity_not_a_launchers(
             str(tmp_path / "state"),
             "--max-rounds",
             "2",
-            "--poll-seconds",
-            "0",
-        ],
+                "--poll-seconds",
+                "0",
+                "--allow-unregistered",
+            ],
         capture_output=True,
         text=True,
         timeout=300,
@@ -275,6 +287,146 @@ def test_service_start_refuses_a_second_live_service(tmp_path: Path) -> None:
     with pytest.raises(service.ServiceError) as excinfo:
         service.start(tmp_path / "state", program)
     assert excinfo.value.code == "SERVICE_ALREADY_RUNNING"
+
+
+def test_detached_start_requires_explicit_registry_binding(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+
+    with pytest.raises(service.ServiceError) as excinfo:
+        service.start(tmp_path / "state", program)
+
+    assert excinfo.value.code == "REGISTRY_REQUIRED"
+
+
+def test_service_run_binds_assigned_registry_agent(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    registry = tmp_path / "registry"
+    agent = enroll(
+        registry,
+        agent_id="svc-agent",
+        role="impl",
+        adapter=AdapterKind.LOCAL_COMMAND,
+        workspace_root=workspace,
+        enrolled_by="test",
+    )
+    assert agent.assigned_program is None
+    assign(
+        registry,
+        agent_id="svc-agent",
+        program_path=program,
+        assigned_by="test",
+    )
+
+    report = service.run(
+        tmp_path / "state",
+        program,
+        registry_root=registry,
+        poll_seconds=0.0,
+        max_rounds=1,
+        sleeper=lambda _s: None,
+    )
+
+    assert report["program_complete"] is True
+    assert report["rounds"][0]["launches_this_run"] == 1
+
+
+def test_service_run_can_refuse_missing_registry_binding(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+
+    with pytest.raises(service.ServiceError) as excinfo:
+        service.run(
+            tmp_path / "state",
+            program,
+            allow_unregistered=False,
+            poll_seconds=0.0,
+            max_rounds=1,
+            sleeper=lambda _s: None,
+        )
+
+    assert excinfo.value.code == "REGISTRY_REQUIRED"
+
+
+@pytest.mark.parametrize("status", [AgentStatus.SUSPENDED, AgentStatus.RETIRED])
+def test_service_run_refuses_non_active_assignment_without_launch(
+    tmp_path: Path, status: AgentStatus
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    registry = tmp_path / "registry"
+    enroll(
+        registry,
+        agent_id="svc-agent",
+        role="impl",
+        adapter=AdapterKind.LOCAL_COMMAND,
+        workspace_root=workspace,
+        enrolled_by="test",
+    )
+    assign(
+        registry,
+        agent_id="svc-agent",
+        program_path=program,
+        assigned_by="test",
+    )
+    from project_atlas.orchestration.program.enrollment import set_status
+
+    set_status(registry, agent_id="svc-agent", status=status)
+
+    with pytest.raises(service.ServiceError) as excinfo:
+        service.run(
+            tmp_path / "state",
+            program,
+            registry_root=registry,
+            poll_seconds=0.0,
+            max_rounds=1,
+            sleeper=lambda _s: None,
+        )
+
+    assert excinfo.value.code == "REGISTRY_BINDING_MISSING"
+    assert not list(workspace.glob("*.txt"))
+
+
+def test_service_run_refuses_assignment_to_a_different_program(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    other_root = tmp_path / "other"
+    other_root.mkdir()
+    other = _program(other_root, workspace)
+    registry = tmp_path / "registry"
+    enroll(
+        registry,
+        agent_id="svc-agent",
+        role="impl",
+        adapter=AdapterKind.LOCAL_COMMAND,
+        workspace_root=workspace,
+        enrolled_by="test",
+    )
+    assign(
+        registry,
+        agent_id="svc-agent",
+        program_path=other,
+        assigned_by="test",
+    )
+
+    with pytest.raises(service.ServiceError) as excinfo:
+        service.run(
+            tmp_path / "state",
+            program,
+            registry_root=registry,
+            poll_seconds=0.0,
+            max_rounds=1,
+            sleeper=lambda _s: None,
+        )
+
+    assert excinfo.value.code == "REGISTRY_BINDING_MISSING"
+    assert not list(workspace.glob("*.txt"))
 
 
 def test_a_stale_identity_does_not_look_alive(tmp_path: Path) -> None:

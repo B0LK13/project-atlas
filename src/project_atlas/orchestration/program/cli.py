@@ -304,14 +304,25 @@ def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     program_path = Path(args.program)
     loaded = load_program(program_path)
     root = _state_root(args, loaded)
+    registry = getattr(args, "registry", None)
+    registry_root = Path(registry).expanduser().resolve() if registry else None
+    allow_unregistered = bool(getattr(args, "allow_unregistered", False))
     if action == "install":
-        return service.install(root, program_path), EXIT_OK
+        return service.install(root, program_path, registry_root=registry_root), EXIT_OK
     if action == "start":
-        return service.start(root, program_path), EXIT_OK
+        return (
+            service.start(
+                root,
+                program_path,
+                registry_root=registry_root,
+                allow_unregistered=allow_unregistered,
+            ),
+            EXIT_OK,
+        )
     if action == "stop":
         return service.stop(root), EXIT_OK
     if action == "status":
-        return service.status(root, program_path), EXIT_OK
+        return service.status(root, program_path, registry_root=registry_root), EXIT_OK
     if action == "run":
         return (
             service.run(
@@ -319,6 +330,8 @@ def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 program_path,
                 poll_seconds=float(getattr(args, "poll_seconds", 30.0)),
                 max_rounds=getattr(args, "max_rounds", None),
+                registry_root=registry_root,
+                allow_unregistered=allow_unregistered,
             ),
             EXIT_OK,
         )
@@ -672,6 +685,20 @@ def register_program_parser(
                 type=int,
                 default=None,
                 help="Bound the service to this many rounds (mostly for tests).",
+            )
+            child.add_argument(
+                "--registry",
+                type=Path,
+                default=None,
+                help=(
+                    "Directory holding the enrolled-agent registry. Detached "
+                    "start/run requires this unless --allow-unregistered is explicit."
+                ),
+            )
+            child.add_argument(
+                "--allow-unregistered",
+                action="store_true",
+                help="Explicitly allow the existing unregistered service mode.",
             )
     return parser
 

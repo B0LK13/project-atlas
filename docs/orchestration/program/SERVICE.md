@@ -13,7 +13,7 @@ graceful shutdown, and a recorded process identity that survives PID reuse
 
 ```bash
 python -m project_atlas.orchestration.program.cli program service install \
-  --program PROGRAM.json --state-root ~/atlas-state
+  --program PROGRAM.json --state-root ~/atlas-state --registry ~/atlas-agents
 ```
 
 Writes two files under `<state-root>/.atlas/orchestration/program/service/`:
@@ -33,13 +33,18 @@ systemctl --user enable --now atlas-program-<program_id>.service
 ## Start, stop, inspect
 
 ```bash
-python -m ...program.cli program service start   --program PROGRAM.json --state-root ~/atlas-state
-python -m ...program.cli program service status  --program PROGRAM.json --state-root ~/atlas-state
+python -m ...program.cli program service start   --program PROGRAM.json --state-root ~/atlas-state --registry ~/atlas-agents
+python -m ...program.cli program service status  --program PROGRAM.json --state-root ~/atlas-state --registry ~/atlas-agents
 python -m ...program.cli program service stop    --program PROGRAM.json --state-root ~/atlas-state
-python -m ...program.cli program service run     --program PROGRAM.json --state-root ~/atlas-state
+python -m ...program.cli program service run     --program PROGRAM.json --state-root ~/atlas-state --registry ~/atlas-agents
 ```
 
-`run` is the service body itself; `start` detaches one.
+`run` is the service body itself; `start` detaches one. A detached service
+requires `--registry` and binds every active agent whose role is declared by
+the program and whose durable assignment names that exact program file. A
+missing, unreadable, mismatched, or inactive assignment fails closed before a
+worker launch. The prior unregistered mode remains available only through an
+explicit `--allow-unregistered` flag for callers that intentionally use it.
 
 ## Who writes the recorded PID
 

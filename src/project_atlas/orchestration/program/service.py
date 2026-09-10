@@ -31,6 +31,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
+from project_atlas.orchestration.program.enrollment import AgentStatus, load_registry
 from project_atlas.orchestration.program.loader import LoadedProgram, load_program
 from project_atlas.orchestration.program.models import ProgramError, ProgramStopReason
 from project_atlas.orchestration.program.store import (
@@ -100,6 +101,28 @@ def identity_path(root: Path) -> Path:
 
 def log_path(root: Path) -> Path:
     return service_dir(root) / LOG_NAME
+
+
+def _bound_agents(loaded: LoadedProgram, registry_root: Path) -> tuple[Any, ...]:
+    """Resolve every program role to its active, assigned registry record."""
+    registry = load_registry(registry_root)
+    program_path = str(loaded.source_path.expanduser().resolve())
+    bound: list[Any] = []
+    for role in loaded.profiles.profiles:
+        candidates = [
+            agent
+            for agent in registry.agents.values()
+            if agent.role == role
+            and agent.status is AgentStatus.ACTIVE
+            and agent.assigned_program == program_path
+        ]
+        if not candidates:
+            raise ServiceError(
+                f"no ACTIVE registry assignment for role {role!r} and program {program_path}",
+                code="REGISTRY_BINDING_MISSING",
+            )
+        bound.extend(candidates)
+    return tuple(bound)
 
 
 @dataclass(frozen=True)
@@ -177,7 +200,13 @@ def service_is_alive(identity: ServiceIdentity | None) -> bool:
     return live == recorded
 
 
-def install(root: Path, program_path: Path, *, python: str | None = None) -> dict[str, Any]:
+def install(
+    root: Path,
+    program_path: Path,
+    *,
+    python: str | None = None,
+    registry_root: Path | None = None,
+) -> dict[str, Any]:
     """Write a launcher for this program. Activates nothing.
 
     Returns the launcher path plus a systemd user unit as *text*, not as an
@@ -191,6 +220,10 @@ def install(root: Path, program_path: Path, *, python: str | None = None) -> dic
     interpreter = python or sys.executable
     program_arg = str(program_path.expanduser().resolve())
     root_arg = str(root.expanduser().resolve())
+    registry_arg = (
+        str(registry_root.expanduser().resolve()) if registry_root is not None else None
+    )
+    registry_flag = f"  --registry {registry_arg!r} \\\n" if registry_arg else ""
 
     script = directory / f"run-{loaded.program.program_id}.sh"
     script.write_text(
@@ -200,7 +233,9 @@ def install(root: Path, program_path: Path, *, python: str | None = None) -> dic
         "set -euo pipefail\n"
         f'exec {interpreter!r} -m project_atlas.orchestration.program.cli \\\n'
         f'  program service run --program {program_arg!r} \\\n'
-        f'  --state-root {root_arg!r} "$@"\n',
+        f'  --state-root {root_arg!r} \\\n'
+        f'{registry_flag}'
+        '  "$@"\n',
         encoding="utf-8",
     )
     script.chmod(0o755)
@@ -243,7 +278,14 @@ def install(root: Path, program_path: Path, *, python: str | None = None) -> dic
     }
 
 
-def start(root: Path, program_path: Path, *, python: str | None = None) -> dict[str, Any]:
+def start(
+    root: Path,
+    program_path: Path,
+    *,
+    python: str | None = None,
+    registry_root: Path | None = None,
+    allow_unregistered: bool = False,
+) -> dict[str, Any]:
     """Detach a service process for this program, if one is not already live."""
     loaded = load_program(program_path)
     existing = read_identity(root)
@@ -253,6 +295,12 @@ def start(root: Path, program_path: Path, *, python: str | None = None) -> dict[
             f"a service for {existing.program_id} is already running "
             f"(pid {existing.pid})",
             code="SERVICE_ALREADY_RUNNING",
+        )
+    if registry_root is None and not allow_unregistered:
+        raise ServiceError(
+            "detached service start requires --registry; pass allow_unregistered "
+            "only for the explicitly supported unregistered mode",
+            code="REGISTRY_REQUIRED",
         )
     directory = service_dir(root)
     directory.mkdir(parents=True, exist_ok=True)
@@ -271,6 +319,10 @@ def start(root: Path, program_path: Path, *, python: str | None = None) -> dict[
         "--state-root",
         str(root.expanduser().resolve()),
     ]
+    if registry_root is not None:
+        argv += ["--registry", str(registry_root.expanduser().resolve())]
+    elif allow_unregistered:
+        argv += ["--allow-unregistered"]
     creationflags = 0
     if os.name == "nt":  # pragma: no cover - Windows
         creationflags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)) | int(
@@ -344,10 +396,23 @@ def stop(root: Path) -> dict[str, Any]:
     }
 
 
-def status(root: Path, program_path: Path) -> dict[str, Any]:
+def status(
+    root: Path,
+    program_path: Path,
+    *,
+    registry_root: Path | None = None,
+) -> dict[str, Any]:
     loaded = load_program(program_path)
     identity = read_identity(root)
-    supervisor = ProgramSupervisor(loaded, state_root=root)
+    enrolled_agents = (
+        _bound_agents(loaded, registry_root) if registry_root is not None else ()
+    )
+    supervisor = ProgramSupervisor(
+        loaded,
+        state_root=root,
+        enrolled_agents=enrolled_agents,
+        registry_root=registry_root,
+    )
     state = load_state(root)
     return {
         "program_id": loaded.program.program_id,
@@ -373,6 +438,8 @@ def run(
     *,
     poll_seconds: float = 30.0,
     max_rounds: int | None = None,
+    registry_root: Path | None = None,
+    allow_unregistered: bool = True,
     sleeper: Any = time.sleep,
 ) -> dict[str, Any]:
     """The service body: supervise until finished, blocked, or asked to stop.
@@ -401,7 +468,22 @@ def run(
             if stop_requested(state_dir(root)):
                 rounds.append({"round": len(rounds) + 1, "stop_reason": "STOP_REQUESTED"})
                 break
-            supervisor = ProgramSupervisor(loaded, state_root=root)
+            if registry_root is None and not allow_unregistered:
+                raise ServiceError(
+                    "detached service run requires a registry binding",
+                    code="REGISTRY_REQUIRED",
+                )
+            enrolled_agents = (
+                _bound_agents(loaded, registry_root)
+                if registry_root is not None
+                else ()
+            )
+            supervisor = ProgramSupervisor(
+                loaded,
+                state_root=root,
+                enrolled_agents=enrolled_agents,
+                registry_root=registry_root,
+            )
             report = supervisor.start()
             rounds.append(
                 {
