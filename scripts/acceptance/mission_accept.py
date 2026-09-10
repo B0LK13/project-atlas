@@ -53,6 +53,16 @@ from typing import Any
 SCHEMA = "ATLAS_MISSION_ACCEPTANCE_V1"
 PACKAGE = "AS-ACCEPT-005"
 
+#: Mirror of `project_atlas.orchestration.mission.MISSION_STATE_DIR_NAME`.
+#:
+#: Duplicated ON PURPOSE. Under --isolated-execution the parent must not import
+#: the candidate at all -- the whole point is that the candidate runs only in
+#: the provisioned interpreter -- but the parent still has to poll for the
+#: worker's checkpoint before that worker finishes. A test asserts this string
+#: still matches the package's value wherever the package IS importable, so the
+#: duplication cannot drift silently.
+MISSION_STATE_DIR = ".atlas-mission"
+
 #: This caller's OWN authority. Never sourced from a Studio packet.
 TRUSTED_POLICY: dict[str, Any] = {"MERGE_AUTHORIZATION": "NO"}
 
@@ -92,7 +102,8 @@ def _adapter_digest(command: tuple[str, ...]) -> str:
 
 # ---------------------------------------------------------------- preflight
 
-def preflight(repo_root: Path, *, strict_pins: bool) -> StageResult:
+def preflight(repo_root: Path, *, strict_pins: bool,
+              isolated_execution: bool = False) -> StageResult:
     """Prerequisites, repository identity, and explicit source pins."""
     diag: dict[str, Any] = {}
     problems: list[str] = []
@@ -123,13 +134,28 @@ def preflight(repo_root: Path, *, strict_pins: bool) -> StageResult:
         pkg = Path(project_atlas.__file__).resolve()
         diag["project_atlas_from"] = str(pkg)
         if top not in pkg.parents:
-            problems.append(
+            msg = (
                 f"project_atlas resolves to {pkg}, which is OUTSIDE {top}. "
                 f"Run `pip install -e .[dev]` inside this checkout; subprocess "
                 f"tests resolve through the install, not PYTHONPATH."
             )
+            if isolated_execution:
+                # Under --isolated-execution the engine runs from a wheel built
+                # from the selected commit, in its own venv. The caller's import
+                # origin is then IRRELEVANT to what executes -- recording it is
+                # useful, failing on it would be wrong.
+                diag.setdefault("import_origin_warnings", []).append(
+                    msg + " (informational under --isolated-execution: the mission "
+                          "engine does not run from the caller's environment)"
+                )
+            else:
+                problems.append(msg)
     except ImportError as exc:
-        problems.append(f"project_atlas not importable: {exc} -- run `pip install -e .[dev]`")
+        msg = f"project_atlas not importable: {exc} -- run `pip install -e .[dev]`"
+        if isolated_execution:
+            diag.setdefault("import_origin_warnings", []).append(msg)
+        else:
+            problems.append(msg)
 
     scripts = top / "scripts"
     if not (scripts / "atlas_studio").is_dir():
@@ -169,6 +195,9 @@ class RunResources:
         self.keep = keep
         self.root = Path(tempfile.mkdtemp(prefix="atlas-accept-"))
         self.worktrees: list[Path] = []
+        #: set only when THIS run created the env cache; a caller-supplied
+        #: --env-cache is never removed, because we did not create it.
+        self.env_cache: Path | None = None
 
     def plain_workspace(self, name: str) -> Path:
         p = self.root / name
@@ -185,7 +214,9 @@ class RunResources:
     def cleanup(self) -> dict[str, Any]:
         """Remove only what this run created. Never touches caller files."""
         report: dict[str, Any] = {"kept": self.keep, "root": str(self.root),
-                                  "worktrees_removed": [], "errors": []}
+                                  "worktrees_removed": [], "errors": [],
+                                  "env_cache_removed": None,
+                                  "caller_env_cache_preserved": self.env_cache is None}
         if self.keep:
             report["note"] = "--keep: workspaces retained for inspection; remove them yourself"
             return report
@@ -196,6 +227,11 @@ class RunResources:
                 report["worktrees_removed"].append(str(wt))
             else:
                 report["errors"].append(f"worktree remove {wt}: {r.stderr.strip()}")
+        if self.env_cache is not None and self.env_cache.exists():
+            # Only a cache this run created. Anything under a caller-supplied
+            # --env-cache stays put.
+            shutil.rmtree(self.env_cache, ignore_errors=True)
+            report["env_cache_removed"] = str(self.env_cache)
         shutil.rmtree(self.root, ignore_errors=True)
         report["root_removed"] = not self.root.exists()
         return report
@@ -499,6 +535,254 @@ def stage_resume(repo_root: Path, mission: Mission, ws: Path, key: str,
 
 
 
+
+# ------------------------------------------------- isolated mission worker
+
+def _isolated_worker_source(repo_root: Path, ws: Path, *, mission_id: str, objective: str,
+                            keywords: list[str], command: tuple[str, ...], key: str,
+                            timeout: float) -> str:
+    """Worker source for the ISOLATED interpreter.
+
+    No `sys.path` manipulation at all -- that is the point. Every import must
+    resolve through the provisioned distribution, and the worker reports where
+    it actually resolved from so the parent can verify rather than assume.
+    `atlas_studio` is deliberately NOT imported here: it lives in `scripts/`
+    and is not part of the wheel, so it cannot be provenance-proven this way.
+    """
+    return "\n".join([
+        "import json, sys",
+        "import project_atlas",
+        "from pathlib import Path",
+        "from project_atlas.orchestration.mission.adapter import ShellCommandAdapter",
+        "from project_atlas.orchestration.mission.context_packet import "
+        "compile_mission_context",
+        "from project_atlas.orchestration.mission.execution import start_mission_run",
+        f"c = compile_mission_context(Path({str(repo_root)!r}), mission_id={mission_id!r},",
+        f"    objective={objective!r}, keywords={keywords!r},",
+        f"    trusted_policy={TRUSTED_POLICY!r})",
+        f"r = start_mission_run(mission_id={mission_id!r}, context=c,",
+        f"    adapter=ShellCommandAdapter(command={command!r}),",
+        f"    workspace=Path({str(ws)!r}), repo_root=Path({str(repo_root)!r}),",
+        f"    adapter_timeout_sec={timeout!r}, idempotency_key={key!r})",
+        "ar = r.adapter_result",
+        "print(json.dumps({",
+        "  'run_id': r.run_id, 'deduplicated': r.deduplicated,",
+        "  'checkpoint_state': r.checkpoint.state,",
+        "  'returncode': ar.returncode if ar else None,",
+        "  'ok': bool(ar and ar.ok),",
+        "  'failure_class': ar.failure_class if ar else None,",
+        "  'stdout_tail': ((ar.stdout or '').strip().splitlines()[-3:] if ar else []),",
+        "  'worker_origin': project_atlas.__file__,",
+        "  'worker_executable': sys.executable,",
+        "  'worker_isolated': bool(sys.flags.isolated),",
+        "  'worker_no_user_site': bool(sys.flags.no_user_site),",
+        "}))",
+    ]) + "\n"
+
+
+def run_mission_isolated(repo_root: Path, res: RunResources, mission: Mission,
+                         env_dir: Path, python: Path) -> dict[str, Any]:
+    """Run one mission INSIDE the provisioned distribution and verify it did.
+
+    The engine (`project_atlas.orchestration.mission`) executes in the isolated
+    interpreter, not in the caller's. Provenance is checked on the worker's own
+    report; a worker that cannot prove its origin fails the mission rather than
+    being quietly accepted.
+    """
+    import execution_env as ee
+
+    out: dict[str, Any] = {"mission_id": mission.mission_id, "label": mission.label,
+                           "execution_mode": "ISOLATED_DISTRIBUTION"}
+    if mission.needs_checkout:
+        ws = res.worktree(mission.mission_id, "HEAD")
+        out["workspace_kind"] = "disposable_git_worktree"
+    else:
+        ws = res.plain_workspace(mission.mission_id)
+        out["workspace_kind"] = "plain_directory"
+    out["workspace"] = str(ws)
+
+    command = mission.build(ws)
+    head = _git(["rev-parse", "HEAD"], repo_root)
+    key = f"{mission.mission_id}:{head}:{_adapter_digest(command)}"
+    out["execution_identity"] = {"idempotency_key": key,
+                                 "adapter_digest": _adapter_digest(command),
+                                 "command": list(command),
+                                 "key_includes_adapter": True}
+
+    src = _isolated_worker_source(repo_root, ws, mission_id=mission.mission_id,
+                                  objective=mission.objective, keywords=mission.keywords,
+                                  command=tuple(command), key=key, timeout=300.0)
+    p = subprocess.run(ee.isolated_command(python, ["-c", src]),
+                       capture_output=True, text=True, env=ee.clean_env())
+    if p.returncode != 0:
+        out["outcome"] = {"stage": "isolated_execution", "error": "WORKER_FAILED",
+                          "detail": p.stderr.strip()[-1200:]}
+        out["task_completed"] = False
+        out["expectation"] = {"expected_task_ok": mission.expect_task_ok,
+                              "observed_task_ok": False, "as_expected": False}
+        return out
+    try:
+        data = json.loads(p.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        out["outcome"] = {"stage": "isolated_execution", "error": "UNPARSEABLE_WORKER_OUTPUT",
+                          "detail": p.stdout[-800:]}
+        out["task_completed"] = False
+        out["expectation"] = {"expected_task_ok": mission.expect_task_ok,
+                              "observed_task_ok": False, "as_expected": False}
+        return out
+
+    # Provenance is VERIFIED, never assumed, and a failure here fails the mission.
+    try:
+        ee.verify_import_origin(env_dir, {
+            "origin": data["worker_origin"], "version": "verified-at-provision",
+            "flags_isolated": data["worker_isolated"],
+            "flags_no_user_site": data["worker_no_user_site"],
+        })
+        out["provenance"] = {"verified": True, "worker_origin": data["worker_origin"],
+                             "worker_executable": data["worker_executable"],
+                             "isolated": data["worker_isolated"],
+                             "no_user_site": data["worker_no_user_site"]}
+    except ee.ProvenanceError as exc:
+        out["provenance"] = {"verified": False, "error": str(exc)}
+        out["task_completed"] = False
+        out["expectation"] = {"expected_task_ok": mission.expect_task_ok,
+                              "observed_task_ok": False, "as_expected": False}
+        return out
+
+    out["run"] = {"run_id": data["run_id"], "deduplicated": data["deduplicated"],
+                  "checkpoint_state": data["checkpoint_state"]}
+    out["command_result"] = {"spawned": True, "returncode": data["returncode"],
+                             "failure_class": data["failure_class"],
+                             "stdout_tail": data["stdout_tail"]}
+    task_ok = bool(data["ok"])
+    out["task_completed"] = task_ok
+    out["expectation"] = {"expected_task_ok": mission.expect_task_ok,
+                          "observed_task_ok": task_ok,
+                          "as_expected": task_ok == mission.expect_task_ok}
+    out["command_vs_task"] = ("command spawned and exited; task outcome is judged by "
+                              "exit status, NOT by whether the subprocess ran")
+    return out
+
+
+
+def run_interrupted_isolated(repo_root: Path, res: RunResources, mission: Mission,
+                             env_dir: Path, python: Path) -> dict[str, Any]:
+    """Kill a real worker running INSIDE the provisioned distribution.
+
+    The reconciliation that follows is performed by the same distribution, so
+    "uncertain outcome, no auto-replay" is a property of the candidate's code,
+    not of whatever happens to be installed in the caller's environment.
+    """
+    import signal
+
+    import execution_env as ee
+
+    out: dict[str, Any] = {"mission_id": mission.mission_id, "label": mission.label,
+                           "execution_mode": "ISOLATED_DISTRIBUTION",
+                           "workspace_kind": "plain_directory"}
+    ws = res.plain_workspace(mission.mission_id)
+    out["workspace"] = str(ws)
+    command = mission.build(ws)
+    head = _git(["rev-parse", "HEAD"], repo_root)
+    key = f"{mission.mission_id}:{head}:{_adapter_digest(command)}"
+    out["execution_identity"] = {"idempotency_key": key,
+                                 "adapter_digest": _adapter_digest(command),
+                                 "command": list(command), "key_includes_adapter": True}
+
+    src = _isolated_worker_source(repo_root, ws, mission_id=mission.mission_id,
+                                  objective=mission.objective, keywords=mission.keywords,
+                                  command=tuple(command), key=key, timeout=300.0)
+    p = subprocess.Popen(ee.isolated_command(python, ["-c", src]), start_new_session=True,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ee.clean_env())
+    cp_path = ws / MISSION_STATE_DIR / "mission-run-checkpoint.json"
+    appeared = False
+    for _ in range(400):
+        time.sleep(0.25)
+        if cp_path.exists():
+            appeared = True
+            break
+        if p.poll() is not None:
+            break
+    if not appeared:
+        p.kill()
+        p.wait()
+        out["outcome"] = {"stage": "interrupt", "error": "worker never checkpointed",
+                          "worker_stderr": (p.stderr.read().decode(errors="replace")[-800:]
+                                            if p.stderr else "")}
+        out["task_completed"] = False
+        out["expectation"] = {"expected_task_ok": False, "observed_task_ok": False,
+                              "as_expected": False}
+        return out
+
+    os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+    p.wait()
+    time.sleep(0.3)
+
+    # Reconcile and re-attempt USING THE CANDIDATE, in a fresh isolated process.
+    recon_src = "\n".join([
+        "import json, sys",
+        "import project_atlas",
+        "from pathlib import Path",
+        "from project_atlas.orchestration.mission import recovery as rec, execution as ex",
+        "from project_atlas.orchestration.mission.adapter import ShellCommandAdapter",
+        "from project_atlas.orchestration.mission.context_packet import "
+        "compile_mission_context",
+        f"r = rec.reconcile_mission_run(Path({str(ws)!r}))",
+        "blocked = False",
+        "err = None",
+        f"c = compile_mission_context(Path({str(repo_root)!r}), "
+        f"mission_id={mission.mission_id!r},",
+        f"    objective={mission.objective!r}, keywords={mission.keywords!r},",
+        f"    trusted_policy={TRUSTED_POLICY!r})",
+        "try:",
+        f"    ex.start_mission_run(mission_id={mission.mission_id!r}, context=c,",
+        f"        adapter=ShellCommandAdapter(command={tuple(command)!r}),",
+        f"        workspace=Path({str(ws)!r}), repo_root=Path({str(repo_root)!r}),",
+        f"        adapter_timeout_sec=10.0, idempotency_key={key!r})",
+        "except ex.UnreconciledPriorRunError as exc:",
+        "    blocked = True",
+        "    err = str(exc)[:160]",
+        "print(json.dumps({'outcome': r.outcome, 'safe_to_retry': r.safe_to_retry,",
+        "  'detail': r.detail[:200], 'run_id': r.run_id, 'blocked': blocked,",
+        "  'blocked_with': err, 'worker_origin': project_atlas.__file__,",
+        "  'worker_isolated': bool(sys.flags.isolated),",
+        "  'worker_no_user_site': bool(sys.flags.no_user_site)}))",
+    ]) + "\n"
+    rp = subprocess.run(ee.isolated_command(python, ["-c", recon_src]),
+                        capture_output=True, text=True, env=ee.clean_env())
+    if rp.returncode != 0:
+        out["outcome"] = {"stage": "reconcile", "error": "RECONCILER_FAILED",
+                          "detail": rp.stderr.strip()[-1000:]}
+        out["task_completed"] = False
+        out["expectation"] = {"expected_task_ok": False, "observed_task_ok": False,
+                              "as_expected": False}
+        return out
+    d = json.loads(rp.stdout.strip().splitlines()[-1])
+    try:
+        ee.verify_import_origin(env_dir, {
+            "origin": d["worker_origin"], "version": "verified-at-provision",
+            "flags_isolated": d["worker_isolated"],
+            "flags_no_user_site": d["worker_no_user_site"]})
+        out["provenance"] = {"verified": True, "worker_origin": d["worker_origin"]}
+    except ee.ProvenanceError as exc:
+        out["provenance"] = {"verified": False, "error": str(exc)}
+        out["task_completed"] = False
+        out["expectation"] = {"expected_task_ok": False, "observed_task_ok": False,
+                              "as_expected": False}
+        return out
+
+    out["interruption"] = {"killed_signal": "SIGKILL", "process_group": True,
+                           "reconcile_outcome": d["outcome"],
+                           "safe_to_retry": d["safe_to_retry"],
+                           "detail": d["detail"], "run_id": d["run_id"],
+                           "auto_replay_prevented": d["blocked"],
+                           "next_run_blocked_with": d["blocked_with"]}
+    out["task_completed"] = False
+    out["expectation"] = {"expected_task_ok": False, "observed_task_ok": False,
+                          "as_expected": d["blocked"] and not d["safe_to_retry"]}
+    return out
+
+
 # ------------------------------------------------------------- boundaries
 
 def probe_boundaries(repo_root: Path, res: RunResources) -> list[dict[str, Any]]:
@@ -642,6 +926,20 @@ def human_summary(ev: dict[str, Any]) -> str:
         f"({ev['authority']['origin']})")
     add(f"execution   {ev['authority']['execution_permission']}")
     add("")
+    ep = ev.get("execution_provenance")
+    if ep:
+        if ep.get("established"):
+            add("PROVENANCE  ESTABLISHED -- " + ep["contract"])
+            add(f"   commit     {ep['commit'][:12]}   tree {ep['tree'][:12]}")
+            add(f"   wheel      {ep['wheel']}  sha {ep['wheel_sha256'][:16]}")
+            add(f"   interpreter{ep['interpreter']}")
+            add(f"   origin     {ep['worker_import_origin']}")
+            add(f"   isolated={ep['worker_isolated']} no_user_site={ep['worker_no_user_site']}")
+            add(f"   covers     {', '.join(ep['covers'])}")
+            add(f"   NOT proven {', '.join(ep['does_not_cover'])}")
+        else:
+            add(f"PROVENANCE  NOT ESTABLISHED -- {str(ep.get('error'))[:200]}")
+        add("")
     pf = ev["preflight"]
     add(f"PREFLIGHT   {'PASS' if pf['ok'] else 'FAIL'}  {pf['detail']}")
     for pr, info in sorted(pf.get("data", {}).get("components", {}).items()):
@@ -661,6 +959,10 @@ def human_summary(ev: dict[str, Any]) -> str:
         if it:
             add(f"     reconcile={it['reconcile_outcome']} safe_to_retry={it['safe_to_retry']}")
             add(f"     auto_replay_prevented={it['auto_replay_prevented']}")
+        pv = m.get("provenance")
+        if pv:
+            add(f"     provenance verified={pv.get('verified')}"
+                + ("" if pv.get("verified") else f" -- {str(pv.get('error'))[:80]}"))
         rs = m.get("resume")
         if rs:
             add(f"     resume={rs.get('state')} deduplicated={rs.get('deduplicated')} "
@@ -696,6 +998,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--strict-pins", action="store_true",
                     help="fail preflight when a pinned component head is absent")
     ap.add_argument("--preflight-only", action="store_true")
+    ap.add_argument("--isolated-execution", action="store_true",
+                    help="run missions from a wheel built from the selected commit, in a "
+                         "dedicated venv under -I (AS-PROV-006); proves WHICH code ran")
+    ap.add_argument("--env-cache", default=None,
+                    help="where provisioned candidate environments live "
+                         "(default: ~/.cache/atlas-acceptance/envs, disk-backed and "
+                         "reused across runs; never removed by this run)")
+    ap.add_argument("--ephemeral-env", action="store_true",
+                    help="provision into a run-scoped cache and remove it on cleanup "
+                         "(costs a full rebuild every run)")
+    ap.add_argument("--prune-envs", type=int, default=2, metavar="N",
+                    help="keep at most N cached environments besides this run's "
+                         "(default 2); only directories this tool created")
     ap.add_argument("--probe-boundaries", action="store_true",
                     help="also reproduce the recovery/idempotency boundary matrix")
     ap.add_argument("--i-authorize-bounded-execution", action="store_true",
@@ -716,7 +1031,8 @@ def main(argv: list[str] | None = None) -> int:
         },
     }
 
-    pf = preflight(repo_root, strict_pins=args.strict_pins)
+    pf = preflight(repo_root, strict_pins=args.strict_pins,
+                   isolated_execution=args.isolated_execution)
     ev["preflight"] = {"ok": pf.ok, "detail": pf.detail, "data": pf.data,
                        "diagnostics": pf.diagnostics}
     ev["candidate"] = {
@@ -741,11 +1057,57 @@ def main(argv: list[str] | None = None) -> int:
 
     res = RunResources(repo_root, args.keep)
     ev["run_root"] = str(res.root)
+
+    env_dir = worker_python = None
+    if args.isolated_execution:
+        import execution_env as ee
+        if args.ephemeral_env:
+            cache = res.root / "envs"
+            res.env_cache = cache          # run-created -> removed on cleanup
+        elif args.env_cache:
+            cache = Path(args.env_cache).resolve()
+            res.env_cache = None           # caller-owned -> never removed
+        else:
+            cache = ee.DEFAULT_ENV_CACHE
+            res.env_cache = None           # persistent by design -> pruned, not deleted
+        try:
+            env_dir, identity, probe = ee.provision(repo_root, "HEAD", cache)
+        except ee.ProvenanceError as exc:
+            ev["execution_provenance"] = {"established": False, "error": str(exc)}
+            ev["verdict"] = ("EXECUTION_PROVENANCE_NOT_ESTABLISHED -- refusing to run "
+                             "in the caller's environment")
+            ev["cleanup"] = res.cleanup()
+            _emit(ev, args)
+            return 3
+        worker_python = ee._venv_python(env_dir)
+        ev["execution_provenance"] = {
+            "established": True, "contract": identity.contract,
+            "commit": identity.commit, "tree": identity.tree,
+            "wheel": identity.wheel_name, "wheel_sha256": identity.wheel_sha256,
+            "install_method": identity.install_method,
+            "env_dir": str(env_dir), "interpreter": str(worker_python),
+            "worker_import_origin": probe["origin"],
+            "worker_isolated": probe["flags_isolated"],
+            "worker_no_user_site": probe["flags_no_user_site"],
+            "distribution_version": probe["version"],
+            "covers": ["project_atlas", "atlas_contracts"],
+            "does_not_cover": ["atlas_studio (lives in scripts/, not in the wheel)"],
+        }
+        ev["execution_provenance"]["env_cache"] = str(cache)
+        ev["execution_provenance"]["env_cache_owned_by_run"] = res.env_cache is not None
+        if not args.ephemeral_env:
+            pruned = ee.prune_envs(cache, {identity.tree}, keep=args.prune_envs)
+            ev["execution_provenance"]["env_prune"] = pruned
+
     missions_out: list[dict[str, Any]] = []
     try:
         for m in MISSIONS:
-            r = run_mission(repo_root, res, m)
-            if r.get("task_completed") and r.get("execution_identity"):
+            if worker_python is not None:
+                r = run_mission_isolated(repo_root, res, m, env_dir, worker_python)
+            else:
+                r = run_mission(repo_root, res, m)
+            if (r.get("task_completed") and r.get("execution_identity")
+                    and worker_python is None):
                 r["resume"] = stage_resume(
                     repo_root, m, Path(r["workspace"]),
                     r["execution_identity"]["idempotency_key"],
@@ -754,7 +1116,11 @@ def main(argv: list[str] | None = None) -> int:
             missions_out.append(r)
         interrupted = Mission("accept-interrupted", "Long task killed mid-flight",
                               ["studio"], mission_interrupted, False, "interrupted_task")
-        missions_out.append(run_mission(repo_root, res, interrupted, interrupt=True))
+        if worker_python is not None:
+            missions_out.append(
+                run_interrupted_isolated(repo_root, res, interrupted, env_dir, worker_python))
+        else:
+            missions_out.append(run_mission(repo_root, res, interrupted, interrupt=True))
         if args.probe_boundaries:
             ev["boundaries"] = probe_boundaries(repo_root, res)
     finally:

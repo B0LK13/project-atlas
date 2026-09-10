@@ -43,6 +43,7 @@ markers = [
     "integration: end-to-end and cross-component tests",
     "security_regression: Alpha security regression suite seed / class guards (S08)",
     "product_perf: dense product-performance gate calibrated uncovered (AS-CI-WINDOWS-PERF-GATE-001)",
+    "provenance: builds a wheel and provisions an isolated venv (AS-PROV-006); needs a build backend",
 ]
 
 [tool.ruff]
