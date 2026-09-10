@@ -150,6 +150,7 @@ def test_coverage_reduction_flags_comparability() -> None:
     before = {
         "schema": "atlas.improvement-plane.report.v1",
         "repo_root": "/repo-a",
+        "reference_utc": "2026-09-01T00:00:00Z",
         "coverage": {
             "provenance": {
                 "accepted_count": 3,
@@ -172,6 +173,7 @@ def test_coverage_reduction_flags_comparability() -> None:
     after = {
         "schema": "atlas.improvement-plane.report.v1",
         "repo_root": "/repo-a",
+        "reference_utc": "2026-09-10T00:00:00Z",
         "coverage": {
             "provenance": {
                 "accepted_count": 1,
@@ -182,6 +184,8 @@ def test_coverage_reduction_flags_comparability() -> None:
     }
     cmp = compare_reports(before, after, before_label="b", after_label="a")
     assert cmp["coverage_reduced"] is True
+    assert cmp["comparability"]["uncertain"] is True
+    assert cmp["comparability"]["reference_utc_mismatch"] is True
     assert cmp["counts"]["resolved"] == 0
     assert cmp["counts"]["unobservable"] == 1
     assert "reduced accepted coverage" in cmp["unobservable"][0]["note"]

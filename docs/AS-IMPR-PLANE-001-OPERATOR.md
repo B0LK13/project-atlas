@@ -39,6 +39,8 @@ python -m project_atlas.improvement_plane evaluate --repo . \
 
 Coverage reduction (`coverage_reduced: true`) means the after snapshot accepted fewer evidence files — never treat that as improvement.
 
+When `comparability.uncertain` is true (repo mismatch, `reference_utc` mismatch, schema mismatch, or reduced coverage), treat compare/evaluate results as provisional and inspect `comparability` / `comparison_issue` before acting.
+
 ## Outcome annotations
 
 - Annotations are **operator assertions**, not source evidence and not certification.

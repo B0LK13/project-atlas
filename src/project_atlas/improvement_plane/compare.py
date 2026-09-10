@@ -264,6 +264,16 @@ def compare_reports(
         and after.get("repo_root")
         and before.get("repo_root") != after.get("repo_root")
     )
+    reference_mismatch = (
+        before.get("reference_utc")
+        and after.get("reference_utc")
+        and before.get("reference_utc") != after.get("reference_utc")
+    )
+    schema_mismatch = (
+        before.get("schema")
+        and after.get("schema")
+        and before.get("schema") != after.get("schema")
+    )
 
     left = _observation_map(before)
     right = _observation_map(after)
@@ -341,7 +351,24 @@ def compare_reports(
         "before_label": before_label,
         "after_label": after_label,
         "comparison_status": "ok",
-        "comparison_issue": {"repo_mismatch": bool(repo_mismatch)} if repo_mismatch else None,
+        "comparison_issue": (
+            {
+                "repo_mismatch": bool(repo_mismatch),
+                "reference_utc_mismatch": bool(reference_mismatch),
+                "schema_mismatch": bool(schema_mismatch),
+            }
+            if (repo_mismatch or reference_mismatch or schema_mismatch)
+            else None
+        ),
+        "comparability": {
+            "repo_mismatch": bool(repo_mismatch),
+            "reference_utc_mismatch": bool(reference_mismatch),
+            "schema_mismatch": bool(schema_mismatch),
+            "coverage_reduced": coverage_reduced,
+            "uncertain": bool(
+                repo_mismatch or reference_mismatch or schema_mismatch or coverage_reduced
+            ),
+        },
         "coverage": {"before": before_fp, "after": after_fp},
         "coverage_reduced": coverage_reduced,
         "counts": {
