@@ -34,7 +34,10 @@ from atlas_studio.mission_journey import (  # noqa: E402
     build_mission_journey,
     validate_mission_journey,
 )
-from atlas_studio.task_context import validate_task_context  # noqa: E402
+from atlas_studio.task_context import (  # noqa: E402
+    build_task_context,
+    validate_task_context,
+)
 
 SCHEMA = "ATLAS_STUDIO_BRIDGE_STATUS_V1"
 ALLOWED_ORIGINS = frozenset(
@@ -132,55 +135,28 @@ def build_current_journey_projection(
 def build_current_task_context(
     repository: str, agent_id: str | None, lane: str, cancelled=lambda: False
 ) -> dict[str, Any]:
-    """Invoke the integration-owned task-context CLI through a read-only seam."""
+    """Compose the integration-owned task-context packet through a read-only seam.
+
+    The bounded packet intentionally uses the already available Mission Control
+    projection. Frontier and stack enrichment remain explicit missing inputs;
+    invoking the live CLI here would turn a read request into an unbounded wait.
+    """
     if not agent_id:
         raise RuntimeError("TASK_CONTEXT_AGENT_REQUIRED")
     if not lane.startswith("pr/") or not lane[3:].isdigit() or len(lane) > 80:
         raise RuntimeError("TASK_CONTEXT_LANE_INVALID")
     if cancelled():
         raise RuntimeError("REQUEST_CANCELLED")
-    environment = dict(os.environ)
-    environment["PYTHONPATH"] = str(REPO_ROOT / "scripts")
-    command = [
-        sys.executable,
-        "-m",
-        "atlas_studio",
-        "task-context",
-        "--lane",
-        lane,
-        "--agent",
-        agent_id,
-        "--repo",
-        repository,
-        "--json",
-    ]
-    process = subprocess.Popen(
-        command,
-        cwd=REPO_ROOT,
-        env=environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
     try:
-        stdout, _stderr = process.communicate(timeout=20)
-    except subprocess.TimeoutExpired as exc:
-        # The integration CLI may invoke network helpers. Own the process
-        # group so a deadline cannot leave work running after the request.
-        os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
-        raise RuntimeError("TASK_CONTEXT_DEADLINE") from exc
+        mission_control = build_current_projection(repository, agent_id, cancelled=cancelled)
+        packet = build_task_context(
+            lane=lane,
+            agent_id=agent_id,
+            mission_control=mission_control,
+            journey=None,
+        )
     except OSError as exc:
-        with contextlib.suppress(OSError):
-            os.killpg(process.pid, signal.SIGKILL)
         raise RuntimeError("TASK_CONTEXT_UPSTREAM_UNAVAILABLE") from exc
-    if process.returncode:
-        raise RuntimeError("TASK_CONTEXT_UPSTREAM_UNAVAILABLE")
-    try:
-        packet = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("TASK_CONTEXT_CONTRACT_INVALID") from exc
     if validate_task_context(packet):
         raise RuntimeError("TASK_CONTEXT_SCHEMA_VALIDATION_FAILED")
     return packet
