@@ -32,12 +32,13 @@ identity:
   source_pin_tree: 46d1989b026a2f15920ec5e1c78a106799bd1249
   dq_baseline_head: a1b3ee413d1ce5bc49e9ad1c083836fb3cada8b7
   dq_baseline_tree: 829ac6015ba3e1933ac0087b19317c81aaf25a94
-  tip_head: PENDING_COMMIT
-  tip_tree: PENDING_COMMIT
+  tip_head: 34ca05a3ebc849ec96f1f92a0ef78c7fb507a347
+  tip_tree: 5f5043b058216a577179af85090ee407baa29e04
   note: >
     Source pin is analysis baseline only. DQ baseline freeze is a1b3ee41.
-    Tip HEAD filled after checkpoint commit. Generated *-REPORT artifacts
-    are self-ingest excluded. Outcomes under .atlas/ are local annotations.
+    Decision-quality checkpoint tip is 34ca05a3 / tree 5f5043b0.
+    Generated *-REPORT artifacts are self-ingest excluded. Outcomes under
+    .atlas/ are local annotations.
 focused_tests:
   - tests/unit/test_as_impr_plane_001.py
   - tests/unit/test_as_impr_plane_002_cycle.py
