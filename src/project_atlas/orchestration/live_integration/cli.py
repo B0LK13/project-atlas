@@ -30,7 +30,7 @@ def register_live_integrate_parsers(subparsers: argparse._SubParsersAction[Any])
         COMMAND,
         help=(
             "Live wiring of taskcontract+context+readiness "
-            "(AS-LIVE-COMPONENT-INTEGRATION-002; ≠ launch authority)."
+            "(AS-LIVE-COMPONENT-INTEGRATION-002; != launch authority)."
         ),
     )
     sub = root.add_subparsers(dest="live_integrate_command", required=True)

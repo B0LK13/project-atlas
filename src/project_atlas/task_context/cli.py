@@ -35,7 +35,7 @@ def register_parser(subparsers: Any) -> None:
         "task-context",
         help=(
             "Compose/inspect task-bound context packets "
-            "(AS-TASK-CONTEXT-AND-CONTINUITY-001; ≠ authority/dispatch)."
+            "(AS-TASK-CONTEXT-AND-CONTINUITY-001; != authority/dispatch)."
         ),
     )
     sub = parser.add_subparsers(dest="task_context_command", required=True)
