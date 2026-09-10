@@ -26,7 +26,11 @@ from project_atlas.orchestration.sdk.external_observers import (
     load_observer_registry,
     pending_external_count,
 )
-from project_atlas.orchestration.sdk.host import no_window_creationflags, pid_is_alive
+from project_atlas.orchestration.sdk.host import (
+    no_window_creationflags,
+    pid_is_alive,
+    process_start_identity,
+)
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
 from project_atlas.orchestration.sdk.nonblocking_scheduler import (
     bounded_sleep_seconds,
@@ -92,6 +96,28 @@ def _append_tick_log(root: Path, row: dict[str, Any]) -> None:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def _lock_names_a_reused_pid(data: dict[str, Any], other: int) -> bool:
+    """True only when this lock's own recorded identity POSITIVELY proves
+    ``other`` is a different process than the one that wrote it -- i.e. the
+    pid was reused, and ``pid_is_alive(other)`` being true is describing an
+    impostor, not the original holder.
+
+    Mirrors ``host._live_foreign_owner``'s exact contract: absence of
+    evidence is not evidence of absence. A record written before this field
+    existed, or a live process this call cannot query (``"unknown"``), is
+    NOT treated as reused -- it falls back to the existing pid-alive check,
+    same as before this function existed. Only a recorded identity that
+    positively disagrees with a freshly-read live identity says "reused".
+    """
+    recorded = data.get("process_start_identity")
+    if not isinstance(recorded, str) or recorded in {"", "unknown"}:
+        return False
+    live = process_start_identity(other)
+    if live in {"", "unknown"}:
+        return False
+    return live != recorded
+
+
 def acquire_primary_lock(root: Path) -> bool:
     """Ensure ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1. Returns False if another live primary."""
     path = _runtime(root) / LOCK_NAME
@@ -103,10 +129,25 @@ def acquire_primary_lock(root: Path) -> bool:
             other = int(data.get("pid", 0))
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             other = 0
-        if other > 0 and other != me and pid_is_alive(other):
+            data = {}
+        if (
+            other > 0
+            and other != me
+            and pid_is_alive(other)
+            and not _lock_names_a_reused_pid(data, other)
+        ):
             return False
     path.write_text(
-        json.dumps({"pid": me, "at": time.time()}, indent=2) + "\n", encoding="utf-8"
+        json.dumps(
+            {
+                "pid": me,
+                "at": time.time(),
+                "process_start_identity": process_start_identity(me),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
     )
     return True
 
@@ -121,7 +162,7 @@ def read_primary_lock_pid(root: Path) -> int:
         other = int(data.get("pid", 0))
     except (OSError, json.JSONDecodeError, TypeError, ValueError):
         return 0
-    if other > 0 and pid_is_alive(other):
+    if other > 0 and pid_is_alive(other) and not _lock_names_a_reused_pid(data, other):
         return other
     return 0
 
@@ -459,6 +500,7 @@ def resident_tick(
     if status.process_start_time <= 0:
         status.process_start_time = ts
     status.GOVERNOR_PID = os.getpid()
+    status.GOVERNOR_PROCESS_START_IDENTITY = process_start_identity(status.GOVERNOR_PID)
     status.heartbeat_sequence += 1
     status.scheduler_tick_sequence += 1
     status.DETACHED_SCHEDULER_TICK_COUNT = status.scheduler_tick_sequence
@@ -582,6 +624,7 @@ def run_resident_loop(
     status.STARTED_AT = now
     status.process_start_time = now
     status.GOVERNOR_PID = os.getpid()
+    status.GOVERNOR_PROCESS_START_IDENTITY = process_start_identity(status.GOVERNOR_PID)
     status.SERVICE_INSTANCE_ID = str(uuid.uuid4())
     status.SELF_WAKE_DRIVER = "ACTIVE"
     status.RESIDENT_GOVERNOR = "YES"
