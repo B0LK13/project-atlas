@@ -1,0 +1,151 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+python3-gi is already the newest version (3.56.2-1).
+gir1.2-gtk-3.0 is already the newest version (3.24.52-0ubuntu1).
+gir1.2-atspi-2.0 is already the newest version (2.60.4-0ubuntu0.1).
+fonts-dejavu-core is already the newest version (2.37-8build1).
+Solving dependencies...
+The following NEW packages will be installed:
+  atlas-studio
+0 upgraded, 1 newly installed, 0 to remove and 28 not upgraded.
+Need to get 0 B/2910 kB of archives.
+After this operation, 11.0 MB of additional disk space will be used.
+Get:1 /evidence/atlas-studio.deb atlas-studio amd64 0.1.0 [2910 kB]
+Selecting previously unselected package atlas-studio.
+(Reading database ...
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 18081 files and directories currently installed.)
+Preparing to unpack /evidence/atlas-studio.deb ...
+Unpacking atlas-studio (0.1.0) ...
+Setting up atlas-studio (0.1.0) ...
+Processing triggers for hicolor-icon-theme (0.18-2build1) ...
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1001 pid=61 comm="/usr/bin/atlas-studio" label="runc (unconfined)")
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.2' (uid=1001 pid=61 comm="/usr/bin/atlas-studio" label="runc (unconfined)")
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.3' (uid=1001 pid=77 comm="/usr/libexec/xdg-desktop-portal" label="runc (unconfined)")
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.3' (uid=1001 pid=77 comm="/usr/libexec/xdg-desktop-portal" label="runc (unconfined)")
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+fuse: device /dev/fuse not found. Kernel module not loaded?
+error: fuse init failed: Can't mount path /home/studio/.cache/doc
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.524: Document portal fuse mount point unknown: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name :1.5 was not provided by any .service files
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.524: Choosing gtk.portal for org.freedesktop.impl.portal.Lockdown as a last-resort fallback
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.3' (uid=1001 pid=77 comm="/usr/libexec/xdg-desktop-portal" label="runc (unconfined)")
+dbus-daemon[72]: Activating service name='org.a11y.atspi.Registry' requested by ':1.1' (uid=1001 pid=96 comm="/usr/libexec/xdg-desktop-portal-gtk" label="runc (unconfined)")
+
+(xdg-desktop-portal-gtk:96): xdg-desktop-portal-gtk-WARNING **: 17:21:48.540: error: Could not connect: No such file or directory
+
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.543: Choosing gtk.portal for org.freedesktop.impl.portal.Access as a last-resort fallback
+dbus-daemon[72]: Successfully activated service 'org.a11y.atspi.Registry'
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.558: Failed to create RealtimeKit proxy: Could not connect: No such file or directory
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.558: Choosing gtk.portal for org.freedesktop.impl.portal.Settings as a last-resort fallback
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.559: Choosing gtk.portal for org.freedesktop.impl.portal.FileChooser as a last-resort fallback
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.560: Choosing gtk.portal for org.freedesktop.impl.portal.AppChooser as a last-resort fallback
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.561: Choosing gtk.portal for org.freedesktop.impl.portal.Print as a last-resort fallback
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.562: Choosing gtk.portal for org.freedesktop.impl.portal.Notification as a last-resort fallback
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.563: Choosing gtk.portal for org.freedesktop.impl.portal.Inhibit as a last-resort fallback
+[W][17:21:48.565711] pw.conf      | [          conf.c: 1182 try_load_conf()] can't load config client.conf: No such file or directory
+[E][17:21:48.565726] pw.conf      | [          conf.c: 1215 pw_conf_load_conf_for_context()] can't load config client.conf: No such file or directory
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.565: Failed to connect to PipeWire: Couldn't create PipeWire context
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.565: Choosing gtk.portal for org.freedesktop.impl.portal.Account as a last-resort fallback
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.566: Choosing gtk.portal for org.freedesktop.impl.portal.Email as a last-resort fallback
+
+(/usr/libexec/xdg-desktop-portal:77): xdg-desktop-portal-WARNING **: 17:21:48.567: Choosing gtk.portal for org.freedesktop.impl.portal.DynamicLauncher as a last-resort fallback
+dbus-daemon[59]: [session uid=1001 pid=59 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+/evidence/native_inspect.py:15: DeprecationWarning: Atspi.Action.get_action_name is deprecated
+  if a.get_action_iface():acts=[a.get_action_iface().get_action_name(i) for i in range(a.get_action_iface().get_n_actions())]
+[{"depth": 0, "role": "application", "name": "atlas-studio", "text": "", "actions": []}, {"depth": 1, "role": "frame", "name": "Atlas Studio", "text": "", "actions": []}, {"depth": 2, "role": "filler", "name": "", "text": "", "actions": []}, {"depth": 3, "role": "filler", "name": "", "text": "", "actions": []}, {"depth": 4, "role": "filler", "name": "", "text": "", "actions": []}, {"depth": 5, "role": "scroll pane", "name": "", "text": "", "actions": [""]}, {"depth": 6, "role": "document web", "name": "Atlas Studio", "text": "", "actions": [""]}, {"depth": 7, "role": "link", "name": "Skip to project view", "text": "Skip to project view", "actions": ["jump"]}, {"depth": 7, "role": "landmark", "name": "Atlas Studio navigation", "text": "", "actions": [""]}, {"depth": 8, "role": "unknown", "name": "", "text": "ATLAS", "actions": [""]}, {"depth": 8, "role": "button", "name": "A/01\nProject workspace Unavailable", "text": "", "actions": ["press"]}, {"depth": 8, "role": "landmark", "name": "primary navigation", "text": "", "actions": [""]}, {"depth": 9, "role": "paragraph", "name": "", "text": "COMMAND", "actions": [""]}, {"depth": 9, "role": "button", "name": "Mission Control", "text": "", "actions": ["press"]}, {"depth": 9, "role": "button", "name": "Projects", "text": "", "actions": ["press"]}, {"depth": 9, "role": "button", "name": "Agents", "text": "", "actions": ["press"]}, {"depth": 8, "role": "landmark", "name": "project navigation", "text": "", "actions": [""]}, {"depth": 9, "role": "paragraph", "name": "", "text": "PROJECT PLANE", "actions": [""]}, {"depth": 9, "role": "button", "name": "DAG / Work Graph", "text": "", "actions": ["press"]}, {"depth": 9, "role": "button", "name": "Repository", "text": "", "actions": ["press"]}, {"depth": 9, "role": "button", "name": "CI & Verification", "text": "", "actions": ["press"]}, {"depth": 9, "role": "button", "name": "Knowledge", "text": "", "actions": ["press"]}, {"depth": 9, "role": "button", "name": "Chronicle", "text": "", "actions": ["press"]}, {"depth": 8, "role": "landmark", "name": "system navigation", "text": "", "actions": [""]}, {"depth": 9, "role": "paragraph", "name": "", "text": "STUDIO", "actions": [""]}, {"depth": 9, "role": "button", "name": "Design Lab", "text": "", "actions": ["press"]}, {"depth": 9, "role": "button", "name": "Environment", "text": "", "actions": ["press"]}, {"depth": 8, "role": "unknown", "name": "", "text": "READ-ONLY LANE", "actions": [""]}, {"depth": 8, "role": "section", "name": "", "text": "Studio grants no mutation", "actions": [""]}, {"depth": 7, "role": "landmark", "name": "", "text": "", "actions": [""]}, {"depth": 8, "role": "button", "name": "Navigate Studio screens\u2026 K", "text": "", "actions": ["press"]}, {"depth": 8, "role": "button", "name": "Refresh read-only projection", "text": "", "actions": ["press"]}, {"depth": 8, "role": "button", "name": "Density compact; switch density", "text": "", "actions": ["press"]}, {"depth": 8, "role": "button", "name": "Theme dark; switch theme", "text": "", "actions": ["press"]}, {"depth": 8, "role": "button", "name": "Inspect projection attention", "text": "", "actions": ["press"]}, {"depth": 7, "role": "status bar", "name": "", "text": "", "actions": [""]}, {"depth": 8, "role": "unknown", "name": "", "text": "BRIDGE DISCONNECTED", "actions": [""]}, {"depth": 7, "role": "landmark", "name": "", "text": "", "actions": [""]}, {"depth": 8, "role": "header", "name": "", "text": "", "actions": [""]}, {"depth": 9, "role": "paragraph", "name": "", "text": "Atlas / Engineering workstation", "actions": [""]}, {"depth": 9, "role": "heading", "name": "Mission Control", "text": "Mission Control", "actions": [""]}, {"depth": 9, "role": "unknown", "name": "", "text": "UNKNOWN \u00b7 Source status: UNKNOWN", "actions": [""]}, {"depth": 8, "role": "header", "name": "", "text": "", "actions": [""]}, {"depth": 9, "role": "paragraph", "name": "", "text": "BRIDGE DISCONNECTED", "actions": [""]}, {"depth": 9, "role": "heading", "name": "Projection Unavailable", "text": "Projection Unavailable", "actions": [""]}, {"depth": 8, "role": "paragraph", "name": "", "text": "Bridge disconnected. Start the read adapter outside Studio, then refresh.", "actions": [""]}, {"depth": 8, "role": "paragraph", "name": "", "text": "No operational state is available. Refresh to retry, or inspect the explicit design preview in Environment.", "actions": [""]}]
+INSTALLED_WEBKIT_ERROR_RENDER_VERIFIED
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  alsa-topology-conf alsa-ucm-conf aspell aspell-en dictionaries-common
+  emacsen-common enchant-2 fuse3 glib-networking glib-networking-common
+  glib-networking-services gstreamer1.0-gl gstreamer1.0-plugins-base
+  gstreamer1.0-plugins-good gstreamer1.0-x hunspell-en-us iso-codes libaa1
+  libasound2-data libasound2t64 libaspell15 libasyncns0 libavc1394-0 libcaca0
+  libcap2-bin libcdparanoia0 libcurl3t64-gnutls libduktape207 libdv4t64
+  libegl-mesa0 libegl1 libenchant-2-2 libfftw3-single3 libflac14 libfuse3-4
+  libgles2 libgomp1 libgraphene-1.0-0 libgstreamer-gl1.0-0
+  libgstreamer-plugins-base1.0-0 libgstreamer1.0-0 libgudev-1.0-0
+  libharfbuzz-icu0 libhunspell-1.7-0 libhyphen0 libicu78 libiec61883-0
+  libjavascriptcoregtk-4.1-0 libjpeg-turbo8 libjpeg8 libjson-c5
+  libjson-glib-1.0-0 libjson-glib-1.0-common libldap-common libldap2
+  libmp3lame0 libmpg123-0t64 libncurses6 libnghttp2-14 libogg0 libopus0
+  liborc-0.4-0t64 libpam-cap libpipewire-0.3-0t64 libpipewire-0.3-common
+  libproxy1v5 libpsl5t64 libpulse0 libraw1394-11 librtmp1 libsasl2-2
+  libsasl2-modules libsasl2-modules-db libsecret-1-0 libsecret-common
+  libshout3 libslang2 libsndfile1 libsoup-3.0-0 libsoup-3.0-common
+  libspa-0.2-modules libspeex1 libssh2-1t64 libtag2 libtext-iconv-perl
+  libtheora1 libtheoradec2 libtheoraenc2 libtwolame0 libv4l-0t64
+  libv4lconvert0t64 libvisual-0.4-0 libvorbis0a libvorbisenc2 libvpx12
+  libwavpack1 libwayland-server0 libwebkit2gtk-4.1-0 libwebp7 libwebpdemux2
+  libwebpmux3 libwebrtc-audio-processing-1-3 libxslt1.1 publicsuffix
+  xdg-dbus-proxy xdg-desktop-portal xdg-desktop-portal-gtk
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  atlas-studio
+0 upgraded, 0 newly installed, 1 to remove and 28 not upgraded.
+After this operation, 11.0 MB disk space will be freed.
+(Reading database ...
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 18087 files and directories currently installed.)
+Removing atlas-studio (0.1.0) ...
+Processing triggers for hicolor-icon-theme (0.18-2build1) ...
+UNINSTALL_VERIFIED

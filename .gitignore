@@ -102,3 +102,12 @@ fixtures/eval/holdouts/private/
 # committed as plaintext again (W2: HIDDEN_HOLDOUT_ISOLATION leak).
 **/*eval*expected*.json
 **/*holdout*expected*.json
+
+# Studio disposable local build and browser artifacts
+apps/studio/node_modules/
+apps/studio/dist/
+apps/studio/test-results/
+apps/studio/playwright-report/
+apps/studio/src-tauri/target/
+apps/studio/*.tsbuildinfo
+apps/studio/src-tauri/gen/

@@ -1,0 +1,21 @@
+[package]
+name = "atlas-studio"
+version = "0.1.0"
+description = "Linux-first read-only Atlas Studio desktop shell"
+authors = ["Project Atlas"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "atlas_studio_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
