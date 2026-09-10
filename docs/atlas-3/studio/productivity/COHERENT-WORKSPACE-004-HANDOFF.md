@@ -10,7 +10,7 @@ smallest supported continuation increment.
 - Accepted candidate tag: `atlas-studio-page-purpose-003`
 - Accepted candidate commit: `664325fc539ebbca73254084f56d0edd62c38848`
 - Accepted candidate tree: `ca925adddf2128dc4a0f2d636c9622b25ee651c3`
-- Continuation UI HEAD: `e219090bf39e65326e22399d0a9e693dbe38a190` (tree `958c7eaecf0fa25ddeccf12928b99dd6fc4ade8f`)
+- Continuation UI HEAD: `87d19776907bf6fe76442593df03e06cc3ba31fb` (tree recorded by git at build time)
 - Working branch: `feat/atlas-native-daily-workspace-001`
 - Remote: `origin https://github.com/B0LK13/project-atlas.git`
 - Remote branch: `origin/feat/atlas-native-daily-workspace-001` at `1628017c682986292ffe5fef2bc3767fc5a97db6` (pushed for durable review).
@@ -24,6 +24,7 @@ durable in the candidate evidence directory:
 - executable SHA-256: `025a932ef9a03e6ddc739836bf511b28d67fb24b3efc8bfa4bd1d9507df96c0b`
 - Debian package SHA-256: `3ff6d51b58929e9596418e99796063adb3b0af50f59c38cec87fd8504f32ee54`
 - Continuation executable SHA-256 after the context-strip rebuild: `95128e7c962ff1fa989d3fd9883296de1e15380168c6ceb5bdfd7c371201387a`
+- Restart-persistence rebuild executable SHA-256: `6ade9a9d25a4b3a546564a41ce2babce349e3869c117249d19d118a087be325f`
 - screenshots: `docs/atlas-3/studio/desktop/evidence/page-purpose-003-before.png` and `page-purpose-003-after.png`
 
 Reproducible build: `cd apps/studio && npm ci && npm run check`; native packaging
