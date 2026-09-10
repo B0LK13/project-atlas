@@ -16,7 +16,7 @@ Mission Control now has a local, explicitly scoped filter over loaded attention 
 
 - `npm run check`: passed (typecheck, 46 unit tests, production build).
 - Browser: new loaded-record filter journey passed with Playwright using the documented `chromiumSandbox:false` environment workaround; existing Mission Control and Mission Journey suites remain passing from the preserved candidate.
-- Native: release executable launched under `DISPLAY=:0` for an 8-second smoke window (expected timeout while the app remained running).
+- Native: release executable launched under `DISPLAY=:0` for an 8-second smoke window (expected timeout while the app remained running). The desktop automation surface exposed no native app for direct interaction, so the new filter itself remains browser-validated rather than claimed as native-interaction evidence.
 - Fresh native artifacts:
   - executable SHA-256 `0438b41843ea211e10b920c1a03908be6c532b1de9354cf8fcf6ae03cdb8d82e`
   - AppImage SHA-256 `7e64ddba6adaacf68a67bb02f19cb18651160b87e49cabb3d9b49baa6d85fa12`
