@@ -1181,7 +1181,9 @@ def test_claude_adapter_keeps_the_prompt_off_the_command_line(tmp_path: Path) ->
         timeout_seconds=60,
         evidence_dir=tmp_path,
     )
-    argv = ClaudeCodeAdapter().build_argv(request)
+    # sys.executable stands in for an installed runtime: this test is about
+    # argv shape, not about `claude` being on this machine's PATH.
+    argv = ClaudeCodeAdapter(sys.executable).build_argv(request)
     assert "rm -rf /" not in " ".join(argv)
     assert "--permission-prompts" in argv and "none" in argv
     assert "--session-id" in argv
@@ -1241,8 +1243,11 @@ def test_subscription_profile_may_not_allowlist_an_api_key(tmp_path: Path) -> No
         timeout_seconds=5,
         evidence_dir=tmp_path,
     )
+    # No executable is supplied on purpose: a profile whose declared
+    # credential mechanism contradicts its own allow-list is broken wherever
+    # it runs, and must be reported as THAT rather than as a missing runtime.
     with pytest.raises(Exception) as excinfo:
-        ClaudeCodeAdapter().run(request)
+        ClaudeCodeAdapter("a-runtime-that-is-not-installed").run(request)
     assert "CREDENTIAL_MECHANISM_CONFLICT" in str(getattr(excinfo.value, "code", ""))
 
 

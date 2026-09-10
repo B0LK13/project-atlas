@@ -27,6 +27,7 @@ from project_atlas.orchestration.program.adapters.base import (
     AdapterUnavailableError,
     run_child_to_completion,
 )
+from project_atlas.orchestration.program.adapters.claude_code import ClaudeCodeAdapter
 from project_atlas.orchestration.program.adapters.codex import (
     SANDBOX_FOR_MODE,
     SIGTERM_EXIT_STATUS,
@@ -87,6 +88,13 @@ TURN_COMPLETED: dict[str, Any] = {
         "reasoning_output_tokens": 0,
     },
 }
+
+
+#: An executable that certainly exists, for tests about ARGV SHAPE rather than
+#: about the runtime being installed. CI has neither real runtime on PATH, and
+#: a test of "does the prompt stay off the command line" has no business
+#: failing because of that -- it is a property of the code, not of the host.
+INSTALLED_STAND_IN = sys.executable
 
 
 def _codex_profile(**overrides: Any) -> AgentProfile:
@@ -234,7 +242,7 @@ def test_usage_is_read_from_the_completed_turn() -> None:
 
 def test_codex_keeps_the_prompt_off_the_command_line(tmp_path: Path) -> None:
     profile = _codex_profile()
-    argv = CodexAdapter().build_argv(
+    argv = CodexAdapter(INSTALLED_STAND_IN).build_argv(
         _request(tmp_path, profile, instruction="rm -rf / # must never reach argv")
     )
     assert "rm -rf /" not in " ".join(argv)
@@ -259,7 +267,7 @@ def test_permission_mode_maps_conservatively_onto_the_codex_sandbox(
 ) -> None:
     """Every mode that is not unambiguously a write mode maps to read-only."""
     profile = _codex_profile(permission_mode=mode)
-    argv = CodexAdapter().build_argv(_request(tmp_path, profile))
+    argv = CodexAdapter(INSTALLED_STAND_IN).build_argv(_request(tmp_path, profile))
     assert argv[argv.index("--sandbox") + 1] == sandbox
     assert SANDBOX_FOR_MODE[mode] == sandbox
     bypass = "--dangerously-bypass-approvals-and-sandbox" in argv
@@ -268,7 +276,7 @@ def test_permission_mode_maps_conservatively_onto_the_codex_sandbox(
 
 def test_codex_resume_uses_the_exec_resume_subcommand(tmp_path: Path) -> None:
     profile = _codex_profile()
-    argv = CodexAdapter().build_argv(
+    argv = CodexAdapter(INSTALLED_STAND_IN).build_argv(
         _request(tmp_path, profile, resume_session_id="01a08aa5-thread")
     )
     assert argv[1:4] == ["exec", "resume", "01a08aa5-thread"]
@@ -329,14 +337,14 @@ def test_streamed_stdout_survives_a_killed_child(tmp_path: Path) -> None:
 
 def test_codex_probe_reports_none_when_no_stream_exists(tmp_path: Path) -> None:
     """Absence is 'cannot tell', never 'it did not run'."""
-    adapter = CodexAdapter()
+    adapter = CodexAdapter(INSTALLED_STAND_IN)
     assert adapter.probe_run_started(_request(tmp_path, _codex_profile())) is None
 
 
 def test_codex_probe_reports_true_once_the_stream_has_an_event(
     tmp_path: Path,
 ) -> None:
-    adapter = CodexAdapter()
+    adapter = CodexAdapter(INSTALLED_STAND_IN)
     request = _request(tmp_path, _codex_profile())
     path = adapter.events_path(request)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -348,20 +356,40 @@ def test_codex_probe_reports_true_once_the_stream_has_an_event(
 
 
 def test_the_two_runtimes_declare_genuinely_different_capabilities() -> None:
-    claude = describe(AdapterKind.CLAUDE_CODE)
-    codex = describe(AdapterKind.CODEX)
-    assert claude.capabilities is not None
-    assert codex.capabilities is not None
+    """The STATIC half of the contract, asserted wherever this runs.
+
+    Split deliberately. `accepts_assigned_session`, `reports_cost` and
+    `supports_cost_limit` are properties of the runtime's interface and are
+    true on a bare CI box with neither binary installed. `supports_resume` is
+    version-dependent, so it is asserted separately and only where the runtime
+    is actually present -- an earlier version conflated the two and failed CI
+    for the entirely correct reason that `claude` was not on PATH.
+    """
+    claude = ClaudeCodeAdapter(INSTALLED_STAND_IN).capabilities
+    codex = CodexAdapter(INSTALLED_STAND_IN).capabilities
+
     # The load-bearing difference: only one will use an identity we assign.
-    assert claude.capabilities.accepts_assigned_session is True
-    assert codex.capabilities.accepts_assigned_session is False
+    assert claude.accepts_assigned_session is True
+    assert codex.accepts_assigned_session is False
     # Both can be probed, by different means.
-    assert claude.capabilities.supports_session_probe is True
-    assert codex.capabilities.supports_session_probe is True
+    assert claude.supports_session_probe is True
+    assert codex.supports_session_probe is True
     # Only one reports a cost figure at all.
-    assert claude.capabilities.reports_cost is True
-    assert codex.capabilities.reports_cost is False
-    assert codex.capabilities.supports_cost_limit is False
+    assert claude.reports_cost is True
+    assert codex.reports_cost is False
+    assert codex.supports_cost_limit is False
+    assert claude.supports_cost_limit is True
+
+
+@pytest.mark.parametrize("kind", [AdapterKind.CLAUDE_CODE, AdapterKind.CODEX])
+def test_an_installed_runtime_reports_a_version_and_resume(kind: AdapterKind) -> None:
+    """The version-dependent half, only where the runtime is really present."""
+    support = describe(kind)
+    if not support.installed:
+        pytest.skip(f"{support.executable} is not installed on this host")
+    assert support.capabilities is not None
+    assert support.capabilities.version
+    assert support.capabilities.supports_resume is True
 
 
 def test_no_runtime_claims_it_can_attach_to_a_live_session() -> None:

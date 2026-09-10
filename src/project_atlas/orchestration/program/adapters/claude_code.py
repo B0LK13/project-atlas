@@ -256,10 +256,14 @@ class ClaudeCodeAdapter:
 
     def run(self, request: AdapterRequest) -> AdapterOutcome:
         started = time.monotonic()
-        request.evidence_dir.mkdir(parents=True, exist_ok=True)
         profile = request.profile
-        argv = self.build_argv(request)
 
+        # Profile coherence is checked BEFORE anything touches PATH. A profile
+        # whose declared credential mechanism contradicts its own allow-list is
+        # broken wherever it runs, and reporting "the runtime is not installed"
+        # for it -- which is what the earlier ordering did on a machine without
+        # the runtime -- names the wrong defect and sends the reader looking in
+        # the wrong place. Found by CI, which has neither runtime installed.
         extra_env = dict(request.extra_env)
         # Explicitly do NOT forward an inherited API key under
         # SUBSCRIPTION_OAUTH: this runtime prefers the key over the logged-in
@@ -278,6 +282,9 @@ class ClaudeCodeAdapter:
                 "the declared credential mechanism would be a fiction",
                 code="CREDENTIAL_MECHANISM_CONFLICT",
             )
+
+        request.evidence_dir.mkdir(parents=True, exist_ok=True)
+        argv = self.build_argv(request)
         env = build_child_env(profile, extra=extra_env)
 
         exit_status, stdout, stderr, pid, identity, terminal = run_child_to_completion(
