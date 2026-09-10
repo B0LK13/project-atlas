@@ -57,6 +57,11 @@ projection_cache: ProjectionCache[dict[str, Any], tuple[str, ...]] = ProjectionC
 )
 
 
+def projection_cache_key(repository: str, agent_id: str | None) -> tuple[str, ...]:
+    """Bind reuse to source identity and the bridge's non-secret host context."""
+    return (repository, agent_id or "", os.environ.get("GH_HOST", "github.com"))
+
+
 def run_worker(command, *, timeout=20, cancelled=lambda: False):
     """Own the worker and its gh descendants; reap them on timeout/disconnect."""
     process = subprocess.Popen(
@@ -106,7 +111,7 @@ def run_worker(command, *, timeout=20, cancelled=lambda: False):
 def build_current_projection(
     repository: str, agent_id: str | None, cancelled=lambda: False
 ) -> dict[str, Any]:
-    key = (repository, agent_id or "")
+    key = projection_cache_key(repository, agent_id)
 
     def collect() -> dict[str, Any]:
         packet = run_worker(

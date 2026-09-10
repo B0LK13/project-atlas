@@ -1,6 +1,7 @@
 import threading
 import time
 
+import atlas_studio_bridge
 from projection_cache import ProjectionCache
 
 
@@ -86,3 +87,10 @@ def test_failed_build_is_suppressed_during_backoff_then_retried():
     except RuntimeError as error:
         assert str(error) == "rate limited"
     assert calls == 2
+
+
+def test_projection_key_binds_non_secret_access_host(monkeypatch):
+    monkeypatch.setenv("GH_HOST", "github.example")
+    assert atlas_studio_bridge.projection_cache_key("repo", "agent") == (
+        "repo", "agent", "github.example"
+    )
