@@ -37,9 +37,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.unit.test_orchestration_program_supervisor import (
+    _make_workspace,
+    _profile,
+    _supervisor,
+    _task,
+    _write_program,
+)
 
 from project_atlas.orchestration.program.adapters.base import (
-    AdapterRequest,
     process_start_identity,
     run_child_to_completion,
 )
@@ -60,13 +66,6 @@ from project_atlas.orchestration.program.store import (
 )
 from project_atlas.orchestration.program.supervisor import ProgramSupervisor
 from project_atlas.orchestration.sdk.host import request_supervisor_stop
-from tests.unit.test_orchestration_program_supervisor import (
-    _make_workspace,
-    _profile,
-    _supervisor,
-    _task,
-    _write_program,
-)
 
 
 def _hang_program(tmp_path: Path, workspace: Path) -> Path:
