@@ -59,8 +59,19 @@ class _ObservingAdapter:
     rather than inferring it from timing.
     """
 
-    def __init__(self, *, hold_seconds: float = 0.35) -> None:
+    def __init__(
+        self,
+        *,
+        hold_seconds: float = 0.35,
+        barrier: threading.Barrier | None = None,
+    ) -> None:
         self._hold = hold_seconds
+        #: When set, each worker waits here instead of sleeping. Two workers
+        #: that both reach `run()` release each other immediately and the
+        #: overlap is a fact rather than a race; a worker that arrives alone
+        #: blocks until the barrier's own timeout and reports it. See
+        #: `test_two_agents_on_disjoint_surfaces_run_at_the_same_time`.
+        self._barrier = barrier
         self._lock = threading.Lock()
         self.in_flight = 0
         self.peak = 0
@@ -68,6 +79,7 @@ class _ObservingAdapter:
         self.started: list[str] = []
         self.active_tasks: set[str] = set()
         self.cancelled: list[str] = []
+        self.barrier_broken = False
 
     @property
     def capabilities(self) -> AdapterCapabilities:
@@ -97,6 +109,18 @@ class _ObservingAdapter:
             self.active_tasks.add(request.task_id)
             self.overlaps.append(tuple(sorted(self.active_tasks)))
         try:
+            if self._barrier is not None:
+                try:
+                    self._barrier.wait()
+                except threading.BrokenBarrierError:
+                    with self._lock:
+                        self.barrier_broken = True
+                (request.workspace / f"{request.task_id}.txt").write_text(
+                    "done\n", encoding="utf-8"
+                )
+                return self._outcome(
+                    request, ExecutionConfidence.CONFIRMED, "completed"
+                )
             deadline = time.monotonic() + self._hold
             while time.monotonic() < deadline:
                 if request.cancel_requested is not None and request.cancel_requested():
@@ -246,6 +270,23 @@ def _supervisor(
 def test_two_agents_on_disjoint_surfaces_run_at_the_same_time(
     tmp_path: Path,
 ) -> None:
+    """Two independent agents must genuinely be in flight together.
+
+    Asserted with a barrier rather than a sleep. An earlier version had each
+    worker hold a fixed 0.35s and asserted the observed peak was 2; that is a
+    race, and Windows CI won it. Between the two dispatches the supervisor does
+    three durable writes -- the lease projection under its lock, the state
+    file, and an fsynced event append -- which on Linux cost 18.5ms against a
+    350ms hold (a 19x margin) and on a Windows runner can cost more than the
+    hold itself. The first worker then finished before the second started, and
+    the test failed while the supervisor had behaved correctly.
+
+    The barrier removes the timing question entirely: two workers that both
+    reach `run()` release each other, so the overlap is a fact. A worker that
+    arrives alone blocks until the barrier times out and says so. It cannot
+    mask a genuine failure to run concurrently -- that case still fails, and
+    fails for the right reason.
+    """
     workspace = tmp_path / "ws"
     workspace.mkdir()
     program = _program(
@@ -255,13 +296,23 @@ def test_two_agents_on_disjoint_surfaces_run_at_the_same_time(
         profiles={"a": _profile("agent-a"), "b": _profile("agent-b")},
         concurrency=2,
     )
-    adapter = _ObservingAdapter()
+    barrier = threading.Barrier(2, timeout=60)
+    adapter = _ObservingAdapter(barrier=barrier)
     supervisor = _supervisor(tmp_path, program, {"a": adapter, "b": adapter})
     report = supervisor.start()
 
     assert report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
-    assert adapter.peak == 2, "two independent agents must overlap"
+    # Supervisor-side first, and deliberately: `max_concurrent_observed` is
+    # counted when the second worker is submitted while the first is still in
+    # `_running`, so it is timing-independent and answers "did the supervisor
+    # dispatch two at once" on its own.
     assert report.max_concurrent_observed == 2
+    # Worker-side second: did two workers actually execute together.
+    assert not adapter.barrier_broken, (
+        "a worker reached run() alone: the second was never dispatched "
+        "concurrently, or the first had already finished"
+    )
+    assert adapter.peak == 2, "two independent agents must overlap"
     assert sorted(adapter.started) == ["alpha", "beta"]
 
 
