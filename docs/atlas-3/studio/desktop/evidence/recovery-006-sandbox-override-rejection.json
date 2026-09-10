@@ -1,0 +1,5 @@
+{
+  "exit_code": 1,
+  "stderr": "Atlas Studio requires the WebKit sandbox; remove WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS.\n",
+  "injection": "empty disabling-override variable; rejected before Tauri startup"
+}

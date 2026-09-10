@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_TASK_CONTEXT_V1",
+  "description": "AS-STUDIO-A2-003 read-only task context for one lane: frontier/stack state, explained freshness, project_atlas knowledge lenses (KNOWN/UNKNOWN/STALE/CONFLICT/UNAVAILABLE), supported next step with prerequisites, recovery guidance, continuation pointers. TASK_CONTEXT != AUTHORITY.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema", "package", "generated_at_utc", "lane", "freshness", "lane_state", "knowledge", "next_step", "recovery", "continuation", "missing", "honesty", "provenance", "fingerprint"],
+  "properties": {
+    "schema": { "const": "ATLAS_STUDIO_TASK_CONTEXT_V1" },
+    "package": { "const": "AS-STUDIO-A2-003" },
+    "generated_at_utc": { "type": "string" },
+    "repository": { "type": ["string", "null"] },
+    "agent": { "type": ["string", "null"] },
+    "lane": { "type": "string", "pattern": "^pr/[1-9][0-9]*$" },
+    "freshness": {
+      "type": "object",
+      "required": ["state", "reasons", "fingerprints"],
+      "properties": {
+        "state": { "type": "string" },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "fingerprints": { "type": "object" }
+      }
+    },
+    "lane_state": {
+      "type": "object",
+      "required": ["status", "lane", "identity", "owned_by_agent", "actions", "blockers", "dependencies", "stack", "implementation_vs_main"],
+      "properties": {
+        "status": { "enum": ["KNOWN", "UNKNOWN"] },
+        "identity": {
+          "type": "object",
+          "required": ["pr", "head", "tree", "ownership", "owner"],
+          "properties": { "pr": { "type": "integer", "minimum": 1 } }
+        },
+        "owned_by_agent": { "type": "boolean" },
+        "actions": { "type": "array" },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "dependencies": { "type": "array" },
+        "implementation_vs_main": {
+          "type": "object",
+          "required": ["state", "merged"],
+          "properties": { "merged": { "const": "UNKNOWN" } }
+        }
+      }
+    },
+    "attention": { "type": "array" },
+    "knowledge": {
+      "type": "object",
+      "required": ["state", "lenses", "provenance"],
+      "properties": {
+        "state": { "enum": ["KNOWN", "UNKNOWN", "STALE", "CONFLICT", "UNAVAILABLE"] },
+        "lenses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["state", "provenance"],
+            "properties": {
+              "state": { "enum": ["KNOWN", "UNKNOWN", "STALE", "CONFLICT", "UNAVAILABLE"] },
+              "provenance": { "type": "object", "required": ["authority"], "properties": { "authority": { "const": false } } }
+            }
+          }
+        },
+        "provenance": { "type": "object", "required": ["authority"], "properties": { "authority": { "const": false } } }
+      }
+    },
+    "next_step": {
+      "type": "object",
+      "required": ["status", "authorization"],
+      "properties": {
+        "status": { "enum": ["SUPPORTED", "NO_SUPPORTED_ACTION"] },
+        "authorization": { "const": "NOT_GRANTED_BY_THIS_PACKET" },
+        "prerequisites": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recovery": {
+      "type": "array",
+      "items": { "type": "object", "required": ["condition", "guidance"] }
+    },
+    "continuation": {
+      "type": "object",
+      "required": ["coordination_handoff", "knowledge_handoff", "agent_context", "fingerprints", "resume_checklist", "fingerprint"],
+      "properties": {
+        "coordination_handoff": { "type": "object", "required": ["built_here"], "properties": { "built_here": { "const": false } } },
+        "knowledge_handoff": { "type": "object", "required": ["built_here"], "properties": { "built_here": { "const": false } } }
+      }
+    },
+    "journey_ref": { "type": ["object", "null"] },
+    "missing": { "type": "array", "items": { "type": "string" } },
+    "honesty": {
+      "type": "object",
+      "required": ["studio_ui_ne_authority", "grants_no_mutation", "attention_ne_authorization", "stale_ne_current", "unknown_ne_healthy", "knowledge_ne_permission", "next_step_ne_authorization", "continuation_ne_execution", "missing_shown_explicitly", "task_context_ne_mutation"],
+      "properties": {
+        "studio_ui_ne_authority": { "const": true },
+        "grants_no_mutation": { "const": true },
+        "attention_ne_authorization": { "const": true },
+        "stale_ne_current": { "const": true },
+        "unknown_ne_healthy": { "const": true },
+        "knowledge_ne_permission": { "const": true },
+        "next_step_ne_authorization": { "const": true },
+        "continuation_ne_execution": { "const": true },
+        "missing_shown_explicitly": { "const": true },
+        "task_context_ne_mutation": { "const": true }
+      }
+    },
+    "provenance": { "type": "object", "required": ["generator", "presentation_only", "grants_no_mutation", "truth_sources"] },
+    "fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

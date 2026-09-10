@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_RESIDUAL_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "residual_id",
+    "repository",
+    "residual_type",
+    "disposition",
+    "description",
+    "required_action_type",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_RESIDUAL_V1"
+    },
+    "residual_id": {
+      "type": "string",
+      "minLength": 8,
+      "pattern": "^res-[a-z0-9][a-z0-9._:-]{6,127}$"
+    },
+    "repository": {
+      "type": "string",
+      "minLength": 1
+    },
+    "residual_type": {
+      "type": "string",
+      "enum": [
+        "DEFECT",
+        "DEFERRED_REMEDIATION",
+        "TECH_DEBT",
+        "MISSING_VERIFICATION",
+        "POSTMERGE_FOLLOWUP",
+        "COMPATIBILITY",
+        "RESTACK",
+        "RESEARCH",
+        "DOC_RECONCILE",
+        "OWNER_DECISION",
+        "SECURITY_HARDENING",
+        "KNOWN_LIMITATION"
+      ]
+    },
+    "disposition": {
+      "type": "string",
+      "enum": ["OPEN", "RESOLVED", "SUPERSEDED", "ACCEPTED_RISK"]
+    },
+    "derived_execution_state": {
+      "type": "string",
+      "enum": ["RUNNABLE", "BLOCKED", "INELIGIBLE", "UNKNOWN", "NOT_APPLICABLE"]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "severity": {
+      "type": "string"
+    },
+    "priority_class": {
+      "type": ["string", "null"]
+    },
+    "origin_event_id": {
+      "type": ["string", "null"]
+    },
+    "originating_pr": {
+      "type": ["integer", "null"]
+    },
+    "originating_lane": {
+      "type": ["string", "null"]
+    },
+    "originating_head": {
+      "type": ["string", "null"]
+    },
+    "target_pr": {
+      "type": ["integer", "null"]
+    },
+    "target_lane": {
+      "type": ["string", "null"]
+    },
+    "target_subsystem": {
+      "type": ["string", "null"]
+    },
+    "required_action_type": {
+      "type": "string"
+    },
+    "prerequisites": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "resolution_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["relation", "residual_id"],
+        "properties": {
+          "relation": {
+            "type": "string",
+            "enum": ["DUPLICATE_OF", "SUPERSEDES", "RELATED_TO"]
+          },
+          "residual_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "blocking_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "resolution_history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source_kind", "generator"],
+      "properties": {
+        "source_kind": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "residual_existence_is_not_authority": {
+          "const": true
+        }
+      }
+    }
+  }
+}

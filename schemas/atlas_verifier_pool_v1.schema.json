@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_VERIFIER_POOL_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "version",
+    "verifiers"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_VERIFIER_POOL_V1"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "verifiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "verifier_id",
+          "principal",
+          "active",
+          "allowed_repositories",
+          "capabilities",
+          "prohibitions"
+        ],
+        "properties": {
+          "verifier_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "principal": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^github:[A-Za-z0-9-]+$"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "allowed_repositories": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prohibitions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -22,6 +22,12 @@ project digital twin** that humans and every LLM provider can share.
 Foundation layer ownership and exit criteria: `docs/atlas-3/FOUNDATION.md`.
 Chronicle / Ambient Knowledge remains `ROADMAP_HORIZON`.
 
+**Atlas Studio** (`docs/atlas-3/studio/`) is the planned Linux-first human
+operating surface over Atlas 3 / Coder Alpha truth and the Features 1–16
+coordination control plane. Studio is a projection/control interface —
+`STUDIO_UI != AUTHORITY`. See epic
+[#746](https://github.com/B0LK13/project-atlas/issues/746).
+
 ## Promises
 
 **Primary promise:** Never explain your project to an AI twice.

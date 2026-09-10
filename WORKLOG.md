@@ -14915,3 +14915,360 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-STUDIO-INTAKE-20260908-01 — canonical Studio docs package
+
+**Date:** 2026-09-09  
+**Lane:** `docs/as-studio-intake-20260908`  
+**Epic:** [#746](https://github.com/B0LK13/project-atlas/issues/746)
+
+Synchronized the Atlas Studio owner master update into canonical repository
+documentation under `docs/atlas-3/studio/`, with cross-links from Coder Alpha
+and Atlas 3 north stars. No Studio runtime/UI implementation in this package.
+
+Vault normalize/route/receipt remains **PENDING**: production `mda` is not on
+PATH (fixture mock must not be treated as production success).
+
+Coordination Features 1–16 remain implementation-complete on the stacked PR
+tip with exact-head CI PASS and `EXTERNAL_IV_GATED`; this docs sync does not
+merge that stack and does not claim formal IV.
+
+Evidence: `docs/evidence/AS-STUDIO-INTAKE-20260908-01-CANONICAL-DOCS-SYNC.md`.
+
+```text
+ATLAS_STUDIO_CANONICAL_PACKAGE = SYNCHRONIZED_IN_REPO
+VAULT_DOCUMENTATION_RECEIPT = PENDING_MDA
+AS_STUDIO_A0_001 = READY_FOR_IMPLEMENTATION_PACKAGE
+AS_STUDIO_A1 = NOT_STARTED
+```
+
+## AS-STUDIO-A0-001 — foundation package (lane)
+
+- Branch: `feat/as-studio-a0-001` on exact #751 tip + Studio docs merge
+- Deliverables: `docs/atlas-3/studio/a0/*`, ADR-034, schemas, `scripts/atlas_studio`, RO CLI
+- Validation: 11 unit tests PASS; ruff PASS; doctor PASS; live snapshot exercised
+- Honesty: STUDIO_UI != AUTHORITY; MERGE_AUTHORIZATION = NOT_GRANTED; A1 NOT_STARTED
+- Evidence: `docs/atlas-3/studio/a0/EVIDENCE.md`
+
+
+## CLOSE_ATLAS_STUDIO_A0_AND_PREPARE_A1
+
+- A0 closure: `docs/atlas-3/studio/a0/A0-CLOSURE.md` → TECHNICALLY_COMPLETE
+- Owner decisions O1–O5 explicit (O1 = A1 start gate)
+- Canonical package #762 remains OPEN (not merged); vault MDA PENDING
+- A1 scope reconciled + AS-STUDIO-A1-001 READY under `docs/atlas-3/studio/a1/`
+- A1 implementation NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
+
+
+
+## AS-STUDIO-A1-001 — Read-only Mission Control (lane)
+
+- Branch: `feat/as-studio-a1-001` on A0 tip `efb92255…` / PR #763
+- Owner: **O1 APPROVED** (in-process atlas_dag RO runtime); **O6 APPROVED** (seal/evidence UNKNOWN ok)
+- Deliverables: `ATLAS_STUDIO_MISSION_CONTROL_V1` schema; `mission_control.py`; CLI `mc`/`mission-control`; docs; unit tests
+- Honesty: STUDIO_UI!=AUTHORITY; ATTENTION!=AUTHORIZATION; STALE!=CURRENT; UNKNOWN!=HEALTHY; NO_MUTATION; A0 nested honesty preserved
+- Non-goals: Tauri, A2 mutations, commit/push/PR/merge, formal IV
+- Evidence: `docs/atlas-3/studio/a1/A1-EVIDENCE.md`
+
+
+## CLOSE_ATLAS_STUDIO_A1_AND_DEFINE_A2
+
+- Branch: `feat/as-studio-a1-001` @ `3d76fa0e…` (+ semantic-boundary / A2-docs tip)
+- A1 closure: `docs/atlas-3/studio/a1/A1-CLOSURE.md` → **TECHNICALLY_COMPLETE / EXTERNAL_IV_GATED**
+  (honest: CI PASS ≠ FORMAL_IV; verifiers unbound → not CERTIFIED)
+- Adversarial suite: `tests/unit/test_atlas_studio_a1_semantic_boundaries.py` (10 attacks) — all PASS
+- Combined gate: 15 A0 + 15 A1 + 10 semantic = **40 passed**; ruff PASS
+- Fail-closed narrowed: `AGENT_MATRIX_MISMATCH` suppresses foreign frontier rankings/attention
+- Live mc: `mission_status=HUMAN_ATTENTION_REQUIRED`, `freshness=LIVE`, `attention_count=8`
+- `MISSION_CONTROL_HUMAN_COHERENCE = PROVEN`; `STUDIO_MUTATION_AUTHORITY = NONE`
+- A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
+  governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
+- Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added
+
+## AS-STUDIO-A2-001 — governed OWNERSHIP_CLAIM
+
+- Module: `scripts/atlas_studio/action_intent.py`
+- CLI: claim-candidates/preview/intent/evaluate/execute
+- Schemas: ATLAS_STUDIO_ACTION_{INTENT,PREVIEW,DECISION}_V1
+- Tests: 19 A2 adversarial + A0/A1 regression (59 total)
+- DISPATCH / STEAL_AUTO = NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
+
+
+
+## AS-STUDIO-A2-001 — Governed OWNERSHIP_CLAIM (lane)
+
+- Branch: `feat/as-studio-a2-001` on A1 tip `028157e2…` (#770)
+- Deliverables: intent/preview/decision schemas; `scripts/atlas_studio/action_intent.py`;
+  CLI `claim-candidates|claim-preview|claim-intent|claim-evaluate|claim-execute`;
+  doctor A2 checks; `docs/atlas-3/studio/a2/A2-EVIDENCE.md`
+- Emitter: evaluate-first; wet path uses `atlas_dag.emitter` `OWNER_CLAIMED` only when
+  `EXECUTE_ALLOWED`; dry-run never emits; preview never emits
+- Refusal vocabulary: EXECUTE_ALLOWED/EXECUTED + REFUSED_STALE/ALREADY_OWNED/
+  NOT_RUNNABLE/AGENT_INVALID/CAPABILITY/POLICY/TARGET_MISMATCH/
+  IDEMPOTENT_ALREADY_CLAIMED/SCHEMA
+- Validation: A0 15 + A1 15 + A1-semantic 10 + A2 19 = **59 passed**; ruff PASS;
+  doctor ok
+- Honesty: STUDIO_UI!=AUTHORITY; REQUESTED!=CLAIMED; PREVIEW!=EXECUTION;
+  CONTROL_PLANE_REVALIDATES_AT_EXECUTION; A1 MC does not import action_intent
+- Explicit: **DISPATCH/STEAL_AUTO = NOT_STARTED**; no merge/IV/worktree/PTY;
+  MERGE_AUTHORIZATION=NOT_GRANTED; FORMAL_IV=NOT_STARTED; no commit/push/PR
+
+## AS-STUDIO-A2-001 — review-closure hardening (lane, PR #776)
+
+- Directive: D-CODEX-ATLAS-STUDIO-A2-001-END-TO-END-CLOSURE (executed by the
+  Claude Code implementation session, not by Codex; CODEX_VALIDATED = NO)
+- Baseline: frozen `6ff336cd` (exact-head CI run 34360705782 PASS); freeze
+  lifted only for confirmed A2-001 defects + tests + required docs
+- Reproduced and fixed: `--repo` omission skipped repo pinning → refuse
+  `EXPECTED_REPO_REQUIRED_AT_EXECUTE`, CLI `--repo` required; dead
+  `if True` comprehension removed; `register_action` silent overwrite →
+  `DUPLICATE_REGISTRATION` refusal (`replace=True` explicit); executor
+  exception / invalid return → `EXECUTION_FAILED` + `mutation_state=UNKNOWN`;
+  dry-run label `EXECUTED` → `EXECUTE_ALLOWED` + `dry_run=true`
+- Schema: `EXECUTION_FAILED` added to `ATLAS_STUDIO_ACTION_DECISION_V1` enum;
+  `mutated` / `dry_run` semantics documented
+- Tests: `tests/unit/test_atlas_studio_a2_review_closure.py` (18) + 3 existing
+  assertions updated; A1 `mission_control.py` untouched, still free of
+  governance/action_intent imports
+- Not changed: dispatch/IV/handoff/steal/merge/worktree intents (still
+  NOT_STARTED); A0/A1 modules; no force-push; no merge; no self-IV
+- Review threads: replied with fix pointers; resolution left to human reviewer
+- FORMAL_IV = PENDING on the new exact head; MERGE_AUTHORIZATION = NOT_GRANTED
+
+## AS-STUDIO-A2-002 — Mission Journey RO slice (2026-09-09)
+
+Directive: `D-CODEX-ATLAS-STUDIO-A2-CERTIFIED-CONTINUATION-002`
+
+- Preserved certified A2 tip `2debb778` / tree `2ae9a686` (no commits on `feat/as-studio-a2-001`).
+- Recovered Formal IV handoff into `docs/atlas-3/studio/a2/iv/`; added `A2-001-STATUS-CURRENT.md`.
+- Reconciled PR #776 description (test-count scopes, replace= removal, Formal IV PASS vs merge pending).
+- New isolated branch `feat/as-studio-a2-002-mission-journey` from certified tip.
+- Implemented `ATLAS_STUDIO_MISSION_JOURNEY_V1` + CLI `mission-journey` / `journey`.
+- Studio suite: 101 passed; doctor a2_002_* PASS.
+- Overlap avoided: #782 repo-binding, #781 visual shell.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; A2-002 Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-004 — Action Evidence & Recovery (2026-09-09)
+
+Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT`
+
+- Stacked on A2-002 tip `cd4523fc` (certified A2 `2debb778` preserved).
+- Branch: `feat/as-studio-a2-004-action-evidence`.
+- Avoided ownership overlap with #786 (task-context), #782, #781.
+- Implemented `ATLAS_STUDIO_ACTION_EVIDENCE_V1` + CLI `action-evidence` / `evidence`.
+- Recovery forbids auto-retry; uncertain mutation ≠ nothing-changed; optional
+  non-canonical knowledge spool (`CAPTURE!=AUTHORITY`).
+- Studio suite: 109 passed; doctor a2_004_* PASS.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-005 — Intent Continuity (2026-09-09)
+
+Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT` (same lane as A2-004)
+
+- Branch: `feat/as-studio-a2-004-action-evidence` (PR #788)
+- CLI: `intent-continuity` / `continuity`
+- States: FRESH / STALE_INTENT / ALREADY_DECIDED / DUPLICATE_SUBMIT_RISK /
+  INTERRUPTED_UNCERTAIN / MISSING / MALFORMED
+- Linked from mission-journey `next_actions.continuity`
+- Studio suite: 116 passed (local)
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED
+
+## AS-STUDIO-A2-004/005 — Formal IV PASS (2026-09-09)
+
+- Independent Formal IV: **PASS** on subject tip `4904125f` / tree `00734f63`
+- CI exact-head: run **34390223409** SUCCESS
+- Durable handoff: `docs/atlas-3/studio/a2-004/iv/A2-004-005-FORMAL-IV-HANDOFF-4904125f.md`
+- `FORMAL_IV != MERGE_AUTHORIZATION`; later tip commits not auto-covered
+
+## AS-STUDIO-A2-006 — Mission Session Continuity (2026-09-09)
+
+Goal: `ATLAS-STUDIO-MISSION-CONTINUITY-AND-RECOVERY-001`
+
+- Closed #788 validation cycle: Formal IV PASS scoped to `4904125f`; tip CI
+  `34393171693` SUCCESS on freeze `10df59fb`; executable post-IV delta documented.
+- Branched `feat/as-studio-a2-006-mission-session` from freeze (non-moving target).
+- Implemented `ATLAS_STUDIO_MISSION_SESSION_V1` + CLI `mission-session`.
+- Binding: mismatched intent_id / repository → MISMATCHED_BINDING.
+- Persistence failure after mutation → claim-execute exit 3 + session flag.
+- Cross-process resume test; task-context dependency explicit UNAVAILABLE.
+- Studio suite: 126 passed. Formal IV = NOT_STARTED. MERGE not granted.
+
+## AS-STUDIO-A2-006 hardening — fingerprint/binding/conflict (2026-09-09)
+
+Goal: mission-session dependability under stale evidence / interrupted persistence /
+repeated inspection / uncertain outcomes.
+
+- Reproduced Copilot/Codex findings: wall-clock fingerprint drift; malformed→PENDING;
+  --repo unverified; evidence/decision conflict; DRY_RUN mislabeled REFUSED.
+- Repaired mission_session + intent_continuity MALFORMED path; expanded tests (134 suite).
+- Control-plane observation: explicit UNAVAILABLE (no invented API).
+- Formal IV request packet prepared (owner dispatch). MERGE not granted.
+
+## Overnight — snapshot load + corrupt JSON + session exit codes (2026-09-09)
+
+Directive: ATLAS-STUDIO-OVERNIGHT-CONTINUATION-001
+
+- Recorded #791: tip b9fd932d; no exact-head CI SUCCESS yet (dependency noted; no poll loop).
+- Added `atlas_studio.snapshot_load` (bytes→hash→parse same buffer).
+- Continuity CORRUPT; session CORRUPT_INPUT; CLI exit 0/1/3 for mission-session.
+- Honesty: byte hashes ≠ multi-file FS snapshot; process tests ≠ power-loss IV.
+- Local suite: 141 passed. Formal IV / merge not claimed.
+## AS-STUDIO-A2-003 — Task Context + Continuation (lane)
+
+- Branch: `feat/as-studio-a5-task-context-001` on #785 tip `cd4523fc` (A2-002 mission journey; unmerged)
+- Directive: G-ATLAS-12H-LIVE-BACKLOG-TO-USABLE-STUDIO §5 (mission attention → useful context)
+- Deliverables: `scripts/atlas_studio/task_context.py`; `ATLAS_STUDIO_TASK_CONTEXT_V1` schema;
+  CLI `task-context` (live via shared `_live_frontier`, or offline via JSON files); doctor check
+- Reuse: frontier matrix + stacks (lane state, blockers, dependencies, vs-main), A1 freshness +
+  attention, `project_atlas` state/decisions/unknown lenses (KNOWN/UNKNOWN/STALE/CONFLICT/
+  UNAVAILABLE), `export_agent_context` optional, handoff commands referenced not built
+- Honesty: TASK_CONTEXT!=AUTHORITY; NEXT_STEP!=AUTHORIZATION; CONTINUATION!=EXECUTION;
+  MISSING_SHOWN_EXPLICITLY; `merged` always UNKNOWN; no materialization of any vault lens
+- Not started: dispatch/IV/handoff-deliver/steal/merge/worktree; FORMAL_IV=NOT_STARTED;
+  MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AS-STUDIO-A2-003 — live validation, baseline repairs, continuation verification
+
+- Ran the package through its real entry point against the real repository, which
+  exposed three defects fixtures had hidden: two baseline (`clock=None` into
+  `build_studio_snapshot`; positional args to a keyword-only
+  `build_frontier_matrix`) that broke **every** live Studio command and were
+  reproduced on base `cd4523fc`; one in this package (classifier read top-level
+  lens fields while the real lenses nest counters under `signals`)
+- Repaired the two baseline defects once in the shared `_live_frontier` helper
+- Added `verify_continuation` + `ATLAS_STUDIO_CONTINUATION_VERDICT_V1` and
+  `task-context --verify-continuation`: STILL_VALID / INVALIDATED / UNVERIFIABLE
+  with changed fields itemized; exit 0 only when STILL_VALID
+- Live round trip caught a real invalidation: a packet recorded at head
+  `924a4f88` was correctly INVALIDATED after the branch moved to `e0f50f69`
+- Tests 28 → 46; Studio A0–A2-003 suite 147 passed; doctor ok
+- Honesty: IMPORTED_CONTEXT != PERMISSION; verification authorizes nothing;
+  CLI/schema/API only, no Studio UI integration; FORMAL_IV = NOT_STARTED
+## Studio local recovery 003 — draft checkpoint
+
+Verified recovery transfer and restored an isolated Git checkout at exact A1
+028157e25f74ecea5da5b6ee407a7a866124f4b5. Preserved original archives and raw events.
+Fixed palette Enter reopening; corrected history text assertions. Final checks:
+43 Python tests, scoped ruff, 18 frontend tests/typecheck/build, and 5 sandboxed
+Chrome browser tests pass. Native dependencies, live-data latency, freshness aging,
+full nested schema checks and Vault synchronization remain open. See
+`docs/atlas-3/studio/desktop/RECOVERY-003.md`. No A2, merge, release or self-IV.
+
+
+## 2026-09-09 — D-CODEX-ATLAS-STUDIO-RESUME-AND-DELIVER-005
+
+Recovered the newer PR #781 worktree without replacing its unpublished commits or dirty source. Fixed read-only SHA comparison rejection and overlapped existing A1 metadata reads within the request budget. Added live Mission Control hierarchy with explicit missing objective, safe diagnostics and distinct connection states. Hardened nested projection/freshness validation, clock rollback, narrow keyboard containment and responsive verification visibility. Kept all design directions and isolated preview content; removed unused non-Linux icon outputs after archiving them.
+
+Evidence, source hashes, current validation and exact recovery diagnostics: `docs/atlas-3/studio/desktop/RECOVERY-005.md` and `evidence/recovery-005-validation.json`. 36 frontend tests and 16 browser tests pass, including real A1 response-to-render values and controlled changes. Native build is blocked by missing GTK/WebKit development packages and sudo authentication. Documentation events remain pending in the approved spool; normalizer environment repaired, provider credential still unavailable. PR remains draft. No A2, merge or self-IV.
+
+## D-006 native delivery continuation
+
+After supported Ubuntu prerequisite installation, diagnosed native blank-window startup as runtime Ajv code generation rejected by production CSP. Added a failing exact-CSP browser regression and moved canonical validator compilation to Vite build time without relaxing CSP. Frontend36/browser17/focusedPython19 pass. Normal Wayland native projection, navigation, bridge failure and recovery are evidenced by AT-SPI captures. Debian creation and disposable non-root installed window check/uninstall pass. See `docs/atlas-3/studio/desktop/RECOVERY-006.md` and its hash ledger for tested scope and screenshot limitations. Documentation remains pending provider configuration; no A2, merge or self-IV.
+
+### D-006 final sandbox correction
+
+Process inspection disproved the earlier assumption that absence of disabling flags proved WebKitGTK 4.1 sandbox enforcement. Studio now enables the supported WebKit sandbox before startup and rejects disabling overrides. Final ordinary Wayland renderer: NoNewPrivs=1/Seccomp=2; native live/error/recovery PASS. Rebuilt Debian SHA256 7d89937ebeca6b82717bf331e946ff0fe5e8b57910a22e02abb35788e5add03c installs, renders live/error state, and uninstalls in rootless Ubuntu26.04. Strict nested renderer attestation fails in the container (NoNewPrivs=0/Seccomp=2); its exit1 is retained, not relabeled as a passing test. See RECOVERY-006.md and updated hashed evidence. Documentation provider credentials remain externally unavailable; no receipt, IV or merge claimed.
+
+
+## ATLAS-ONE-COHERENT-WORKFLOW-20260910 -- integration and product acceptance
+
+One reproducible candidate carrying a mission from project knowledge through a
+permitted development action, persisted evidence, and fresh-process resume.
+Assembled, not rewritten: `origin/main` b87b4a22 plus four pinned heads --
+#791 181f2eba, #786 1082b1e4, #781 750586a6, #789 1c6bd038 -- each verified
+unchanged from its last-checked state before use. Merging #791 transitively
+brings the unmerged Studio stack (#763/#770/#776/#785/#788) and eleven
+`atlas-dag` PRs (#734..#751); the whole Studio stack forked from main at
+e4dd17bc and does not contain current main, which is why this is a merge.
+
+**Four merges, five conflicts, one of them semantic.** `WORKLOG.md` conflicted
+three times and `cli.py` once -- all resolved as unions, because #786 and #791
+each add distinct subparsers and neither may be dropped. The exception was
+`docs/backlog.md`: #781 forked before A2-001 landed and still carried
+`- [ ] AS-STUDIO-A2 ... NOT_STARTED`, while the candidate ships A2-001 through
+A2-006. Keeping it would have asserted, in this repository's own origination
+source, that A2 is not started while shipping it. HEAD's `[x] AS-STUDIO-A2-001`
+line and #781's two D005 entries were kept; the superseded umbrella line was
+dropped. `WORKLOG.md` also needs care that a generic tool does not give it: it
+already carries, on main, committed conflict-marker-shaped residue
+(`||||||| Stash base`, lines ~5855-6265) plus one NUL byte, so the resolver
+committed here only rewrites complete live triples and uses `surrogateescape`.
+
+**#791 is failing CI, not awaiting it.** Its handoff records
+`CI_EXACT_HEAD = NOT_ESTABLISHED (do not poll-loop)` and plans a one-shot check;
+run 34401535592 had already failed at 181f2eba. Ubuntu `full` failed **Ruff**
+(5x E501, 1x F841) and -- because Ruff runs before pytest -- that job never ran
+pytest at all, so only the 3.13 `compat` job has proved Linux pytest for that
+head. Windows failed one test: `test_unreadable_file` calls `path.chmod(0)` and
+asserts READ_ERROR, but POSIX mode bits do not deny read access on Windows, so
+`read_bytes()` succeeded and the assertion read `assert None == 'READ_ERROR'`.
+The product code (`except OSError -> READ_ERROR`) was correct throughout; only
+the simulation was not portable. Repaired in the candidate, reported on the PR,
+branch untouched -- it is parked at BLOCKED_EXTERNAL and belongs to its owner.
+
+**The composition defect only integration could find.** A2-006 probes for #786
+by import and reports AVAILABLE/UNAVAILABLE -- a seam its author built for
+exactly this moment. But `test_success_session_schema` asserted the UNAVAILABLE
+arm unconditionally, so the branch that PROVES the integration works read as a
+regression: 6410 passed, 1 failed, `assert 'AVAILABLE' == 'UNAVAILABLE'`. The
+state is a property of the stack, not an invariant. Both arms are now pinned
+deterministically instead of by accident of what is installed.
+
+**The seam carries context, never authority.** #789 was built independently on
+main and says so, deferring reconciliation to whoever holds authority over both.
+`mission_bridge.py` is that reconciliation, and its important properties are
+negative: `trusted_policy` is never read from a Studio packet, Studio-derived
+keys in a caller's policy are refused, and the bridge fails closed if Studio
+ever stops emitting `NOT_GRANTED_BY_THIS_PACKET`. A subprocess adapter does not
+inherit Studio's permissions because Studio rendered a green row. Studio state
+is used only as grounds to refuse. 13 tests, 8 of them refusals.
+
+**Measured, not asserted.** Real vault: 4144 sources discovered (5.9s), 1280
+documents ingested (11s), zero writes outside `--vault`. Real journey: 10
+actions classified for pr/791 with `IMPLEMENT` blocked on
+`LANE_UNOWNED_WRITE_REQUIRES_CLAIM`; a real subprocess in a disposable git
+worktree; checkpoint `VALID` after the process exited. Resume was measured with
+an observable side effect rather than inferred -- same idempotency key across a
+fresh process left the effect count at 1 (`deduplicated=True`); a different key
+re-ran it to 2. A worker SIGKILLed mid-adapter yields
+`UNCERTAIN_REQUIRES_RECONCILIATION`, `safe_to_retry=False`, and blocks the next
+run rather than auto-retrying. Stale context was proved by mutating a real ADR
+after compile, not a fixture.
+
+**Found and NOT fixed.** `atlas validate` exits 1 on this repository: one broken
+link in 1280 documents, `claims.md -> OPENAI-MCP-DESIGN.md`. The file exists and
+was discovered; the claim quotes a relative link valid in `docs/atlas-2.0/` and
+renders it verbatim into `projects/project-atlas/`. Reproduced identically on
+plain main b87b4a22, so it is pre-existing, not integration damage, and a `src/`
+knowledge-compiler change outside this candidate's scope.
+
+The candidate is local and unpushed: `CI_THIS_CANDIDATE = NOT_RUN` because no CI
+subject exists, `FORMAL_IV = NOT_STARTED`, `MERGE_AUTHORIZATION = NOT_GRANTED`.
+Sample size for every effort figure above is one assembly, one operator, one
+platform (Linux x86_64, CPython 3.12.14). Windows and macOS behaviour of this
+candidate was never executed, and #781's UI was merged but not driven.
+
+
+### Correction -- the validate failure was mis-diagnosed, and is already owned
+
+The entry above reported `atlas validate` exiting 1 on this repository as a claim's
+relative Markdown link being rendered out of its source directory. **That diagnosis
+was wrong**, and the item filed for it (`AS-CORE-VALIDATE-RELLINK-001`) is withdrawn
+as a duplicate.
+
+The link is inside a **code span**. Measured on the generated line: code spans at
+offsets `(2,30)` and `(51,125)`, the link at `79` -- so
+`[OPENAI-MCP-DESIGN.md](OPENAI-MCP-DESIGN.md)` is quoted claim text, not a Markdown
+link, and the target file exists and was discovered. The validator simply does not
+mask inert Markdown regions.
+
+That is precisely the contract of the already-open, already-owned **#700**
+(`link check must not flag code-span/fence-quoted links`). Verified by A/B against
+one identical vault rather than by reading the diff: `main` b87b4a22 gives the
+broken-link error and exit 1; #700 `16e654a8` gives `validated 838 Markdown files`
+and exit 0. No competing implementation was opened; the reproduction was posted to
+#700 as evidence and the lane left with its owner.
+
+The failure is still real and is not waived: repository validation is NOT fully
+green today, and the integration candidate passes its own gates *with this known
+baseline failure standing*.

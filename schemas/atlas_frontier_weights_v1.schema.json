@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_FRONTIER_WEIGHTS_V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "weights_id",
+    "version",
+    "weights",
+    "caps",
+    "tiebreak"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_FRONTIER_WEIGHTS_V1"
+    },
+    "weights_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity",
+        "trust_governance",
+        "blocker_value",
+        "critical_path",
+        "starvation",
+        "evidence_freshness",
+        "readiness",
+        "coordination_cost",
+        "platform_fit",
+        "parallelism",
+        "postmerge_closure",
+        "risk_penalty"
+      ],
+      "properties": {
+        "severity": {
+          "type": "number"
+        },
+        "trust_governance": {
+          "type": "number"
+        },
+        "blocker_value": {
+          "type": "number"
+        },
+        "critical_path": {
+          "type": "number"
+        },
+        "starvation": {
+          "type": "number"
+        },
+        "evidence_freshness": {
+          "type": "number"
+        },
+        "readiness": {
+          "type": "number"
+        },
+        "coordination_cost": {
+          "type": "number"
+        },
+        "platform_fit": {
+          "type": "number"
+        },
+        "parallelism": {
+          "type": "number"
+        },
+        "postmerge_closure": {
+          "type": "number"
+        },
+        "risk_penalty": {
+          "type": "number"
+        }
+      }
+    },
+    "caps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "starvation_max_raw",
+        "blocker_children_max",
+        "coordination_depth_max"
+      ],
+      "properties": {
+        "starvation_max_raw": {
+          "type": "number",
+          "minimum": 0
+        },
+        "blocker_children_max": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coordination_depth_max": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "tiebreak": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "action_class_rank",
+          "total_desc",
+          "pr_asc",
+          "lane_asc"
+        ]
+      }
+    }
+  }
+}

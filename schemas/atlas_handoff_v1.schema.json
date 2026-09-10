@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_HANDOFF_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "handoff_id",
+    "generated_at_utc",
+    "mode",
+    "repo",
+    "pr",
+    "head",
+    "tree",
+    "truth_fingerprint"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_HANDOFF_V1"
+    },
+    "handoff_id": {
+      "type": "string",
+      "pattern": "^handoff-[0-9a-f]{16}$"
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "general",
+        "verifier",
+        "resume"
+      ]
+    },
+    "repo": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "head": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "tree": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "truth_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "base_branch": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "base_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "main_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stack": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_pr": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "parent_head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depth": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stack_state": {
+          "type": "string"
+        },
+        "restack_required": {
+          "type": "boolean"
+        },
+        "target_branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "owner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ownership": {
+      "type": "string"
+    },
+    "claimants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "frozen": {
+      "type": "boolean"
+    },
+    "ci": {
+      "type": "object",
+      "required": [
+        "status",
+        "run_id"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "formal_iv": {
+      "type": "object",
+      "required": [
+        "state",
+        "verifier_binding"
+      ],
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "receipt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verifier_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verifier_binding": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "claim_integrity": {
+      "type": "string"
+    },
+    "mergeable": {
+      "type": "string"
+    },
+    "merge_guardian": {
+      "type": "object",
+      "required": [
+        "merge_gate",
+        "reasons"
+      ],
+      "properties": {
+        "merge_gate": {
+          "type": "string"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "merge_receipt": {
+      "type": "object",
+      "required": [
+        "receipt",
+        "reason"
+      ],
+      "properties": {
+        "receipt": {
+          "type": "null"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dispatch": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "states",
+        "artifacts",
+        "reusable"
+      ],
+      "properties": {
+        "states": {
+          "type": "object"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "reusable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uncertainty": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "owner",
+        "verifier",
+        "platform",
+        "policy"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "verifier": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "policy": {
+          "type": "string"
+        }
+      }
+    },
+    "uncertainty": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "presentation": {
+      "type": "object"
+    }
+  }
+}

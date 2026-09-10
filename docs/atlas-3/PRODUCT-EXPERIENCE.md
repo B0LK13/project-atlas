@@ -67,6 +67,12 @@ TASK → IMPLEMENTATION → TESTS → CI → INDEPENDENT VERIFICATION
 | Impact Explorer | impact_graph + twin | Trust scores |
 | Mission Command Center | orch DAG / leases (read) | Self-merge |
 
+**Atlas Studio** (epic [#746](https://github.com/B0LK13/project-atlas/issues/746))
+extends these surfaces into a Linux-first desktop/control shell. Canonical
+package: `docs/atlas-3/studio/`. A1 Mission Control must consume real daemon /
+`atlas-dag` coordination state with **no CLI text parsing as protocol** and no
+mutation endpoints. `STUDIO_UI != AUTHORITY`.
+
 ## CLI targets (additive)
 
 ```text
