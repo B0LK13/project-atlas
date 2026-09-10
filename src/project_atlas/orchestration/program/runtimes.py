@@ -16,7 +16,9 @@ drift from what the adapters actually declare.
 
 from __future__ import annotations
 
+import re
 import shutil
+import subprocess
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -191,6 +193,206 @@ def describe(adapter: AdapterKind) -> RuntimeSupport:
 
 def describe_all() -> tuple[RuntimeSupport, ...]:
     return tuple(describe(kind) for kind in AdapterKind)
+
+
+@dataclass(frozen=True)
+class InventoriedRuntime:
+    """A runtime that exists on this machine but has no adapter here.
+
+    Recorded rather than omitted. An absent row reads as "nobody thought about
+    it"; a row saying `implemented: false` with the reason reads as what it is.
+
+    ``verified_capabilities`` are facts read from the installed CLI's own
+    ``--help``, which is authoritative for the build that is installed.
+    ``unverified`` names what could NOT be established -- output shapes,
+    terminal-state semantics, error taxonomies -- because establishing those
+    requires actually running the thing.
+    """
+
+    name: str
+    executable: str
+    installed: bool
+    version: str | None
+    implemented: bool
+    verified_capabilities: tuple[str, ...]
+    unverified: tuple[str, ...]
+    blocker: str | None
+    demand: str
+
+    def to_public_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "executable": self.executable,
+            "installed": self.installed,
+            "version": self.version,
+            "adapter_implemented": self.implemented,
+            "verified_capabilities": list(self.verified_capabilities),
+            "unverified": list(self.unverified),
+            "blocker": self.blocker,
+            "practical_demand": self.demand,
+        }
+
+
+def _probe_version(executable: str, *args: str) -> str | None:
+    """Ask an installed CLI its version. Never runs a model."""
+    found = shutil.which(executable)
+    if found is None:
+        return None
+    try:
+        completed = subprocess.run(
+            [found, *args],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    text = (completed.stdout or completed.stderr or "").strip()
+    match = re.search(r"\d[\w.\-]*", text)
+    return match.group(0) if match else (text.splitlines()[0][:64] if text else None)
+
+
+#: Runtimes present on a developer machine that this package does NOT adapt.
+#:
+#: Each entry is flag-level fact from the installed CLI's own help, plus an
+#: explicit statement of what was not established and why. A generic subprocess
+#: wrapper could "support" all of these tomorrow and understand none of them;
+#: that is precisely the claim this table exists to refuse.
+_NOT_IMPLEMENTED: Final[tuple[dict[str, Any], ...]] = (
+    {
+        "name": "Cursor Agent",
+        "executable": "cursor-agent",
+        "version_args": ("--version",),
+        "verified_capabilities": (
+            "-p/--print for non-interactive use",
+            "--output-format text|json|stream-json",
+            "--resume [chatId] and --continue",
+            "create-chat returns a chat id before any run",
+            "--mode plan|ask for read-only operation",
+            "--force/--yolo, --auto-review, --sandbox enabled|disabled",
+            "--workspace, --add-dir, -w/--worktree",
+            "--trust is REQUIRED for a non-interactive run in an untrusted "
+            "directory; without it the run exits 1 and says so",
+        ),
+        "unverified": (
+            "the shape of --output-format json",
+            "how a terminal state is signalled",
+            "the error taxonomy, and how a refusal differs from a failure",
+            "whether --resume preserves the working directory",
+        ),
+        "blocker": (
+            "the account is at its usage limit: 'You've hit your usage limit ... "
+            "Your usage limits will reset when your monthly cycle ends'. Raising "
+            "a spend limit or switching to another account to get round it is "
+            "not authorized, and would not be the right thing to do anyway"
+        ),
+        "demand": (
+            "high: Atlas's existing orchestration.sdk lane is Cursor-based "
+            "(backend.py, cli_execution_port.py). Those ports are pinned to that "
+            "lane's own canonical PR and repository, so they do not satisfy this "
+            "package's adapter contract, but the demand for a Cursor adapter here "
+            "is real"
+        ),
+    },
+    {
+        "name": "GitHub Copilot CLI",
+        "executable": "copilot",
+        "version_args": ("--version",),
+        "verified_capabilities": (
+            "-p/--prompt <text> for non-interactive use",
+            "--output-format json emits JSONL, one object per line",
+            "--session-id <id> BOTH resumes a session AND sets the UUID for a "
+            "new one, so an identity can be assigned before launch",
+            "-r/--resume[=id] and --continue",
+            "--allow-all-tools is required for non-interactive mode",
+            "--allow-tool / --deny-tool for per-tool permissions",
+            "--add-dir, --allow-all-paths, --log-dir, --no-color",
+            "--acp starts an Agent Client Protocol server",
+        ),
+        "unverified": (
+            "the JSONL event vocabulary",
+            "how a terminal state is signalled",
+            "whether the prompt can be delivered off argv",
+            "the error taxonomy",
+        ),
+        "blocker": (
+            "authentication cannot be validated: the GitHub token is present but "
+            "the account is rate limited (HTTP 403, 'API rate limit exceeded for "
+            "user ID ...'), which also breaks `gh auth status`. Waiting for the "
+            "limit to reset is the fix; working round it is not"
+        ),
+        "demand": (
+            "moderate: Copilot is in use on this host, but nothing in Atlas "
+            "orchestrates it today"
+        ),
+    },
+    {
+        "name": "Gemini CLI",
+        "executable": "gemini",
+        "version_args": ("--version",),
+        "verified_capabilities": ("installed and on PATH",),
+        "unverified": ("everything beyond its presence",),
+        "blocker": None,
+        "demand": (
+            "none observed: no Atlas code, document or work package references "
+            "it. Adapting it would be building for a user nobody has"
+        ),
+    },
+    {
+        "name": "Aider",
+        "executable": "aider",
+        "version_args": ("--version",),
+        "verified_capabilities": ("installed and on PATH",),
+        "unverified": ("everything beyond its presence",),
+        "blocker": None,
+        "demand": "none observed",
+    },
+    {
+        "name": "Amp",
+        "executable": "amp",
+        "version_args": ("--version",),
+        "verified_capabilities": ("installed and on PATH",),
+        "unverified": ("everything beyond its presence",),
+        "blocker": None,
+        "demand": "none observed",
+    },
+)
+
+
+def inventory_unimplemented() -> tuple[InventoriedRuntime, ...]:
+    """Runtimes on this machine that this package deliberately does not adapt."""
+    rows: list[InventoriedRuntime] = []
+    for entry in _NOT_IMPLEMENTED:
+        executable = str(entry["executable"])
+        installed = shutil.which(executable) is not None
+        rows.append(
+            InventoriedRuntime(
+                name=str(entry["name"]),
+                executable=executable,
+                installed=installed,
+                version=(
+                    _probe_version(executable, *entry["version_args"])
+                    if installed
+                    else None
+                ),
+                implemented=False,
+                verified_capabilities=tuple(entry["verified_capabilities"]),
+                unverified=tuple(entry["unverified"]),
+                blocker=entry["blocker"],
+                demand=str(entry["demand"]),
+            )
+        )
+    return tuple(rows)
+
+
+#: Why there is no generic adapter, stated once so it can be quoted.
+NO_GENERIC_ADAPTER: Final[str] = (
+    "There is deliberately no generic subprocess adapter. Launching a process "
+    "is not the same as understanding a runtime's output, its terminal states, "
+    "its permission model or its resume contract -- and an adapter that does "
+    "the first while claiming the rest is a support claim nobody has checked."
+)
 
 
 def preflight_report(adapter: AdapterKind) -> dict[str, Any]:

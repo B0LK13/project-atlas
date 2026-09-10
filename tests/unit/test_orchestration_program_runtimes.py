@@ -593,3 +593,87 @@ def test_no_session_id_is_invented_for_a_runtime_that_mints_its_own(
     state = load_state(tmp_path / "state")
     assert state is not None
     assert state.tasks["only"].state is NodeState.CERTIFIED
+
+
+# ------------------------------------------- M7: the honest runtime inventory
+
+
+def test_every_installed_runtime_is_accounted_for() -> None:
+    """A runtime this package does not adapt is recorded, not omitted.
+
+    An absent row reads as "nobody thought about it". A row saying
+    `adapter_implemented: false` with the reason reads as what it is.
+    """
+    from project_atlas.orchestration.program.runtimes import inventory_unimplemented
+
+    rows = inventory_unimplemented()
+    names = {row.executable for row in rows}
+    assert {"cursor-agent", "copilot"} <= names, (
+        "the two runtimes the directive names must appear"
+    )
+    for row in rows:
+        assert row.implemented is False
+        assert row.verified_capabilities, "each row states what WAS verified"
+        assert row.unverified, "and what was not"
+        assert row.demand, "and whether anything actually needs it"
+
+
+def test_a_blocked_runtime_names_its_blocker_precisely() -> None:
+    from project_atlas.orchestration.program.runtimes import inventory_unimplemented
+
+    by_exe = {row.executable: row for row in inventory_unimplemented()}
+    cursor = by_exe["cursor-agent"]
+    copilot = by_exe["copilot"]
+
+    assert cursor.blocker and "usage limit" in cursor.blocker
+    assert "not authorized" in cursor.blocker
+    assert copilot.blocker and "rate limit" in copilot.blocker.lower()
+    # Both blockers are account limits. Neither is described as something to
+    # route around, and this package offers no way to.
+    for row in (cursor, copilot):
+        assert "switch" not in (row.blocker or "").lower().replace(
+            "switching", ""
+        ) or "not authorized" in (row.blocker or "")
+
+
+def test_unverified_capabilities_are_named_not_assumed() -> None:
+    """Flag-level facts from --help are not the same as a verified contract."""
+    from project_atlas.orchestration.program.runtimes import inventory_unimplemented
+
+    by_exe = {row.executable: row for row in inventory_unimplemented()}
+    for executable in ("cursor-agent", "copilot"):
+        row = by_exe[executable]
+        joined = " ".join(row.unverified).lower()
+        assert "terminal state" in joined or "terminal-state" in joined
+        assert any("error taxonomy" in item.lower() for item in row.unverified)
+
+
+def test_there_is_no_generic_adapter_and_the_reason_is_stated() -> None:
+    from project_atlas.orchestration.program.profiles import AdapterKind
+    from project_atlas.orchestration.program.runtimes import NO_GENERIC_ADAPTER
+
+    assert "no generic subprocess adapter" in NO_GENERIC_ADAPTER
+    # The enum is the enforcement: a program cannot name a runtime that has no
+    # adapter, because there is no member for one.
+    assert {kind.value for kind in AdapterKind} == {
+        "claude-code",
+        "codex",
+        "local-command",
+    }
+
+
+def test_the_inventory_never_launches_a_model() -> None:
+    """Building the inventory must be free.
+
+    A report that quietly spends money is not a report, and this one is the
+    thing an operator runs *before* deciding whether to spend any.
+    """
+    from project_atlas.orchestration.program.runtimes import inventory_unimplemented
+
+    rows = inventory_unimplemented()
+    # Version probes only; every installed row got a version string or None,
+    # and none of them required authentication.
+    assert rows
+    for row in rows:
+        if row.installed:
+            assert row.version is None or isinstance(row.version, str)

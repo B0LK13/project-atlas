@@ -116,3 +116,65 @@ host and Atlas already has Cursor execution ports elsewhere
 (`orchestration/sdk/backend.py`, `orchestration/sdk/cli_execution_port.py`),
 but neither has been verified against **this** package's adapter contract, so
 neither is claimed here. See the M7 entries in `MISSION-TASK-QUEUE.md`.
+
+## Inventoried, deliberately not implemented
+
+`program runtimes` also reports every agent runtime found on this machine that
+this package does **not** adapt, with what was verified, what was not, whether
+anything actually needs it, and any blocker. An absent row would read as
+"nobody thought about it"; a row saying `adapter_implemented: false` with the
+reason reads as what it is.
+
+| Runtime | Installed | Demand | Status |
+| --- | --- | --- | --- |
+| `cursor-agent` 2026.09.08 | yes | **high** — Atlas's existing `orchestration.sdk` lane is Cursor-based | **blocked**: account at its usage limit |
+| `copilot` 1.0.83 | yes | moderate — in use on this host, not orchestrated by Atlas | **blocked**: GitHub token present but the account is rate limited (403) |
+| `gemini` 0.58.0 | yes | none observed | not adapted |
+| `aider` 0.86.2 | yes | none observed | not adapted |
+| `amp` | yes | none observed | not adapted |
+
+### What was verified for the two the directive names
+
+Flag-level facts, read from each installed CLI's own `--help`, which is
+authoritative for the build that is installed:
+
+**`cursor-agent`** — `-p/--print`; `--output-format text|json|stream-json`;
+`--resume [chatId]` and `--continue`; `create-chat` returns a chat id *before*
+any run; `--mode plan|ask` for read-only operation; `--force/--yolo`,
+`--auto-review`, `--sandbox enabled|disabled`; `--workspace`, `--add-dir`,
+`-w/--worktree`. And one thing only a real attempt revealed: **`--trust` is
+required** for a non-interactive run in an untrusted directory — without it the
+run exits 1 and says so.
+
+**`copilot`** — `-p/--prompt <text>`; `--output-format json` emits JSONL, one
+object per line; `--session-id <id>` **both** resumes a session **and** sets the
+UUID for a new one, so an identity can be assigned before launch;
+`-r/--resume[=id]`; `--allow-all-tools` is required for non-interactive mode;
+`--allow-tool`/`--deny-tool`; `--add-dir`, `--allow-all-paths`, `--log-dir`;
+`--acp` starts an Agent Client Protocol server.
+
+### What was not verified, and why that matters
+
+For both: the shape of the JSON output, how a terminal state is signalled, the
+error taxonomy, and how a refusal differs from a failure.
+
+Those are exactly the things an adapter has to get right. Both accounts are at
+a limit — Cursor's usage limit resets at the end of its monthly cycle; the
+GitHub token is rate limited — and raising a spend limit, switching accounts,
+or routing around either is not authorized and would not be the right thing to
+do regardless.
+
+Shipping a classifier written against an unverified event shape would be a
+support claim nobody has checked, which is the thing this page exists to
+refuse. When either account is available again, the verification is a short
+probe and the adapters follow.
+
+### There is no generic adapter
+
+> Launching a process is not the same as understanding a runtime's output, its
+> terminal states, its permission model or its resume contract — and an adapter
+> that does the first while claiming the rest is a support claim nobody has
+> checked.
+
+`AdapterKind` has three members and no "any CLI" member. A program file cannot
+name a runtime that has no adapter, because there is nothing to name.

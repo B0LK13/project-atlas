@@ -50,8 +50,10 @@ from project_atlas.orchestration.program.profiles import (
     AdapterKind,
 )
 from project_atlas.orchestration.program.runtimes import (
+    NO_GENERIC_ADAPTER,
     UNIVERSALLY_UNSUPPORTED,
     describe_all,
+    inventory_unimplemented,
 )
 from project_atlas.orchestration.program.store import read_events
 from project_atlas.orchestration.program.supervisor import ProgramSupervisor
@@ -182,6 +184,10 @@ def run_runtimes(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return (
         {
             "runtimes": [support.to_public_dict() for support in describe_all()],
+            "inventoried_not_implemented": [
+                row.to_public_dict() for row in inventory_unimplemented()
+            ],
+            "no_generic_adapter": NO_GENERIC_ADAPTER,
             "universally_unsupported": list(UNIVERSALLY_UNSUPPORTED),
             "authentication_checked": False,
             "authentication_note": (

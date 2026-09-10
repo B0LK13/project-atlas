@@ -105,11 +105,19 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
       merge, process adoption, task edits), each with its reason
 - [x] T64 15 further tests (`test_orchestration_program_control.py`)
 
-## M7 — Other runtimes
+## M7 — Other runtimes  ✅ COMPLETE (with two documented blockers)
 
-- [ ] T70 Inventory remaining runtimes actually used in Atlas
-- [ ] T71 Adapters per verified capability and practical demand
-- [ ] T72 No universal-support claim from a generic subprocess wrapper
+- [x] T70 All six installed runtimes inventoried with verified flag-level
+      capabilities, what was NOT verified, practical demand, and any blocker
+      (`program runtimes`, `SUPPORT-MATRIX.md`)
+- [x] T71 Adapters NOT shipped for Cursor and Copilot, with the reason:
+      both accounts are at a limit (Cursor usage limit; GitHub token rate
+      limited), so their output contracts could not be verified. Raising a
+      limit or switching accounts is not authorized. Flag-level capabilities
+      are recorded so the work resumes as a short probe
+- [x] T72 No generic subprocess adapter exists and `AdapterKind` has no member
+      for one, so a program cannot name an unverified runtime
+- [x] T73 5 further tests asserting the inventory stays honest
 
 ## Systemwide acceptance
 
