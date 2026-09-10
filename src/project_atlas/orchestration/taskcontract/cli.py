@@ -241,14 +241,27 @@ def _cmd_render(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     binding = _load_binding(Path(args.binding))
     assert binding is not None
     profile = _read_json(Path(args.profile))
-    instruction = render_instruction(contract)
-    program = render_program(
-        contract,
-        binding,
-        approved_by=args.approved_by,
-        approval_reference=args.approval_reference,
-        profile=profile,
+    verifier_profile = (
+        _read_json(Path(args.verifier_profile)) if args.verifier_profile else None
     )
+    instruction = render_instruction(contract)
+    try:
+        program = render_program(
+            contract,
+            binding,
+            approved_by=args.approved_by,
+            approval_reference=args.approval_reference,
+            profile=profile,
+            verifier_profile=verifier_profile,
+            origination_identity=args.origination_identity,
+        )
+    except TaskContractError as exc:
+        return {
+            "ok": False,
+            "code": getattr(exc, "code", "RENDER_REFUSED"),
+            "error": str(exc),
+            "grants": "NOTHING",
+        }, EXIT_ERROR
     written: dict[str, str] = {}
     if args.out_program:
         Path(args.out_program).parent.mkdir(parents=True, exist_ok=True)
@@ -266,6 +279,8 @@ def _cmd_render(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "binding_digest": binding_digest(binding),
         "instruction": instruction,
         "program": program,
+        "field_provenance": program.get("field_provenance"),
+        "identity_chain": program.get("identity_chain"),
         "written": written,
         "grants": (
             "NOTHING. A rendered program is a proposal; the supervisor validates "
@@ -373,6 +388,20 @@ def register_task_parser(
     p.add_argument("--binding", required=True, type=Path)
     p.add_argument("--profile", required=True, type=Path,
                    help="The runtime profile. Never invented by this tool.")
+    p.add_argument(
+        "--verifier-profile",
+        type=Path,
+        default=None,
+        help="Verifier profile body when binding.verifier_profile_ref is set.",
+    )
+    p.add_argument(
+        "--origination-identity",
+        default=None,
+        help=(
+            "Explicit sha256 origination identity from the proposal/WorkNode. "
+            "Never derived from work_id alone."
+        ),
+    )
     p.add_argument("--approved-by", required=True)
     p.add_argument("--approval-reference", required=True)
     p.add_argument("--out-program", type=Path, default=None)

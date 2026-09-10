@@ -327,6 +327,9 @@ class DeploymentBinding(BaseModel):
     #: The program profile this task runs under, and the registry role.
     profile_ref: str = Field(min_length=1, max_length=128)
     agent_role: str = Field(min_length=1, max_length=128)
+    #: Distinct verifier profile when independent verification is required.
+    #: Operator/binding decision — never invented by the contract renderer.
+    verifier_profile_ref: str | None = Field(default=None, max_length=128)
 
     @field_validator("workspace_root", "state_root", "registry_root", "interpreter")
     @classmethod
@@ -337,6 +340,16 @@ class DeploymentBinding(BaseModel):
                 f"deployment binding path {value!r} must be absolute",
                 code="BINDING_PATH_NOT_ABSOLUTE",
             )
+        return text
+
+    @field_validator("verifier_profile_ref")
+    @classmethod
+    def _opt_verifier(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        if not text:
+            return None
         return text
 
 
@@ -358,7 +371,11 @@ def contract_digest(contract: TaskContract) -> str:
 
 
 def binding_digest(binding: DeploymentBinding) -> str:
-    """Identity of one installation's paths, separate from the contract's."""
+    """Identity of one installation's paths, separate from the contract's.
+
+    ``None`` optional fields are excluded so adding optional binding knobs
+    does not silently rewrite digests of bindings that never set them.
+    """
     return hashlib.sha256(
-        _canonical(binding.model_dump(mode="json")).encode("utf-8")
+        _canonical(binding.model_dump(mode="json", exclude_none=True)).encode("utf-8")
     ).hexdigest()

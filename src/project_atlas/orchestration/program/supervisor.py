@@ -1930,6 +1930,11 @@ class ProgramSupervisor:
                 choice.resume_session_id
                 or (new_session_id() if capabilities.accepts_assigned_session else None)
             ),
+            # B2: copy provenance at DISPATCH_INTENT. Missing on legacy tasks
+            # stays None (UNKNOWN) — never invent digests after the fact.
+            contract_digest=task.contract_digest,
+            source_item_digest=task.source_item_digest,
+            origination_identity=task.origination_identity,
         )
         if choice.resume_session_id:
             attempt.runtime_session_id = choice.resume_session_id

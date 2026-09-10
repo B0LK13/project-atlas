@@ -98,6 +98,11 @@ class AttemptRecord(BaseModel):
     usage: dict[str, Any] = Field(default_factory=dict)
     notes: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     merge_authorized: Literal[False] = False
+    #: Provenance copied from ProgramTask at DISPATCH_INTENT (B2). Optional;
+    #: legacy attempts without these fields remain readable as UNKNOWN.
+    contract_digest: str | None = Field(default=None, max_length=64)
+    source_item_digest: str | None = Field(default=None, max_length=128)
+    origination_identity: str | None = Field(default=None, max_length=64)
 
 
 class TaskRecord(BaseModel):
