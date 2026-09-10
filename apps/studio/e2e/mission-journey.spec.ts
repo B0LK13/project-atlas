@@ -50,6 +50,8 @@ test("selected task context survives route changes and a reload", async ({ page 
   await page.getByLabel("Development lane").selectOption("pr/123");
   await page.getByRole("button", { name: "Inspect task context" }).click();
   await expect(page.getByRole("heading", { name: "Task context · pr/123" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Candidate identity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verification evidence" })).toBeVisible();
   await page.goto("/#/agents");
   await expect(page.getByRole("region", { name: "Selected task context" })).toBeVisible();
   await page.reload();
