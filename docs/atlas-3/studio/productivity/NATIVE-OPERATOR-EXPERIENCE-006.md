@@ -4,17 +4,17 @@
 
 - Repository: `https://github.com/B0LK13/project-atlas.git`
 - Branch: `feat/atlas-native-daily-workspace-001`
-- HEAD: `65f4072e75c6cb2a0e6ffd9032cc22ed97207f5d`
-- Tree: `8e185fbbd544f5553ec8e7ed1f01ce98d2cb21b2`
+- HEAD: `92568e14a206a3c918493f97b5253ca374fb5148`
+- Tree: `68c4c0154601051eec8a5fca942798135a2be615`
 - Prior accepted candidate preserved: `664325fc` (`atlas-studio-page-purpose-003`)
 
 ## Implemented
 
-Mission Control now has a local, explicitly scoped filter over loaded attention records. It reports loaded and matching counts, handles no matches, and provides a keyboard reachable clear action. Selection remains inspectable when a filter excludes it. Persisted attention and lane selections now require version 1 and `PROJECTION` source mode, so malformed, obsolete, or cross-mode state is discarded without affecting source truth.
+Mission Control now has a local, explicitly scoped filter over loaded attention records. It reports loaded and matching counts, handles no matches, and provides a keyboard reachable clear action. Selection remains inspectable when a filter excludes it. Persisted attention and lane selections now require version 1 and `PROJECTION` source mode, and entering fixture mode clears them, so malformed, obsolete, or cross-mode state is discarded without affecting source truth.
 
 ## Validation
 
-- `npm run check`: passed (typecheck, 45 unit tests, production build).
+- `npm run check`: passed (typecheck, 46 unit tests, production build).
 - Browser: new loaded-record filter journey passed with Playwright using the documented `chromiumSandbox:false` environment workaround; existing Mission Control and Mission Journey suites remain passing from the preserved candidate.
 - Native: release executable launched under `DISPLAY=:0` for an 8-second smoke window (expected timeout while the app remained running).
 - Fresh native artifacts:
