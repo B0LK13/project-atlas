@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.unit.test_orchestration_program_supervisor import (
+    _profile,
+    _supervisor,
+)
+from tests.unit.test_taskcontract_preparation import _binding, _contract
 
 from project_atlas.orchestration.origination.identity import origination_identity_from_parts
 from project_atlas.orchestration.program.loader import load_program
@@ -28,12 +33,6 @@ from project_atlas.orchestration.taskcontract.render import (
     render_review_package,
 )
 from project_atlas.orchestration.taskcontract.validate import validate_contract
-from tests.unit.test_orchestration_program_supervisor import (
-    FIXTURE_WORKER,
-    _profile,
-    _supervisor,
-)
-from tests.unit.test_taskcontract_preparation import _binding, _contract
 
 
 def _fixture_profile(

@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
+from tests.unit.test_taskcontract_preparation import PROFILE, _binding, _contract
 
 from project_atlas.orchestration.origination.identity import origination_identity_from_parts
 from project_atlas.orchestration.program.loader import load_program
@@ -25,7 +25,6 @@ from project_atlas.orchestration.taskcontract.render import (
     assert_machine_acceptance_renderable,
     render_program,
 )
-from tests.unit.test_taskcontract_preparation import PROFILE, _binding, _contract
 
 
 def test_decision_fields_have_visible_provenance(tmp_path: Path) -> None:
