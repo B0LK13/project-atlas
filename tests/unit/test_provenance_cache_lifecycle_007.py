@@ -55,6 +55,12 @@ def _spawn(code: str, **kw) -> subprocess.Popen:
     return subprocess.Popen([sys.executable, "-c", code], text=True, **kw)
 
 
+def _spawn_killable(code: str, **kw) -> subprocess.Popen:
+    """Spawn so the whole tree can be killed on POSIX and Windows alike."""
+    return subprocess.Popen([sys.executable, "-c", code], text=True,
+                            **ee.spawn_kwargs(), **kw)
+
+
 # ------------------------------------------------ contents after provisioning
 
 def test_warm_reuse_verifies_contents_not_just_the_key(warm, cache):
@@ -123,15 +129,13 @@ def test_interrupted_provisioning_publishes_nothing(cache, tmp_path):
         "import execution_env as ee\n"
         f"ee.provision(Path({str(REPO_ROOT)!r}), 'HEAD', Path({str(scratch)!r}))\n"
     )
-    p = _spawn(code, start_new_session=True,
-               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    p = _spawn_killable(code, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     killed = False
     for _ in range(600):
         time.sleep(0.05)
         staged = list(scratch.glob(".staging-*")) if scratch.exists() else []
         if staged and any((d / "env" / "pyvenv.cfg").exists() for d in staged):
-            os.killpg(os.getpgid(p.pid), 9)
-            p.wait()
+            ee.hard_kill_tree(p)
             killed = True
             break
         if p.poll() is not None:

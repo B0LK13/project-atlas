@@ -53,6 +53,17 @@ from typing import Any
 SCHEMA = "ATLAS_MISSION_ACCEPTANCE_V1"
 PACKAGE = "AS-ACCEPT-005"
 
+def _spawn_kwargs() -> dict[str, Any]:
+    """Popen kwargs making a worker killable as a tree on POSIX and Windows."""
+    import execution_env as _ee
+    return _ee.spawn_kwargs()
+
+
+def _hard_kill(proc: subprocess.Popen) -> None:
+    import execution_env as _ee
+    _ee.hard_kill_tree(proc)
+
+
 #: Mirror of `project_atlas.orchestration.mission.MISSION_STATE_DIR_NAME`.
 #:
 #: Duplicated ON PURPOSE. Under --isolated-execution the parent must not import
@@ -456,7 +467,6 @@ def _worker_source(repo_root: Path, ws: Path, *, ctx_args, command, key,
 def _run_interrupted(repo_root: Path, ws: Path, ctx, command, key,
                      mission: Mission, out: dict[str, Any]) -> dict[str, Any]:
     """Kill a real worker mid-adapter, then reconcile. Never auto-replays."""
-    import signal
 
     from project_atlas.orchestration.mission import (
         MISSION_STATE_DIR_NAME,
@@ -473,8 +483,8 @@ def _run_interrupted(repo_root: Path, ws: Path, ctx, command, key,
         command=tuple(command), key=key, emit_json=False,
     )
 
-    p = subprocess.Popen([sys.executable, "-c", worker], start_new_session=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen([sys.executable, "-c", worker], stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, **_spawn_kwargs())
     cp_path = ws / MISSION_STATE_DIR_NAME / "mission-run-checkpoint.json"
     appeared = False
     for _ in range(400):
@@ -491,8 +501,7 @@ def _run_interrupted(repo_root: Path, ws: Path, ctx, command, key,
         out["task_completed"] = False
         return out
 
-    os.killpg(os.getpgid(p.pid), signal.SIGKILL)
-    p.wait()
+    _hard_kill(p)
     time.sleep(0.3)
 
     r = rec.reconcile_mission_run(ws)
@@ -673,7 +682,6 @@ def run_interrupted_isolated(repo_root: Path, res: RunResources, mission: Missio
     "uncertain outcome, no auto-replay" is a property of the candidate's code,
     not of whatever happens to be installed in the caller's environment.
     """
-    import signal
 
     import execution_env as ee
 
@@ -692,8 +700,8 @@ def run_interrupted_isolated(repo_root: Path, res: RunResources, mission: Missio
     src = _isolated_worker_source(repo_root, ws, mission_id=mission.mission_id,
                                   objective=mission.objective, keywords=mission.keywords,
                                   command=tuple(command), key=key, timeout=300.0)
-    p = subprocess.Popen(ee.isolated_command(python, ["-c", src]), start_new_session=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ee.clean_env())
+    p = subprocess.Popen(ee.isolated_command(python, ["-c", src]), stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, env=ee.clean_env(), **_spawn_kwargs())
     cp_path = ws / MISSION_STATE_DIR / "mission-run-checkpoint.json"
     appeared = False
     for _ in range(400):
@@ -714,8 +722,7 @@ def run_interrupted_isolated(repo_root: Path, res: RunResources, mission: Missio
                               "as_expected": False}
         return out
 
-    os.killpg(os.getpgid(p.pid), signal.SIGKILL)
-    p.wait()
+    _hard_kill(p)
     time.sleep(0.3)
 
     # Reconcile and re-attempt USING THE CANDIDATE, in a fresh isolated process.

@@ -667,3 +667,37 @@ def prune_envs(cache_root: Path, keep_trees: set[str], *, keep: int = 2) -> dict
             (cache_root / f"env-{key}{LOCK_SUFFIX}").unlink()
         report["removed"].append(str(path))
     return report
+
+
+def spawn_kwargs() -> dict[str, Any]:
+    """Popen kwargs that make a child killable as a TREE on both platforms."""
+    if os.name == "nt":
+        # CREATE_NEW_PROCESS_GROUP so the child and its descendants form a
+        # group `taskkill /T` can reach.
+        return {"creationflags": 0x00000200}
+    return {"start_new_session": True}
+
+
+def hard_kill_tree(proc: subprocess.Popen) -> None:
+    """Kill a spawned worker and its descendants, portably.
+
+    `os.killpg`/`os.getpgid` do not exist on Windows -- calling them there
+    raises `AttributeError`, which would make an interruption test fail for a
+    reason that has nothing to do with the behaviour under test. Windows uses
+    `taskkill /F /T`, mirroring what the candidate's own ShellCommandAdapter
+    does for adapter timeouts.
+    """
+    if proc.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                           capture_output=True, check=False)
+        else:
+            import signal
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        with contextlib.suppress(OSError):
+            proc.kill()
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        proc.wait(timeout=30)
