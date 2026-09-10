@@ -24,7 +24,7 @@ test("bounded decision queue supports keyboard detail and explicit disappearance
   await page.goto("/#/mission-control");
   await expect(page.getByText("118 attention items")).toBeVisible();
   await expect(page.getByRole("option", { name: /Independent verification unavailable/ })).toBeVisible();
-  await expect(page.getByRole("option", { name: /Owner decision needed/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: /Owner decisions/ })).toBeVisible();
   await expect(page.getByText("Inspect all 118 records")).toBeVisible();
 
   const first = page.getByRole("option").first();

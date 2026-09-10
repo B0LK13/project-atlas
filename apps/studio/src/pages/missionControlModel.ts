@@ -28,6 +28,15 @@ export function attentionLabel(item: AttentionItem): { primary: string; exact: s
   return { primary: item.title || "Attention item", exact: item.kind || "UNKNOWN" };
 }
 
+/** A group heading names the source cause, never the first record's title. */
+export function attentionGroupLabel(cause: string): string {
+  if (cause === "HUMAN_GATE") return "Owner decisions";
+  if (cause === "EXTERNAL_IV_GATED") return "Independent verification unavailable";
+  if (cause === "BLOCKED_HIGH_VALUE") return "Blocked work";
+  if (cause === "PANEL_STATUS") return "Projection status";
+  return cause.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+
 const METRIC_LABELS: Record<string, string> = {
   eligible_count: "Frontier actions eligible",
   blocked_count: "Frontier actions blocked",

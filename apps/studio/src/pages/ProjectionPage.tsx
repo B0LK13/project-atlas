@@ -3,7 +3,7 @@ import type { ScreenId, StudioEnvelope } from "../types";
 import type { MissionJourneyProjection, TaskContextProjection } from "../types";
 import { Panel } from "../components/Panel";
 import { MissionJourneyPanel } from "./MissionJourneyPanel";
-import { attentionLabel, freshnessLabel, groupAttention, metricLabel, sourceStateLabel } from "./missionControlModel";
+import { attentionGroupLabel, attentionLabel, freshnessLabel, groupAttention, metricLabel, sourceStateLabel } from "./missionControlModel";
 import { pagePurpose, secondaryAttentionLabel, viewLabel } from "./pagePurpose";
 import { useEffect, useMemo, useState } from "react";
 
@@ -38,6 +38,13 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
   });
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const selectedAttention = packet.attention.find((item) => item.attention_id === selectedAttentionId) ?? null;
+  useEffect(() => {
+    // Source order is the only supported initial ordering. Selecting the first
+    // record makes the bounded queue useful without implying priority.
+    if (mission && !selectedAttentionId && attentionGroups[0]?.items[0]) {
+      selectAttention(attentionGroups[0].items[0].attention_id);
+    }
+  }, [attentionGroups, mission, selectedAttentionId]);
   const selectAttention = (id: string) => {
     setSelectedAttentionId(id);
     try { window.sessionStorage.setItem("atlas.selectedAttention", id); } catch { /* storage is optional */ }
@@ -76,13 +83,14 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
       <p>{data.source.detail}</p><p>No operational state is available. Refresh to retry, or inspect the explicit design preview in Environment.</p>
     </Panel> : <>
       {!mission && <section className="page-purpose" aria-label={`${label(screen)} purpose`}><div><span className="context-label">{label(screen)} workspace</span><h2>{purpose.question}</h2><p>{purpose.intro}</p></div><a className="compact-attention-indicator" href="#/mission-control" aria-label={secondaryAttentionLabel(packet.attention.length)}>{secondaryAttentionLabel(packet.attention.length)}</a></section>}
+      {!mission && selectedAttention && <section className="selected-context-strip" aria-label="Selected work context"><div><span className="context-label">Selected attention context</span><strong>{attentionLabel(selectedAttention).primary}</strong><small>{selectedAttention.attention_id} · carried from Mission Control</small></div><a className="text-action" href="#/mission-control">Return to decision queue</a></section>}
       {mission && <section className="mission-orientation" aria-label="Mission context">
         <div><span className="context-label">Project context</span><h2>{packet.repository || "Project identity unavailable"}</h2><p>{packet.agent_status ? `Directory status: ${packet.agent_status}.` : "Repository coordination state is available."} The A1 packet does not provide a mission catalog or declared objective.</p><a className="text-action" href="#/projects">Inspect project context</a></div>
         <div className="mission-boundary"><strong>Objective not provided</strong><span>Mission selection is unavailable in this source. Read-only inspection remains available.</span></div>
       </section>}
       {mission && <div className="live-overview">
         <Panel className="attention-panel" eyebrow="DECISION QUEUE" title="Your attention is needed" meta={<span>{packet.attention.length} attention items</span>}>
-          {packet.attention.length ? <div className="attention-queue-layout"><div className="attention-groups"><div className="attention-group-options" role="listbox" aria-label="Attention groups" aria-activedescendant={selectedAttentionId ? `attention-${selectedAttentionId}` : undefined}>{attentionGroups.slice(0, 5).map((group) => { const first = group.items[0]; const label = attentionLabel(first); return <button type="button" role="option" id={`attention-${first.attention_id}`} aria-selected={selectedAttentionId === first.attention_id} className={`attention-group ${selectedAttentionId === first.attention_id ? "is-selected" : ""}`} key={group.cause} onClick={() => { selectAttention(first.attention_id); setSelectionNotice(null); }}><span className="attention-group-count">{group.items.length}</span><span><strong>{label.primary}</strong><small>Cause: {group.cause}</small></span></button>; })}</div><details className="all-attention"><summary>Inspect all {packet.attention.length} records</summary>{attentionGroups.map((group) => <div key={group.cause}><strong>{group.cause} · {group.items.length}</strong>{group.items.map((item) => <button type="button" key={item.attention_id} onClick={() => { selectAttention(item.attention_id); setSelectionNotice(null); }}>{attentionLabel(item).primary} · {item.attention_id}</button>)}</div>)}</details></div><div className="attention-selection" aria-live="polite">{selectionNotice ? <p role="status">{selectionNotice}</p> : selectedAttention ? renderAttentionDetail(selectedAttention) : <p>Select a group to inspect its first record. Ordering follows source order; no priority is inferred.</p>}</div></div> : <p>No attention items projected. This does not establish health.</p>}
+          {packet.attention.length ? <div className="attention-queue-layout"><div className="attention-groups"><div className="attention-group-options" role="listbox" aria-label="Attention groups" aria-activedescendant={selectedAttentionId ? `attention-${selectedAttentionId}` : undefined}>{attentionGroups.slice(0, 5).map((group) => { const first = group.items[0]; return <button type="button" role="option" id={`attention-${first.attention_id}`} aria-selected={selectedAttentionId === first.attention_id} className={`attention-group ${selectedAttentionId === first.attention_id ? "is-selected" : ""}`} key={group.cause} onClick={() => { selectAttention(first.attention_id); setSelectionNotice(null); }}><span className="attention-group-count">{group.items.length}</span><span><strong>{attentionGroupLabel(group.cause)}</strong><small>Source cause: {group.cause}</small></span></button>; })}</div><details className="all-attention"><summary>Inspect all {packet.attention.length} records</summary>{attentionGroups.map((group) => <div key={group.cause}><strong>{attentionGroupLabel(group.cause)} · {group.items.length} records</strong>{group.items.map((item) => <button type="button" key={item.attention_id} onClick={() => { selectAttention(item.attention_id); setSelectionNotice(null); }}>{attentionLabel(item).primary} · {item.attention_id}</button>)}</div>)}</details></div><div className="attention-selection" aria-live="polite">{selectionNotice ? <p role="status">{selectionNotice}</p> : selectedAttention ? renderAttentionDetail(selectedAttention) : <p>Select a group to inspect its first record. Ordering follows source order; no priority is inferred.</p>}</div></div> : <p>No attention items projected. This does not establish health.</p>}
         </Panel>
         <div className="live-instruments">
           <section className="signal-instrument" aria-label="Agent activity"><header><h2>Agent activity</h2><a href="#/agents">Inspect agents</a></header>

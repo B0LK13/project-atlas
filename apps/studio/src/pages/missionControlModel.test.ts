@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AttentionItem } from "../types";
-import { groupAttention, attentionLabel, metricLabel, freshnessLabel } from "./missionControlModel";
+import { groupAttention, attentionLabel, attentionGroupLabel, metricLabel, freshnessLabel } from "./missionControlModel";
 
 const item = (id: string, kind: string, title = kind): AttentionItem => ({
   attention_id: id, kind, tier: 60, title, detail: `${kind} detail`, attention_ne_authorization: true,
@@ -17,6 +17,11 @@ describe("mission control decision support", () => {
     expect(attentionLabel(item("a", "EXTERNAL_IV_GATED")).primary).toBe("Independent verification unavailable");
     expect(attentionLabel(item("b", "HUMAN_GATE", "Human gate action: pr/793:OWNER_DECISION")).primary).toContain("Owner decision needed");
     expect(attentionLabel(item("c", "UNSEEN_CAUSE")).exact).toBe("UNSEEN_CAUSE");
+  });
+
+  it("labels groups by their source cause rather than a record title", () => {
+    expect(attentionGroupLabel("HUMAN_GATE")).toBe("Owner decisions");
+    expect(attentionGroupLabel("EXTERNAL_IV_GATED")).toBe("Independent verification unavailable");
   });
 
   it("names metrics by their actual entity and keeps freshness precise", () => {
