@@ -124,6 +124,20 @@ def _observation_map(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "status": "open",
         }
 
+    for item in (panels.get("progress_signals") or {}).get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        oid = str(item.get("id") or "")
+        if not oid:
+            continue
+        observations[oid] = {
+            "id": oid,
+            "kind": str(item.get("kind") or "progress"),
+            "summary": str(item.get("summary") or ""),
+            "sources": [item.get("source")],
+            "status": str(item.get("status") or "evidence_progress"),
+        }
+
     return observations
 
 

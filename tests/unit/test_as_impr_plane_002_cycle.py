@@ -285,6 +285,204 @@ def test_compare_incomplete_and_incompatible() -> None:
     assert incompatible["comparison_status"] == "incompatible"
 
 
+def test_compare_candidate_supersession_is_changed_not_resolved() -> None:
+    before = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "progress_signals": {
+                "items": [
+                    {
+                        "id": "candidate:docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                        "kind": "candidate_supersession",
+                        "summary": "candidate_head=ee901aaa tree=9ea1fdeb ci=in_progress",
+                        "source": "docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                    }
+                ]
+            },
+        },
+    }
+    after = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "progress_signals": {
+                "items": [
+                    {
+                        "id": "candidate:docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                        "kind": "candidate_supersession",
+                        "summary": (
+                            "candidate_head=38cec36d tree=b1c79af0 "
+                            "ci=partial_ubuntu_green_windows_pending_on_prior_head"
+                        ),
+                        "source": "docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                    }
+                ]
+            },
+        },
+    }
+    cmp = compare_reports(before, after, before_label="before", after_label="after")
+    assert cmp["counts"]["changed"] == 1
+    assert cmp["counts"]["resolved"] == 0
+    assert cmp["counts"]["claimed_closure"] == 0
+
+
+def test_compare_status_progress_is_changed_not_resolved() -> None:
+    before = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "progress_signals": {
+                "items": [
+                    {
+                        "id": (
+                            "progress:docs/evidence/atlas-core-ingestion-traversal.json:"
+                            "finding:ATLAS-CORE-INGESTION-TRAVERSAL-001"
+                        ),
+                        "kind": "status_progress",
+                        "summary": "status=remediated-pending-independent-replay",
+                        "source": "docs/evidence/atlas-core-ingestion-traversal.json",
+                    }
+                ]
+            },
+        },
+    }
+    after = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "progress_signals": {
+                "items": [
+                    {
+                        "id": (
+                            "progress:docs/evidence/atlas-core-ingestion-traversal.json:"
+                            "finding:ATLAS-CORE-INGESTION-TRAVERSAL-001"
+                        ),
+                        "kind": "status_progress",
+                        "summary": "status=remediated-and-independently-verified",
+                        "source": "docs/evidence/atlas-core-ingestion-traversal.json",
+                    }
+                ]
+            },
+        },
+    }
+    cmp = compare_reports(before, after, before_label="before", after_label="after")
+    assert cmp["counts"]["changed"] == 1
+    assert cmp["counts"]["resolved"] == 0
+    assert cmp["counts"]["claimed_closure"] == 0
+
+
+def test_progress_signal_disappearance_is_unobservable_not_resolution() -> None:
+    before = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "progress_signals": {
+                "items": [
+                    {
+                        "id": (
+                            "progress:docs/evidence/atlas-core-ingestion-traversal.json:"
+                            "finding:ATLAS-CORE-INGESTION-TRAVERSAL-001"
+                        ),
+                        "kind": "status_progress",
+                        "summary": "status=remediated-and-independently-verified",
+                        "source": "docs/evidence/atlas-core-ingestion-traversal.json",
+                    }
+                ]
+            },
+        },
+    }
+    after = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+        },
+    }
+    cmp = compare_reports(before, after, before_label="before", after_label="after")
+    assert cmp["counts"]["unobservable"] == 1
+    assert cmp["counts"]["resolved"] == 0
+    assert cmp["counts"]["claimed_closure"] == 0
+
+
+def test_partial_progress_and_open_blocker_stay_distinct() -> None:
+    before = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {
+                "items": [
+                    {
+                        "finding_id": "ENG-OPEN",
+                        "failure_class": "CANDIDATE_DEFECT",
+                        "open_occurrences": 1,
+                        "sources": ["docs/evidence/open.json"],
+                    }
+                ]
+            },
+            "waiting_work": {"items": []},
+            "progress_signals": {
+                "items": [
+                    {
+                        "id": "candidate:docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                        "kind": "candidate_supersession",
+                        "summary": (
+                            "candidate_head=ee901aaa candidate_tree=9ea1fdeb "
+                            "ci_state=in_progress"
+                        ),
+                        "source": "docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                    }
+                ]
+            },
+        },
+    }
+    after = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {
+                "items": [
+                    {
+                        "finding_id": "ENG-OPEN",
+                        "failure_class": "CANDIDATE_DEFECT",
+                        "open_occurrences": 1,
+                        "sources": ["docs/evidence/open.json"],
+                    }
+                ]
+            },
+            "waiting_work": {"items": []},
+            "progress_signals": {
+                "items": [
+                    {
+                        "id": "candidate:docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                        "kind": "candidate_supersession",
+                        "summary": (
+                            "candidate_head=38cec36d candidate_tree=b1c79af0 "
+                            "ci_state=partial_ubuntu_green_windows_pending_on_prior_head"
+                        ),
+                        "source": "docs/evidence/AS-IMPR-PLANE-001-REVIEW-CANDIDATE-PIN.json",
+                    }
+                ]
+            },
+        },
+    }
+    cmp = compare_reports(before, after, before_label="before", after_label="after")
+    assert cmp["counts"]["changed"] == 1
+    assert cmp["counts"]["persistent"] == 1
+    assert cmp["counts"]["resolved"] == 0
+
+
 def test_outcome_record_and_invalid_attribution(tmp_path: Path) -> None:
     repo = _fixture_repo(tmp_path)
     store = tmp_path / "outcomes.jsonl"

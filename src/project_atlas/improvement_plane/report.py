@@ -12,6 +12,7 @@ from project_atlas.improvement_plane.analyze import (
     analyze_data_quality_risks,
     analyze_evidence_freshness,
     analyze_owner_action_backlog,
+    analyze_progress_signals,
     analyze_recurring_failures,
     analyze_waiting_work,
     build_recommendations,
@@ -112,6 +113,7 @@ def compile_improvement_report(
     closed_findings = analyze_closed_findings(records)
     freshness = analyze_evidence_freshness(records, reference_utc=reference_utc)
     owner = analyze_owner_action_backlog(records)
+    progress = analyze_progress_signals(records)
     data_quality = analyze_data_quality_risks(records)
     recommendations = build_recommendations(
         waiting=waiting,
@@ -199,6 +201,7 @@ def compile_improvement_report(
             "closed_findings": closed_findings,
             "evidence_freshness": freshness,
             "owner_action_backlog": owner,
+            "progress_signals": progress,
             "data_quality_risks": data_quality,
             "ops_receipt_coverage": ops_coverage,
         },

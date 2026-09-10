@@ -571,6 +571,60 @@ def analyze_owner_action_backlog(records: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
+def analyze_progress_signals(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Collect non-resolution progress markers from supported packet fields.
+
+    These markers capture evidence movement (candidate supersession, remediation
+    status progression) without certifying resolution.
+    """
+    items: list[dict[str, Any]] = []
+    for record in records:
+        payload = record.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        path = str(record["path"])
+
+        candidate_head = payload.get("review_candidate_head")
+        candidate_tree = payload.get("review_candidate_tree")
+        if isinstance(candidate_head, str) and isinstance(candidate_tree, str):
+            ci_state = str(payload.get("ci_status_at_freeze") or "unknown")
+            items.append(
+                {
+                    "id": f"candidate:{path}",
+                    "kind": "candidate_supersession",
+                    "summary": (
+                        f"candidate_head={candidate_head} "
+                        f"candidate_tree={candidate_tree} ci_state={ci_state}"
+                    ),
+                    "source": path,
+                    "status": "evidence_progress",
+                }
+            )
+
+        top_status = payload.get("status")
+        finding_id = payload.get("finding_id")
+        if isinstance(top_status, str) and isinstance(finding_id, str) and finding_id:
+            items.append(
+                {
+                    "id": f"progress:{path}:finding:{finding_id}",
+                    "kind": "status_progress",
+                    "summary": f"finding_id={finding_id} status={top_status}",
+                    "source": path,
+                    "status": "evidence_progress",
+                }
+            )
+
+    items.sort(key=lambda row: row["id"])
+    return {
+        "count": len(items),
+        "items": items,
+        "note": (
+            "Progress markers reflect evidence movement only. They never certify "
+            "resolution, independent verification, merge authorization, or closure."
+        ),
+    }
+
+
 def analyze_data_quality_risks(records: list[dict[str, Any]]) -> dict[str, Any]:
     """Surface labeled evidence-quality risks without inventing attributions."""
     finding_statuses: dict[str, set[str]] = defaultdict(set)
