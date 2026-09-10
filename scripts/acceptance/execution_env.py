@@ -52,6 +52,7 @@ import shutil
 import subprocess
 import sys
 import sysconfig
+import tarfile
 import tempfile
 import venv
 from dataclasses import asdict, dataclass
@@ -144,11 +145,17 @@ def build_candidate_wheel(repo_root: Path, commit: str, out_dir: Path) -> tuple[
 
     src = out_dir / "src-export"
     src.mkdir(parents=True, exist_ok=True)
-    tar = out_dir / "tree.tar"
-    _run(["git", "archive", "--format=tar", "-o", str(tar), commit_sha], repo_root,
+    tar_path = out_dir / "tree.tar"
+    _run(["git", "archive", "--format=tar", "-o", str(tar_path), commit_sha], repo_root,
          what="git archive")
-    _run(["tar", "-xf", str(tar), "-C", str(src)], what="tar -x")
-    tar.unlink(missing_ok=True)
+    # Extracted with the stdlib rather than by shelling out to `tar`: this runs
+    # on Windows CI too, and `tar` is not something to assume there. `data`
+    # filter refuses absolute paths, `..` traversal, links and device nodes --
+    # the archive is our own `git archive` output, but an extractor that trusts
+    # its input is a bad habit to leave in a provenance tool.
+    with tarfile.open(tar_path) as tf:
+        tf.extractall(src, filter="data")
+    tar_path.unlink(missing_ok=True)
 
     wheel_dir = out_dir / "wheel"
     wheel_dir.mkdir(parents=True, exist_ok=True)
