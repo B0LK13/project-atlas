@@ -1,8 +1,8 @@
 ATLAS-DOC-RECEIPT
 
 ```yaml
-event_id: AE-AS-IMPR-PLANE-002-20260910
-goal_id: ATLAS-EVIDENCE-TO-IMPROVEMENT-20260910
+event_id: AE-AS-IMPR-PLANE-OBSERVE-TO-EVALUATE-002-20260910
+goal_id: ATLAS-IMPROVEMENT-PLANE-OBSERVE-TO-EVALUATE-002
 directive: ATLAS-IMPROVEMENT-PLANE-CONTINUATION-002
 raw_event: docs/evidence/AS-IMPR-PLANE-001-DOC-RECEIPT.md
 normalized_event: pending
@@ -31,19 +31,21 @@ identity:
   implementation_v2_head: 619349986b25a5c19116aef894f48173e120ba5b
   implementation_v2_tree: d15d90bc95d66846bbc6e02f946ff116cb5a7707
   note: >
-    Source pin is the analysis baseline (origin/main snapshot). Implementation
-    identities are lane commits. Generated DEMO-REPORT files and local outcome
-    annotations are not candidate code and must not be conflated with the pin.
+    Source pin is analysis baseline only. Implementation commits are lane
+    checkpoints. Tip HEAD after this receipt commit will differ from v2 if
+    only docs change. Generated DEMO-REPORT and .atlas/improvement-plane
+    outcomes are generated outputs, not source evidence or candidate code.
 focused_tests:
   - tests/unit/test_as_impr_plane_001.py
   - tests/unit/test_as_impr_plane_002_cycle.py
-focused_tests_result: PASS_13
-demonstrated:
-  - report/inspect against real docs/evidence
-  - self-ingest exclusion of lane DEMO-REPORT
-  - compare before/after snapshots
-  - outcome annotation to .atlas/improvement-plane/outcomes.jsonl
-  - evaluate association without causation/time-saved claims
+focused_tests_result: PASS_15
+cycle_demonstrated:
+  - inspect/report on real docs/evidence
+  - coverage/provenance + dedup decisions + self-ingest exclusion
+  - compare with resolved vs unobservable + incomplete/incompatible
+  - kind-split recommendations bound to source_records
+  - outcome annotations (local, non-authoritative)
+  - evaluate improved/persisted/regressed/inconclusive
 claims:
   merge: false
   independent_verification: false
@@ -54,8 +56,7 @@ claims:
   dag_gate_resolution: false
   source_evidence_mutated: false
 summary: >
-  Continuation-002 delivered the observe→compare→recommend→record→evaluate
-  cycle behind the isolated python -m entry point, with coverage/provenance,
-  kind-split recommendations, self-ingest guards, and accurate identity
-  separation between source pin and implementation commits.
+  Observe-to-evaluate cycle is implemented and demonstrated for
+  AS-IMPR-PLANE-001. Not a static-report-only deliverable. Sync to canonical
+  vault remains pending; CI/IV/merge remain not claimed.
 ```

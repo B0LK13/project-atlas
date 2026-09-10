@@ -165,11 +165,102 @@ def test_compare_reordered_inputs_stable_and_disappearance_unobservable(
     assert cmp_same["counts"]["persistent"] >= 2
 
     cmp = compare_reports(before, after, before_label="before", after_label="after")
-    assert cmp["counts"]["resolved_proven"] == 0
+    assert cmp["counts"]["resolved"] == 0
     assert cmp["honesty"]["disappearing_ne_resolved"] is True
     assert any(row["id"] == "owner:OWNER-2" for row in cmp["unobservable"])
     assert any(row["id"] == "finding:ENG-1" for row in cmp["changed"])
     assert any(row["id"].startswith("queue:READY:") for row in cmp["new"])
+
+
+def test_compare_resolved_requires_closed_finding_evidence() -> None:
+    before = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {
+                "items": [
+                    {
+                        "finding_id": "ENG-1",
+                        "failure_class": "CANDIDATE_DEFECT",
+                        "open_occurrences": 1,
+                        "sources": ["a.json"],
+                    }
+                ]
+            },
+            "waiting_work": {"items": []},
+            "closed_findings": {"items": []},
+        },
+    }
+    after_unobs = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "closed_findings": {"items": []},
+        },
+    }
+    after_resolved = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "closed_findings": {
+                "items": [
+                    {
+                        "finding_id": "ENG-1",
+                        "statuses": ["CLOSED"],
+                        "sources": ["b.json"],
+                    }
+                ]
+            },
+        },
+    }
+    u = compare_reports(before, after_unobs, before_label="b", after_label="a")
+    assert u["counts"]["unobservable"] == 1
+    assert u["counts"]["resolved"] == 0
+    r = compare_reports(before, after_resolved, before_label="b", after_label="a")
+    assert r["counts"]["resolved"] == 1
+    assert r["counts"]["unobservable"] == 0
+
+
+def test_compare_incomplete_and_incompatible() -> None:
+    incomplete = compare_reports(
+        {"schema": "atlas.improvement-plane.report.v1", "panels": {}},
+        {
+            "schema": "atlas.improvement-plane.report.v1",
+            "panels": {
+                "owner_action_backlog": {"items": []},
+                "recurring_failures": {"items": []},
+                "waiting_work": {"items": []},
+            },
+        },
+        before_label="bad",
+        after_label="ok",
+    )
+    assert incomplete["comparison_status"] == "incomplete"
+    incompatible = compare_reports(
+        {
+            "schema": "atlas.ops.report.v1",
+            "panels": {
+                "owner_action_backlog": {"items": []},
+                "recurring_failures": {"items": []},
+                "waiting_work": {"items": []},
+            },
+        },
+        {
+            "schema": "atlas.improvement-plane.report.v1",
+            "panels": {
+                "owner_action_backlog": {"items": []},
+                "recurring_failures": {"items": []},
+                "waiting_work": {"items": []},
+            },
+        },
+        before_label="ops",
+        after_label="impr",
+    )
+    assert incompatible["comparison_status"] == "incompatible"
 
 
 def test_outcome_record_and_invalid_attribution(tmp_path: Path) -> None:
@@ -262,7 +353,31 @@ def test_evaluate_association_not_causation(tmp_path: Path) -> None:
         after_report=after_gone,
         outcomes=load_outcomes(tmp_path, outcomes_file=store),
     )
-    assert ev2["evaluations"][0]["result"] == "cannot_assess"
+    assert ev2["evaluations"][0]["result"] == "inconclusive"
+
+    after_closed = {
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "closed_findings": {
+                "items": [
+                    {
+                        "finding_id": "ENG-1",
+                        "statuses": ["CLOSED"],
+                        "sources": ["docs/evidence/frontier.json"],
+                    }
+                ]
+            },
+            "data_quality_risks": {"contradictory_status": []},
+        }
+    }
+    ev3 = evaluate_outcomes(
+        before_report=before,
+        after_report=after_closed,
+        outcomes=load_outcomes(tmp_path, outcomes_file=store),
+    )
+    assert ev3["evaluations"][0]["result"] == "improved"
 
 
 def test_cli_compare_and_expected_input_error(tmp_path: Path, capsys) -> None:
@@ -273,7 +388,7 @@ def test_cli_compare_and_expected_input_error(tmp_path: Path, capsys) -> None:
     _write_json(before_path, report)
     _write_json(after_path, report)
     rc = impr_main(
-        ["compare", "--before", str(before_path), "--after", str(after_path)]
+        ["compare", "--before", str(before_path), "--after", str(after_path), "--json"]
     )
     assert rc == 0
     out = json.loads(capsys.readouterr().out)

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.improvement_plane.analyze import (
+    analyze_closed_findings,
     analyze_data_quality_risks,
     analyze_evidence_freshness,
     analyze_owner_action_backlog,
@@ -108,6 +109,7 @@ def compile_improvement_report(
     coverage = build_coverage_report(records)
     waiting = analyze_waiting_work(records)
     recurring = analyze_recurring_failures(records)
+    closed_findings = analyze_closed_findings(records)
     freshness = analyze_evidence_freshness(records, reference_utc=reference_utc)
     owner = analyze_owner_action_backlog(records)
     data_quality = analyze_data_quality_risks(records)
@@ -171,6 +173,14 @@ def compile_improvement_report(
             "evidence_files_excluded_self_ingest": excluded,
             "vault_scanned": bool(vault_path),
             "provenance": coverage,
+            "deduplication": {
+                "duplicate_finding_ids": len(data_quality.get("duplicate_records") or []),
+                "decision": (
+                    "Duplicates are retained as recurrence evidence and listed under "
+                    "data_quality_risks.duplicate_records; they are not dropped silently."
+                ),
+                "items": list(data_quality.get("duplicate_records") or [])[:20],
+            },
             "limits": [
                 "Scans docs/evidence/**/*.json only (plus optional vault generated/ops inventory).",
                 "Lane-generated AS-IMPR-PLANE reports/outcomes are excluded (self-ingest guard).",
@@ -186,6 +196,7 @@ def compile_improvement_report(
         "panels": {
             "waiting_work": waiting,
             "recurring_failures": recurring,
+            "closed_findings": closed_findings,
             "evidence_freshness": freshness,
             "owner_action_backlog": owner,
             "data_quality_risks": data_quality,

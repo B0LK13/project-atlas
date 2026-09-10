@@ -308,6 +308,67 @@ def analyze_recurring_failures(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def analyze_closed_findings(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Collect explicitly CLOSED/RESOLVED findings (positive resolution evidence)."""
+    closed: dict[str, dict[str, Any]] = {}
+    for record in records:
+        payload = record.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        path = str(record["path"])
+        findings = payload.get("findings")
+        if not isinstance(findings, list):
+            continue
+        for finding in findings:
+            if not isinstance(finding, dict):
+                continue
+            status = finding.get("status")
+            if status is None or str(status).upper() not in {
+                "CLOSED",
+                "RESOLVED",
+                "FIXED",
+                "PASS",
+            }:
+                continue
+            finding_id = str(
+                finding.get("finding_id")
+                or finding.get("code")
+                or finding.get("id")
+                or finding.get("attack")
+                or ""
+            )
+            if not finding_id:
+                continue
+            bucket = closed.setdefault(
+                finding_id,
+                {
+                    "finding_id": finding_id,
+                    "statuses": set(),
+                    "sources": set(),
+                },
+            )
+            bucket["statuses"].add(str(status).upper())
+            bucket["sources"].add(path)
+    items = [
+        {
+            "finding_id": row["finding_id"],
+            "statuses": sorted(row["statuses"]),
+            "sources": sorted(row["sources"]),
+            "source_count": len(row["sources"]),
+        }
+        for row in closed.values()
+    ]
+    items.sort(key=lambda row: row["finding_id"])
+    return {
+        "count": len(items),
+        "items": items,
+        "note": (
+            "Closed findings are positive resolution evidence from packets. "
+            "Absence of an open finding without a closed record remains unobservable."
+        ),
+    }
+
+
 def analyze_evidence_freshness(
     records: list[dict[str, Any]],
     *,

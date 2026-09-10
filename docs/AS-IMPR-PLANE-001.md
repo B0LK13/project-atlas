@@ -14,10 +14,14 @@ observe → compare → explain → recommend → record outcome → evaluate
 
 | Command | Mode | Purpose |
 |---|---|---|
-| `report` / `inspect` | read-only (+ optional output files) | Compile coverage, panels, recommendations |
-| `compare --before --after` | read-only (+ optional output) | Diff two explicit report snapshots |
+| `report` / `inspect` | read-only (+ optional output files) | Coverage, panels, kind-split recommendations |
+| `compare --before --after` | read-only (+ optional outputs) | new/resolved/persistent/changed/unobservable; incomplete/incompatible exposed |
 | `outcome ...` | **writes** `.atlas/improvement-plane/outcomes.jsonl` | Local annotation only |
-| `evaluate --before --after` | read-only (+ optional output) | Associate outcomes with later observations |
+| `evaluate --before --after` | read-only (+ optional outputs) | improved/persisted/regressed/inconclusive |
+
+Resolved requires explicit `closed_findings` evidence in the after snapshot.
+Disappearance alone is `unobservable` / evaluation `inconclusive`.
+
 
 ## Identities (do not conflate)
 

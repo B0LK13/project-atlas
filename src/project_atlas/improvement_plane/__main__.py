@@ -7,9 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from project_atlas.improvement_plane.compare import compare_reports
+from project_atlas.improvement_plane.compare import compare_reports, render_compare_summary
 from project_atlas.improvement_plane.errors import ImprovementPlaneError
-from project_atlas.improvement_plane.evaluate import evaluate_outcomes
+from project_atlas.improvement_plane.evaluate import evaluate_outcomes, render_evaluate_summary
 from project_atlas.improvement_plane.outcomes import load_outcomes, record_outcome
 from project_atlas.improvement_plane.readers import read_json_object
 from project_atlas.improvement_plane.report import (
@@ -67,7 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--before", type=Path, required=True)
     compare.add_argument("--after", type=Path, required=True)
     compare.add_argument("--output-json", type=Path, default=None)
-    compare.add_argument("--json", action="store_true", default=True)
+    compare.add_argument("--output-md", type=Path, default=None)
+    compare.add_argument("--json", action="store_true", default=False)
 
     outcome = sub.add_parser(
         "outcome",
@@ -101,7 +102,8 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--after", type=Path, required=True)
     evaluate.add_argument("--outcomes-file", type=Path, default=None)
     evaluate.add_argument("--output-json", type=Path, default=None)
-    evaluate.add_argument("--json", action="store_true", default=True)
+    evaluate.add_argument("--output-md", type=Path, default=None)
+    evaluate.add_argument("--json", action="store_true", default=False)
 
     # Default-compatible top-level flags when no subcommand is used.
     parser.add_argument("--vault", type=Path, default=None)
@@ -150,9 +152,19 @@ def main(argv: list[str] | None = None) -> int:
                 before_label=str(args.before),
                 after_label=str(args.after),
             )
-            if args.output_json is not None:
-                write_report_files(result, output_json=args.output_json, output_md=None)
-            sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            write_report_files(
+                result,
+                output_json=args.output_json,
+                output_md=None,
+            )
+            if args.output_md is not None:
+                md_path = args.output_md.expanduser().resolve()
+                md_path.parent.mkdir(parents=True, exist_ok=True)
+                md_path.write_text(render_compare_summary(result), encoding="utf-8")
+            if args.json:
+                sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            else:
+                sys.stdout.write(render_compare_summary(result))
             return 0
 
         if command == "outcome":
@@ -183,9 +195,19 @@ def main(argv: list[str] | None = None) -> int:
                 after_report=after,
                 outcomes=outcomes,
             )
-            if args.output_json is not None:
-                write_report_files(result, output_json=args.output_json, output_md=None)
-            sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            write_report_files(
+                result,
+                output_json=args.output_json,
+                output_md=None,
+            )
+            if args.output_md is not None:
+                md_path = args.output_md.expanduser().resolve()
+                md_path.parent.mkdir(parents=True, exist_ok=True)
+                md_path.write_text(render_evaluate_summary(result), encoding="utf-8")
+            if args.json:
+                sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            else:
+                sys.stdout.write(render_evaluate_summary(result))
             return 0
 
         raise ImprovementPlaneError("unknown-command", f"Unknown command: {command}")
