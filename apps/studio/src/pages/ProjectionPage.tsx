@@ -4,6 +4,7 @@ import type { MissionJourneyProjection, TaskContextProjection } from "../types";
 import { Panel } from "../components/Panel";
 import { MissionJourneyPanel } from "./MissionJourneyPanel";
 import { attentionLabel, freshnessLabel, groupAttention, metricLabel, sourceStateLabel } from "./missionControlModel";
+import { pagePurpose, secondaryAttentionLabel, viewLabel } from "./pagePurpose";
 import { useEffect, useMemo, useState } from "react";
 
 const views: Partial<Record<ScreenId, string[]>> = {
@@ -27,6 +28,7 @@ function Value({ value }: { value: unknown }): ReactNode {
 export function ProjectionPage({ data, screen, journey, journeyLoading, journeyError, taskContext, taskLoading, taskError, onLoadTask }: { data: StudioEnvelope; screen: ScreenId; journey?: MissionJourneyProjection | null; journeyLoading?: boolean; journeyError?: string | null; taskContext?: TaskContextProjection | null; taskLoading?: boolean; taskError?: string | null; onLoadTask?: (lane: string) => void }) {
   const packet = data.projection;
   const mission = screen === "mission-control";
+  const purpose = pagePurpose(screen);
   const keys = mission ? Object.keys(packet.views) : views[screen] ?? [];
   const metric = (view: string, key: string) => <Value value={packet.views[view]?.summary?.[key]} />;
   const attentionGroups = useMemo(() => groupAttention(packet.attention), [packet.attention]);
@@ -65,15 +67,16 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
     {data.source.kind === "UNAVAILABLE" ? <Panel eyebrow={data.source.label} title={data.source.label === "LOADING PROJECTION" ? "Loading projection" : "Projection unavailable"}>
       <p>{data.source.detail}</p><p>No operational state is available. Refresh to retry, or inspect the explicit design preview in Environment.</p>
     </Panel> : <>
+      {!mission && <section className="page-purpose" aria-label={`${label(screen)} purpose`}><div><span className="context-label">{label(screen)} workspace</span><h2>{purpose.question}</h2><p>{purpose.intro}</p></div><a className="compact-attention-indicator" href="#/mission-control" aria-label={secondaryAttentionLabel(packet.attention.length)}>{secondaryAttentionLabel(packet.attention.length)}</a></section>}
       {mission && <section className="mission-orientation" aria-label="Mission context">
         <div><span className="context-label">Project context</span><h2>{packet.repository || "Project identity unavailable"}</h2><p>{packet.agent_status ? `Directory status: ${packet.agent_status}.` : "Repository coordination state is available."} The A1 packet does not provide a mission catalog or declared objective.</p><a className="text-action" href="#/projects">Inspect project context</a></div>
         <div className="mission-boundary"><strong>Objective not provided</strong><span>Mission selection is unavailable in this source. Read-only inspection remains available.</span></div>
       </section>}
-      <div className={mission ? "live-overview" : ""}>
-        <Panel className="attention-panel" eyebrow="DECISION QUEUE" title={mission ? "Your attention is needed" : "Attention"} meta={<span>{packet.attention.length} attention items</span>}>
+      {mission && <div className="live-overview">
+        <Panel className="attention-panel" eyebrow="DECISION QUEUE" title="Your attention is needed" meta={<span>{packet.attention.length} attention items</span>}>
           {packet.attention.length ? <div className="attention-queue-layout"><div className="attention-groups"><div className="attention-group-options" role="listbox" aria-label="Attention groups" aria-activedescendant={selectedAttentionId ? `attention-${selectedAttentionId}` : undefined}>{attentionGroups.slice(0, 5).map((group) => { const first = group.items[0]; const label = attentionLabel(first); return <button type="button" role="option" id={`attention-${first.attention_id}`} aria-selected={selectedAttentionId === first.attention_id} className={`attention-group ${selectedAttentionId === first.attention_id ? "is-selected" : ""}`} key={group.cause} onClick={() => { setSelectedAttentionId(first.attention_id); setSelectionNotice(null); }}><span className="attention-group-count">{group.items.length}</span><span><strong>{label.primary}</strong><small>Cause: {group.cause}</small></span></button>; })}</div><details className="all-attention"><summary>Inspect all {packet.attention.length} records</summary>{attentionGroups.map((group) => <div key={group.cause}><strong>{group.cause} · {group.items.length}</strong>{group.items.map((item) => <button type="button" key={item.attention_id} onClick={() => { setSelectedAttentionId(item.attention_id); setSelectionNotice(null); }}>{attentionLabel(item).primary} · {item.attention_id}</button>)}</div>)}</details></div><div className="attention-selection" aria-live="polite">{selectionNotice ? <p role="status">{selectionNotice}</p> : selectedAttention ? renderAttentionDetail(selectedAttention) : <p>Select a group to inspect its first record. Ordering follows source order; no priority is inferred.</p>}</div></div> : <p>No attention items projected. This does not establish health.</p>}
         </Panel>
-        {mission && <div className="live-instruments">
+        <div className="live-instruments">
           <section className="signal-instrument" aria-label="Agent activity"><header><h2>Agent activity</h2><a href="#/agents">Inspect agents</a></header>
             <div className="signal-reading"><strong>{metric("agents_lanes", "active_count")}</strong><span>agents listed active</span></div>
             <div className="agent-identities">{metric("agents_lanes", "active_agent_ids")}</div>
@@ -87,13 +90,13 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
             <div className="signal-pair"><div><strong>{metric("ci_iv", "waiting_ci")}</strong><span>{metricLabel("waiting_ci")}</span></div><div><strong>{metric("ci_iv", "waiting_iv")}</strong><span>{metricLabel("waiting_iv")}</span></div></div>
             <p>CI and independent verification are separate source states.</p>
           </section>
-        </div>}
-      </div>
+        </div>
+      </div>}
       {mission && <div className="freshness-summary"><span className={`freshness-dot freshness-${packet.freshness.state.toLowerCase()}`} aria-hidden="true" /> <strong>{sourceStateLabel(data.source.current ? packet.freshness.state : "OFFLINE")}</strong><span>{freshnessLabel(packet.freshness)}</span><details><summary>Connection and source details</summary><p>Connection: {data.source.current ? "connected to the read adapter" : "disconnected from the read adapter"}. Source freshness: {packet.freshness.state}. Local age: {packet.freshness.age_seconds == null ? "unknown" : `${packet.freshness.age_seconds} seconds`}.</p></details></div>}
       {mission && <h2 className="source-section-title">Source detail</h2>}
       <div className="projection-grid">{keys.map(key => {
         const view = packet.views[key];
-        return <Panel key={key} eyebrow={view?.status ?? "UNKNOWN"} title={label(key)}>
+        return <Panel key={key} eyebrow={view?.status ?? "UNKNOWN"} title={view ? viewLabel(screen, key) : label(key)}>
           {view ? <>
             {view.summary && Object.keys(view.summary).length ? <dl className="projection-fields">
               {Object.entries(view.summary).map(([field, value]) => <div key={field}><dt>{label(field)}</dt><dd><Value value={value} /></dd></div>)}

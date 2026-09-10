@@ -914,7 +914,13 @@ code, kbd, time, .mono { font-family: "SFMono-Regular", "Cascadia Code", "Libera
 .freshness-summary summary { cursor: pointer; color: var(--cyan); }
 .freshness-summary details p { max-width: 80ch; margin: 8px 0 0; line-height: 1.45; }
 .signal-instrument p { max-width: 54ch; }
+.page-purpose { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 4px 0 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.page-purpose h2 { max-width: 72ch; margin: 3px 0 5px; font-size: 19px; line-height: 1.2; font-weight: 540; }
+.page-purpose p { max-width: 78ch; margin: 0; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
+.compact-attention-indicator { flex: 0 0 auto; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--amber); font-size: 12px; text-decoration: none; }
+.compact-attention-indicator:hover, .compact-attention-indicator:focus-visible { border-color: var(--amber); color: var(--text); outline: none; }
 @media (max-width: 900px) {
+  .page-purpose { align-items: flex-start; flex-direction: column; gap: 10px; }
   .attention-queue-layout { grid-template-columns: 1fr; }
   .attention-groups { padding-right: 0; padding-bottom: 12px; border-right: 0; border-bottom: 1px solid var(--line); }
   .attention-selection { padding: 14px 0 0; }
