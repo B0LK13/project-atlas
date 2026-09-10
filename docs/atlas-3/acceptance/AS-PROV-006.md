@@ -186,6 +186,27 @@ in-process path and only **informational** under `--isolated-execution`, where
 the engine deliberately does not run from the caller's environment. Repository
 identity, partial assembly and component pins are still enforced in both modes.
 
+## Reproducible commands
+
+```bash
+# provisioned environments live on disk, NOT under a tmpfs /tmp
+python scripts/acceptance/mission_accept.py \
+    --i-authorize-bounded-execution --isolated-execution --probe-boundaries \
+    --json-out /tmp/acceptance.json
+
+# focused lifecycle + provenance checks
+python -m pytest tests/unit/test_provenance_cache_lifecycle_007.py \
+                tests/unit/test_execution_provenance_006.py \
+                --basetemp=~/.cache/atlas-work/pytest --no-cov
+
+# the full suite needs a disk-backed temp dir on a tmpfs-/tmp machine
+python -m pytest --basetemp=~/.cache/atlas-work/pytest
+```
+
+Environment cache: `~/.cache/atlas-acceptance/envs` by default (reused across
+runs, pruned to a bound, never removed by a run). `--env-cache` points elsewhere
+and is never removed; `--ephemeral-env` provisions into the run root and is.
+
 ## ATLAS-DOC-RECEIPT — AS-PROV-006
 
 ```text
@@ -233,6 +254,30 @@ CI_BLOCKER              = GitHub Actions API rate limit exhausted (~60 min reset
                           caused by my own unguarded poll loop. Push succeeded;
                           only the status read is blocked.
 
+CACHE_LIFECYCLE_007     = five risks, each REPRODUCED before repair:
+                          tamper-after-provision  ACCEPTED -> now 556 RECORD
+                            hashes checked on warm reuse; tampered env rebuilt
+                          interrupted provision   published a markerless env-* +
+                            orphan build dir -> now staged + os.replace; nothing
+                            partial is ever published; prune sweeps .staging-*
+                          concurrent provisioning 2 of 3 died in ensurepip with a
+                            raw CalledProcessError -> kernel lock per key; 3/3 ok
+                          prune while in use      deleted a live env -> skips any
+                            key whose lock is held
+                          dependency drift        invisible -> 13 versions
+                            recorded; drift fails closed
+BYTECODE_HOLE           = FOUND AND CLOSED. pip writes no digest for .pyc (413 of
+                          971 RECORD lines). A .pyc compiled from MODIFIED source
+                          and stamped with the real .py's mtime+size EXECUTED
+                          while RECORD reported n_mismatched=0. purge_bytecode
+                          now runs at every verification point; the regression
+                          test asserts the attack works before the repair.
+CLAIM_BREAKDOWN         = 556 hash-verified = 537 project_atlas + 12
+                          atlas_contracts + 7 dist-info metadata.
+                          Dependencies: VERSIONS only, contents NOT hashed.
+                          atlas_studio: NOT COVERED (not in the wheel).
+WARM_COST               = 5.6s cold -> 0.17s warm (probe + 556 hashes + dep
+                          compare + bytecode purge)
 RESOURCE_DEFECTS_FIXED  = env cache key included the wheel digest (wheels embed
                             timestamps; one tree built twice -> 4596e393.. then
                             a82195608..) -> keyed on tree+interpreter+platform;
