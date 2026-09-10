@@ -164,15 +164,28 @@ HUMAN_GATE class without the caller's explicit opt-in.
 
 ## Known defects, honestly
 
-1. **`atlas validate` exits 1 on this repository — pre-existing on main.**
-   One broken link across 1280 documents:
-   `projects/project-atlas/claims.md -> OPENAI-MCP-DESIGN.md`. The file
-   exists (`docs/atlas-2.0/OPENAI-MCP-DESIGN.md`) and *was* discovered; the
-   claim quotes a relative Markdown link that was valid in `docs/atlas-2.0/`
-   and is rendered verbatim into `projects/project-atlas/`, where it no
-   longer resolves. **Reproduced identically on plain `origin/main`
-   (`b87b4a22`)**, so it is not caused by this integration. Not fixed here:
-   it is a `src/` knowledge-compiler change outside this candidate's scope.
+1. **`atlas validate` exits 1 on this repository — pre-existing on main, and already
+   owned by #700.** One broken link across 1280 documents:
+   `projects/project-atlas/claims.md -> OPENAI-MCP-DESIGN.md`.
+
+   My first diagnosis (a relative link rendered out of its source directory) was
+   **wrong**. The link sits inside a **code span** in compiled claim text —
+   measured: code spans at `(2,30)` and `(51,125)`, link at offset `79` — so it is
+   quoted text, not a Markdown link at all. The validator simply does not mask
+   inert Markdown regions. The target file exists and *was* discovered.
+
+   That is exactly the contract of **#700** (`fix(validation): link check must not
+   flag code-span/fence-quoted links`), which is open and owned. A/B on one
+   identical vault:
+
+   | Validator | Result |
+   |---|---|
+   | `main` `b87b4a22` | broken link, **exit 1** |
+   | #700 `16e654a8` | `validated 838 Markdown files`, **exit 0** |
+
+   No competing implementation was opened; the reproduction was posted to #700 and
+   the duplicate backlog item withdrawn. **Repository validation is therefore not
+   fully green today, and this candidate does not claim otherwise.**
 
 2. **#791's CI is failing, not pending** — reported on the PR, repaired in
    this candidate only. Its branch was not touched.

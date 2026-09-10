@@ -29,9 +29,15 @@ DEFECTS_REPAIRED_HERE     = #791 ruff 6x (5 E501 + 1 F841)
                               read denial on Windows) + platform-neutral coverage added
                             A2-006 asserted the ABSENCE of #786 as an invariant
 DEFECT_FOUND_NOT_FIXED    = atlas validate exits 1 on this repository; one broken link
-                            (claims.md -> OPENAI-MCP-DESIGN.md); relative link rendered
-                            out of its source directory. REPRODUCED ON PLAIN MAIN
-                            b87b4a22 -> PRE-EXISTING, not caused by this integration.
+                            (claims.md -> OPENAI-MCP-DESIGN.md). ROOT CAUSE CORRECTED:
+                            not a relative-link bug -- the link is inside a CODE SPAN in
+                            compiled claim text and the validator does not mask inert
+                            Markdown regions. PRE-EXISTING on main b87b4a22.
+                            ALREADY OWNED BY #700; A/B on one identical vault:
+                            main exit 1, #700 16e654a8 exit 0 (838 files).
+                            No competing PR opened; reproduction posted to #700;
+                            duplicate backlog item AS-CORE-VALIDATE-RELLINK-001 WITHDRAWN.
+REPO_VALIDATION_GREEN     = NO (the above is a real, unwaived baseline failure)
 
 NEW_CODE                  = scripts/atlas_studio/mission_bridge.py (AS-STUDIO-BRIDGE-001)
                             scripts/acceptance/atlas_one_workflow.py
@@ -56,7 +62,7 @@ MEASUREMENT_SCOPE         = 1 assembly, 1 operator, 1 platform (Linux x86_64,
 OWNER_ACTIONS_REQUIRED    = 1. remediate #791 (its owner; findings posted, branch untouched)
                             2. decide whether this candidate becomes a PR
                             3. Formal IV, once a CI subject exists
-                            4. decide ownership of the pre-existing validate defect
+                            4. #700 carries the validate fix; nothing needed from me
 NOT_CLAIMED               = AUTHENTIC_PILOT, EXTERNAL_SECURITY_CERTIFICATION,
                             COMMERCIAL_GA, power-loss durability, #781 UI validation,
                             A0-A8 completeness

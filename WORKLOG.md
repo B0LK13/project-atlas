@@ -15247,3 +15247,28 @@ subject exists, `FORMAL_IV = NOT_STARTED`, `MERGE_AUTHORIZATION = NOT_GRANTED`.
 Sample size for every effort figure above is one assembly, one operator, one
 platform (Linux x86_64, CPython 3.12.14). Windows and macOS behaviour of this
 candidate was never executed, and #781's UI was merged but not driven.
+
+
+### Correction -- the validate failure was mis-diagnosed, and is already owned
+
+The entry above reported `atlas validate` exiting 1 on this repository as a claim's
+relative Markdown link being rendered out of its source directory. **That diagnosis
+was wrong**, and the item filed for it (`AS-CORE-VALIDATE-RELLINK-001`) is withdrawn
+as a duplicate.
+
+The link is inside a **code span**. Measured on the generated line: code spans at
+offsets `(2,30)` and `(51,125)`, the link at `79` -- so
+`[OPENAI-MCP-DESIGN.md](OPENAI-MCP-DESIGN.md)` is quoted claim text, not a Markdown
+link, and the target file exists and was discovered. The validator simply does not
+mask inert Markdown regions.
+
+That is precisely the contract of the already-open, already-owned **#700**
+(`link check must not flag code-span/fence-quoted links`). Verified by A/B against
+one identical vault rather than by reading the diff: `main` b87b4a22 gives the
+broken-link error and exit 1; #700 `16e654a8` gives `validated 838 Markdown files`
+and exit 0. No competing implementation was opened; the reproduction was posted to
+#700 as evidence and the lane left with its owner.
+
+The failure is still real and is not waived: repository validation is NOT fully
+green today, and the integration candidate passes its own gates *with this known
+baseline failure standing*.
