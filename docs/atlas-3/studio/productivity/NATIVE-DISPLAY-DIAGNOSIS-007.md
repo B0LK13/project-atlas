@@ -29,3 +29,9 @@ The process is alive and rendering a native Wayland surface. `xprop`, `xwininfo`
 Native interaction acceptance requires a Wayland-aware capture/accessibility path (for example GNOME Shell/portal capture plus AT-SPI inspection) or an X11 desktop session explicitly selected by the operator. Keep the existing session access controls; do not disable WebKit sandboxing or CSP. Browser evidence remains separate from native acceptance.
 
 Documentation synchronization remains independently blocked and is not causal to this display finding.
+
+## Acceptance attempt 2026-09-10
+
+The candidate executable hash was `0438b41843ea211e10b920c1a03908be6c532b1de9354cf8fcf6ae03cdb8d82e` and was launched as the logged-in user with the active Wayland variables and the read-only bridge on `127.0.0.1:47631`. GNOME Shell's supported screenshot methods (`org.gnome.Shell.Screenshot.Screenshot` and `ScreenshotWindow`) returned `org.freedesktop.DBus.Error.AccessDenied: Screenshot is not allowed`. AT-SPI's session bus is reachable, but `org.a11y.Status.IsEnabled` is false and no application-specific accessible object was available during the controlled run.
+
+This establishes a capture/accessibility limitation, not an application launch failure. The minimum operator action is to run the same candidate in a session with approved Wayland screenshot/AT-SPI access (or explicitly select an X11 desktop session), then capture Mission Control, select an item, navigate to a secondary view, return, and exercise keyboard focus. Do not weaken compositor, WebKit, or CSP security.
