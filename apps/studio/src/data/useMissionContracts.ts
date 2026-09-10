@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadMissionJourney, loadTaskContext } from "./missionContracts";
 import type { MissionJourneyProjection, TaskContextProjection } from "../types";
 
-export function useMissionContracts(enabled: boolean) {
+export function useMissionContracts(enabled: boolean, repository?: string) {
   const [journey, setJourney] = useState<MissionJourneyProjection | null>(null);
   const [journeyError, setJourneyError] = useState<string | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
@@ -25,10 +25,27 @@ export function useMissionContracts(enabled: boolean) {
     taskRequest.current?.abort();
     const controller = new AbortController(); taskRequest.current = controller;
     setTaskLoading(true); setTaskError(null); setTaskContext(null);
-    try { setTaskContext(await loadTaskContext(lane, controller.signal)); }
+    try {
+      const packet = await loadTaskContext(lane, controller.signal);
+      setTaskContext(packet);
+      try { window.localStorage.setItem("atlas.selectedLane", JSON.stringify({ lane: packet.lane, repository: packet.repository ?? repository ?? null })); } catch { /* optional presentation state */ }
+    }
     catch (error) { if (!controller.signal.aborted) setTaskError(error instanceof Error ? error.message : "Task Context unavailable"); }
     finally { if (taskRequest.current === controller) { taskRequest.current = null; setTaskLoading(false); } }
   }, []);
+
+  useEffect(() => {
+    if (!enabled || typeof window === "undefined") return;
+    let storedLane: string | null = null;
+    try {
+      const raw = window.localStorage.getItem("atlas.selectedLane");
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object" && "lane" in parsed && typeof parsed.lane === "string"
+        && (!("repository" in parsed) || parsed.repository == null || parsed.repository === repository)) storedLane = parsed.lane;
+      else if (raw) window.localStorage.removeItem("atlas.selectedLane");
+    } catch { /* optional presentation state */ }
+    if (storedLane) void loadTask(storedLane);
+  }, [enabled, loadTask, repository]);
 
   useEffect(() => {
     if (!enabled) { journeyRequest.current?.abort(); return; }

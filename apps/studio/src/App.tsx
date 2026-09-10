@@ -46,7 +46,7 @@ export default function App() {
   const [density, setDensity] = useState<DensityMode>("compact");
   const [palette, setPalette] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const contracts = useMissionContracts(screen === "mission-control" && studio.data.source.kind !== "DESIGN_PREVIEW");
+  const contracts = useMissionContracts(studio.data.source.kind !== "DESIGN_PREVIEW" && screen !== "settings" && screen !== "design-lab", studio.data.projection.repository);
 
   const navigate = useCallback((target: ScreenId) => {
     window.location.hash = paths[target];
