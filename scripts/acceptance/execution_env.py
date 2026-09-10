@@ -45,6 +45,7 @@ interpreter. A marker alone is never trusted.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -54,6 +55,7 @@ import sys
 import sysconfig
 import tarfile
 import tempfile
+import time
 import venv
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -129,6 +131,163 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+
+# ------------------------------------------------------------------- lock
+
+#: Suffix for the per-environment lock file, kept BESIDE the env directory so
+#: the directory itself can be renamed into place atomically.
+LOCK_SUFFIX = ".lock"
+
+
+@contextlib.contextmanager
+def env_lock(cache_root: Path, key: str, *, timeout: float = 300.0,
+             blocking: bool = True):
+    """Kernel-arbitrated exclusive lock for one cache key.
+
+    Deliberately a local implementation rather than an import of
+    `project_atlas.orchestration.mission.os_lock`, which follows the same
+    `fcntl.flock` / `msvcrt.locking` pattern: this module's entire job is to
+    provision the candidate, so it cannot depend on the candidate being
+    importable to do it. The duplication is the price of breaking that cycle,
+    and is noted here rather than left for a reader to rediscover.
+
+    Yields True when held. With `blocking=False`, yields False immediately if
+    another process holds it -- which is how pruning asks "is this in use?"
+    without waiting.
+    """
+    cache_root.mkdir(parents=True, exist_ok=True)
+    lock_path = cache_root / f"env-{key}{LOCK_SUFFIX}"
+    fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o644)
+    acquired = False
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                break
+            except OSError:
+                if not blocking:
+                    break
+                if time.monotonic() >= deadline:
+                    raise ProvenanceError(
+                        f"timed out after {timeout}s waiting for the environment lock "
+                        f"{lock_path}; another provisioning run appears stuck"
+                    ) from None
+                time.sleep(0.1)
+        yield acquired
+    finally:
+        if acquired:
+            with contextlib.suppress(OSError):
+                if os.name == "nt":
+                    import msvcrt
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def env_in_use(cache_root: Path, key: str) -> bool:
+    """True when another process currently holds this environment's lock."""
+    with env_lock(cache_root, key, blocking=False) as got:
+        return not got
+
+
+# -------------------------------------------------------------- integrity
+
+#: Probe that reports the INSTALLED distribution's own manifest and the full
+#: dependency set, from inside the worker interpreter.
+_MANIFEST_PROBE = (
+    "import base64, hashlib, json, sys\n"
+    "import importlib.metadata as md\n"
+    "from pathlib import Path\n"
+    "dist = md.distribution('project-atlas')\n"
+    "base = Path(dist.locate_file(''))\n"
+    "record = dist.read_text('RECORD') or ''\n"
+    "bad, checked, missing = [], 0, []\n"
+    "for line in record.splitlines():\n"
+    "    parts = line.rsplit(',', 2)\n"
+    "    if len(parts) != 3:\n"
+    "        continue\n"
+    "    rel, digest, _size = parts\n"
+    "    if not digest.startswith('sha256='):\n"
+    "        continue\n"
+    "    if rel.endswith('.pyc') or rel.startswith('../'):\n"
+    "        continue\n"
+    "    f = base / rel\n"
+    "    if not f.is_file():\n"
+    "        missing.append(rel)\n"
+    "        continue\n"
+    "    h = hashlib.sha256(f.read_bytes()).digest()\n"
+    "    want = digest.split('=', 1)[1]\n"
+    "    got = base64.urlsafe_b64encode(h).rstrip(b'=').decode()\n"
+    "    checked += 1\n"
+    "    if got != want:\n"
+    "        bad.append(rel)\n"
+    "deps = {d.metadata['Name']: d.version for d in md.distributions()\n"
+    "        if d.metadata['Name']}\n"
+    "print(json.dumps({'checked': checked, 'mismatched': sorted(bad)[:20],\n"
+    "  'missing': sorted(missing)[:20], 'n_mismatched': len(bad),\n"
+    "  'n_missing': len(missing), 'dependencies': deps}))\n"
+)
+
+
+def manifest_probe(python: Path) -> dict[str, Any]:
+    """Verify installed files against pip's own RECORD, inside the worker."""
+    p = subprocess.run([str(python), "-I", "-c", _MANIFEST_PROBE],
+                       capture_output=True, text=True, env=clean_env())
+    if p.returncode != 0:
+        raise ProvenanceError(f"manifest probe failed: {p.stderr[-1200:]}")
+    try:
+        return json.loads(p.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError) as exc:
+        raise ProvenanceError(
+            f"manifest probe emitted unparseable output: {p.stdout[-600:]}"
+        ) from exc
+
+
+def verify_contents(manifest: dict[str, Any],
+                    *, expect_deps: dict[str, str] | None = None) -> None:
+    """Fail closed when a cached environment's contents have drifted.
+
+    A cache key says WHICH source was requested. It says nothing about whether
+    the installed bytes are still what was installed -- an environment can be
+    edited after provisioning and a key cannot notice. pip already records a
+    sha256 per installed file in RECORD, so that existing artifact IS the
+    manifest; inventing a parallel one would add a second thing to keep true.
+    """
+    if manifest.get("checked", 0) <= 0:
+        raise ProvenanceError("distribution RECORD produced no verifiable entries")
+    if manifest.get("n_mismatched"):
+        raise ProvenanceError(
+            f"{manifest['n_mismatched']} installed file(s) differ from the "
+            f"distribution RECORD: {manifest['mismatched']} -- the cached "
+            f"environment was modified after it was provisioned"
+        )
+    if manifest.get("n_missing"):
+        raise ProvenanceError(
+            f"{manifest['n_missing']} file(s) named by RECORD are missing: "
+            f"{manifest['missing']} -- the cached environment is incomplete"
+        )
+    if expect_deps is not None:
+        now = manifest.get("dependencies") or {}
+        drifted = {name: (was, now.get(name)) for name, was in expect_deps.items()
+                   if now.get(name) != was}
+        if drifted:
+            raise ProvenanceError(
+                f"dependency versions changed since provisioning: {drifted} -- "
+                f"an unchanged source tree does not imply an unchanged environment"
+            )
+
 
 
 # ------------------------------------------------------------------- build
@@ -279,6 +438,62 @@ def _identity_for(repo_root: Path, commit: str, *, wheel_name: str, wheel_sha256
     )
 
 
+def _publish_atomically(staged: Path, final: Path) -> None:
+    """Move a fully built environment into place in one filesystem operation.
+
+    A venv survives being renamed -- `sys.prefix` follows the directory and the
+    interpreter is a symlink to the base Python -- verified before relying on
+    it. So the environment is built under a staging name and renamed only once
+    it is complete and verified: a partially built environment never appears at
+    the published path, even if the builder is killed mid-install.
+
+    The caller must hold this key's lock; the existence check and the rename
+    are only safe together under it.
+    """
+    if final.exists():
+        shutil.rmtree(final, ignore_errors=True)
+    try:
+        os.replace(str(staged), str(final))
+    except OSError as exc:
+        raise ProvenanceError(
+            f"could not publish the provisioned environment to {final}: {exc}"
+        ) from exc
+
+
+def _reuse_if_valid(env_dir: Path, tree_sha: str) -> tuple[CandidateIdentity, dict, dict] | None:
+    """Return a warm environment only if it still proves itself.
+
+    Four things are checked, and a failure of any one is a cache MISS rather
+    than an error: the marker parses and names this tree; the interpreter still
+    imports the distribution from inside this environment; every file pip
+    recorded still hashes to what pip recorded; and the dependency versions are
+    the ones present at provisioning time.
+    """
+    marker = env_dir / MARKER_NAME
+    if not marker.is_file():
+        return None
+    try:
+        recorded = json.loads(marker.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return None
+    if recorded.get("tree") != tree_sha:
+        return None
+    deps = recorded.pop("dependencies", None)
+    try:
+        identity = CandidateIdentity(**recorded)
+    except TypeError:
+        return None
+    try:
+        py = _venv_python(env_dir)
+        probe = probe_worker(py)
+        verify_import_origin(env_dir, probe)
+        manifest = manifest_probe(py)
+        verify_contents(manifest, expect_deps=deps)
+    except ProvenanceError:
+        return None
+    return identity, probe, manifest
+
+
 def provision(repo_root: Path, commit: str, cache_root: Path,
               *, reuse: bool = True) -> tuple[Path, CandidateIdentity, dict[str, Any]]:
     """Build the candidate wheel and install it into an isolated environment.
@@ -286,55 +501,70 @@ def provision(repo_root: Path, commit: str, cache_root: Path,
     Returns (env_dir, identity, worker_probe). Raises `ProvenanceError` rather
     than returning an environment whose identity cannot be established.
 
-    The reuse check happens BEFORE the wheel is built: the tree hash comes from
-    git, so a cache hit costs one `git rev-parse` plus a live probe instead of a
-    full rebuild. Building first would burn several seconds on every run to
-    produce an artifact that is then thrown away.
+    Serialised per cache key by a kernel lock: three concurrent callers used to
+    race inside one venv directory and two of them died in `ensurepip` with a
+    raw `CalledProcessError`. Now one builds and the others wait, then reuse.
+
+    The reuse check runs BEFORE the wheel is built -- the tree hash comes from
+    git -- so a warm hit costs a probe rather than a rebuild. But a warm hit is
+    only accepted after the environment re-proves itself; see `_reuse_if_valid`.
     """
     cache_root.mkdir(parents=True, exist_ok=True)
     commit_sha = _run(["git", "rev-parse", commit], repo_root, what="rev-parse").stdout.strip()
     tree_sha = _run(["git", "rev-parse", f"{commit_sha}^{{tree}}"], repo_root,
                     what="rev-parse tree").stdout.strip()
-    probe_identity = _identity_for(repo_root, commit, wheel_name="", wheel_sha256="",
-                                   commit_sha=commit_sha, tree_sha=tree_sha)
-    env_dir = cache_root / f"env-{probe_identity.key()}"
-    marker = env_dir / MARKER_NAME
+    key = _identity_for(repo_root, commit, wheel_name="", wheel_sha256="",
+                        commit_sha=commit_sha, tree_sha=tree_sha).key()
+    env_dir = cache_root / f"env-{key}"
 
-    if reuse and marker.is_file():
+    with env_lock(cache_root, key):
+        if reuse:
+            warm = _reuse_if_valid(env_dir, tree_sha)
+            if warm is not None:
+                identity, probe, manifest = warm
+                probe["manifest"] = manifest
+                return env_dir, identity, probe
+
+        staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=str(cache_root)))
+        build_dir = staging / "build"
+        build_dir.mkdir(parents=True, exist_ok=True)
+        staged_env = staging / "env"
         try:
-            recorded = json.loads(marker.read_text(encoding="utf-8"))
-        except ValueError:
-            recorded = {}
-        if recorded.get("tree") == tree_sha:
-            # A marker is a CLAIM. Re-probe the live interpreter before trusting it.
+            wheel, commit_sha, tree_sha = build_candidate_wheel(repo_root, commit, build_dir)
+            identity = _identity_for(repo_root, commit, wheel_name=wheel.name,
+                                     wheel_sha256=_sha256(wheel),
+                                     commit_sha=commit_sha, tree_sha=tree_sha)
+            try:
+                venv.EnvBuilder(with_pip=True, clear=True).create(str(staged_env))
+            except Exception as exc:
+                raise ProvenanceError(
+                    f"could not create the isolated environment: "
+                    f"{type(exc).__name__}: {exc}"
+                ) from exc
+            py = _venv_python(staged_env)
+            # Runtime deps come from the wheel's own metadata; --no-deps would
+            # leave pydantic/PyYAML/jsonschema missing. The CANDIDATE itself is
+            # still installed from the wheel just built, never from a source path.
+            _run([str(py), "-m", "pip", "install", "--disable-pip-version-check", "-q",
+                  str(wheel)], what="pip install candidate wheel")
+
+            probe = probe_worker(py)
+            verify_import_origin(staged_env, probe)
+            manifest = manifest_probe(py)
+            verify_contents(manifest)
+
+            payload = asdict(identity)
+            payload["dependencies"] = manifest.get("dependencies", {})
+            (staged_env / MARKER_NAME).write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            _publish_atomically(staged_env, env_dir)
             probe = probe_worker(_venv_python(env_dir))
             verify_import_origin(env_dir, probe)
-            return env_dir, CandidateIdentity(**recorded), probe
-        shutil.rmtree(env_dir, ignore_errors=True)
-
-    build_dir = Path(tempfile.mkdtemp(prefix="atlas-prov-build-", dir=str(cache_root)))
-    try:
-        wheel, commit_sha, tree_sha = build_candidate_wheel(repo_root, commit, build_dir)
-        identity = _identity_for(repo_root, commit, wheel_name=wheel.name,
-                                 wheel_sha256=_sha256(wheel),
-                                 commit_sha=commit_sha, tree_sha=tree_sha)
-        if env_dir.exists():
-            shutil.rmtree(env_dir, ignore_errors=True)
-        venv.EnvBuilder(with_pip=True, clear=True).create(str(env_dir))
-        py = _venv_python(env_dir)
-        # Runtime deps come from the wheel's own metadata; --no-deps would leave
-        # pydantic/PyYAML/jsonschema missing. The CANDIDATE distribution itself is
-        # still installed from the wheel we just built, never from a source path.
-        _run([str(py), "-m", "pip", "install", "--disable-pip-version-check", "-q",
-              str(wheel)], what="pip install candidate wheel")
-
-        probe = probe_worker(py)
-        verify_import_origin(env_dir, probe)
-        marker.write_text(json.dumps(asdict(identity), indent=2, sort_keys=True) + "\n",
-                          encoding="utf-8")
-        return env_dir, identity, probe
-    finally:
-        shutil.rmtree(build_dir, ignore_errors=True)
+            probe["manifest"] = manifest
+            return env_dir, identity, probe
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
 
 
 def isolated_command(python: Path, args: list[str]) -> list[str]:
@@ -351,36 +581,62 @@ def clean_env() -> dict[str, str]:
 
 
 def prune_envs(cache_root: Path, keep_trees: set[str], *, keep: int = 2) -> dict[str, Any]:
-    """Bound the cache. A provisioned env costs roughly 130 MB, so leaving one
-    per tree behind is an unbounded installation loop by another name.
+    """Bound the cache without ever removing something in use.
 
-    Removes only directories this module created (`env-*` carrying our marker)
-    inside `cache_root`. Never touches anything else, and never removes an env
-    whose tree is in `keep_trees`.
+    A provisioned env costs roughly 130 MB, so leaving one per tree behind is an
+    unbounded installation loop by another name. But pruning is destructive, so
+    it only ever touches things this module created AND can prove nobody holds:
+
+    * `env-*` directories carrying our marker -- anything else is left alone,
+      and a directory that is not even named `env-*` is never examined;
+    * whose lock can be acquired non-blocking, i.e. no live run owns it;
+    * that are not the tree the caller just provisioned.
+
+    Also sweeps `.staging-*` leftovers, which an interrupted or SIGKILLed
+    provision leaves behind and which nothing else would ever clean up.
     """
-    report: dict[str, Any] = {"removed": [], "kept": [], "skipped_foreign": []}
+    report: dict[str, Any] = {"removed": [], "kept": [], "skipped_foreign": [],
+                              "skipped_in_use": [], "staging_removed": []}
     if not cache_root.is_dir():
         return report
-    candidates: list[tuple[float, Path, str]] = []
+
+    for staging in cache_root.glob(".staging-*"):
+        if staging.is_dir():
+            shutil.rmtree(staging, ignore_errors=True)
+            report["staging_removed"].append(str(staging))
+
+    candidates: list[tuple[float, Path, str, str]] = []
     for child in cache_root.iterdir():
         if not child.is_dir() or not child.name.startswith("env-"):
             continue
         marker = child / MARKER_NAME
         if not marker.is_file():
+            # NOT reclaimed. Since environments are published atomically, an
+            # interrupted provision leaves a `.staging-*` directory (swept
+            # above) and never a markerless `env-*` at the published path. So a
+            # markerless `env-*` is something this module did not produce, and
+            # deleting it would be a guess about someone else's directory.
             report["skipped_foreign"].append(str(child))
             continue
         try:
             tree = json.loads(marker.read_text(encoding="utf-8")).get("tree", "")
-        except ValueError:
+        except (ValueError, OSError):
             tree = ""
-        candidates.append((marker.stat().st_mtime, child, tree))
+        candidates.append((marker.stat().st_mtime, child, tree, child.name[len("env-"):]))
+
     candidates.sort(reverse=True)
     kept = 0
-    for _mtime, path, tree in candidates:
+    for _mtime, path, tree, key in candidates:
         if tree in keep_trees or kept < keep:
             report["kept"].append(str(path))
             kept += 1
             continue
+        if env_in_use(cache_root, key):
+            report["skipped_in_use"].append(str(path))
+            report["kept"].append(str(path))
+            continue
         shutil.rmtree(path, ignore_errors=True)
+        with contextlib.suppress(OSError):
+            (cache_root / f"env-{key}{LOCK_SUFFIX}").unlink()
         report["removed"].append(str(path))
     return report
