@@ -335,6 +335,186 @@ def _cmd_verify(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     }, EXIT_ERROR if stale else EXIT_OK
 
 
+def _cmd_result_review(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """AS-RESULT-TO-REVIEW-HANDOFF-001 — extend review package for result handoff."""
+    from project_atlas.orchestration.taskcontract.render import write_review_package
+    from project_atlas.orchestration.taskcontract.result_review import (
+        CandidateIdentity,
+        CandidateKind,
+        ChangeEntry,
+        ExecutionBinding,
+        OpenFinding,
+        WorkerClaim,
+        build_result_review_package,
+        compare_result_packages,
+        export_is_idempotent,
+        load_execution_binding_from_state,
+        render_overview_markdown,
+    )
+
+    sub = args.result_review_command
+    if sub == "overview":
+        package = _read_json(Path(args.package))
+        text = render_overview_markdown(package)
+        if args.out:
+            Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.out).write_text(text, encoding="utf-8")
+        if args.json:
+            return {"overview_markdown": text, "package_digest": (
+                (package.get("result_handoff") or {}).get("package_digest")
+            )}, EXIT_OK
+        print(text)
+        return {}, EXIT_OK
+
+    if sub == "compare":
+        before = _read_json(Path(args.before))
+        after = _read_json(Path(args.after))
+        diff = compare_result_packages(before, after)
+        if args.out:
+            Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.out).write_text(
+                json.dumps(diff, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            diff["written"] = str(args.out)
+        return diff, EXIT_OK
+
+    # export
+    contract = _load_contract(Path(args.contract))
+    binding = _load_binding(Path(args.binding) if args.binding else None)
+    program = _read_json(Path(args.program_file)) if args.program_file else None
+    report = validate_contract(
+        contract,
+        binding=binding,
+        project_root=Path(args.project) if args.project else None,
+        program_path=Path(args.program) if args.program else None,
+    )
+    previous = _read_json(Path(args.previous_package)) if args.previous_package else None
+    changes = None
+    if args.change_inventory:
+        raw_changes = json.loads(Path(args.change_inventory).read_text(encoding="utf-8"))
+        if not isinstance(raw_changes, list):
+            raise TaskContractError(
+                "change inventory must be a JSON array", code="CHANGE_INVENTORY_MALFORMED"
+            )
+        changes = [ChangeEntry.model_validate(row) for row in raw_changes]
+
+    findings = None
+    if args.findings:
+        raw_f = json.loads(Path(args.findings).read_text(encoding="utf-8"))
+        findings = [OpenFinding.model_validate(row) for row in raw_f]
+
+    claims = None
+    if args.worker_claims:
+        raw_c = json.loads(Path(args.worker_claims).read_text(encoding="utf-8"))
+        claims = [WorkerClaim.model_validate(row) for row in raw_c]
+
+    execution = None
+    if args.state:
+        if args.candidate_kind == "GIT_COMMIT":
+            if not args.candidate_head or not args.candidate_tree:
+                raise TaskContractError(
+                    "GIT_COMMIT requires --candidate-head and --candidate-tree",
+                    code="CANDIDATE_IDENTITY_INCOMPLETE",
+                )
+            candidate = CandidateIdentity(
+                kind=CandidateKind.GIT_COMMIT,
+                base_pin=args.base_pin,
+                head=args.candidate_head,
+                tree=args.candidate_tree,
+            )
+        else:
+            if not args.snapshot_digest:
+                raise TaskContractError(
+                    "CONTENT_SNAPSHOT requires --snapshot-digest",
+                    code="CANDIDATE_SNAPSHOT_REQUIRED",
+                )
+            candidate = CandidateIdentity(
+                kind=CandidateKind.CONTENT_SNAPSHOT,
+                base_pin=args.base_pin,
+                content_digest=args.snapshot_digest,
+                patch_digest=args.patch_digest,
+                note="uncommitted result described as content snapshot",
+            )
+        execution = load_execution_binding_from_state(
+            Path(args.state),
+            candidate=candidate,
+            acceptance_version=args.acceptance_version,
+            task_id=args.task_id,
+        )
+        if args.direct_repair:
+            execution = ExecutionBinding.model_validate(
+                {
+                    **execution.model_dump(mode="json"),
+                    "direct_repair": _read_json(Path(args.direct_repair)),
+                    "historical_attempt_preserved": True,
+                }
+            )
+
+    package = build_result_review_package(
+        contract,
+        binding,
+        report,
+        program=program,
+        execution=execution,
+        changes=changes,
+        open_findings=findings,
+        worker_claims=claims,
+        validation_plan_ref=args.validation_plan_ref,
+        previous_package=previous,
+        package_version=args.package_version,
+        targeted_tests=tuple(args.targeted_test or ()),
+        bundle_path=args.bundle_path,
+        package_out_hint=str(args.out) if args.out else None,
+    )
+    # Idempotency check against a second build (does not write twice).
+    again = build_result_review_package(
+        contract,
+        binding,
+        report,
+        program=program,
+        execution=execution,
+        changes=changes,
+        open_findings=findings,
+        worker_claims=claims,
+        validation_plan_ref=args.validation_plan_ref,
+        previous_package=previous,
+        package_version=args.package_version,
+        targeted_tests=tuple(args.targeted_test or ()),
+        bundle_path=args.bundle_path,
+        package_out_hint=str(args.out) if args.out else None,
+    )
+    if not export_is_idempotent(package, again):
+        raise TaskContractError(
+            "repeat export produced a different package_digest",
+            code="HANDOFF_NOT_IDEMPOTENT",
+        )
+    written: dict[str, str] = {}
+    if args.out:
+        write_review_package(package, Path(args.out))
+        written["package"] = str(args.out)
+    if args.out_overview:
+        Path(args.out_overview).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out_overview).write_text(
+            render_overview_markdown(package), encoding="utf-8"
+        )
+        written["overview"] = str(args.out_overview)
+    return {
+        "schema": package.get("schema"),
+        "contract_digest": package.get("contract_digest"),
+        "package_digest": (package.get("result_handoff") or {}).get("package_digest"),
+        "package_version": (package.get("result_handoff") or {}).get("package_version"),
+        "package_completeness": (package.get("result_handoff") or {}).get(
+            "package_completeness"
+        ),
+        "product_quality_verdict": "NOT_EVALUATED_HERE",
+        "idempotent_export": True,
+        "written": written,
+        "grants": (package.get("result_handoff") or {}).get("grants"),
+        "merge_authorized": False,
+        "independent_review": False,
+    }, EXIT_OK
+
+
 _HANDLERS = {
     "sources": _cmd_sources,
     "draft": _cmd_draft,
@@ -343,6 +523,7 @@ _HANDLERS = {
     "review": _cmd_review,
     "diff": _cmd_diff,
     "verify": _cmd_verify,
+    "result-review": _cmd_result_review,
 }
 
 
@@ -426,6 +607,56 @@ def register_task_parser(
     p.add_argument("--contract", required=True, type=Path)
     p.add_argument("--report", required=True, type=Path)
     p.add_argument("--binding", type=Path, default=None)
+
+    rr = sub.add_parser(
+        "result-review",
+        help=(
+            "Extend the taskcontract review package with execution-result "
+            "handoff (AS-RESULT-TO-REVIEW-HANDOFF-001). Prepares review only."
+        ),
+    )
+    rr_sub = rr.add_subparsers(dest="result_review_command", required=True)
+
+    exp = rr_sub.add_parser("export", help="Build machine-readable + optional overview.")
+    exp.add_argument("--contract", required=True, type=Path)
+    exp.add_argument("--binding", type=Path, default=None)
+    exp.add_argument("--project", type=Path, default=None)
+    exp.add_argument("--program", type=Path, default=None)
+    exp.add_argument("--program-file", type=Path, default=None)
+    exp.add_argument("--state", type=Path, default=None, help="Supervisor state.json")
+    exp.add_argument("--task-id", default=None)
+    exp.add_argument(
+        "--candidate-kind",
+        choices=["GIT_COMMIT", "CONTENT_SNAPSHOT"],
+        default="CONTENT_SNAPSHOT",
+    )
+    exp.add_argument("--base-pin", default=None)
+    exp.add_argument("--candidate-head", default=None)
+    exp.add_argument("--candidate-tree", default=None)
+    exp.add_argument("--snapshot-digest", default=None, help="sha256 of uncommitted content")
+    exp.add_argument("--patch-digest", default=None)
+    exp.add_argument("--acceptance-version", default=None)
+    exp.add_argument("--change-inventory", type=Path, default=None)
+    exp.add_argument("--findings", type=Path, default=None)
+    exp.add_argument("--worker-claims", type=Path, default=None)
+    exp.add_argument("--direct-repair", type=Path, default=None)
+    exp.add_argument("--validation-plan-ref", default=None)
+    exp.add_argument("--previous-package", type=Path, default=None)
+    exp.add_argument("--package-version", type=int, default=1)
+    exp.add_argument("--targeted-test", action="append", default=[])
+    exp.add_argument("--bundle-path", default=None)
+    exp.add_argument("--out", type=Path, default=None)
+    exp.add_argument("--out-overview", type=Path, default=None)
+
+    ov = rr_sub.add_parser("overview", help="Render readable overview from a package.")
+    ov.add_argument("--package", required=True, type=Path)
+    ov.add_argument("--out", type=Path, default=None)
+    ov.add_argument("--json", action="store_true")
+
+    cmp_ = rr_sub.add_parser("compare", help="Compare two result-review packages.")
+    cmp_.add_argument("--before", required=True, type=Path)
+    cmp_.add_argument("--after", required=True, type=Path)
+    cmp_.add_argument("--out", type=Path, default=None)
 
     return parser
 
