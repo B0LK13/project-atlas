@@ -81,6 +81,14 @@ SIGTERM_EXIT_STATUS: Final[int] = 143
 #: nothing happened -- see ``probe_run_started``.
 _SESSION_ROOT: Final[Path] = Path.home() / ".claude" / "projects"
 
+#: ``terminal_reason`` values that mean a ceiling the OPERATOR configured was
+#: reached. Deterministic under UNCHANGED limits, so an automatic retry re-runs
+#: the same task to the same stop -- which is why it is not retryable here. It
+#: is not a transient fault, and not an account problem: the account is
+#: untouched and has quota left. Raising the limit and starting again is
+#: ordinary recovery and remains available to the operator.
+_CONFIGURED_LIMIT_REASONS: Final[frozenset[str]] = frozenset({"budget_exhausted"})
+
 _ERROR_CLASSES: Final[dict[str, FailureClass]] = {
     "authentication_failed": FailureClass.QUOTA_OR_CREDENTIAL,
     "oauth_org_not_allowed": FailureClass.QUOTA_OR_CREDENTIAL,
@@ -443,6 +451,23 @@ def _classify(
 
     ``subtype`` is never consulted. It reported ``"success"`` on an observed
     run that failed with HTTP 400.
+
+    A ceiling the operator configured (``terminal_reason`` in
+    ``_CONFIGURED_LIMIT_REASONS``) is FAILED rather than UNCERTAIN: the run
+    stopped for a reason we asked for, at a point the runtime reported, so the
+    outcome is known even though acceptance never ran.
+
+    Three things that classification does NOT say, because each has been
+    misread before:
+
+      * FAILED does not certify that no side effect occurred. A worker may have
+        written before it was stopped. What FAILED asserts is that the outcome
+        is *known*, not that the workspace is clean -- inspect it.
+      * ``LIMIT_EXHAUSTED`` suppresses AUTOMATIC retry under unchanged limits.
+        It does not mean permanently unrecoverable: raising the ceiling and
+        starting a new program is ordinary recovery, and is the operator's call.
+      * Whether a particular run left anything unresolved is case-specific
+        evidence from that run, never a property of this class.
     """
     if terminal in {"cancelled", "timeout"}:
         return ExecutionConfidence.UNCERTAIN, FailureClass.UNCERTAIN_OUTCOME, terminal
@@ -471,7 +496,19 @@ def _classify(
         return ExecutionConfidence.CONFIRMED, None, reason
 
     failure: FailureClass | None = None
-    if isinstance(error_key, str):
+    # A configured per-run ceiling reports itself here and nowhere usable else:
+    # on the observed run ``error``, ``api_error_status`` and ``result`` were all
+    # None, so every message- and status-based branch below is blind to it and
+    # the function fell through to its TRANSIENT_INFRASTRUCTURE default -- which
+    # is retryable, and a retry must hit the identical ceiling.
+    #
+    # ``terminal_reason`` is used rather than ``subtype`` deliberately: this
+    # function already reads and returns ``terminal_reason``, whereas ``subtype``
+    # is documented above as untrustworthy (it said "success" on a run that
+    # failed with HTTP 400).
+    if reason in _CONFIGURED_LIMIT_REASONS:
+        failure = FailureClass.LIMIT_EXHAUSTED
+    if failure is None and isinstance(error_key, str):
         failure = _ERROR_CLASSES.get(error_key)
     if failure is None and isinstance(status, int):
         if status in {401, 402, 403} or status == 429:
