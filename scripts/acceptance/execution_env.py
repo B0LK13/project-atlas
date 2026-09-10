@@ -56,6 +56,7 @@ import sysconfig
 import tarfile
 import tempfile
 import time
+import uuid
 import venv
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -196,10 +197,83 @@ def env_lock(cache_root: Path, key: str, *, timeout: float = 300.0,
         os.close(fd)
 
 
+#: Marker files claiming an environment for the duration of a RUN.
+USE_PREFIX = ".use-"
+
+
+@contextlib.contextmanager
+def env_lease(cache_root: Path, key: str):
+    """Hold an environment for as long as workers are actually using it.
+
+    The provisioning lock is released the moment `provision` returns, so on its
+    own it protects the BUILD and nothing else. Demonstrated: with a worker
+    running out of an environment, `env_in_use` reported False and pruning
+    deleted that environment out from under it.
+
+    A lease is a separate, per-user lock file (`env-<key>.use-<uuid>`) held for
+    the lifetime of the run. Many runs can lease one environment at once, while
+    pruning only has to ask "can I take every one of these exclusively?" -- so
+    this needs no shared-lock mode, which `msvcrt` does not offer.
+    """
+    cache_root.mkdir(parents=True, exist_ok=True)
+    path = cache_root / f"env-{key}{USE_PREFIX}{uuid.uuid4().hex}"
+    fd = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield path
+    finally:
+        with contextlib.suppress(OSError):
+            if os.name == "nt":
+                import msvcrt
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+        with contextlib.suppress(OSError):
+            path.unlink()
+
+
+def _lease_held(path: Path) -> bool:
+    """True when some live process holds this lease file."""
+    try:
+        fd = os.open(str(path), os.O_RDWR)
+    except OSError:
+        return False
+    try:
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        return False          # we could take it, so nobody holds it
+    except OSError:
+        return True
+    finally:
+        os.close(fd)
+
+
 def env_in_use(cache_root: Path, key: str) -> bool:
-    """True when another process currently holds this environment's lock."""
+    """True when an environment is being provisioned OR used right now.
+
+    Both halves matter: provisioning is covered by the build lock, and worker
+    use is covered by leases. Stale lease files left by a killed process are
+    unlocked, so they read as not-in-use and are cleaned up by pruning.
+    """
     with env_lock(cache_root, key, blocking=False) as got:
-        return not got
+        if not got:
+            return True
+    return any(_lease_held(p) for p in cache_root.glob(f"env-{key}{USE_PREFIX}*"))
 
 
 # -------------------------------------------------------------- integrity
@@ -213,6 +287,7 @@ _MANIFEST_PROBE = (
     "dist = md.distribution('project-atlas')\n"
     "base = Path(dist.locate_file(''))\n"
     "record = dist.read_text('RECORD') or ''\n"
+    "record_sha = hashlib.sha256(record.encode()).hexdigest()\n"
     "bad, checked, missing = [], 0, []\n"
     "for line in record.splitlines():\n"
     "    parts = line.rsplit(',', 2)\n"
@@ -236,6 +311,7 @@ _MANIFEST_PROBE = (
     "deps = {d.metadata['Name']: d.version for d in md.distributions()\n"
     "        if d.metadata['Name']}\n"
     "print(json.dumps({'checked': checked, 'mismatched': sorted(bad)[:20],\n"
+    "  'record_sha256': record_sha,\n"
     "  'missing': sorted(missing)[:20], 'n_mismatched': len(bad),\n"
     "  'n_missing': len(missing), 'dependencies': deps}))\n"
 )
@@ -243,7 +319,7 @@ _MANIFEST_PROBE = (
 
 def manifest_probe(python: Path) -> dict[str, Any]:
     """Verify installed files against pip's own RECORD, inside the worker."""
-    p = subprocess.run([str(python), "-I", "-c", _MANIFEST_PROBE],
+    p = subprocess.run([str(python), "-I", "-B", "-c", _MANIFEST_PROBE],
                        capture_output=True, text=True, env=clean_env())
     if p.returncode != 0:
         raise ProvenanceError(f"manifest probe failed: {p.stderr[-1200:]}")
@@ -278,8 +354,8 @@ def purge_bytecode(env_dir: Path) -> int:
     return removed
 
 
-def verify_contents(manifest: dict[str, Any],
-                    *, expect_deps: dict[str, str] | None = None) -> None:
+def verify_contents(manifest: dict[str, Any], *, expect_deps: dict[str, str] | None = None,
+                    expect_record_sha256: str | None = None) -> None:
     """Fail closed when a cached environment's contents have drifted.
 
     A cache key says WHICH source was requested. It says nothing about whether
@@ -287,9 +363,33 @@ def verify_contents(manifest: dict[str, Any],
     edited after provisioning and a key cannot notice. pip already records a
     sha256 per installed file in RECORD, so that existing artifact IS the
     manifest; inventing a parallel one would add a second thing to keep true.
+
+    WHERE THE EXPECTED HASHES COME FROM, and what that does and does not prove.
+
+    RECORD lives inside the environment it describes, so it is self-referential:
+    editing a file AND its RECORD line passes -- demonstrated, and the tampered
+    module then executed. `expect_record_sha256` pins RECORD itself to a digest
+    captured at provisioning time, so drift now requires rewriting the file, its
+    RECORD entry, and the marker consistently.
+
+    That is detection of DRIFT and single-point modification, not an adversarial
+    boundary: every artifact in the chain sits in a directory the caller can
+    write. The authoritative binding to the selected tree is the COLD path --
+    `git archive <commit>` -> wheel -> install -- which is what `--ephemeral-env`
+    forces on every run for a caller who needs that guarantee rather than
+    fast reuse.
     """
     if manifest.get("checked", 0) <= 0:
         raise ProvenanceError("distribution RECORD produced no verifiable entries")
+    if expect_record_sha256 is not None:
+        got = manifest.get("record_sha256")
+        if got != expect_record_sha256:
+            raise ProvenanceError(
+                f"RECORD itself changed since provisioning "
+                f"(expected {expect_record_sha256[:16]}..., got {str(got)[:16]}...) -- "
+                f"a manifest that can be rewritten alongside the files it describes "
+                f"proves nothing on its own"
+            )
     if manifest.get("n_mismatched"):
         raise ProvenanceError(
             f"{manifest['n_mismatched']} installed file(s) differ from the "
@@ -412,7 +512,7 @@ def probe_worker(python: Path, *, hostile_env: bool = False,
         env["PYTHONPATH"] = str(cwd)
     else:
         env.pop("PYTHONPATH", None)
-    p = subprocess.run([str(python), "-I", "-c", _PROBE], capture_output=True,
+    p = subprocess.run([str(python), "-I", "-B", "-c", _PROBE], capture_output=True,
                        text=True, env=env, cwd=str(cwd) if cwd else None)
     if p.returncode != 0:
         raise ProvenanceError(f"worker probe failed: {p.stderr[-1200:]}")
@@ -502,6 +602,7 @@ def _reuse_if_valid(env_dir: Path, tree_sha: str) -> tuple[CandidateIdentity, di
     if recorded.get("tree") != tree_sha:
         return None
     deps = recorded.pop("dependencies", None)
+    record_sha = recorded.pop("record_sha256", None)
     try:
         identity = CandidateIdentity(**recorded)
     except TypeError:
@@ -513,7 +614,7 @@ def _reuse_if_valid(env_dir: Path, tree_sha: str) -> tuple[CandidateIdentity, di
         probe = probe_worker(py)
         verify_import_origin(env_dir, probe)
         manifest = manifest_probe(py)
-        verify_contents(manifest, expect_deps=deps)
+        verify_contents(manifest, expect_deps=deps, expect_record_sha256=record_sha)
         purge_bytecode(env_dir)
     except ProvenanceError:
         return None
@@ -582,6 +683,7 @@ def provision(repo_root: Path, commit: str, cache_root: Path,
 
             payload = asdict(identity)
             payload["dependencies"] = manifest.get("dependencies", {})
+            payload["record_sha256"] = manifest.get("record_sha256")
             (staged_env / MARKER_NAME).write_text(
                 json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -595,8 +697,14 @@ def provision(repo_root: Path, commit: str, cache_root: Path,
 
 
 def isolated_command(python: Path, args: list[str]) -> list[str]:
-    """Every worker invocation goes through `-I`."""
-    return [str(python), "-I", *args]
+    """Every worker invocation goes through `-I` AND `-B`.
+
+    `-I` decides WHERE imports may come from. `-B` stops the worker WRITING
+    bytecode, which is a different question from reading it: purging
+    `__pycache__` empties the read side, and `-B` keeps it empty for the rest of
+    the run instead of letting the first import repopulate it.
+    """
+    return [str(python), "-I", "-B", *args]
 
 
 def clean_env() -> dict[str, str]:
@@ -626,6 +734,12 @@ def prune_envs(cache_root: Path, keep_trees: set[str], *, keep: int = 2) -> dict
                               "skipped_in_use": [], "staging_removed": []}
     if not cache_root.is_dir():
         return report
+
+    for stale in cache_root.glob(f"env-*{USE_PREFIX}*"):
+        if stale.is_file() and not _lease_held(stale):
+            with contextlib.suppress(OSError):
+                stale.unlink()
+                report.setdefault("stale_leases_removed", []).append(str(stale))
 
     for staging in cache_root.glob(".staging-*"):
         if staging.is_dir():
@@ -695,7 +809,16 @@ def hard_kill_tree(proc: subprocess.Popen) -> None:
                            capture_output=True, check=False)
         else:
             import signal
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            pgid = os.getpgid(proc.pid)
+            # REFUSE to signal our own process group. A child spawned WITHOUT
+            # `spawn_kwargs()` shares the caller's group, and killpg would then
+            # take down the caller -- which is exactly what happened: a test
+            # helper killed its own pytest process, exit 137. Kill just the
+            # child in that case; there is no separate tree to reach anyway.
+            if pgid == os.getpgid(0):
+                proc.kill()
+            else:
+                os.killpg(pgid, signal.SIGKILL)
     except (OSError, ProcessLookupError):
         with contextlib.suppress(OSError):
             proc.kill()

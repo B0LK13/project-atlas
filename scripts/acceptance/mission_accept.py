@@ -36,6 +36,7 @@ That is a mitigation in this caller, not a fix in #789.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -1116,11 +1117,23 @@ def main(argv: list[str] | None = None) -> int:
         }
         ev["execution_provenance"]["env_cache"] = str(cache)
         ev["execution_provenance"]["env_cache_owned_by_run"] = res.env_cache is not None
-        if not args.ephemeral_env:
-            pruned = ee.prune_envs(cache, {identity.tree}, keep=args.prune_envs)
-            ev["execution_provenance"]["env_prune"] = pruned
+        # Pruning happens later, after the lease is held, so this run's own
+        # environment cannot be a candidate for removal.
+        _prune_after_lease = (None if args.ephemeral_env
+                              else (cache, {identity.tree}, args.prune_envs))
 
     missions_out: list[dict[str, Any]] = []
+    # Hold the environment for as long as workers use it. `provision` releases
+    # its build lock on return, so without a lease a concurrent prune can (and
+    # did, when tested) delete the environment out from under a running worker.
+    lease = contextlib.ExitStack()
+    if worker_python is not None:
+        import execution_env as ee
+        lease.enter_context(ee.env_lease(cache, env_dir.name[len("env-"):]))
+        ev["execution_provenance"]["leased_during_use"] = True
+        if _prune_after_lease is not None:
+            c, keep_trees, n = _prune_after_lease
+            ev["execution_provenance"]["env_prune"] = ee.prune_envs(c, keep_trees, keep=n)
     try:
         for m in MISSIONS:
             if worker_python is not None:
@@ -1146,6 +1159,7 @@ def main(argv: list[str] | None = None) -> int:
             ev["boundaries"] = probe_boundaries(repo_root, res)
     finally:
         ev["missions"] = missions_out
+        lease.close()
         ev["cleanup"] = res.cleanup()
 
     bad = [m for m in missions_out if not m.get("expectation", {}).get("as_expected")]

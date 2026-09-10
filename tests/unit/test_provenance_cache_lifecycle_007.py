@@ -295,3 +295,114 @@ def test_stamp_forged_bytecode_cannot_execute(warm, cache):
 def shutil_rmtree(path: Path) -> None:
     import shutil as _sh
     _sh.rmtree(path, ignore_errors=True)
+
+
+# --------------------------------------------- integrity reference & leases
+
+def test_record_is_pinned_because_record_is_self_referential(warm, cache):
+    """WAS BROKEN: RECORD lives inside the environment it describes.
+
+    Editing a file AND rewriting its RECORD line passed verification, and the
+    tampered module then executed. The marker now pins RECORD's own digest.
+
+    This detects DRIFT and single-point modification. It is not an adversarial
+    boundary -- every artifact in the chain is writable by the caller. The
+    authoritative binding to the selected tree is the cold build, which
+    `--ephemeral-env` forces on every run.
+    """
+    import base64
+    import hashlib
+
+    env, _, probe = warm[0], warm[1], warm[2]
+    site = Path(probe["origin"]).parent
+    dist_info = next(site.parent.glob("project_atlas-*.dist-info"))
+    record = dist_info / "RECORD"
+    target = site / "orchestration" / "mission" / "os_lock.py"
+    if not target.is_file():
+        pytest.skip("expected module not present")
+
+    original, original_record = target.read_bytes(), record.read_text(encoding="utf-8")
+    marker = json.loads((env / ee.MARKER_NAME).read_text(encoding="utf-8"))
+    assert marker.get("record_sha256"), "RECORD digest was not recorded at provisioning"
+    try:
+        tampered = original + b"\nTAMPERED_VIA_RECORD = True\n"
+        target.write_bytes(tampered)
+        digest = base64.urlsafe_b64encode(
+            hashlib.sha256(tampered).digest()).rstrip(b"=").decode()
+        rel = "project_atlas/orchestration/mission/os_lock.py"
+        record.write_text("\n".join(
+            f"{rel},sha256={digest},{len(tampered)}" if ln.startswith(f"{rel},") else ln
+            for ln in original_record.splitlines()) + "\n", encoding="utf-8")
+
+        # Control: file hashes now agree with RECORD, so per-file checks pass.
+        manifest = ee.manifest_probe(ee._venv_python(env))
+        assert manifest["n_mismatched"] == 0, "control failed: RECORD was not made consistent"
+        # The pin is what catches it.
+        with pytest.raises(ee.ProvenanceError, match="RECORD itself changed"):
+            ee.verify_contents(manifest, expect_record_sha256=marker["record_sha256"])
+
+        env2 = ee.provision(REPO_ROOT, "HEAD", cache)[0]
+        out = subprocess.run(
+            [str(ee._venv_python(env2)), "-I", "-B", "-c",
+             "from project_atlas.orchestration.mission import os_lock as m;"
+             "print(getattr(m, 'TAMPERED_VIA_RECORD', None))"],
+            capture_output=True, text=True, env=ee.clean_env()).stdout
+        assert "True" not in out, "tampered module survived warm reuse"
+    finally:
+        if target.is_file() and b"TAMPERED_VIA_RECORD" in target.read_bytes():
+            target.write_bytes(original)
+            record.write_text(original_record, encoding="utf-8")
+
+
+def test_workers_do_not_write_bytecode(warm):
+    """`-B` keeps the read side empty after a purge.
+
+    Purging answers "what bytecode exists now"; -B answers "will the run put
+    any back". Both are needed: without -B the first import repopulates
+    `__pycache__` with files nothing subsequently verifies.
+    """
+    env, _, probe = warm[0], warm[1], warm[2]
+    assert ee.isolated_command(Path("py"), ["-c", "x"])[:3] == ["py", "-I", "-B"]
+    ee.purge_bytecode(env)
+    subprocess.run(ee.isolated_command(ee._venv_python(env),
+                                       ["-c", "import project_atlas.orchestration.mission"]),
+                   capture_output=True, env=ee.clean_env(), check=False)
+    assert list(Path(probe["origin"]).parent.rglob("*.pyc")) == []
+
+
+def test_lease_keeps_prune_off_a_running_worker(warm, cache):
+    """WAS BROKEN: the build lock is released when `provision` returns.
+
+    With a worker running, `env_in_use` reported False and prune deleted the
+    environment out from under it.
+    """
+    env, _, _ = warm[0], warm[1], warm[2]
+    key = env.name[len("env-"):]
+    assert ee.env_in_use(cache, key) is False
+    with ee.env_lease(cache, key):
+        worker = subprocess.Popen(
+            ee.isolated_command(ee._venv_python(env),
+                                ["-c", "import time, project_atlas;"
+                                       "print('RUNNING', flush=True); time.sleep(8)"]),
+            stdout=subprocess.PIPE, text=True, env=ee.clean_env(), **ee.spawn_kwargs())
+        try:
+            assert worker.stdout.readline().strip() == "RUNNING"
+            assert ee.env_in_use(cache, key) is True
+            report = ee.prune_envs(cache, keep_trees=set(), keep=0)
+            assert str(env) in report["skipped_in_use"]
+            assert env.is_dir(), "a leased environment was pruned"
+        finally:
+            ee.hard_kill_tree(worker)
+    assert ee.env_in_use(cache, key) is False
+
+
+def test_stale_lease_files_do_not_pin_an_environment_forever(tmp_path):
+    """A killed run leaves an unlocked lease file; it must not read as in-use."""
+    cache_dir = tmp_path / "c"
+    cache_dir.mkdir()
+    stale = cache_dir / f"env-deadbeef{ee.USE_PREFIX}abc123"
+    stale.write_text("", encoding="utf-8")
+    assert ee.env_in_use(cache_dir, "deadbeef") is False
+    report = ee.prune_envs(cache_dir, keep_trees=set(), keep=0)
+    assert str(stale) in report.get("stale_leases_removed", [])
+    assert not stale.exists()
