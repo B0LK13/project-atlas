@@ -15,7 +15,7 @@ atlas_updates:
   - src/project_atlas/improvement_plane/readers.py
   - tests/unit/test_as_impr_plane_003_decision_quality.py
   - docs/AS-IMPR-PLANE-001.md
-validation: pending_windows_ci
+validation: pending_ci_on_review_freeze
 sync_state: pending
 blockers:
   - INDEPENDENT_VERIFICATION_NOT_DISPATCHED
@@ -31,8 +31,8 @@ identity:
   prior_dq_candidate_head: ee901aaa864230af615562dbde6566f764e9998b
   prior_dq_candidate_tree: 9ea1fdeb13237a322030fe0e213ead31cf4c2011
   prior_ci_run_id: 34448415572
-  review_readiness_head: PENDING_COMMIT
-  review_readiness_tree: PENDING_COMMIT
+  review_readiness_head: 38cec36dffd03d6cf0dc48180f9e0ffd5ba5dbbe
+  review_readiness_tree: b1c79af00967b296407bb5d0c31a0f7c3ad42bb9
   note: >
     Decision Quality 003 accepted as implementation-complete within stated
     evidence limits. This receipt covers review readiness + consumer contract.

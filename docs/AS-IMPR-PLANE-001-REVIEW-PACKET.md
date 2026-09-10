@@ -11,8 +11,8 @@
 | Field | Value |
 |---|---|
 | Source pin (analysis baseline) | `b87b4a226f4aa8b2f669edf112aa3476454f754f` / tree `46d1989b026a2f15920ec5e1c78a106799bd1249` |
-| Review candidate head | `ee901aaa864230af615562dbde6566f764e9998b` |
-| Review candidate tree | `9ea1fdeb13237a322030fe0e213ead31cf4c2011` |
+| Review candidate head | `38cec36dffd03d6cf0dc48180f9e0ffd5ba5dbbe` |
+| Review candidate tree | `b1c79af00967b296407bb5d0c31a0f7c3ad42bb9` |
 | DQ delivery checkpoint (`tip_head` in DOC receipt) | `7aecdc3fa6312335a0c237cba62f3dfa0365b29a` / tree `b3fc11990973fcbd47108066af383990fcf69087` |
 | Branch | `feat/as-impr-plane-001-delivery-evidence-report` |
 | Base | `origin/main` @ source pin |
