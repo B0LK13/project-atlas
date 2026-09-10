@@ -4,7 +4,9 @@
 **Directives:** `ATLAS-PARALLEL-IMPROVEMENT-PLANE-20260910` → `CONTINUATION-002` → `DECISION-QUALITY-003`  
 **Package:** `AS-IMPR-PLANE-001`  
 **Entry point:** `python -m project_atlas.improvement_plane`  
-**Operator guide:** `docs/AS-IMPR-PLANE-001-OPERATOR.md`
+**Operator guide:** `docs/AS-IMPR-PLANE-001-OPERATOR.md`  
+**Consumer contract:** `docs/AS-IMPR-PLANE-001-CONSUMER.md`  
+**Review packet:** `docs/AS-IMPR-PLANE-001-REVIEW-PACKET.md`
 
 ## Cycle
 

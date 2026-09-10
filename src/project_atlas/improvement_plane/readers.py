@@ -20,7 +20,7 @@ MAX_TOTAL_BYTES = 20_000_000
 
 # Lane-generated artifacts must never become delivery evidence for themselves.
 _SELF_INGEST_NAME_RE = re.compile(
-    r"^AS-IMPR-PLANE-.*-(DEMO-REPORT|REPORT|AGENT-RESULT|DOC-RECEIPT)"
+    r"^AS-IMPR-PLANE-.*-(DEMO-REPORT|REPORT|AGENT-RESULT|DOC-RECEIPT|REVIEW-CI)"
     r"|.*improvement-plane.*report.*",
     re.IGNORECASE,
 )
@@ -29,6 +29,8 @@ _SELF_INGEST_SCHEMAS = {
     "atlas.improvement-plane.compare.v1",
     "atlas.improvement-plane.evaluation.v1",
     "atlas.improvement-plane.outcome.v1",
+    "atlas.improvement-plane.dq-audit.v1",
+    "atlas.improvement-plane.review-ci.v1",
 }
 
 

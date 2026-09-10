@@ -366,6 +366,10 @@ def test_readers_exclude_secrets_and_respect_file_bound(tmp_path: Path) -> None:
     )
     big = evidence / "big.json"
     big.write_bytes(b"{" + (b"a" * 2_100_000) + b"}")
+    _write_json(
+        evidence / "AS-IMPR-PLANE-001-REVIEW-CI-REPORT.json",
+        {"schema": "atlas.improvement-plane.review-ci.v1", "status": "in_progress"},
+    )
 
     records = load_evidence_records(tmp_path)
     by_path = {r["path"]: r for r in records}
@@ -374,6 +378,10 @@ def test_readers_exclude_secrets_and_respect_file_bound(tmp_path: Path) -> None:
     assert "payload" in by_path["docs/evidence/secret.json"]
     assert by_path["docs/evidence/secret.json"]["payload"] is None
     assert by_path["docs/evidence/big.json"]["parse_status"] == "skipped_limit"
+    assert (
+        by_path["docs/evidence/AS-IMPR-PLANE-001-REVIEW-CI-REPORT.json"]["parse_status"]
+        == "excluded_self_ingest"
+    )
     # Matched secret content must not appear in the record.
     dumped = json.dumps(by_path["docs/evidence/secret.json"])
     assert "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345" not in dumped
