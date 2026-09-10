@@ -41,7 +41,7 @@ export function useMissionContracts(enabled: boolean, repository?: string) {
       const raw = window.localStorage.getItem("atlas.selectedLane");
       const parsed: unknown = raw ? JSON.parse(raw) : null;
       if (parsed && typeof parsed === "object" && "lane" in parsed && typeof parsed.lane === "string"
-        && (!("repository" in parsed) || parsed.repository == null || parsed.repository === repository)) storedLane = parsed.lane;
+        && (!("repository" in parsed) || parsed.repository == null || !repository || parsed.repository === repository)) storedLane = parsed.lane;
       else if (raw) window.localStorage.removeItem("atlas.selectedLane");
     } catch { /* optional presentation state */ }
     if (storedLane) void loadTask(storedLane);
