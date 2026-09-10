@@ -573,3 +573,66 @@ def test_pause_without_a_program_still_refuses_when_it_cannot_initialise(
     with pytest.raises(control.ControlError) as excinfo:
         control.pause(tmp_path / "nowhere", requested_by="wesley")
     assert excinfo.value.code == "NO_STATE"
+
+
+def test_no_notification_asks_permission_to_continue_authorised_work() -> None:
+    """Checkpoint notifications inform; they do not ask to carry on.
+
+    The program was approved once. A notification that reads as "may I
+    continue?" turns an approved program back into a prompt loop, which is the
+    exact failure this supervisor exists to remove. Parsed from the source so a
+    future notification cannot quietly reintroduce it.
+    """
+    import re
+    from pathlib import Path as _Path
+
+    source = (
+        _Path(__file__).resolve().parents[2]
+        / "src"
+        / "project_atlas"
+        / "orchestration"
+        / "program"
+        / "supervisor.py"
+    ).read_text(encoding="utf-8")
+    sites = re.findall(
+        r'self\._notify(?:_unless_busy)?\(\s*"([A-Z_]+)",\s*\(?\s*((?:"[^"]*"\s*)+)',
+        source,
+    )
+    assert len(sites) >= 10, "the audit found no notification sites; the regex drifted"
+
+    asking = (
+        "should i",
+        "may i",
+        "can i",
+        "shall i",
+        "permission to continue",
+        "would you like",
+        "do you want",
+        "proceed?",
+        "ok to continue",
+        "let me know if",
+    )
+    offenders = []
+    for kind, literal in sites:
+        message = " ".join(re.findall(r'"([^"]*)"', literal)).lower()
+        if any(phrase in message for phrase in asking):
+            offenders.append((kind, message))
+    assert offenders == [], (
+        "a checkpoint notification reads as a request for permission to "
+        f"continue already-authorised work: {offenders}"
+    )
+
+
+def test_the_notifications_that_do_exist_name_a_real_decision() -> None:
+    """The ones that stop the program point at something only a person can do."""
+    from project_atlas.orchestration.program.models import ProgramStopReason
+    from project_atlas.orchestration.program.supervisor import (
+        _NOT_TERMINAL_WHILE_RUNNING,
+    )
+
+    # Every provisional reason is one the supervisor re-derives itself rather
+    # than asking about, which is why it may be cleared while workers run.
+    assert ProgramStopReason.NO_ELIGIBLE_WORK in _NOT_TERMINAL_WHILE_RUNNING
+    assert ProgramStopReason.PROGRAM_COMPLETE not in _NOT_TERMINAL_WHILE_RUNNING
+    assert ProgramStopReason.CANCELLED not in _NOT_TERMINAL_WHILE_RUNNING
+    assert ProgramStopReason.RECONCILE_REQUIRED not in _NOT_TERMINAL_WHILE_RUNNING
