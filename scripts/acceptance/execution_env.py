@@ -255,6 +255,29 @@ def manifest_probe(python: Path) -> dict[str, Any]:
         ) from exc
 
 
+def purge_bytecode(env_dir: Path) -> int:
+    """Delete cached bytecode inside the provisioned environment.
+
+    NECESSARY, not tidiness. pip's RECORD carries a sha256 for source files but
+    NOT for `.pyc` (413 of 971 entries here have no digest), so hashing RECORD
+    cannot see tampered bytecode. And CPython's staleness check is a source
+    mtime+size stamp, which is forgeable: a `.pyc` rebuilt from modified source
+    and then stamped with the real `.py`'s mtime and size WAS EXECUTED in a
+    direct test, while RECORD verification reported zero mismatches.
+
+    Removing `__pycache__` closes that gap at every verification point: the
+    interpreter must then compile from the `.py` files that WERE hash-verified.
+    Bytecode written afterwards is derived from those verified sources, and is
+    purged again at the next warm reuse.
+    """
+    removed = 0
+    for cache_dir in env_dir.rglob("__pycache__"):
+        if cache_dir.is_dir():
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            removed += 1
+    return removed
+
+
 def verify_contents(manifest: dict[str, Any],
                     *, expect_deps: dict[str, str] | None = None) -> None:
     """Fail closed when a cached environment's contents have drifted.
@@ -485,10 +508,13 @@ def _reuse_if_valid(env_dir: Path, tree_sha: str) -> tuple[CandidateIdentity, di
         return None
     try:
         py = _venv_python(env_dir)
+        # Purge BEFORE probing: unverified bytecode must not be what answers.
+        purge_bytecode(env_dir)
         probe = probe_worker(py)
         verify_import_origin(env_dir, probe)
         manifest = manifest_probe(py)
         verify_contents(manifest, expect_deps=deps)
+        purge_bytecode(env_dir)
     except ProvenanceError:
         return None
     return identity, probe, manifest
@@ -552,6 +578,7 @@ def provision(repo_root: Path, commit: str, cache_root: Path,
             verify_import_origin(staged_env, probe)
             manifest = manifest_probe(py)
             verify_contents(manifest)
+            purge_bytecode(staged_env)
 
             payload = asdict(identity)
             payload["dependencies"] = manifest.get("dependencies", {})

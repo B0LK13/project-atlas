@@ -224,3 +224,70 @@ def test_prune_never_removes_an_environment_in_use(warm, cache):
     finally:
         holder.kill()
         holder.wait()
+
+
+# ------------------------------------------------------------ bytecode
+
+def test_stamp_forged_bytecode_cannot_execute(warm, cache):
+    """WAS BROKEN, and RECORD alone cannot fix it.
+
+    pip does not hash `.pyc` in RECORD, and CPython's staleness check is a
+    source mtime+size stamp, which is forgeable. A `.pyc` compiled from
+    MODIFIED source and then stamped with the real `.py`'s mtime and size was
+    executed, while RECORD verification reported zero mismatches -- so the
+    manifest check could not see it.
+
+    The control below is explicit: the forged bytecode must first be shown to
+    execute, otherwise the repair is not being tested at all.
+    """
+    import py_compile
+    import struct
+    import tempfile
+
+    env, _, probe = warm[0], warm[1], warm[2]
+    py = ee._venv_python(env)
+    site = Path(probe["origin"]).parent
+    mod = site / "orchestration" / "mission" / "os_lock.py"
+    if not mod.is_file():
+        pytest.skip("expected module not present in this distribution")
+
+    read = ("from project_atlas.orchestration.mission import os_lock as m;"
+            "print(getattr(m, 'TAMPERED_MARKER', None))")
+
+    def plant() -> None:
+        subprocess.run([str(py), "-I", "-c",
+                        "import project_atlas.orchestration.mission.os_lock"],
+                       capture_output=True, env=ee.clean_env(), check=False)
+        pyc = next((mod.parent / "__pycache__").glob("os_lock.cpython-*.pyc"))
+        st = mod.stat()
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            fake = tmp / "os_lock.py"
+            fake.write_text(mod.read_text(encoding="utf-8")
+                            + "\nTAMPERED_MARKER = 'pyc-hijack'\n", encoding="utf-8")
+            py_compile.compile(str(fake), cfile=str(pyc), dfile=str(mod), doraise=True)
+            raw = bytearray(pyc.read_bytes())
+            raw[8:12] = struct.pack("<I", int(st.st_mtime) & 0xFFFFFFFF)
+            raw[12:16] = struct.pack("<I", st.st_size & 0xFFFFFFFF)
+            pyc.write_bytes(bytes(raw))
+        finally:
+            shutil_rmtree(tmp)
+
+    # Control: the attack must actually work before the repair is meaningful.
+    plant()
+    hijacked = subprocess.run([str(py), "-I", "-c", read], capture_output=True,
+                              text=True, env=ee.clean_env()).stdout
+    assert "pyc-hijack" in hijacked, "forged bytecode did not execute; attack not exercised"
+    assert ee.manifest_probe(py)["n_mismatched"] == 0, "RECORD unexpectedly saw it"
+
+    # Repair: a normal warm reuse must purge it.
+    plant()
+    env2, _, _ = ee.provision(REPO_ROOT, "HEAD", cache)
+    after = subprocess.run([str(ee._venv_python(env2)), "-I", "-c", read],
+                           capture_output=True, text=True, env=ee.clean_env()).stdout
+    assert "pyc-hijack" not in after, "forged bytecode survived warm reuse"
+
+
+def shutil_rmtree(path: Path) -> None:
+    import shutil as _sh
+    _sh.rmtree(path, ignore_errors=True)
