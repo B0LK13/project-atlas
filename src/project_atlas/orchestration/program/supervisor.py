@@ -73,6 +73,7 @@ from project_atlas.orchestration.program.adapters.claude_code import (
 from project_atlas.orchestration.program.adapters.codex import CodexAdapter
 from project_atlas.orchestration.program.adapters.local_command import LocalCommandAdapter
 from project_atlas.orchestration.program.enrollment import (
+    AgentRegistry,
     AgentStatus,
     EnrolledAgent,
     bind,
@@ -1443,37 +1444,78 @@ class ProgramSupervisor:
         """
         if not self.enrolled_agents or self.registry_root is None:
             return None
-        profile = self.loaded.effective_profile(task_id)
-        launched_as = next(
-            (
-                agent
-                for agent in self.enrolled_agents
-                if agent.agent_id == profile.agent_id
-            ),
-            None,
-        )
-        if launched_as is None:
-            return None
         try:
             registry = load_registry(self.registry_root)
         except ProgramError as exc:
             return f"the agent roster could not be read: {exc}"
-        current = registry.agents.get(launched_as.agent_id)
+
+        for agent_id, kind in self._agents_this_dispatch_uses(task_id):
+            reason = self._agent_authority_revoked(registry, agent_id, kind)
+            if reason is not None:
+                return reason
+        return None
+
+    def _agents_this_dispatch_uses(self, task_id: str) -> list[tuple[str, str]]:
+        """Every enrolled identity a dispatch of this task would rely on.
+
+        The verifier is included deliberately. Checking only the implementer
+        let an impeccable implementer start work whose verifier had been
+        suspended, retired or un-enrolled -- the independence the task asked
+        for was gone, and nothing said so until far later.
+        """
+        used: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        profile = self.loaded.effective.get(task_id)
+        if profile is not None and profile.agent_id not in seen:
+            used.append((profile.agent_id, "implementer"))
+            seen.add(profile.agent_id)
+        verifier = self.loaded.verifiers.get(task_id)
+        if verifier is not None and verifier.agent_id not in seen:
+            used.append((verifier.agent_id, "verifier"))
+            seen.add(verifier.agent_id)
+        return used
+
+    def _agent_authority_revoked(
+        self, registry: AgentRegistry, agent_id: str, kind: str
+    ) -> str | None:
+        """Re-read one agent's standing. Returns a reason, or None."""
+        launched_as = next(
+            (a for a in self.enrolled_agents if a.agent_id == agent_id), None
+        )
+        if launched_as is None:
+            # Not an enrolled identity at all: the program's own placeholder.
+            # Nothing was bound to it, so there is no enrollment to withdraw.
+            return None
+        current = registry.agents.get(agent_id)
         if current is None:
             return (
-                f"agent {launched_as.agent_id} is no longer enrolled; its "
-                "record was removed after this program started"
+                f"{kind} {agent_id} is no longer enrolled; its record was "
+                "removed after this program started"
             )
         if current.status is not AgentStatus.ACTIVE:
             return (
-                f"agent {launched_as.agent_id} is {current.status.value}; "
-                "dispatch is withheld until it is active again"
+                f"{kind} {agent_id} is {current.status.value}; dispatch is "
+                "withheld until it is active again"
             )
         if current.role != launched_as.role:
             return (
-                f"agent {launched_as.agent_id} was re-enrolled into role "
-                f"{current.role!r}, not {launched_as.role!r}, since this "
-                "program started"
+                f"{kind} {agent_id} was re-enrolled into role {current.role!r}, "
+                f"not {launched_as.role!r}, since this program started"
+            )
+        # An assignment is not a one-time gate. Re-reading it here is what stops
+        # a binding recorded before the first task from carrying a later task
+        # after the operator pointed that agent at a different program.
+        expected = str(self.loaded.source_path.expanduser().resolve())
+        assigned = current.assigned_program
+        if assigned is None:
+            return (
+                f"{kind} {agent_id} has no assigned program; the assignment "
+                "recorded when this program started has since been cleared"
+            )
+        if str(Path(assigned).expanduser().resolve()) != expected:
+            return (
+                f"{kind} {agent_id} is now assigned a different program "
+                f"({assigned}); the binding this dispatch would use is stale"
             )
         # A substitution grant is per agent record and is cleared by
         # re-enrolment. If the effective profile is only valid because of one,
@@ -1485,9 +1527,8 @@ class ProgramSupervisor:
         )
         if substituting and not current.runtime_substitution_authorized:
             return (
-                f"agent {launched_as.agent_id} runs role {launched_as.role!r} "
-                "on a substituted runtime and that authorization has been "
-                "withdrawn"
+                f"{kind} {agent_id} runs role {launched_as.role!r} on a "
+                "substituted runtime and that authorization has been withdrawn"
             )
         return None
 
@@ -2682,8 +2723,38 @@ def _apply_enrollments(
             else None
         )
         if verifier_agent is not None and task.task_id in verifiers:
-            verifiers[task.task_id] = verifiers[task.task_id].model_copy(
-                update={"agent_id": verifier_agent.agent_id}
+            # The verifier gets the SAME treatment as the implementer above.
+            # Replacing only `agent_id` -- which an earlier version did -- left
+            # a verifier running the program's permission mode, tools and
+            # limits even where its enrollment had narrowed them, and let a
+            # verifier profile name a runtime the agent held no substitution
+            # grant for. Task configuration must not widen a registered
+            # authority, and that rule is not implementer-only.
+            bound_verifier = bind(
+                verifier_agent,
+                loaded,
+                allow_runtime_substitution=verifier_agent.runtime_substitution_authorized,
+            )
+            base_verifier = verifiers[task.task_id]
+            verifiers[task.task_id] = base_verifier.model_copy(
+                update={
+                    "agent_id": bound_verifier.agent_id,
+                    "adapter": bound_verifier.adapter,
+                    "permission_mode": _tighter(
+                        base_verifier.permission_mode, bound_verifier.permission_mode
+                    ),
+                    "allowed_tools": tuple(
+                        sorted(
+                            set(base_verifier.allowed_tools)
+                            & set(bound_verifier.allowed_tools)
+                        )
+                    )
+                    if base_verifier.allowed_tools and bound_verifier.allowed_tools
+                    else (bound_verifier.allowed_tools or base_verifier.allowed_tools),
+                    "limits": _tighter_limits(base_verifier.limits, bound_verifier.limits),
+                    "adapter_options": bound_verifier.adapter_options
+                    or base_verifier.adapter_options,
+                }
             )
 
     for task in loaded.program.tasks:
