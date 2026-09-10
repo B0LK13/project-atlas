@@ -1,0 +1,97 @@
+{
+  "binding_digest": "64aa3bbed2df5c8e5328b9ad7a3dce50ef7e4245b362d62cc922cf3d60a96b3e",
+  "contract_digest": "c5c31425f69a15fee1a2657f29c4bed93822066d93fbbe90d31b276ff3797266",
+  "contract_id": "INT-013-BOUNDED-PILOT",
+  "grants": "NOTHING. A rendered program is a proposal; the supervisor validates it and re-checks authority before any dispatch.",
+  "instruction": "# Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026\n\nContract INT-013-BOUNDED-PILOT v1 (from docs/backlog.md, item INT-013).\n\n## Objective\nRun the bounded, fixture-backed multi-project integration pilot as an ongoing regression, without claiming authentic INT-013.\n\n## Done means\nThe bounded pilot test runs unskipped and passes against committed fixture projects, and no project's own vault content is modified by any xproj operation.\n\n## In scope\n- tests/integration/test_int_013_bounded_multi_project_pilot.py\n- WORKLOG.md\n\n## Explicitly NOT in scope\n- authentic INT-013 against owner-provided project roots\n- any change to a project's own vault content\n- clearing the EXTERNAL_BLOCKED state\n\n## Where you may write\nAtlas refuses to dispatch work outside these paths, and the lease records them. They are repository-relative:\n- `tests/integration/test_int_013_bounded_multi_project_pilot.py`\n- `WORKLOG.md`\n\nThese paths are expected to exist when you are done:\n- `tests/integration/test_int_013_bounded_multi_project_pilot.py`\n\n## What the result must be true of\n\nEach requirement has an identifier. Every one of them is judged; the ones marked for human review are judged by a person, not by a passing check.\n\n- **INT013-R1-PILOT-PASSES** \u2014 The bounded pilot test runs unskipped and passes, exercising two independent fixture projects through init/discover/ingest/build-indexes/build-portfolio plus AS-XPROJ-001/002/003 in one run.\n  _(checked by pilot-test, pilot-file-present)_\n- **INT013-R2-NO-AUTHORITY-MERGE** \u2014 Neither project's own vault content is modified by any xproj operation.\n  _(judged by a human reviewer)_\n  _Reviewer looks at: the diff of each fixture project's vault directory across the pilot run_\n- **INT013-R3-BOUNDED-SCOPE** \u2014 Every xproj-derived output stays under its documented derived-only location.\n  _(no automated check exists for this yet -- it is still required)_\n\n## Context you have been given\n\n- `tests/integration/test_int_013_bounded_multi_project_pilot.py` \u2014 the test that defines what the bounded pilot means\n- `docs/origination-acceptance-contracts.yaml` \u2014 the human-authored scope and success criteria this contract restates\n\n## This work assumes\n- blocker resolved: declared blocker language in title (external_blocked): Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate\n\n## Bounds\n- Base commit: `80280bfe13c77708cada7af17215acdaff3725e4`\n- At most 2 attempt(s), 2400s each.\n- Cost ceiling 5.0 USD, enforced by runtime per-launch flag; the local-command adapter reports no cost. An estimate is not billed spend.\n\n## What this instruction is not\nIt is not permission. Your profile, the agent registry and the supervisor's pre-dispatch check decide what may run; nothing written here widens that. Reporting the task complete is not acceptance -- the supervisor checks the result from the workspace after you exit, and your own report is never consulted.\n",
+  "program": {
+    "profiles": {
+      "implementer": {
+        "adapter": "local-command",
+        "adapter_options": {
+          "argv": [
+            "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.venv/bin/python",
+            "-c",
+            "pass"
+          ]
+        },
+        "agent_id": "demo-implementer",
+        "allowed_mutation_prefixes": [
+          "tests",
+          "WORKLOG.md"
+        ],
+        "capabilities": [
+          "IMPLEMENT"
+        ],
+        "credential": "NOT_APPLICABLE",
+        "description": "DEMONSTRATION profile. A real one is an operator decision.",
+        "limits": {
+          "max_attempts": 2,
+          "max_seconds": 2400
+        },
+        "profile_id": "implementer"
+      }
+    },
+    "program": {
+      "approval_reference": "docs/origination-acceptance-contracts.yaml#INT-013",
+      "approved_by": "wesley",
+      "base_pin": "80280bfe13c77708cada7af17215acdaff3725e4",
+      "limits": {
+        "max_attempts_per_task": 2,
+        "max_concurrent_workers": 1,
+        "max_estimated_cost_usd": 5.0,
+        "max_task_launches": 2,
+        "max_task_seconds": 2400
+      },
+      "objective": "Run the bounded, fixture-backed multi-project integration pilot as an ongoing regression, without claiming authentic INT-013.",
+      "program_id": "INT-013-BOUNDED-PILOT",
+      "tasks": [
+        {
+          "acceptance": [
+            {
+              "argv": [
+                "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.venv/bin/python",
+                "-m",
+                "pytest",
+                "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+                "-p",
+                "no:cacheprovider"
+              ],
+              "check_id": "pilot-test",
+              "description": "the bounded multi-project pilot passes unskipped",
+              "kind": "COMMAND",
+              "timeout_seconds": 1800
+            },
+            {
+              "check_id": "pilot-file-present",
+              "description": "supporting evidence: the pilot test file is present",
+              "kind": "FILE_EXISTS",
+              "path": "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+              "timeout_seconds": 300
+            }
+          ],
+          "capabilities_required": [
+            "IMPLEMENT"
+          ],
+          "depends_on": [],
+          "instruction": "# Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026\n\nContract INT-013-BOUNDED-PILOT v1 (from docs/backlog.md, item INT-013).\n\n## Objective\nRun the bounded, fixture-backed multi-project integration pilot as an ongoing regression, without claiming authentic INT-013.\n\n## Done means\nThe bounded pilot test runs unskipped and passes against committed fixture projects, and no project's own vault content is modified by any xproj operation.\n\n## In scope\n- tests/integration/test_int_013_bounded_multi_project_pilot.py\n- WORKLOG.md\n\n## Explicitly NOT in scope\n- authentic INT-013 against owner-provided project roots\n- any change to a project's own vault content\n- clearing the EXTERNAL_BLOCKED state\n\n## Where you may write\nAtlas refuses to dispatch work outside these paths, and the lease records them. They are repository-relative:\n- `tests/integration/test_int_013_bounded_multi_project_pilot.py`\n- `WORKLOG.md`\n\nThese paths are expected to exist when you are done:\n- `tests/integration/test_int_013_bounded_multi_project_pilot.py`\n\n## What the result must be true of\n\nEach requirement has an identifier. Every one of them is judged; the ones marked for human review are judged by a person, not by a passing check.\n\n- **INT013-R1-PILOT-PASSES** \u2014 The bounded pilot test runs unskipped and passes, exercising two independent fixture projects through init/discover/ingest/build-indexes/build-portfolio plus AS-XPROJ-001/002/003 in one run.\n  _(checked by pilot-test, pilot-file-present)_\n- **INT013-R2-NO-AUTHORITY-MERGE** \u2014 Neither project's own vault content is modified by any xproj operation.\n  _(judged by a human reviewer)_\n  _Reviewer looks at: the diff of each fixture project's vault directory across the pilot run_\n- **INT013-R3-BOUNDED-SCOPE** \u2014 Every xproj-derived output stays under its documented derived-only location.\n  _(no automated check exists for this yet -- it is still required)_\n\n## Context you have been given\n\n- `tests/integration/test_int_013_bounded_multi_project_pilot.py` \u2014 the test that defines what the bounded pilot means\n- `docs/origination-acceptance-contracts.yaml` \u2014 the human-authored scope and success criteria this contract restates\n\n## This work assumes\n- blocker resolved: declared blocker language in title (external_blocked): Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate\n\n## Bounds\n- Base commit: `80280bfe13c77708cada7af17215acdaff3725e4`\n- At most 2 attempt(s), 2400s each.\n- Cost ceiling 5.0 USD, enforced by runtime per-launch flag; the local-command adapter reports no cost. An estimate is not billed spend.\n\n## What this instruction is not\nIt is not permission. Your profile, the agent registry and the supervisor's pre-dispatch check decide what may run; nothing written here widens that. Reporting the task complete is not acceptance -- the supervisor checks the result from the workspace after you exit, and your own report is never consulted.\n",
+          "mutation_paths": [
+            "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+            "WORKLOG.md"
+          ],
+          "profile_ref": "implementer",
+          "surface_id": "INT-013-BOUNDED-PILOT",
+          "surface_semantic": "INT_013_BOUNDED_PILOT",
+          "task_id": "INT-013-BOUNDED-PILOT",
+          "title": "Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026"
+        }
+      ],
+      "workspace_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract"
+    },
+    "schema_version": 1
+  },
+  "written": {
+    "instruction": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/docs/orchestration/taskcontract/demo/instruction.v1.md",
+    "program": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/docs/orchestration/taskcontract/demo/program.v1.json"
+  }
+}

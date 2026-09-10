@@ -1,0 +1,139 @@
+{
+  "complete": true,
+  "conflicts": [],
+  "contract_digest": "c5c31425f69a15fee1a2657f29c4bed93822066d93fbbe90d31b276ff3797266",
+  "grants": "NOTHING. A draft is a proposal; a complete contract is still not execution authority.",
+  "missing": [],
+  "payload": {
+    "acceptance": [
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+          "-p",
+          "no:cacheprovider"
+        ],
+        "check_id": "pilot-test",
+        "description": "the bounded multi-project pilot passes unskipped",
+        "kind": "COMMAND",
+        "timeout_seconds": 1800
+      },
+      {
+        "check_id": "pilot-file-present",
+        "description": "supporting evidence: the pilot test file is present",
+        "kind": "FILE_EXISTS",
+        "path": "tests/integration/test_int_013_bounded_multi_project_pilot.py"
+      }
+    ],
+    "authorization_references": [
+      {
+        "kind": "PROGRAM_APPROVAL",
+        "note": "widens evidence, never authority; the EXTERNAL_BLOCKED state stands",
+        "reference": "docs/origination-acceptance-contracts.yaml#INT-013"
+      }
+    ],
+    "base_pin": "80280bfe13c77708cada7af17215acdaff3725e4",
+    "budget": {
+      "enforced_by": "runtime per-launch flag; the local-command adapter reports no cost",
+      "max_estimated_cost_usd": 5.0,
+      "not_enforced": [
+        "account spending limit",
+        "billed spend"
+      ]
+    },
+    "context": [
+      {
+        "path": "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+        "source_id": "pilot-test",
+        "why": "the test that defines what the bounded pilot means"
+      },
+      {
+        "path": "docs/origination-acceptance-contracts.yaml",
+        "source_id": "acceptance-contract",
+        "why": "the human-authored scope and success criteria this contract restates"
+      }
+    ],
+    "contract_id": "INT-013-BOUNDED-PILOT",
+    "contract_version": 1,
+    "depends_on": [],
+    "evidence": {
+      "evidence_paths": [
+        "WORKLOG.md"
+      ],
+      "handover_conditions": [
+        "INT013-R2 reviewed by a person",
+        "INT013-R3 remains unverified and is reported as such"
+      ]
+    },
+    "exclusions": [
+      "authentic INT-013 against owner-provided project roots",
+      "any change to a project's own vault content",
+      "clearing the EXTERNAL_BLOCKED state"
+    ],
+    "executable_when": [
+      "blocker resolved: declared blocker language in title (external_blocked): Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate"
+    ],
+    "expected_output_paths": [
+      "tests/integration/test_int_013_bounded_multi_project_pilot.py"
+    ],
+    "limits": {
+      "max_attempts_per_task": 2,
+      "max_concurrent_workers": 1,
+      "max_task_launches": 2,
+      "max_task_seconds": 2400
+    },
+    "mutation_paths": [
+      "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+      "WORKLOG.md"
+    ],
+    "objective": "Run the bounded, fixture-backed multi-project integration pilot as an ongoing regression, without claiming authentic INT-013.",
+    "observable_outcome": "The bounded pilot test runs unskipped and passes against committed fixture projects, and no project's own vault content is modified by any xproj operation.",
+    "owner": "wesley",
+    "repository": "project-atlas",
+    "requirements": [
+      {
+        "check_ids": [
+          "pilot-test",
+          "pilot-file-present"
+        ],
+        "requirement_id": "INT013-R1-PILOT-PASSES",
+        "statement": "The bounded pilot test runs unskipped and passes, exercising two independent fixture projects through init/discover/ingest/build-indexes/build-portfolio plus AS-XPROJ-001/002/003 in one run.",
+        "verification": "AUTOMATED"
+      },
+      {
+        "requirement_id": "INT013-R2-NO-AUTHORITY-MERGE",
+        "review_note": "the diff of each fixture project's vault directory across the pilot run",
+        "statement": "Neither project's own vault content is modified by any xproj operation.",
+        "verification": "HUMAN_REVIEW"
+      },
+      {
+        "requirement_id": "INT013-R3-BOUNDED-SCOPE",
+        "statement": "Every xproj-derived output stays under its documented derived-only location.",
+        "verification": "NO_CHECK_AVAILABLE"
+      }
+    ],
+    "runtime": {
+      "adapter": "local-command",
+      "capabilities": [
+        "IMPLEMENT"
+      ],
+      "constraints": [
+        "no network access during the pilot run"
+      ]
+    },
+    "scope": [
+      "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+      "WORKLOG.md"
+    ],
+    "source": {
+      "item_digest": "54ba22388093de15e27b3442e1859f9063680fe3a800a32b2e2588f5d961813e",
+      "item_id": "INT-013",
+      "source_path": "docs/backlog.md",
+      "source_revision": "80280bfe13c77708cada7af17215acdaff3725e4",
+      "title": "Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026"
+    }
+  },
+  "written": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/docs/orchestration/taskcontract/demo/contract.v1.json"
+}

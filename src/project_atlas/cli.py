@@ -3420,6 +3420,13 @@ def build_parser() -> argparse.ArgumentParser:
     register_program_parser(subparsers)
     register_agent_parser(subparsers)
 
+    # AS-TASK-CONTRACT-001 additive command, same seam and same reasoning as
+    # the two above: `task` prepares a backlog item into a reviewable contract
+    # and executes nothing. It attaches independently of the Atlas 3 surface.
+    from project_atlas.orchestration.taskcontract.cli import register_task_parser
+
+    register_task_parser(subparsers)
+
     return parser
 
 
@@ -6163,6 +6170,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(  # pragma: no cover
             f"unknown orchestrator command: {args.orchestrator_command}"
         )
+
+    if args.command == "task":
+        # AS-TASK-CONTRACT-001. Same one-interface rule as `program`/`agent`
+        # below: `atlas task ...` and the module entry point call the same
+        # dispatcher, so they cannot drift into two behaviours.
+        from project_atlas.orchestration.taskcontract.cli import dispatch_task
+
+        payload, exit_code = dispatch_task(args)
+        if payload:
+            print(json.dumps(payload, indent=2, sort_keys=True, default=str))
+        return exit_code
 
     if args.command in {"program", "agent"}:
         # One lifecycle interface, not a second one: these delegate straight
