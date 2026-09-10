@@ -52,6 +52,7 @@ from project_atlas.orchestration.program.profiles import (
 from project_atlas.orchestration.program.runtimes import (
     NO_GENERIC_ADAPTER,
     UNIVERSALLY_UNSUPPORTED,
+    capability_matrix,
     describe_all,
     inventory_unimplemented,
 )
@@ -197,6 +198,12 @@ def run_runtimes(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         },
         EXIT_OK,
     )
+
+
+def run_capabilities(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """The three-tier capability matrix. Takes no program; runs no model."""
+    _ = args
+    return capability_matrix(), EXIT_OK
 
 
 def run_handoff(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -440,6 +447,7 @@ _HANDLERS = {
     "reconcile": run_reconcile,
     "events": run_events,
     "runtimes": run_runtimes,
+    "capabilities": run_capabilities,
     "handoff": run_handoff,
     "service": run_service,
     "control": run_control,
@@ -497,6 +505,11 @@ def register_program_parser(
         ("reconcile", "Inspect interrupted attempts; optionally settle one."),
         ("events", "Print the tail of the durable event log."),
         ("runtimes", "Report supported runtimes and what they cannot do."),
+        (
+            "capabilities",
+            "The three-tier capability matrix: runtime-tested, implemented "
+            "fixture-only, and inventoried-unavailable.",
+        ),
         (
             "handoff",
             "Enrol an existing stored session so the next dispatch continues "
@@ -712,6 +725,36 @@ def dispatch_agent(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return handler(args)
 
 
+def emit(payload: dict[str, Any]) -> None:
+    """Print one JSON object. The whole output contract, in one place."""
+    print(json.dumps(payload, indent=2, sort_keys=True, default=str))
+
+
+def error_payload(exc: ProgramError) -> dict[str, Any]:
+    """A refusal, in the same shape as every other result."""
+    return {
+        "error": str(exc),
+        "code": getattr(exc, "code", "PROGRAM_ERROR"),
+        "merge_authorized": False,
+    }
+
+
+def dispatch_cli(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """Dispatch a `program` or `agent` namespace, refusals included.
+
+    Both entry points -- `atlas program ...` and `python -m
+    project_atlas.orchestration.program.cli` -- go through this one function,
+    so the Atlas command and the module command cannot drift into two
+    lifecycle interfaces that behave differently under the same arguments.
+    """
+    try:
+        if getattr(args, "command", "") == "agent":
+            return dispatch_agent(args)
+        return dispatch_program(args)
+    except (ProgramLoadError, ProgramError) as exc:
+        return error_payload(exc), EXIT_ERROR
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m project_atlas.orchestration.program.cli",
@@ -729,25 +772,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    try:
-        if getattr(args, "command", "") == "agent":
-            payload, code = dispatch_agent(args)
-        else:
-            payload, code = dispatch_program(args)
-    except (ProgramLoadError, ProgramError) as exc:
-        print(
-            json.dumps(
-                {
-                    "error": str(exc),
-                    "code": getattr(exc, "code", "PROGRAM_ERROR"),
-                    "merge_authorized": False,
-                },
-                indent=2,
-                sort_keys=True,
-            )
-        )
-        return EXIT_ERROR
-    print(json.dumps(payload, indent=2, sort_keys=True, default=str))
+    payload, code = dispatch_cli(args)
+    emit(payload)
     return code
 
 

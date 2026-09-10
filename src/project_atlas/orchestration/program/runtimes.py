@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Final
 
 from project_atlas.orchestration.program.adapters.base import (
@@ -34,6 +35,23 @@ from project_atlas.orchestration.program.adapters.local_command import (
     LocalCommandAdapter,
 )
 from project_atlas.orchestration.program.profiles import AdapterKind
+
+
+class SupportTier(StrEnum):
+    """How far a runtime has actually been taken.
+
+    The three tiers exist because "we wrote an adapter" and "we ran it against
+    the real thing" are different claims, and a matrix that prints one word for
+    both invites the reader to assume the stronger one.
+    """
+
+    #: An adapter exists AND has been exercised end to end against the real
+    #: runtime, with the evidence named.
+    RUNTIME_TESTED = "IMPLEMENTED_AND_RUNTIME_TESTED"
+    #: An adapter exists and passes its tests, but no real-runtime run backs it.
+    FIXTURE_ONLY = "IMPLEMENTED_FIXTURE_ONLY"
+    #: Inventoried, deliberately not adapted. See `blocker` and `demand`.
+    UNAVAILABLE = "INVENTORIED_UNAVAILABLE"
 
 
 @dataclass(frozen=True)
@@ -52,10 +70,16 @@ class RuntimeSupport:
     notes: tuple[str, ...]
     #: FIXTURE adapters are labelled so a report can never read as real support.
     is_fixture: bool = False
+    tier: SupportTier = SupportTier.FIXTURE_ONLY
+    #: The committed evidence for a RUNTIME_TESTED claim. Empty otherwise, and
+    #: the tier is what makes the emptiness meaningful rather than an omission.
+    runtime_evidence: tuple[str, ...] = ()
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
             "adapter": self.adapter.value,
+            "support_tier": self.tier.value,
+            "runtime_evidence": list(self.runtime_evidence),
             "executable": self.executable,
             "installed": self.installed,
             "version": self.version,
@@ -120,6 +144,11 @@ def describe(adapter: AdapterKind) -> RuntimeSupport:
             installed=installed,
             version=capabilities.version if capabilities else None,
             capabilities=capabilities,
+            tier=SupportTier.RUNTIME_TESTED,
+            runtime_evidence=(
+                "docs/orchestration/program/evidence/REAL-RUNTIME-DEMO.md",
+                "docs/orchestration/program/evidence/SYSTEMWIDE-ACCEPTANCE.md",
+            ),
             unsupported=(
                 *UNIVERSALLY_UNSUPPORTED,
                 "filesystem confinement without --restricted",
@@ -150,6 +179,11 @@ def describe(adapter: AdapterKind) -> RuntimeSupport:
             installed=installed,
             version=capabilities.version if capabilities else None,
             capabilities=capabilities,
+            tier=SupportTier.RUNTIME_TESTED,
+            runtime_evidence=(
+                "docs/orchestration/program/evidence/REAL-RUNTIME-DEMO-CODEX.md",
+                "docs/orchestration/program/evidence/SYSTEMWIDE-ACCEPTANCE.md",
+            ),
             unsupported=(
                 *UNIVERSALLY_UNSUPPORTED,
                 "assigning a session id before launch",
@@ -188,6 +222,7 @@ def describe(adapter: AdapterKind) -> RuntimeSupport:
             "without a model call. FIXTURE_RUN != REAL_RUNTIME_COMPATIBILITY",
         ),
         is_fixture=True,
+        tier=SupportTier.FIXTURE_ONLY,
     )
 
 
@@ -228,6 +263,7 @@ class InventoriedRuntime:
             "adapter_implemented": self.implemented,
             "verified_capabilities": list(self.verified_capabilities),
             "unverified": list(self.unverified),
+            "support_tier": SupportTier.UNAVAILABLE.value,
             "blocker": self.blocker,
             "practical_demand": self.demand,
         }
@@ -384,6 +420,65 @@ def inventory_unimplemented() -> tuple[InventoriedRuntime, ...]:
             )
         )
     return tuple(rows)
+
+
+def capability_matrix() -> dict[str, Any]:
+    """The three-tier matrix, in one object.
+
+    IMPLEMENTED, RUNTIME-TESTED and UNAVAILABLE are kept apart deliberately.
+    "We wrote an adapter" and "we ran it against the real thing" are different
+    claims, and a matrix that prints one word for both invites the reader to
+    assume the stronger one.
+    """
+    implemented = describe_all()
+    return {
+        "generated_by": "project_atlas.orchestration.program.runtimes",
+        "tiers": {
+            SupportTier.RUNTIME_TESTED.value: (
+                "an adapter exists AND has been exercised end to end against "
+                "the real runtime; the evidence is named"
+            ),
+            SupportTier.FIXTURE_ONLY.value: (
+                "an adapter exists and passes its tests; no real-runtime run "
+                "backs it"
+            ),
+            SupportTier.UNAVAILABLE.value: (
+                "inventoried, deliberately not adapted; the blocker is named"
+            ),
+        },
+        "runtime_tested": [
+            row.to_public_dict()
+            for row in implemented
+            if row.tier is SupportTier.RUNTIME_TESTED
+        ],
+        "implemented_fixture_only": [
+            row.to_public_dict()
+            for row in implemented
+            if row.tier is SupportTier.FIXTURE_ONLY
+        ],
+        "unavailable": [row.to_public_dict() for row in inventory_unimplemented()],
+        "no_generic_adapter": NO_GENERIC_ADAPTER,
+        "universally_unsupported": list(UNIVERSALLY_UNSUPPORTED),
+        "concurrent_acceptance": {
+            "claim": (
+                "Claude Code + Codex concurrent program acceptance: two "
+                "runtimes progressing through separate approved task queues "
+                "under one supervisor, two workers in flight at once, four "
+                "tasks, one invocation, no operator prompt between them"
+            ),
+            "evidence": (
+                "docs/orchestration/program/evidence/SYSTEMWIDE-ACCEPTANCE.md"
+            ),
+            "does_not_claim": [
+                "any runtime other than claude-code 2.1.267 and codex-cli 0.153.4",
+                "long or difficult tasks -- these were one-line file writes",
+                "more than two concurrent workers",
+                "billed spend; the cost figure is a client-side estimate where "
+                "it exists at all, and Codex reports none",
+            ],
+        },
+        "merge_authorized": False,
+    }
 
 
 #: Why there is no generic adapter, stated once so it can be quoted.
