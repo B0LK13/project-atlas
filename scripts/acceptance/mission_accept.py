@@ -498,6 +498,134 @@ def stage_resume(repo_root: Path, mission: Mission, ws: Path, key: str,
             "effect_repeated": not data["deduplicated"]}
 
 
+
+# ------------------------------------------------------------- boundaries
+
+def probe_boundaries(repo_root: Path, res: RunResources) -> list[dict[str, Any]]:
+    """Reproduce the recovery/idempotency boundaries, so the findings in
+    docs/atlas-3/acceptance/AS-ACCEPT-005.md are re-derivable rather than
+    merely asserted. Read-only with respect to the caller: every workspace
+    is inside this run's root.
+    """
+    from project_atlas.orchestration.mission import (
+        MISSION_STATE_DIR_NAME,
+    )
+    from project_atlas.orchestration.mission import (
+        execution as ex,
+    )
+    from project_atlas.orchestration.mission import (
+        recovery as rec,
+    )
+    from project_atlas.orchestration.mission.adapter import ShellCommandAdapter
+    from project_atlas.orchestration.mission.context_packet import compile_mission_context
+
+    def ctx(mid: str = "probe"):
+        return compile_mission_context(repo_root, mission_id=mid, objective="boundary probe",
+                                       keywords=["studio"], trusted_policy=TRUSTED_POLICY)
+
+    out: list[dict[str, Any]] = []
+
+    def record(name: str, expected: str, observed: str, ok: bool, **extra: Any) -> None:
+        out.append({"probe": name, "expected": expected, "observed": observed,
+                    "as_expected": ok, **extra})
+
+    # 1. corrupt checkpoint
+    w = res.plain_workspace("probe-corrupt")
+    (w / MISSION_STATE_DIR_NAME).mkdir(parents=True, exist_ok=True)
+    (w / MISSION_STATE_DIR_NAME / "mission-run-checkpoint.json").write_text("{not json",
+                                                                           encoding="utf-8")
+    st = ex.load_checkpoint_detailed(w).status
+    r = rec.reconcile_mission_run(w)
+    record("corrupt_checkpoint", "MALFORMED + unsafe to retry",
+           f"{st} / {r.outcome}",
+           st == "MALFORMED" and r.outcome == "UNKNOWN_CHECKPOINT_UNSAFE_TO_RETRY")
+
+    # 2. missing checkpoint
+    w = res.plain_workspace("probe-missing")
+    st = ex.load_checkpoint_detailed(w).status
+    r = rec.reconcile_mission_run(w)
+    record("missing_checkpoint", "ABSENT + NO_RUN_FOUND, safe",
+           f"{st} / {r.outcome} / safe={r.safe_to_retry}",
+           st == "ABSENT" and r.outcome == "NO_RUN_FOUND" and r.safe_to_retry)
+
+    # 3. wrong-workspace attribution
+    wa, wb = res.plain_workspace("probe-wsA"), res.plain_workspace("probe-wsB")
+    ex.start_mission_run(mission_id="probe", context=ctx(),
+                         adapter=ShellCommandAdapter(command=("/bin/true",)),
+                         workspace=wa, repo_root=repo_root, adapter_timeout_sec=30.0,
+                         idempotency_key="probe:wsA")
+    shutil.copytree(wa / MISSION_STATE_DIR_NAME, wb / MISSION_STATE_DIR_NAME,
+                    dirs_exist_ok=True)
+    try:
+        ex.start_mission_run(mission_id="probe", context=ctx(),
+                             adapter=ShellCommandAdapter(command=("/bin/true",)),
+                             workspace=wb, repo_root=repo_root, adapter_timeout_sec=30.0,
+                             idempotency_key="probe:wsA")
+        record("wrong_workspace_attribution", "refused", "ACCEPTED a foreign checkpoint", False)
+    except ex.UnreconciledPriorRunError as exc:
+        record("wrong_workspace_attribution", "refused on identity mismatch",
+               "refused", "identity mismatch" in str(exc), detail=str(exc)[:140])
+
+    # 4. repeated resume after a confirmed result
+    w = res.plain_workspace("probe-repeat")
+    ids, dedups = [], []
+    for _ in range(3):
+        rr = ex.start_mission_run(mission_id="probe", context=ctx(),
+                                  adapter=ShellCommandAdapter(command=("/bin/true",)),
+                                  workspace=w, repo_root=repo_root, adapter_timeout_sec=30.0,
+                                  idempotency_key="probe:repeat")
+        ids.append(rr.run_id)
+        dedups.append(rr.deduplicated)
+    record("repeated_resume", "stable dedup, one run_id",
+           f"dedup={dedups} unique_ids={len(set(ids))}",
+           dedups == [False, True, True] and len(set(ids)) == 1)
+
+    # 5. stale knowledge between preparation and execution
+    wt = res.worktree("probe-stale", "HEAD")
+    c = compile_mission_context(wt, mission_id="stale", objective="stale probe",
+                                keywords=["studio", "backlog"], trusted_policy=TRUSTED_POLICY)
+    changed = None
+    if c.evidence_links:
+        src = wt / c.evidence_links[0]
+        if src.is_file():
+            src.write_text(src.read_text(encoding="utf-8") + "\n<!-- mutated -->\n",
+                           encoding="utf-8")
+            changed = c.evidence_links[0]
+    try:
+        ex.start_mission_run(mission_id="stale", context=c,
+                             adapter=ShellCommandAdapter(command=("/bin/true",)),
+                             workspace=wt, repo_root=wt, adapter_timeout_sec=30.0,
+                             idempotency_key="probe:stale")
+        record("stale_context", "refused by default", "RAN on stale context", False,
+               mutated_source=changed)
+    except ex.ContextStaleError:
+        record("stale_context", "refused by default", "ContextStaleError", True,
+               mutated_source=changed)
+
+    # 6. same key, DIFFERENT execution inputs -- the known #789 defect
+    w = res.plain_workspace("probe-samekey")
+    marker = w / "which.txt"
+    a = _write(w / "a.sh", f"#!/bin/sh\necho A >> {marker}\n", 0o755)
+    b = _write(w / "b.sh", f"#!/bin/sh\necho B >> {marker}\n", 0o755)
+    c = ctx("samekey")
+    ex.start_mission_run(mission_id="samekey", context=c,
+                         adapter=ShellCommandAdapter(command=(str(a),)),
+                         workspace=w, repo_root=repo_root, adapter_timeout_sec=30.0)
+    r2 = ex.start_mission_run(mission_id="samekey", context=c,
+                              adapter=ShellCommandAdapter(command=(str(b),)),
+                              workspace=w, repo_root=repo_root, adapter_timeout_sec=30.0)
+    ran = marker.read_text(encoding="utf-8").split() if marker.exists() else []
+    misattributed = bool(r2.adapter_result and r2.adapter_result.command_repr.endswith("a.sh"))
+    record("same_key_different_inputs",
+           "KNOWN DEFECT (#789): default key omits the adapter",
+           f"dedup={r2.deduplicated} ran={ran} misattributed={misattributed}",
+           r2.deduplicated and misattributed,
+           note="reproduction, not a regression in this runner; the runner passes "
+                "explicit keys including an adapter digest",
+           owner="PR_789")
+    return out
+
+
 # ------------------------------------------------------------------ report
 
 def human_summary(ev: dict[str, Any]) -> str:
@@ -539,6 +667,14 @@ def human_summary(ev: dict[str, Any]) -> str:
                 f"effect_repeated={rs.get('effect_repeated')}")
         if m.get("outcome", {}).get("error"):
             add(f"     ERROR {m['outcome']['error']}: {m['outcome']['detail'][:90]}")
+    if ev.get("boundaries"):
+        add("")
+        add("BOUNDARIES")
+        for b in ev["boundaries"]:
+            mark = "OK " if b["as_expected"] else "!! "
+            add(f"   {mark}{b['probe']:<28} {b['observed']}")
+            if b.get("owner"):
+                add(f"        owner={b['owner']}  {b.get('note','')[:70]}")
     add("")
     add(f"CLEANUP     {ev['cleanup']}")
     add("")
@@ -560,6 +696,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--strict-pins", action="store_true",
                     help="fail preflight when a pinned component head is absent")
     ap.add_argument("--preflight-only", action="store_true")
+    ap.add_argument("--probe-boundaries", action="store_true",
+                    help="also reproduce the recovery/idempotency boundary matrix")
     ap.add_argument("--i-authorize-bounded-execution", action="store_true",
                     help="explicit permission to spawn bounded subprocesses")
     args = ap.parse_args(argv)
@@ -617,15 +755,22 @@ def main(argv: list[str] | None = None) -> int:
         interrupted = Mission("accept-interrupted", "Long task killed mid-flight",
                               ["studio"], mission_interrupted, False, "interrupted_task")
         missions_out.append(run_mission(repo_root, res, interrupted, interrupt=True))
+        if args.probe_boundaries:
+            ev["boundaries"] = probe_boundaries(repo_root, res)
     finally:
         ev["missions"] = missions_out
         ev["cleanup"] = res.cleanup()
 
     bad = [m for m in missions_out if not m.get("expectation", {}).get("as_expected")]
-    ev["verdict"] = ("ALL_MISSIONS_AS_EXPECTED" if not bad
-                     else f"UNEXPECTED: {[m['label'] for m in bad]}")
+    bad_probes = [b for b in ev.get("boundaries", []) if not b["as_expected"]]
+    if bad_probes:
+        ev["boundary_failures"] = [b["probe"] for b in bad_probes]
+    problems = [m["label"] for m in bad] + [b["probe"] for b in bad_probes]
+    ev["verdict"] = ("ALL_MISSIONS_AS_EXPECTED" + (" + BOUNDARIES_REPRODUCED"
+                                                   if ev.get("boundaries") else "")
+                     if not problems else f"UNEXPECTED: {problems}")
     _emit(ev, args)
-    return 0 if not bad else 1
+    return 0 if not problems else 1
 
 
 def _emit(ev: dict[str, Any], args) -> None:
