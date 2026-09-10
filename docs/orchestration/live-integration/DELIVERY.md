@@ -116,7 +116,8 @@ Recorded: **72 passed** (see runs `component-tests.txt`).
 ## Integration HEAD/TREE
 
 * Implementation commit: `cadda5214f95ed5644fbc71cb9e1c2463d446896`
-* Tip commit (docs pin): filled by packaging script after this file is committed
+* Tip HEAD: `26725cd44456118055ab6009dac86a2b7c534e12`
+* Tip TREE: `b21b6fbe47a132fa10daad9a740d9008d80b94a5`
 * Branch: `feat/live-component-integration-002`
 * Push: **not** performed
 
