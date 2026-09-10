@@ -69,9 +69,11 @@ Mission Control now selects the first source-ordered attention record for
 inspection without implying priority. Group headings name source causes (for
 example, “Owner decisions”) and retain access to every record. When a user
 follows a supported detail route, the selected attention identity is carried in
-session storage and shown as a compact context strip with a return route to the
-decision queue. Selection is cleared with an explicit notice if the record
-disappears from a fresh projection.
+local presentation storage, bound to the current repository, and shown as a
+compact context strip with a return route to the decision queue. On reopening,
+the selection is read only after the refreshed projection is loaded; a changed
+repository or disappeared record clears it explicitly. This state cannot
+execute, acknowledge, or retry work.
 
 ## Documentation status
 

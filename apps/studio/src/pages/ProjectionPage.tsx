@@ -13,6 +13,21 @@ const views: Partial<Record<ScreenId, string[]>> = {
   knowledge: [], chronicle: ["telemetry"], projects: ["health", "residuals"],
 };
 const label = (value: string) => value.replaceAll("_", " ");
+const selectionStorageKey = "atlas.selectedAttention";
+
+function readStoredSelection(repository: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(selectionStorageKey);
+    if (!raw) return null;
+    const stored: unknown = JSON.parse(raw);
+    if (stored && typeof stored === "object" && "attentionId" in stored && "repository" in stored
+      && typeof stored.attentionId === "string" && typeof stored.repository === "string"
+      && stored.repository === repository) return stored.attentionId;
+    window.localStorage.removeItem(selectionStorageKey);
+  } catch { /* presentation state is optional and may be unavailable */ }
+  return null;
+}
 
 // A1 summaries are source values, never inferred activity or permission.
 function Value({ value }: { value: unknown }): ReactNode {
@@ -34,7 +49,7 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
   const attentionGroups = useMemo(() => groupAttention(packet.attention), [packet.attention]);
   const [selectedAttentionId, setSelectedAttentionId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    return window.sessionStorage.getItem("atlas.selectedAttention") ?? null;
+    return readStoredSelection(data.projection.repository);
   });
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const selectedAttention = packet.attention.find((item) => item.attention_id === selectedAttentionId) ?? null;
@@ -47,7 +62,7 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
   }, [attentionGroups, mission, selectedAttentionId]);
   const selectAttention = (id: string) => {
     setSelectedAttentionId(id);
-    try { window.sessionStorage.setItem("atlas.selectedAttention", id); } catch { /* storage is optional */ }
+    try { window.localStorage.setItem(selectionStorageKey, JSON.stringify({ attentionId: id, repository: packet.repository })); } catch { /* storage is optional */ }
   };
   useEffect(() => {
     // Refresh temporarily swaps in an unavailable envelope; preserve selection
@@ -56,7 +71,7 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
     if (selectedAttentionId && !packet.attention.some((item) => item.attention_id === selectedAttentionId)) {
       setSelectionNotice(`The selected attention item (${selectedAttentionId}) is no longer in this projection.`);
       setSelectedAttentionId(null);
-      try { window.sessionStorage.removeItem("atlas.selectedAttention"); } catch { /* storage is optional */ }
+      try { window.localStorage.removeItem(selectionStorageKey); } catch { /* storage is optional */ }
     }
   }, [data.source.kind, packet.attention, selectedAttentionId]);
   const inspectHref = (item: (typeof packet.attention)[number]) => {
