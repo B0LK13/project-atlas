@@ -75,13 +75,22 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
       supervisor, 2 concurrent workers observed
       (`evidence/SYSTEMWIDE-ACCEPTANCE.md`)
 
-## M5 — Durable execution
+## M5 — Durable execution  ✅ COMPLETE
 
-- [ ] T50 Run under the repository's supported service mechanism
-- [ ] T51 Explicit installation and activation
-- [ ] T52 Recovery after supervisor restart, agent exit, UI closure, host interrupt
-- [ ] T53 Quota, credentials, hook failure, unavailable tools, external gates as states
-- [ ] T54 Runtime switching only when authorized and compatible
+- [x] T50 `program service run|start|stop|status` on the repository's existing
+      mechanism (detached group, log beside state, stop file, `sdk.host`
+      identity). Verified by a real detached run that completed a program
+- [x] T51 `program service install` writes a launcher and a systemd user unit
+      as text; activation is printed, never executed
+- [x] T52 Recovery vs replay documented and tested; a completed program run
+      again launches nothing; the service writes its OWN identity (PR #766
+      defect class)
+- [x] T53 POLICY_REFUSAL for a denied-then-failed run; RUNTIME_UNAVAILABLE as a
+      named blocked state; quota/credential never retried
+- [x] T54 Runtime substitution authorization made durable and read at launch,
+      closing a hole where `assign` refused what the supervisor would run
+- [x] T55 17 further tests (`test_orchestration_program_service.py`), including
+      the CLI's one-JSON-object error contract
 
 ## M6 — Central control
 

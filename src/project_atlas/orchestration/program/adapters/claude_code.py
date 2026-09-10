@@ -349,8 +349,12 @@ class ClaudeCodeAdapter:
                 "may differ from the billed amount"
             )
         denials = parsed.get("permission_denials") if isinstance(parsed, dict) else None
-        if isinstance(denials, list) and denials:
-            notes.append(f"runtime denied {len(denials)} permission request(s)")
+        denial_count = len(denials) if isinstance(denials, list) else 0
+        if denial_count:
+            notes.append(
+                f"runtime denied {denial_count} permission request(s); the "
+                "worker did not have everything it asked for"
+            )
 
         return AdapterOutcome(
             attempt_id=request.attempt_id,
@@ -370,6 +374,7 @@ class ClaudeCodeAdapter:
             failure_class=failure,
             duration_seconds=duration,
             notes=tuple(notes),
+            policy_denials=denial_count,
         )
 
 

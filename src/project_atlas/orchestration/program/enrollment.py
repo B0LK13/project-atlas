@@ -103,6 +103,13 @@ class EnrolledAgent(BaseModel):
     status: AgentStatus = AgentStatus.ACTIVE
     enrolled_by: str = Field(min_length=1, max_length=256)
     enrolled_at: str = Field(default_factory=_utc_now)
+    #: Durable record that an operator authorized this agent to run a role
+    #: written for a different runtime. Stored rather than passed as a flag at
+    #: launch time: an authorization that lives only in the argv of whichever
+    #: command happened to run is not an authorization anyone can audit, and a
+    #: later launch through a different entry point would not see it.
+    runtime_substitution_authorized: bool = False
+    runtime_substitution_authorized_by: str | None = None
     #: Path to the approved program this agent is assigned to, if any.
     assigned_program: str | None = None
     assigned_by: str | None = None
@@ -194,6 +201,12 @@ def enroll(
         assigned_program=existing.assigned_program if existing else None,
         assigned_by=existing.assigned_by if existing else None,
         assigned_at=existing.assigned_at if existing else None,
+        # A replacement never inherits a runtime-substitution grant. The grant
+        # was given for a specific agent record; re-enrolling changes that
+        # record, and silently carrying an authorization across is how a grant
+        # outlives the thing it was granted for.
+        runtime_substitution_authorized=False,
+        runtime_substitution_authorized_by=None,
     )
     registry.agents[agent_id] = agent
     persist_registry(root, registry)
@@ -248,6 +261,10 @@ def assign(
     agent.assigned_program = str(program_path.expanduser().resolve())
     agent.assigned_by = assigned_by
     agent.assigned_at = _utc_now()
+    agent.runtime_substitution_authorized = allow_runtime_substitution
+    agent.runtime_substitution_authorized_by = (
+        assigned_by if allow_runtime_substitution else None
+    )
     persist_registry(root, registry)
     return agent, loaded
 
@@ -313,7 +330,11 @@ def identity_view(
     effective = None
     if loaded is not None:
         try:
-            effective = bind(agent, loaded, allow_runtime_substitution=True)
+            effective = bind(
+                agent,
+                loaded,
+                allow_runtime_substitution=agent.runtime_substitution_authorized,
+            )
         except EnrollmentError:
             effective = None
     return {

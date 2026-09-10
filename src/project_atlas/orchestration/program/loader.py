@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from project_atlas.orchestration.program.models import (
     ProgramError,
     ProgramTask,
@@ -69,6 +71,23 @@ class LoadedProgram:
                 code="UNKNOWN_TASK",
             )
         return profile
+
+
+def _summarise(exc: ValidationError) -> str:
+    """One line per validation error: where it was and what was wrong.
+
+    Deliberately does not echo the rejected value. A program file can carry an
+    instruction, a path, or anything else an author put in it, and an error
+    message is not the place to reprint content that was rejected.
+    """
+    parts: list[str] = []
+    for error in exc.errors()[:8]:
+        location = ".".join(str(item) for item in error.get("loc", ())) or "(root)"
+        parts.append(f"{location}: {error.get('msg', 'invalid')}")
+    remaining = len(exc.errors()) - len(parts)
+    if remaining > 0:
+        parts.append(f"and {remaining} more")
+    return "; ".join(parts)
 
 
 def program_digest(payload: dict[str, Any]) -> str:
@@ -136,12 +155,27 @@ def load_program(path: Path) -> LoadedProgram:
         raise ProgramLoadError(
             "profile_defaults must be an object", code="FILE_MALFORMED"
         )
-    profiles = build_profile_set(defaults=defaults, raw_profiles=raw_profiles)
+    try:
+        profiles = build_profile_set(defaults=defaults, raw_profiles=raw_profiles)
+    except ValidationError as exc:
+        raise ProgramLoadError(
+            "a profile is not valid: " + _summarise(exc), code="PROFILE_INVALID"
+        ) from exc
 
     raw_program = raw.get("program")
     if not isinstance(raw_program, dict):
         raise ProgramLoadError("program file must contain 'program'", code="FILE_MALFORMED")
-    program = WorkProgram.model_validate(raw_program)
+    try:
+        program = WorkProgram.model_validate(raw_program)
+    except ValidationError as exc:
+        # The CLI's contract is one JSON object per command. A pydantic
+        # traceback escaping to the terminal breaks that for exactly the
+        # readers most likely to hit it -- someone writing their first program
+        # file. The location and message are kept; the stack is not.
+        raise ProgramLoadError(
+            "the program is not valid: " + _summarise(exc),
+            code="PROGRAM_INVALID",
+        ) from exc
 
     workspace = Path(program.workspace_root).expanduser()
     if not workspace.is_absolute():

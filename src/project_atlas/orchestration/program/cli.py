@@ -27,6 +27,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from project_atlas.orchestration.program import service
 from project_atlas.orchestration.program.enrollment import (
     AgentStatus,
     EnrollmentError,
@@ -212,6 +213,35 @@ def run_events(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return {"program_id": loaded.program.program_id, "events": rows}, EXIT_OK
 
 
+# ------------------------------------------------------------------ service
+
+
+def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    action = str(getattr(args, "service_action", ""))
+    program_path = Path(args.program)
+    loaded = load_program(program_path)
+    root = _state_root(args, loaded)
+    if action == "install":
+        return service.install(root, program_path), EXIT_OK
+    if action == "start":
+        return service.start(root, program_path), EXIT_OK
+    if action == "stop":
+        return service.stop(root), EXIT_OK
+    if action == "status":
+        return service.status(root, program_path), EXIT_OK
+    if action == "run":
+        return (
+            service.run(
+                root,
+                program_path,
+                poll_seconds=float(getattr(args, "poll_seconds", 30.0)),
+                max_rounds=getattr(args, "max_rounds", None),
+            ),
+            EXIT_OK,
+        )
+    return {"error": "unknown service action"}, EXIT_USAGE
+
+
 # --------------------------------------------------------------- enrollment
 
 
@@ -378,6 +408,7 @@ _HANDLERS = {
     "events": run_events,
     "runtimes": run_runtimes,
     "handoff": run_handoff,
+    "service": run_service,
 }
 
 _AGENT_HANDLERS = {
@@ -398,6 +429,7 @@ _PROGRAM_SCOPED = (
     "reconcile",
     "events",
     "handoff",
+    "service",
 )
 
 
@@ -435,6 +467,7 @@ def register_program_parser(
             "Enrol an existing stored session so the next dispatch continues "
             "it in a new supervised run.",
         ),
+        ("service", "Install, start, stop or inspect a durable supervisor service."),
     ):
         child = sub.add_parser(name, help=help_text)
         if name in _PROGRAM_SCOPED:
@@ -484,6 +517,27 @@ def register_program_parser(
             )
         if name == "events":
             child.add_argument("--limit", type=int, default=50)
+        if name == "service":
+            child.add_argument(
+                "service_action",
+                choices=("install", "start", "stop", "status", "run"),
+                help=(
+                    "install writes a launcher and activates nothing; start "
+                    "detaches a service; run is the service body itself."
+                ),
+            )
+            child.add_argument(
+                "--poll-seconds",
+                type=float,
+                default=30.0,
+                help="Pause between rounds when nothing was eligible.",
+            )
+            child.add_argument(
+                "--max-rounds",
+                type=int,
+                default=None,
+                help="Bound the service to this many rounds (mostly for tests).",
+            )
     return parser
 
 

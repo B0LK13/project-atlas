@@ -137,8 +137,15 @@ class AdapterOutcome:
     #: credential, a refused permission). ``None`` leaves classification to
     #: the supervisor, which then keys on acceptance.
     failure_class: FailureClass | None
+    #: How many tool or permission requests the runtime denied during the run.
+    #: A run that was denied what it needed and then failed acceptance did not
+    #: fail for a reason another attempt would fix, so this changes the failure
+    #: class from a retryable one to POLICY_REFUSAL. Adapters that cannot
+    #: report denials structurally report 0, and the support matrix says so --
+    #: 0 means "not observed", never "definitely none".
     duration_seconds: float
     notes: tuple[str, ...] = ()
+    policy_denials: int = 0
 
 
 class RuntimeAdapter(Protocol):

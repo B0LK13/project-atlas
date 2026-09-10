@@ -92,6 +92,9 @@ class AttemptRecord(BaseModel):
     #: Relative paths of evidence written under ``evidence/``.
     evidence_paths: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     estimated_cost_usd: float | None = None
+    #: Tool/permission requests the runtime denied. 0 means "not observed",
+    #: never "definitely none" -- some runtimes cannot report denials.
+    policy_denials: int = Field(default=0, ge=0, le=1_000_000)
     usage: dict[str, Any] = Field(default_factory=dict)
     notes: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     merge_authorized: Literal[False] = False

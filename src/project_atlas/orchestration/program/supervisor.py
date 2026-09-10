@@ -1939,6 +1939,7 @@ class ProgramSupervisor:
         attempt.runtime_session_id = outcome.session_id or attempt.runtime_session_id
         attempt.evidence_paths = outcome.evidence
         attempt.estimated_cost_usd = outcome.estimated_cost_usd
+        attempt.policy_denials = outcome.policy_denials
         attempt.usage = dict(outcome.usage)
         attempt.notes = (*attempt.notes, *outcome.notes)
         attempt.ended_at = _now_iso()
@@ -2130,12 +2131,45 @@ class ProgramSupervisor:
             self._settle_accepted(state, task=task, attempt=attempt, result=result)
             return
 
-        record.last_failure_class = (
-            FailureClass.NO_PROGRESS if no_progress else FailureClass.ACCEPTANCE_FAILED
-        )
+        # A run that was denied what it asked for and then failed acceptance
+        # did not fail for a reason another attempt would fix. Classifying it
+        # as a retryable acceptance failure would burn the whole attempt budget
+        # re-running a worker that will be denied the same thing every time.
+        if attempt.policy_denials:
+            record.last_failure_class = FailureClass.POLICY_REFUSAL
+        elif no_progress:
+            record.last_failure_class = FailureClass.NO_PROGRESS
+        else:
+            record.last_failure_class = FailureClass.ACCEPTANCE_FAILED
         attempt.phase = AttemptPhase.TERMINAL
         failed = [check.check_id for check in acceptance.checks if not check.passed]
-        if no_progress:
+        if attempt.policy_denials:
+            self._transition(
+                state,
+                task.task_id,
+                NodeState.BLOCKED,
+                reason=(
+                    f"the runtime denied {attempt.policy_denials} request(s) "
+                    "and acceptance did not pass: the worker did not have what "
+                    "the task needs"
+                ),
+            )
+            self._release_lease(state, task.task_id)
+            self._notify(
+                "POLICY_REFUSAL",
+                (
+                    f"task {task.task_id}: the runtime denied "
+                    f"{attempt.policy_denials} request(s) and acceptance failed. "
+                    "Retrying would be denied the same thing; widen the "
+                    "profile's permissions or narrow the task"
+                ),
+                {
+                    "task_id": task.task_id,
+                    "policy_denials": attempt.policy_denials,
+                    "failed_checks": failed,
+                },
+            )
+        elif no_progress:
             self._transition(
                 state,
                 task.task_id,
@@ -2496,7 +2530,16 @@ def _apply_enrollments(
         # optional one, which mypy catches and a reader would not.
         task_agent = by_role.get(task.profile_ref)
         if task_agent is not None:
-            bound = bind(task_agent, loaded, allow_runtime_substitution=True)
+            # The authorization is read from the agent's durable record, not
+            # assumed. Passing True here unconditionally -- which an earlier
+            # version did -- would have let an agent run a role written for a
+            # different runtime at launch time even though `assign` refuses to
+            # record that assignment without an explicit grant.
+            bound = bind(
+                task_agent,
+                loaded,
+                allow_runtime_substitution=task_agent.runtime_substitution_authorized,
+            )
             # The task's own override is applied on top of the program profile
             # by the loader; re-applying the enrollment's narrowing over that
             # result would lose the task override, so both are layered here.
