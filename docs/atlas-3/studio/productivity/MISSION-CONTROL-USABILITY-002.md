@@ -22,4 +22,6 @@ Validation:
 - Full browser suite: 19 passed, 1 skipped (the authenticated real-data test is opt-in).
 - Native Tauri Debian bundle rebuilt from this lane. Executable SHA-256: `80d7cad893c389bdb008839e364423f5672cd1ef5d80d49631cd3fce4633a35d`; Debian SHA-256: `54798ecb714ab101529b3714a72397fc30670714358fbc6a7ca56bb635b0697b`.
 
-Limitations remain source-accurate: A1 supplies no mission catalog or declared mission objective; unknown metrics remain unknown; the bridge does not grant authority or execute actions. Documentation synchronization is attempted only through the governed process; if the remote credit blocker remains, no receipt will be claimed.
+Limitations remain source-accurate: A1 supplies no mission catalog or declared mission objective; unknown metrics remain unknown; the bridge does not grant authority or execute actions.
+
+**ATLAS-DOC-RECEIPT:** `NOT_ISSUED`. The governed synchronization attempt returned HTTP 400 because the configured remote lacked Anthropic API credits. Raw implementation and validation evidence is preserved in this candidate; no documentation receipt or synchronization success is claimed.
