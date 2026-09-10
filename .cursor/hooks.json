@@ -3,13 +3,13 @@
   "hooks": {
     "stop": [
       {
-        "command": "python .cursor/hooks/atlas_hook_launch.py stop",
+        "command": "python3 .cursor/hooks/atlas_hook_launch.py stop",
         "loop_limit": null
       }
     ],
     "beforeSubmitPrompt": [
       {
-        "command": "python .cursor/hooks/atlas_hook_launch.py before-submit"
+        "command": "python3 .cursor/hooks/atlas_hook_launch.py before-submit"
       }
     ]
   }
