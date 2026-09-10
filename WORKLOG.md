@@ -15168,3 +15168,82 @@ After supported Ubuntu prerequisite installation, diagnosed native blank-window 
 ### D-006 final sandbox correction
 
 Process inspection disproved the earlier assumption that absence of disabling flags proved WebKitGTK 4.1 sandbox enforcement. Studio now enables the supported WebKit sandbox before startup and rejects disabling overrides. Final ordinary Wayland renderer: NoNewPrivs=1/Seccomp=2; native live/error/recovery PASS. Rebuilt Debian SHA256 7d89937ebeca6b82717bf331e946ff0fe5e8b57910a22e02abb35788e5add03c installs, renders live/error state, and uninstalls in rootless Ubuntu26.04. Strict nested renderer attestation fails in the container (NoNewPrivs=0/Seccomp=2); its exit1 is retained, not relabeled as a passing test. See RECOVERY-006.md and updated hashed evidence. Documentation provider credentials remain externally unavailable; no receipt, IV or merge claimed.
+
+
+## ATLAS-ONE-COHERENT-WORKFLOW-20260910 -- integration and product acceptance
+
+One reproducible candidate carrying a mission from project knowledge through a
+permitted development action, persisted evidence, and fresh-process resume.
+Assembled, not rewritten: `origin/main` b87b4a22 plus four pinned heads --
+#791 181f2eba, #786 1082b1e4, #781 750586a6, #789 1c6bd038 -- each verified
+unchanged from its last-checked state before use. Merging #791 transitively
+brings the unmerged Studio stack (#763/#770/#776/#785/#788) and eleven
+`atlas-dag` PRs (#734..#751); the whole Studio stack forked from main at
+e4dd17bc and does not contain current main, which is why this is a merge.
+
+**Four merges, five conflicts, one of them semantic.** `WORKLOG.md` conflicted
+three times and `cli.py` once -- all resolved as unions, because #786 and #791
+each add distinct subparsers and neither may be dropped. The exception was
+`docs/backlog.md`: #781 forked before A2-001 landed and still carried
+`- [ ] AS-STUDIO-A2 ... NOT_STARTED`, while the candidate ships A2-001 through
+A2-006. Keeping it would have asserted, in this repository's own origination
+source, that A2 is not started while shipping it. HEAD's `[x] AS-STUDIO-A2-001`
+line and #781's two D005 entries were kept; the superseded umbrella line was
+dropped. `WORKLOG.md` also needs care that a generic tool does not give it: it
+already carries, on main, committed conflict-marker-shaped residue
+(`||||||| Stash base`, lines ~5855-6265) plus one NUL byte, so the resolver
+committed here only rewrites complete live triples and uses `surrogateescape`.
+
+**#791 is failing CI, not awaiting it.** Its handoff records
+`CI_EXACT_HEAD = NOT_ESTABLISHED (do not poll-loop)` and plans a one-shot check;
+run 34401535592 had already failed at 181f2eba. Ubuntu `full` failed **Ruff**
+(5x E501, 1x F841) and -- because Ruff runs before pytest -- that job never ran
+pytest at all, so only the 3.13 `compat` job has proved Linux pytest for that
+head. Windows failed one test: `test_unreadable_file` calls `path.chmod(0)` and
+asserts READ_ERROR, but POSIX mode bits do not deny read access on Windows, so
+`read_bytes()` succeeded and the assertion read `assert None == 'READ_ERROR'`.
+The product code (`except OSError -> READ_ERROR`) was correct throughout; only
+the simulation was not portable. Repaired in the candidate, reported on the PR,
+branch untouched -- it is parked at BLOCKED_EXTERNAL and belongs to its owner.
+
+**The composition defect only integration could find.** A2-006 probes for #786
+by import and reports AVAILABLE/UNAVAILABLE -- a seam its author built for
+exactly this moment. But `test_success_session_schema` asserted the UNAVAILABLE
+arm unconditionally, so the branch that PROVES the integration works read as a
+regression: 6410 passed, 1 failed, `assert 'AVAILABLE' == 'UNAVAILABLE'`. The
+state is a property of the stack, not an invariant. Both arms are now pinned
+deterministically instead of by accident of what is installed.
+
+**The seam carries context, never authority.** #789 was built independently on
+main and says so, deferring reconciliation to whoever holds authority over both.
+`mission_bridge.py` is that reconciliation, and its important properties are
+negative: `trusted_policy` is never read from a Studio packet, Studio-derived
+keys in a caller's policy are refused, and the bridge fails closed if Studio
+ever stops emitting `NOT_GRANTED_BY_THIS_PACKET`. A subprocess adapter does not
+inherit Studio's permissions because Studio rendered a green row. Studio state
+is used only as grounds to refuse. 13 tests, 8 of them refusals.
+
+**Measured, not asserted.** Real vault: 4144 sources discovered (5.9s), 1280
+documents ingested (11s), zero writes outside `--vault`. Real journey: 10
+actions classified for pr/791 with `IMPLEMENT` blocked on
+`LANE_UNOWNED_WRITE_REQUIRES_CLAIM`; a real subprocess in a disposable git
+worktree; checkpoint `VALID` after the process exited. Resume was measured with
+an observable side effect rather than inferred -- same idempotency key across a
+fresh process left the effect count at 1 (`deduplicated=True`); a different key
+re-ran it to 2. A worker SIGKILLed mid-adapter yields
+`UNCERTAIN_REQUIRES_RECONCILIATION`, `safe_to_retry=False`, and blocks the next
+run rather than auto-retrying. Stale context was proved by mutating a real ADR
+after compile, not a fixture.
+
+**Found and NOT fixed.** `atlas validate` exits 1 on this repository: one broken
+link in 1280 documents, `claims.md -> OPENAI-MCP-DESIGN.md`. The file exists and
+was discovered; the claim quotes a relative link valid in `docs/atlas-2.0/` and
+renders it verbatim into `projects/project-atlas/`. Reproduced identically on
+plain main b87b4a22, so it is pre-existing, not integration damage, and a `src/`
+knowledge-compiler change outside this candidate's scope.
+
+The candidate is local and unpushed: `CI_THIS_CANDIDATE = NOT_RUN` because no CI
+subject exists, `FORMAL_IV = NOT_STARTED`, `MERGE_AUTHORIZATION = NOT_GRANTED`.
+Sample size for every effort figure above is one assembly, one operator, one
+platform (Linux x86_64, CPython 3.12.14). Windows and macOS behaviour of this
+candidate was never executed, and #781's UI was merged but not driven.

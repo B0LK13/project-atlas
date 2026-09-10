@@ -837,6 +837,9 @@ Honesty: `PREP != IMPLEMENTED` · `STUDIO_UI != AUTHORITY` ·
 - [x] AS-STUDIO-A2-001 Governed OWNERSHIP_CLAIM intent/preview/evaluate/execute (lane; #770 stack; DISPATCH/STEAL_AUTO NOT_STARTED; not merged) — **A2-001 OWNERSHIP_CLAIM = IMPLEMENTED_IN_LANE** (`docs/atlas-3/studio/a2/A2-EVIDENCE.md`; ADR-035; BUTTON!=MUTATION; DISPATCH/STEAL_AUTO=NOT_STARTED; not merged; FORMAL_IV=NOT_STARTED)
 - [x] AS-STUDIO-DESKTOP-D005 Read-only Linux shell review checkpoint: bounded real A1 reads, nested validation, monotonic freshness, live Mission Control hierarchy, keyboard/responsive/accessibility browser evidence (PR #781; `docs/atlas-3/studio/desktop/RECOVERY-005.md`).
 - [ ] AS-STUDIO-DESKTOP-D005-NATIVE Normal GTK/WebKit launch and package install lifecycle; canonical documentation synchronization and independent verification remain outstanding.
+- [x] AS-STUDIO-BRIDGE-001 Narrow Studio task-context -> governed mission-run seam that carries context and never authority (`scripts/atlas_studio/mission_bridge.py`; KNOWLEDGE!=PERMISSION; trusted_policy is caller-supplied only; 13 tests, 8 refusals; integration candidate only, not merged; CI_THIS_CANDIDATE=NOT_RUN; FORMAL_IV=NOT_STARTED)
+- [ ] AS-INTEGRATION-ONE-WORKFLOW-001 Promote the integration candidate (`docs/atlas-3/integration/one-workflow/`) to a CI subject: owner decision on whether the assembled #791+#786+#781+#789 candidate becomes a PR. Journey demonstrated locally; MERGE_AUTHORIZATION=NOT_GRANTED.
+- [ ] AS-CORE-VALIDATE-RELLINK-001 `atlas validate` exits 1 on this repository: a claim's relative Markdown link (`claims.md -> OPENAI-MCP-DESIGN.md`) is rendered verbatim out of its source directory. Pre-existing on main b87b4a22, reproduced there; 1 broken link / 1280 docs.
 - [ ] AS-STUDIO-A3 Runtime / provider harness integration
 - [ ] AS-STUDIO-A4 Code/diff/test/PR lifecycle vertical
 - [ ] AS-STUDIO-A5 Chronicle / Knowledge Plane UX
