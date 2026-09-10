@@ -149,3 +149,42 @@ def test_every_operator_command_is_reachable_through_atlas(argv: list[str]) -> N
     with pytest.raises(SystemExit) as excinfo:
         atlas_main(argv)
     assert excinfo.value.code == 0
+
+
+def test_every_implemented_operator_command_is_documented() -> None:
+    """Documentation synchronisation, enforced rather than remembered.
+
+    `atlas program cancel` shipped documented nowhere for a while: it existed,
+    worked, and no page mentioned it. A command an operator cannot discover is
+    a command that does not exist for them.
+    """
+    import re
+    from pathlib import Path as _Path
+
+    docs = _Path(__file__).resolve().parents[2] / "docs" / "orchestration" / "program"
+    text = "\n".join(
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in [*sorted(docs.glob("*.md")), docs / "operator-journey.sh"]
+        if path.is_file()
+    )
+    parser = build_parser()
+    group = next(
+        action
+        for action in parser._actions
+        if hasattr(action, "choices") and isinstance(action.choices, dict)
+    )
+    undocumented: list[str] = []
+    for name in ("program", "agent"):
+        sub = group.choices[name]
+        subcommands: set[str] = set()
+        for action in sub._actions:
+            if hasattr(action, "choices") and isinstance(action.choices, dict):
+                subcommands |= set(action.choices)
+        assert subcommands, f"{name} has no subcommands; the introspection drifted"
+        for command in sorted(subcommands):
+            if not re.search(rf"\b{name}\s+{re.escape(command)}\b", text):
+                undocumented.append(f"{name} {command}")
+    assert undocumented == [], (
+        f"implemented but documented nowhere under docs/orchestration/program: "
+        f"{undocumented}"
+    )

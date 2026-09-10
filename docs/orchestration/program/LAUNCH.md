@@ -99,6 +99,9 @@ The record says this was **your** judgement, not the supervisor's determination.
 atlas program control --program ./my-program.json --state-root ~/atlas-state \
   --action cancel --requested-by "$USER"
 
+# The same request without going through the control contract:
+atlas program cancel --program ./my-program.json --state-root ~/atlas-state
+
 # If it was started as a detached service:
 atlas program service stop --program ./my-program.json --state-root ~/atlas-state
 atlas program service status --program ./my-program.json --state-root ~/atlas-state --registry ~/atlas-agents

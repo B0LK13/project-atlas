@@ -39,6 +39,7 @@ atlas program credentials --program P           # which account, by name and pre
 atlas program start       --program P --state-root S [--registry R]
 atlas program status      --program P --state-root S
 atlas program control     --program P --state-root S [--action pause|resume|cancel|reconcile]
+atlas program cancel      --program P --state-root S   # same request, without the control contract
 atlas program reconcile   --program P --state-root S
 atlas program events      --program P --state-root S --limit 50
 atlas program handoff     --program P --task T --session-id S --enrolled-by you
