@@ -28,8 +28,8 @@ identity:
   source_pin_tree: 46d1989b026a2f15920ec5e1c78a106799bd1249
   implementation_v1_head: 47a6ef59d5f1dcfe14d82d8cf600a39d2b2c0577
   implementation_v1_tree: e1b63377c37924dfa3f60f8d91efdd0ae25effeb
-  implementation_v2_head: PENDING_THIS_COMMIT
-  implementation_v2_tree: PENDING_THIS_COMMIT
+  implementation_v2_head: 619349986b25a5c19116aef894f48173e120ba5b
+  implementation_v2_tree: d15d90bc95d66846bbc6e02f946ff116cb5a7707
   note: >
     Source pin is the analysis baseline (origin/main snapshot). Implementation
     identities are lane commits. Generated DEMO-REPORT files and local outcome
