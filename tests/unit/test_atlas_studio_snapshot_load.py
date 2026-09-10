@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
@@ -71,14 +73,54 @@ def test_no_second_read_drift(tmp_path: Path):
     assert snap.data == {"v": 1}
 
 
+def _deny_read(path: Path) -> bool:
+    """Best-effort make `path` unreadable; report whether it actually worked.
+
+    POSIX mode bits do not deny read access on Windows (and do not deny it to
+    root on POSIX either), so the caller must MEASURE the result rather than
+    assume the simulation took effect.
+    """
+    try:
+        path.chmod(0)
+    except OSError:
+        return False
+    try:
+        path.read_bytes()
+    except OSError:
+        return True
+    return False
+
+
 def test_unreadable_file(tmp_path: Path):
     from atlas_studio.snapshot_load import READ_ERROR
 
     path = tmp_path / "locked.json"
     path.write_text("{}", encoding="utf-8")
-    path.chmod(0)
     try:
+        if not _deny_read(path):
+            pytest.skip("cannot make a file unreadable on this platform/user")
         snap = load_json_snapshot(path)
         assert snap.error == READ_ERROR
     finally:
         path.chmod(0o644)
+
+
+def test_read_error_surfaces_on_oserror(monkeypatch, tmp_path: Path):
+    """Platform-neutral proof of the READ_ERROR branch.
+
+    Does not depend on filesystem permissions, so it runs on Windows and as
+    root, where `chmod(0)` cannot deny a read.
+    """
+    from atlas_studio.snapshot_load import READ_ERROR
+
+    path = tmp_path / "x.json"
+    path.write_text("{}", encoding="utf-8")
+
+    def boom(self, *a, **k):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    snap = load_json_snapshot(path)
+    assert snap.error == READ_ERROR
+    assert snap.data is None
+    assert snap.raw_sha256 is None

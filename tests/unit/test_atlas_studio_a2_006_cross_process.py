@@ -79,7 +79,10 @@ def _run_mission_session(tmp_path: Path, *extra: str) -> subprocess.CompletedPro
             lambda d: (
                 (d / "intent.json").write_text(json.dumps(_intent()), encoding="utf-8"),
                 (d / "decision.json").write_text(json.dumps(_decision()), encoding="utf-8"),
-                ["--intent-file", str(d / "intent.json"), "--decision-file", str(d / "decision.json")],
+                [
+                    "--intent-file", str(d / "intent.json"),
+                    "--decision-file", str(d / "decision.json"),
+                ],
             )[2],
             "CONFIRMED_SUCCESS",
             0,
@@ -98,7 +101,10 @@ def _run_mission_session(tmp_path: Path, *extra: str) -> subprocess.CompletedPro
                     ),
                     encoding="utf-8",
                 ),
-                ["--intent-file", str(d / "intent.json"), "--decision-file", str(d / "decision.json")],
+                [
+                    "--intent-file", str(d / "intent.json"),
+                    "--decision-file", str(d / "decision.json"),
+                ],
             )[2],
             "FAILED_UNCERTAIN",
             1,
@@ -120,7 +126,10 @@ def _run_mission_session(tmp_path: Path, *extra: str) -> subprocess.CompletedPro
                     json.dumps(_decision(intent_id="intent-FOREIGN")),
                     encoding="utf-8",
                 ),
-                ["--intent-file", str(d / "intent.json"), "--decision-file", str(d / "decision.json")],
+                [
+                    "--intent-file", str(d / "intent.json"),
+                    "--decision-file", str(d / "decision.json"),
+                ],
             )[2],
             "MISMATCHED_BINDING",
             1,
@@ -136,7 +145,10 @@ def _run_mission_session(tmp_path: Path, *extra: str) -> subprocess.CompletedPro
                     json.dumps(_decision(evaluated_at_utc="2026-09-09T19:00:00Z")),
                     encoding="utf-8",
                 ),
-                ["--intent-file", str(d / "intent.json"), "--decision-file", str(d / "decision.json")],
+                [
+                    "--intent-file", str(d / "intent.json"),
+                    "--decision-file", str(d / "decision.json"),
+                ],
             )[2],
             "SNAPSHOT_INCONSISTENT",
             1,

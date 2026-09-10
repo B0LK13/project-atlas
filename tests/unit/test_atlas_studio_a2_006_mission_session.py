@@ -272,7 +272,10 @@ def test_fingerprint_changes_when_decision_changes():
 def test_malformed_decision_not_pending_execute():
     packet = ms.build_mission_session(
         intent=_intent(),
-        decision={"schema": "ATLAS_STUDIO_ACTION_DECISION_V1", "intent_id": "intent-ownership-claim-session"},
+        decision={
+            "schema": "ATLAS_STUDIO_ACTION_DECISION_V1",
+            "intent_id": "intent-ownership-claim-session",
+        },
         clock=clock,
     )
     assert packet["session_state"] != ms.SESSION_PENDING_EXECUTE
@@ -314,7 +317,6 @@ def test_explicit_repo_unverified_without_artifact_fields():
 
 
 def test_conflicting_evidence_same_intent_id():
-    decision = _decision()
     stale_evidence = {
         "schema": "ATLAS_STUDIO_ACTION_EVIDENCE_V1",
         "outcome_class": "CONFIRMED_SUCCESS",
