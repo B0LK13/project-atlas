@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 from project_atlas.orchestration.program.adapters.base import (
     AdapterCapabilities,
@@ -42,7 +43,7 @@ from project_atlas.orchestration.program.models import (
     ExecutionConfidence,
     ProgramTask,
 )
-from project_atlas.orchestration.program.store import AttemptRecord
+from project_atlas.orchestration.program.store import AttemptRecord, load_launch
 
 
 class RecoveryAction(StrEnum):
@@ -71,28 +72,92 @@ class RecoveryVerdict:
     resume_session_id: str | None = None
 
 
-def worker_still_alive(attempt: AttemptRecord) -> bool:
-    """Is the recorded process still the process we started?
+class Liveness(StrEnum):
+    """Three answers, because there are three.
 
-    A live PID is not enough. PIDs are reused, and treating a stranger's
-    process as our worker means either waiting forever on something that will
-    never report, or -- worse -- concluding our own run is still in flight and
-    never reconciling it. The recorded start identity is what makes the answer
-    trustworthy; when it was never recorded, the honest answer is "no", which
-    routes the attempt into reconciliation rather than into a false wait.
+    The bug this replaces returned a bool, so "we never recorded a pid" and
+    "the process is demonstrably gone" produced the same False -- and the
+    caller turned that False into the sentence "the worker was launched, is
+    gone". It was observed saying that about a worker that was still running.
+    Absence has to be shown, not inferred from a gap in our own bookkeeping.
+    """
+
+    #: The recorded process is alive and is the one we started.
+    ALIVE = "ALIVE"
+    #: Demonstrably not our process any more: the pid is dead, or it is alive
+    #: under a different start identity, which means ours exited and the number
+    #: was reused.
+    GONE = "GONE"
+    #: Nothing can be shown either way -- no identity was recorded, or the
+    #: platform cannot report one. Never treated as absence.
+    UNKNOWN = "UNKNOWN"
+
+
+def process_liveness(
+    pid: int | None, recorded_identity: str | None
+) -> tuple[Liveness, str]:
+    """Liveness of one recorded process, with the reason in the same breath."""
+    if pid is None or pid <= 0:
+        return Liveness.UNKNOWN, "no process identity was recorded for this attempt"
+    if not pid_is_alive(pid):
+        return Liveness.GONE, f"pid {pid} is not running"
+    live = process_start_identity(pid)
+    if not recorded_identity or recorded_identity == "unknown":
+        return (
+            Liveness.UNKNOWN,
+            f"pid {pid} is running but no start identity was recorded at launch, "
+            "so it cannot be told apart from a reused pid",
+        )
+    if not live or live == "unknown":
+        return (
+            Liveness.UNKNOWN,
+            f"pid {pid} is running but this platform reports no start identity, "
+            "so it cannot be compared with the one recorded at launch",
+        )
+    if live == recorded_identity:
+        return (
+            Liveness.ALIVE,
+            f"pid {pid} is alive and its start identity matches the one recorded "
+            "at launch",
+        )
+    return (
+        Liveness.GONE,
+        f"pid {pid} is running but under a different start identity; our worker "
+        "exited and the pid was reused",
+    )
+
+
+def attempt_liveness(
+    attempt: AttemptRecord, *, root: Path | None = None
+) -> tuple[Liveness, str]:
+    """Liveness of an attempt's worker, from whichever record exists.
+
+    ``AttemptRecord`` only receives the pid when the adapter returns. While a
+    worker is in flight the identity lives in the durable launch record the
+    adapter wrote at spawn, which is the record that survives a supervisor
+    killed between checkpoints -- so it is consulted whenever the attempt
+    itself has none.
     """
     pid = attempt.process_pid
-    if pid is None or pid <= 0:
-        return False
-    if not pid_is_alive(pid):
-        return False
-    recorded = attempt.process_start_identity
-    if not recorded or recorded == "unknown":
-        return False
-    live = process_start_identity(pid)
-    if not live or live == "unknown":
-        return False
-    return live == recorded
+    identity = attempt.process_start_identity
+    if pid is None and root is not None:
+        recorded = load_launch(root, attempt.attempt_id)
+        if recorded is not None:
+            pid = int(recorded.get("pid") or 0) or None
+            raw_identity = recorded.get("process_start_identity")
+            identity = raw_identity if isinstance(raw_identity, str) else None
+    return process_liveness(pid, identity)
+
+
+def worker_still_alive(attempt: AttemptRecord, *, root: Path | None = None) -> bool:
+    """True only when the worker is demonstrably ours and running.
+
+    Kept as the narrow question callers already ask. It answers False for both
+    GONE and UNKNOWN, so no caller may use it to decide that a worker is gone;
+    ``attempt_liveness`` is what separates those two.
+    """
+    verdict, _reason = attempt_liveness(attempt, root=root)
+    return verdict is Liveness.ALIVE
 
 
 def classify_attempt(
@@ -102,8 +167,15 @@ def classify_attempt(
     adapter: RuntimeAdapter,
     capabilities: AdapterCapabilities,
     request: AdapterRequest,
+    root: Path | None = None,
 ) -> RecoveryVerdict:
-    """Decide what may be done with one interrupted attempt."""
+    """Decide what may be done with one interrupted attempt.
+
+    ``root`` is the supervisor state root. Passing it lets the in-flight launch
+    record be consulted; omitting it means an attempt that never reached
+    ADAPTER_RETURNED has no identity to read, and the verdict says UNKNOWN
+    rather than inventing absence.
+    """
     if attempt.phase is AttemptPhase.TERMINAL:
         return RecoveryVerdict(
             action=RecoveryAction.ALREADY_TERMINAL,
@@ -156,13 +228,27 @@ def classify_attempt(
         )
 
     if attempt.phase is AttemptPhase.ADAPTER_INVOKED:
-        if worker_still_alive(attempt):
+        liveness, why = attempt_liveness(attempt, root=root)
+        if liveness is Liveness.ALIVE:
             return RecoveryVerdict(
                 action=RecoveryAction.WORKER_STILL_RUNNING,
                 confidence=None,
+                reason=why,
+            )
+        if liveness is Liveness.UNKNOWN:
+            # Absence is not demonstrable, so it is not asserted. Resuming here
+            # would be a second worker beside one that may still be running,
+            # and reporting "gone" would be a claim about a process nobody
+            # looked at. Both are refused: this is an operator decision, which
+            # is what NEEDS_RECONCILIATION means.
+            return RecoveryVerdict(
+                action=RecoveryAction.NEEDS_RECONCILIATION,
+                confidence=ExecutionConfidence.UNCERTAIN,
                 reason=(
-                    f"pid {attempt.process_pid} is alive and its start identity "
-                    "matches the one recorded at launch"
+                    f"the worker was launched and its fate is UNKNOWN: {why}. "
+                    "Whether it is still running has not been established, so "
+                    "neither a resume nor a relaunch is safe; check the process "
+                    "before deciding"
                 ),
             )
         if capabilities.supports_resume and attempt.runtime_session_id:
@@ -170,8 +256,8 @@ def classify_attempt(
                 action=RecoveryAction.RESUME_SESSION,
                 confidence=ExecutionConfidence.UNCERTAIN,
                 reason=(
-                    "the worker was launched and is gone; continuing its own "
-                    "session rather than starting a second one"
+                    f"the worker was launched and is gone ({why}); continuing "
+                    "its own session rather than starting a second one"
                 ),
                 resume_session_id=attempt.runtime_session_id,
             )
@@ -179,9 +265,9 @@ def classify_attempt(
             action=RecoveryAction.NEEDS_RECONCILIATION,
             confidence=ExecutionConfidence.UNCERTAIN,
             reason=(
-                "the worker was launched, is gone, recorded no outcome, and "
-                f"the {capabilities.adapter_id} adapter cannot resume a "
-                "session; its external effect is unknown"
+                f"the worker was launched, is gone ({why}), recorded no "
+                f"outcome, and the {capabilities.adapter_id} adapter cannot "
+                "resume a session; its external effect is unknown"
             ),
         )
 

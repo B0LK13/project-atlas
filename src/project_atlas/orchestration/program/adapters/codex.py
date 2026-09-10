@@ -278,6 +278,7 @@ class CodexAdapter:
             stdin_text=request.instruction,
             timeout_seconds=request.timeout_seconds,
             cancel_requested=request.cancel_requested,
+            process_started=request.process_started,
             stdout_path=events_file,
         )
         duration = time.monotonic() - started

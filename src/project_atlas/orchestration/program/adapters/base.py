@@ -108,6 +108,16 @@ class AdapterRequest:
     #: Consulted between polls while a child runs. Returning True asks the
     #: adapter to terminate the child and report an UNCERTAIN outcome.
     cancel_requested: Callable[[], bool] | None = None
+    #: Called ONCE, on the worker thread, the instant a child process exists,
+    #: with ``(pid, start_identity)``. The supervisor uses it to make the
+    #: in-flight process identity durable BEFORE the adapter returns.
+    #:
+    #: Without it, identity only reaches the attempt record on ADAPTER_RETURNED,
+    #: so a supervisor killed mid-flight leaves a record with no pid at all --
+    #: and "no pid recorded" was being read as "the worker is gone" while the
+    #: worker was still running. Same reasoning as ``stdout_path`` below: what
+    #: is only in this process's memory dies with this process.
+    process_started: Callable[[int, str], None] | None = None
     extra_env: Mapping[str, str] = field(default_factory=dict)
 
 
@@ -266,6 +276,7 @@ def run_child_to_completion(
     cancel_requested: Callable[[], bool] | None,
     poll_interval: float = 0.25,
     stdout_path: Path | None = None,
+    process_started: Callable[[int, str], None] | None = None,
 ) -> tuple[int | None, str, str, int | None, str | None, str]:
     """Run one child process, honouring cancellation and a wall-clock bound.
 
@@ -317,6 +328,19 @@ def run_child_to_completion(
         raise
     pid = process.pid
     identity = process_start_identity(pid)
+    if process_started is not None:
+        # Announced before anything else can fail. A raise here would leave a
+        # live child nobody has recorded -- the exact state this callback
+        # exists to prevent -- so the child is killed and the failure is
+        # reported rather than swallowed: an unrecorded worker is worse than
+        # no worker.
+        try:
+            process_started(pid, identity)
+        except BaseException:
+            _terminate_group(process)
+            if stdout_handle is not None:
+                stdout_handle.close()
+            raise
     if stdin_text is not None and process.stdin is not None:
         # The child must see EOF on stdin -- `claude -p` reads the prompt
         # until the stream closes -- so the handle is closed here rather than
