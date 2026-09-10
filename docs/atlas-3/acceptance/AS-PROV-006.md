@@ -96,6 +96,26 @@ removed; a caller-supplied `--env-cache` never is; the default persistent cache
 is *pruned*, and pruning only ever touches `env-*` directories carrying this
 tool's own marker.
 
+## Running the full suite on a tmpfs `/tmp`
+
+Independent of provenance, but it bites the same way. On this machine `/tmp` is
+a 5.5 G tmpfs shared with other agents' worktrees, and the full test suite's
+own `tmp_path` usage can exhaust it mid-run:
+
+```
+OSError: [Errno 122] Disk quota exceeded
+```
+
+That aborts the run wherever it happens to be — twice here, once on unrelated
+tests. **An aborted run is neither a pass nor a fail** and is never reported as
+one. Give pytest a disk-backed temp dir:
+
+```bash
+python -m pytest --basetemp=~/.cache/atlas-pytest-tmp
+```
+
+CI is unaffected: hosted runners do not put `/tmp` on a small tmpfs.
+
 ## Upstream dependency — #789, still unresolved
 
 `start_mission_run`'s default idempotency key omits the adapter, so two
