@@ -26,26 +26,35 @@ and never treats anything a worker wrote as authority.
 
 ## Invocation
 
+The supervisor is registered on the Atlas CLI, so every command below is an
+`atlas` command. The module entry point
+(`python -m project_atlas.orchestration.program.cli`) accepts exactly the same
+arguments and delegates to the same dispatcher, so the two cannot drift.
+
 ```bash
-M=python -m project_atlas.orchestration.program.cli   # shorthand for the lines below
+atlas program capabilities                      # runtime-tested / fixture-only / unavailable
+atlas program runtimes                          # what this machine supports, and cannot
+atlas program validate    --program P           # validate; report the enforcement picture
+atlas program credentials --program P           # which account, by name and presence only
+atlas program start       --program P --state-root S [--registry R]
+atlas program status      --program P --state-root S
+atlas program control     --program P --state-root S [--action pause|resume|cancel|reconcile]
+atlas program reconcile   --program P --state-root S
+atlas program events      --program P --state-root S --limit 50
+atlas program handoff     --program P --task T --session-id S --enrolled-by you
+atlas program service     install|start|stop|status|run --program P
 
-$M program validate  --program PROGRAM.json   # validate; report the enforcement picture
-$M program start     --program PROGRAM.json   # run until a stop reason
-$M program status    --program PROGRAM.json   # compact status; dispatches nothing
-$M program cancel    --program PROGRAM.json   # stop before the next launch
-$M program reconcile --program PROGRAM.json   # inspect / settle interrupted attempts
-$M program events    --program PROGRAM.json --limit 50
-$M program runtimes                            # what this machine supports, and cannot
-$M program handoff   --program PROGRAM.json --task T --session-id S --enrolled-by you
-$M program control   --program PROGRAM.json   # the versioned read-only contract
-$M program service   install|start|stop|status|run --program PROGRAM.json
-
-$M agent enroll  --registry R --agent-id A --role implementer \
-                 --adapter claude-code --workspace W --enrolled-by you
-$M agent assign  --registry R --agent-id A --program PROGRAM.json --assigned-by you
-$M agent launch  --registry R --agent-id A
-$M agent list|status|set-status --registry R [--agent-id A]
+atlas agent enroll     --registry R --agent-id A --role implementer \
+                       --adapter claude-code --workspace W --enrolled-by you
+atlas agent assign     --registry R --agent-id A --program P --assigned-by you
+atlas agent launch     --registry R --agent-id A
+atlas agent list       --registry R
+atlas agent status     --registry R --agent-id A
+atlas agent set-status --registry R --agent-id A --status ACTIVE|SUSPENDED|RETIRED
 ```
+
+A worked end-to-end path through all of these, with two real runtimes, is in
+`OPERATOR-JOURNEY.md` and runnable as `operator-journey.sh`.
 
 | Topic | Page |
 | --- | --- |
@@ -55,6 +64,7 @@ $M agent list|status|set-status --registry R [--agent-id A]
 | Running as a durable service | `SERVICE.md` |
 | The contract Atlas Studio consumes | `CONTROL.md` |
 | What was reused from the existing control plane | `REUSE-MAP.md` |
+| The end-to-end operator path | `OPERATOR-JOURNEY.md` |
 | Real-runtime evidence | `evidence/` |
 
 Every command prints one JSON object. Exit codes follow the repository

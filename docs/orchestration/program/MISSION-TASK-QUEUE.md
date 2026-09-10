@@ -128,3 +128,28 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
       test suites rather than by that paid run
 - [x] Support reported per runtime and environment (`program runtimes`,
       `SUPPORT-MATRIX.md`)
+
+---
+
+# ATLAS-SUPERVISOR-OPERATIONAL-INTEGRATION-002
+
+Continued in the same lane and the same PR (#797).
+
+- [x] I1 Reconcile the delivery: main unmoved, PR head matches local HEAD,
+      ownership checked across 119 worktrees and 60 open PRs
+- [x] I2 Full-suite total recovered from the run's own captured output:
+      5898 passed / 8 skipped / 4 xfailed / 0 failed at `b19c2298`
+- [x] I3 Capability matrix with three tiers (`atlas program capabilities`);
+      the two-runtime demonstration labelled precisely
+- [x] I4 Minimal additive CLI registration (23 insertions, 0 deletions);
+      guard passes unwaived on its own merits
+- [x] I5 Lifecycle recovery: all seven properties, against the real mechanisms
+- [x] I6 Authority re-read before every dispatch (suspension, un-enrolment,
+      withdrawn substitution grant), with a negative control
+- [x] I7 Credential/account policy reported without reading any value
+- [x] I8 Five outcomes kept distinct, with launch counts encoding retry policy
+- [x] I9 Operator view v2: last meaningful progress, waiting condition, retry
+      eligibility, required operator actions
+- [x] I10 Reproducible operator journey through `atlas`, two real runtimes
+- [x] I11 Cursor and Copilot left explicitly unavailable; no re-probing
+
