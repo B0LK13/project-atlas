@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_MISSION_JOURNEY_V1",
+  "description": "AS-STUDIO-A2-002 read-only mission journey: MC + knowledge + development context + claim next-steps. STUDIO_UI!=AUTHORITY; knowledge!=permission; PREVIEW!=EXECUTION.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "repository",
+    "mission",
+    "knowledge",
+    "development",
+    "next_actions",
+    "honesty",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_MISSION_JOURNEY_V1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "repository": {
+      "type": ["string", "null"]
+    },
+    "agent": {
+      "type": ["string", "null"]
+    },
+    "mission": {
+      "type": "object",
+      "required": ["mission_status", "freshness_state", "snapshot_fingerprint"],
+      "properties": {
+        "mission_status": {"type": "string"},
+        "slice_status": {"type": "string"},
+        "freshness_state": {"type": "string"},
+        "snapshot_fingerprint": {"type": ["string", "null"]},
+        "attention_count": {"type": "integer", "minimum": 0},
+        "top_attention": {"type": "array"}
+      }
+    },
+    "knowledge": {
+      "type": "object",
+      "required": ["state", "items"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "RETRIEVED",
+            "NONE_FOUND",
+            "UNAVAILABLE",
+            "STALE",
+            "INCOMPLETE"
+          ]
+        },
+        "items": {"type": "array"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "development": {
+      "type": "object",
+      "required": ["repository", "prerequisites"],
+      "properties": {
+        "repository": {"type": ["string", "null"]},
+        "candidate_identity": {"type": "object"},
+        "prerequisites": {"type": "array", "items": {"type": "string"}},
+        "missing_prerequisites": {"type": "array", "items": {"type": "string"}},
+        "supported_capabilities": {"type": "array", "items": {"type": "string"}},
+        "closed_capabilities": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "next_actions": {
+      "type": "object",
+      "required": ["claim_candidates", "preview"],
+      "properties": {
+        "claim_candidates": {"type": "object"},
+        "preview": {"type": ["object", "null"]},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "honesty": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    }
+  }
+}

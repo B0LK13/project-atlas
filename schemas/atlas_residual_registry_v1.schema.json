@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_RESIDUAL_REGISTRY_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "residuals",
+    "registry_fingerprint",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_RESIDUAL_REGISTRY_V1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "residuals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["schema", "residual_id", "disposition", "residual_type"]
+      }
+    },
+    "open_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "runnable_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blocked_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "registry_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "generator",
+        "discovered_work_is_not_ephemeral_prose",
+        "residual_existence_is_not_execution_authority"
+      ],
+      "properties": {
+        "generator": {
+          "type": "string"
+        },
+        "discovered_work_is_not_ephemeral_prose": {
+          "const": true
+        },
+        "residual_existence_is_not_execution_authority": {
+          "const": true
+        }
+      }
+    }
+  }
+}

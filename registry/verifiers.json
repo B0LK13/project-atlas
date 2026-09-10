@@ -1,0 +1,38 @@
+{
+  "schema": "ATLAS_VERIFIER_POOL_V1",
+  "version": 1,
+  "verifiers": [
+    {
+      "verifier_id": "IV-A",
+      "principal": null,
+      "active": true,
+      "allowed_repositories": ["B0LK13/project-atlas"],
+      "capabilities": ["formal_iv"],
+      "prohibitions": [
+        "no_merge_authority",
+        "no_write_authority",
+        "no_self_iv"
+      ],
+      "metadata": {
+        "declared_but_unbound": true,
+        "note": "Declared verifier role only. principal:null: a bare IV-A label without an authenticated principal binding is DECLARED_BUT_UNBOUND and can never satisfy formal IV. This file IS the owner-approved binding location; real principal bindings arrive only via future owner commits to this registry."
+      }
+    },
+    {
+      "verifier_id": "IV-B",
+      "principal": null,
+      "active": true,
+      "allowed_repositories": ["B0LK13/project-atlas"],
+      "capabilities": ["formal_iv"],
+      "prohibitions": [
+        "no_merge_authority",
+        "no_write_authority",
+        "no_self_iv"
+      ],
+      "metadata": {
+        "declared_but_unbound": true,
+        "note": "Declared verifier role only. principal:null: a bare IV-B label without an authenticated principal binding is DECLARED_BUT_UNBOUND and can never satisfy formal IV. This file IS the owner-approved binding location; real principal bindings arrive only via future owner commits to this registry."
+      }
+    }
+  ]
+}

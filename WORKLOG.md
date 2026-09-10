@@ -14915,3 +14915,201 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-STUDIO-INTAKE-20260908-01 — canonical Studio docs package
+
+**Date:** 2026-09-09  
+**Lane:** `docs/as-studio-intake-20260908`  
+**Epic:** [#746](https://github.com/B0LK13/project-atlas/issues/746)
+
+Synchronized the Atlas Studio owner master update into canonical repository
+documentation under `docs/atlas-3/studio/`, with cross-links from Coder Alpha
+and Atlas 3 north stars. No Studio runtime/UI implementation in this package.
+
+Vault normalize/route/receipt remains **PENDING**: production `mda` is not on
+PATH (fixture mock must not be treated as production success).
+
+Coordination Features 1–16 remain implementation-complete on the stacked PR
+tip with exact-head CI PASS and `EXTERNAL_IV_GATED`; this docs sync does not
+merge that stack and does not claim formal IV.
+
+Evidence: `docs/evidence/AS-STUDIO-INTAKE-20260908-01-CANONICAL-DOCS-SYNC.md`.
+
+```text
+ATLAS_STUDIO_CANONICAL_PACKAGE = SYNCHRONIZED_IN_REPO
+VAULT_DOCUMENTATION_RECEIPT = PENDING_MDA
+AS_STUDIO_A0_001 = READY_FOR_IMPLEMENTATION_PACKAGE
+AS_STUDIO_A1 = NOT_STARTED
+```
+
+## AS-STUDIO-A0-001 — foundation package (lane)
+
+- Branch: `feat/as-studio-a0-001` on exact #751 tip + Studio docs merge
+- Deliverables: `docs/atlas-3/studio/a0/*`, ADR-034, schemas, `scripts/atlas_studio`, RO CLI
+- Validation: 11 unit tests PASS; ruff PASS; doctor PASS; live snapshot exercised
+- Honesty: STUDIO_UI != AUTHORITY; MERGE_AUTHORIZATION = NOT_GRANTED; A1 NOT_STARTED
+- Evidence: `docs/atlas-3/studio/a0/EVIDENCE.md`
+
+
+## CLOSE_ATLAS_STUDIO_A0_AND_PREPARE_A1
+
+- A0 closure: `docs/atlas-3/studio/a0/A0-CLOSURE.md` → TECHNICALLY_COMPLETE
+- Owner decisions O1–O5 explicit (O1 = A1 start gate)
+- Canonical package #762 remains OPEN (not merged); vault MDA PENDING
+- A1 scope reconciled + AS-STUDIO-A1-001 READY under `docs/atlas-3/studio/a1/`
+- A1 implementation NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
+
+
+
+## AS-STUDIO-A1-001 — Read-only Mission Control (lane)
+
+- Branch: `feat/as-studio-a1-001` on A0 tip `efb92255…` / PR #763
+- Owner: **O1 APPROVED** (in-process atlas_dag RO runtime); **O6 APPROVED** (seal/evidence UNKNOWN ok)
+- Deliverables: `ATLAS_STUDIO_MISSION_CONTROL_V1` schema; `mission_control.py`; CLI `mc`/`mission-control`; docs; unit tests
+- Honesty: STUDIO_UI!=AUTHORITY; ATTENTION!=AUTHORIZATION; STALE!=CURRENT; UNKNOWN!=HEALTHY; NO_MUTATION; A0 nested honesty preserved
+- Non-goals: Tauri, A2 mutations, commit/push/PR/merge, formal IV
+- Evidence: `docs/atlas-3/studio/a1/A1-EVIDENCE.md`
+
+
+## CLOSE_ATLAS_STUDIO_A1_AND_DEFINE_A2
+
+- Branch: `feat/as-studio-a1-001` @ `3d76fa0e…` (+ semantic-boundary / A2-docs tip)
+- A1 closure: `docs/atlas-3/studio/a1/A1-CLOSURE.md` → **TECHNICALLY_COMPLETE / EXTERNAL_IV_GATED**
+  (honest: CI PASS ≠ FORMAL_IV; verifiers unbound → not CERTIFIED)
+- Adversarial suite: `tests/unit/test_atlas_studio_a1_semantic_boundaries.py` (10 attacks) — all PASS
+- Combined gate: 15 A0 + 15 A1 + 10 semantic = **40 passed**; ruff PASS
+- Fail-closed narrowed: `AGENT_MATRIX_MISMATCH` suppresses foreign frontier rankings/attention
+- Live mc: `mission_status=HUMAN_ATTENTION_REQUIRED`, `freshness=LIVE`, `attention_count=8`
+- `MISSION_CONTROL_HUMAN_COHERENCE = PROVEN`; `STUDIO_MUTATION_AUTHORITY = NONE`
+- A2 docs only: `docs/atlas-3/studio/a2/*` + ADR-035; first WP **AS-STUDIO-A2-001 READY** =
+  governed OWNERSHIP_CLAIM (eligible unowned/runnable lane); implementation NOT_STARTED
+- Honesty: BUTTON!=MUTATION; MERGE_AUTHORIZATION=NOT_GRANTED; no mutation/CLI write path added
+
+## AS-STUDIO-A2-001 — governed OWNERSHIP_CLAIM
+
+- Module: `scripts/atlas_studio/action_intent.py`
+- CLI: claim-candidates/preview/intent/evaluate/execute
+- Schemas: ATLAS_STUDIO_ACTION_{INTENT,PREVIEW,DECISION}_V1
+- Tests: 19 A2 adversarial + A0/A1 regression (59 total)
+- DISPATCH / STEAL_AUTO = NOT_STARTED; MERGE_AUTHORIZATION = NOT_GRANTED
+
+
+
+## AS-STUDIO-A2-001 — Governed OWNERSHIP_CLAIM (lane)
+
+- Branch: `feat/as-studio-a2-001` on A1 tip `028157e2…` (#770)
+- Deliverables: intent/preview/decision schemas; `scripts/atlas_studio/action_intent.py`;
+  CLI `claim-candidates|claim-preview|claim-intent|claim-evaluate|claim-execute`;
+  doctor A2 checks; `docs/atlas-3/studio/a2/A2-EVIDENCE.md`
+- Emitter: evaluate-first; wet path uses `atlas_dag.emitter` `OWNER_CLAIMED` only when
+  `EXECUTE_ALLOWED`; dry-run never emits; preview never emits
+- Refusal vocabulary: EXECUTE_ALLOWED/EXECUTED + REFUSED_STALE/ALREADY_OWNED/
+  NOT_RUNNABLE/AGENT_INVALID/CAPABILITY/POLICY/TARGET_MISMATCH/
+  IDEMPOTENT_ALREADY_CLAIMED/SCHEMA
+- Validation: A0 15 + A1 15 + A1-semantic 10 + A2 19 = **59 passed**; ruff PASS;
+  doctor ok
+- Honesty: STUDIO_UI!=AUTHORITY; REQUESTED!=CLAIMED; PREVIEW!=EXECUTION;
+  CONTROL_PLANE_REVALIDATES_AT_EXECUTION; A1 MC does not import action_intent
+- Explicit: **DISPATCH/STEAL_AUTO = NOT_STARTED**; no merge/IV/worktree/PTY;
+  MERGE_AUTHORIZATION=NOT_GRANTED; FORMAL_IV=NOT_STARTED; no commit/push/PR
+
+## AS-STUDIO-A2-001 — review-closure hardening (lane, PR #776)
+
+- Directive: D-CODEX-ATLAS-STUDIO-A2-001-END-TO-END-CLOSURE (executed by the
+  Claude Code implementation session, not by Codex; CODEX_VALIDATED = NO)
+- Baseline: frozen `6ff336cd` (exact-head CI run 34360705782 PASS); freeze
+  lifted only for confirmed A2-001 defects + tests + required docs
+- Reproduced and fixed: `--repo` omission skipped repo pinning → refuse
+  `EXPECTED_REPO_REQUIRED_AT_EXECUTE`, CLI `--repo` required; dead
+  `if True` comprehension removed; `register_action` silent overwrite →
+  `DUPLICATE_REGISTRATION` refusal (`replace=True` explicit); executor
+  exception / invalid return → `EXECUTION_FAILED` + `mutation_state=UNKNOWN`;
+  dry-run label `EXECUTED` → `EXECUTE_ALLOWED` + `dry_run=true`
+- Schema: `EXECUTION_FAILED` added to `ATLAS_STUDIO_ACTION_DECISION_V1` enum;
+  `mutated` / `dry_run` semantics documented
+- Tests: `tests/unit/test_atlas_studio_a2_review_closure.py` (18) + 3 existing
+  assertions updated; A1 `mission_control.py` untouched, still free of
+  governance/action_intent imports
+- Not changed: dispatch/IV/handoff/steal/merge/worktree intents (still
+  NOT_STARTED); A0/A1 modules; no force-push; no merge; no self-IV
+- Review threads: replied with fix pointers; resolution left to human reviewer
+- FORMAL_IV = PENDING on the new exact head; MERGE_AUTHORIZATION = NOT_GRANTED
+
+## AS-STUDIO-A2-002 — Mission Journey RO slice (2026-09-09)
+
+Directive: `D-CODEX-ATLAS-STUDIO-A2-CERTIFIED-CONTINUATION-002`
+
+- Preserved certified A2 tip `2debb778` / tree `2ae9a686` (no commits on `feat/as-studio-a2-001`).
+- Recovered Formal IV handoff into `docs/atlas-3/studio/a2/iv/`; added `A2-001-STATUS-CURRENT.md`.
+- Reconciled PR #776 description (test-count scopes, replace= removal, Formal IV PASS vs merge pending).
+- New isolated branch `feat/as-studio-a2-002-mission-journey` from certified tip.
+- Implemented `ATLAS_STUDIO_MISSION_JOURNEY_V1` + CLI `mission-journey` / `journey`.
+- Studio suite: 101 passed; doctor a2_002_* PASS.
+- Overlap avoided: #782 repo-binding, #781 visual shell.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; A2-002 Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-004 — Action Evidence & Recovery (2026-09-09)
+
+Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT`
+
+- Stacked on A2-002 tip `cd4523fc` (certified A2 `2debb778` preserved).
+- Branch: `feat/as-studio-a2-004-action-evidence`.
+- Avoided ownership overlap with #786 (task-context), #782, #781.
+- Implemented `ATLAS_STUDIO_ACTION_EVIDENCE_V1` + CLI `action-evidence` / `evidence`.
+- Recovery forbids auto-retry; uncertain mutation ≠ nothing-changed; optional
+  non-canonical knowledge spool (`CAPTURE!=AUTHORITY`).
+- Studio suite: 109 passed; doctor a2_004_* PASS.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED.
+
+## AS-STUDIO-A2-005 — Intent Continuity (2026-09-09)
+
+Goal: `G-ATLAS-STUDIO-24H-INTEGRATED-PRODUCT-ADVANCEMENT` (same lane as A2-004)
+
+- Branch: `feat/as-studio-a2-004-action-evidence` (PR #788)
+- CLI: `intent-continuity` / `continuity`
+- States: FRESH / STALE_INTENT / ALREADY_DECIDED / DUPLICATE_SUBMIT_RISK /
+  INTERRUPTED_UNCERTAIN / MISSING / MALFORMED
+- Linked from mission-journey `next_actions.continuity`
+- Studio suite: 116 passed (local)
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; Formal IV = NOT_STARTED
+
+## AS-STUDIO-A2-004/005 — Formal IV PASS (2026-09-09)
+
+- Independent Formal IV: **PASS** on subject tip `4904125f` / tree `00734f63`
+- CI exact-head: run **34390223409** SUCCESS
+- Durable handoff: `docs/atlas-3/studio/a2-004/iv/A2-004-005-FORMAL-IV-HANDOFF-4904125f.md`
+- `FORMAL_IV != MERGE_AUTHORIZATION`; later tip commits not auto-covered
+
+## AS-STUDIO-A2-006 — Mission Session Continuity (2026-09-09)
+
+Goal: `ATLAS-STUDIO-MISSION-CONTINUITY-AND-RECOVERY-001`
+
+- Closed #788 validation cycle: Formal IV PASS scoped to `4904125f`; tip CI
+  `34393171693` SUCCESS on freeze `10df59fb`; executable post-IV delta documented.
+- Branched `feat/as-studio-a2-006-mission-session` from freeze (non-moving target).
+- Implemented `ATLAS_STUDIO_MISSION_SESSION_V1` + CLI `mission-session`.
+- Binding: mismatched intent_id / repository → MISMATCHED_BINDING.
+- Persistence failure after mutation → claim-execute exit 3 + session flag.
+- Cross-process resume test; task-context dependency explicit UNAVAILABLE.
+- Studio suite: 126 passed. Formal IV = NOT_STARTED. MERGE not granted.
+
+## AS-STUDIO-A2-006 hardening — fingerprint/binding/conflict (2026-09-09)
+
+Goal: mission-session dependability under stale evidence / interrupted persistence /
+repeated inspection / uncertain outcomes.
+
+- Reproduced Copilot/Codex findings: wall-clock fingerprint drift; malformed→PENDING;
+  --repo unverified; evidence/decision conflict; DRY_RUN mislabeled REFUSED.
+- Repaired mission_session + intent_continuity MALFORMED path; expanded tests (134 suite).
+- Control-plane observation: explicit UNAVAILABLE (no invented API).
+- Formal IV request packet prepared (owner dispatch). MERGE not granted.
+
+## Overnight — snapshot load + corrupt JSON + session exit codes (2026-09-09)
+
+Directive: ATLAS-STUDIO-OVERNIGHT-CONTINUATION-001
+
+- Recorded #791: tip b9fd932d; no exact-head CI SUCCESS yet (dependency noted; no poll loop).
+- Added `atlas_studio.snapshot_load` (bytes→hash→parse same buffer).
+- Continuity CORRUPT; session CORRUPT_INPUT; CLI exit 0/1/3 for mission-session.
+- Honesty: byte hashes ≠ multi-file FS snapshot; process tests ≠ power-loss IV.
+- Local suite: 141 passed. Formal IV / merge not claimed.

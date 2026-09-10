@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_MISSION_CONTROL_V1",
+  "description": "AS-STUDIO-A1-001 read-only Mission Control projection. STUDIO_UI!=AUTHORITY; STALE!=CURRENT; UNKNOWN!=HEALTHY; ATTENTION!=AUTHORIZATION; NO_MUTATION.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "repository",
+    "slice_status",
+    "mission_status",
+    "snapshot_fingerprint",
+    "freshness",
+    "honesty",
+    "views",
+    "attention",
+    "studio_snapshot",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_MISSION_CONTROL_V1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "agent": {
+      "type": ["string", "null"]
+    },
+    "agent_status": {
+      "type": "string"
+    },
+    "slice_status": {
+      "type": "string",
+      "enum": ["OK", "DEGRADED", "UNKNOWN"]
+    },
+    "mission_status": {
+      "type": "string",
+      "enum": [
+        "HEALTHY",
+        "DEGRADED",
+        "UNKNOWN",
+        "STALE",
+        "OFFLINE",
+        "BLOCKED",
+        "HUMAN_ATTENTION_REQUIRED"
+      ]
+    },
+    "snapshot_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "freshness": {
+      "$ref": "#/$defs/freshness"
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "studio_ui_ne_authority",
+        "ui_state_is_projection",
+        "grants_no_mutation",
+        "no_cli_text_parsing_as_protocol",
+        "attention_ne_authorization",
+        "stale_ne_current",
+        "unknown_ne_healthy",
+        "nested_honesty_fail_closed"
+      ],
+      "properties": {
+        "studio_ui_ne_authority": { "const": true },
+        "ui_state_is_projection": { "const": true },
+        "grants_no_mutation": { "const": true },
+        "no_cli_text_parsing_as_protocol": { "const": true },
+        "attention_ne_authorization": { "const": true },
+        "stale_ne_current": { "const": true },
+        "unknown_ne_healthy": { "const": true },
+        "nested_honesty_fail_closed": { "const": true },
+        "atlas_daemon_is_authoritative_runtime": { "const": true },
+        "studio_crash_ne_agent_task_termination": { "const": true },
+        "reuse_before_reimplement": { "const": true },
+        "o1_in_process_atlas_dag_ro_runtime": { "const": true },
+        "o6_seal_evidence_may_be_unknown": { "const": true }
+      }
+    },
+    "views": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "health",
+        "agents_lanes",
+        "ownership",
+        "frontier",
+        "human_gates",
+        "residuals",
+        "ci_iv",
+        "telemetry",
+        "stacks",
+        "postmerge_seal",
+        "evidence",
+        "attention"
+      ],
+      "properties": {
+        "health": { "$ref": "#/$defs/mc_view" },
+        "agents_lanes": { "$ref": "#/$defs/mc_view" },
+        "ownership": { "$ref": "#/$defs/mc_view" },
+        "frontier": { "$ref": "#/$defs/frontier_view" },
+        "human_gates": { "$ref": "#/$defs/mc_view" },
+        "residuals": { "$ref": "#/$defs/mc_view" },
+        "ci_iv": { "$ref": "#/$defs/mc_view" },
+        "telemetry": { "$ref": "#/$defs/mc_view" },
+        "stacks": { "$ref": "#/$defs/mc_view" },
+        "postmerge_seal": { "$ref": "#/$defs/mc_view" },
+        "evidence": { "$ref": "#/$defs/mc_view" },
+        "attention": { "$ref": "#/$defs/mc_view" }
+      }
+    },
+    "attention": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/attention_item" }
+    },
+    "studio_snapshot": {
+      "type": "object",
+      "description": "Embedded ATLAS_STUDIO_SNAPSHOT_V1 (A0) projection body."
+    },
+    "observation_events": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["generator", "presentation_only"],
+      "properties": {
+        "generator": { "type": "string" },
+        "presentation_only": { "const": true },
+        "truth_sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_at_utc",
+        "snapshot_fingerprint",
+        "max_age_seconds",
+        "state"
+      ],
+      "properties": {
+        "generated_at_utc": { "type": "string" },
+        "snapshot_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "max_age_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "age_seconds": {
+          "type": ["number", "null"]
+        },
+        "state": {
+          "type": "string",
+          "enum": ["LIVE", "STALE", "OFFLINE", "UNKNOWN"]
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "mc_view": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "notes"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["OK", "DEGRADED", "UNKNOWN", "BLOCKED", "STALE", "OFFLINE"]
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "summary": {
+          "type": ["object", "null"]
+        },
+        "source_panel": {
+          "type": ["string", "null"]
+        },
+        "references": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "frontier_view": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "notes", "action_classes", "rankings"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["OK", "DEGRADED", "UNKNOWN", "BLOCKED"]
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "summary": {
+          "type": ["object", "null"]
+        },
+        "action_classes": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["OK", "UNKNOWN"]
+            },
+            "by_action_class": {
+              "type": ["object", "null"]
+            },
+            "notes": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "rankings": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["OK", "UNKNOWN"]
+            },
+            "typed_rankings": {
+              "type": ["object", "null"]
+            },
+            "notes": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "human_gate_action_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "owner_decision_action_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "frontier_fingerprint": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "attention_item": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "attention_id",
+        "kind",
+        "tier",
+        "title",
+        "attention_ne_authorization"
+      ],
+      "properties": {
+        "attention_id": { "type": "string" },
+        "kind": { "type": "string" },
+        "tier": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "title": { "type": "string" },
+        "detail": { "type": "string" },
+        "references": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "attention_ne_authorization": { "const": true }
+      }
+    }
+  }
+}
