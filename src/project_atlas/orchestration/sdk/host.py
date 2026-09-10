@@ -83,6 +83,9 @@ def pid_is_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if os.name == "nt":
+        fast = _win_pid_is_alive_fast(pid)
+        if fast is not None:
+            return fast
         proc = subprocess.run(
             ["tasklist", "/FI", f"PID eq {pid}"],
             capture_output=True,
@@ -222,11 +225,16 @@ if os.name == "nt":
         )
         _win_kernel32.GetProcessTimes.restype = _wintypes.BOOL
         _win_kernel32.CloseHandle.argtypes = (_wintypes.HANDLE,)
+        _win_kernel32.WaitForSingleObject.argtypes = (_wintypes.HANDLE, _wintypes.DWORD)
+        _win_kernel32.WaitForSingleObject.restype = _wintypes.DWORD
     except (AttributeError, OSError, ImportError):
         _win_kernel32 = None
         _WinFILETIME = None
 
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_PROCESS_SYNCHRONIZE = 0x00100000
+_WAIT_OBJECT_0 = 0x0
+_WAIT_TIMEOUT = 0x102
 
 
 def _win_process_start_ticks_fast(pid: int) -> int | None:
@@ -268,6 +276,38 @@ def _win_process_start_ticks_fast(pid: int) -> int | None:
         if filetime_ticks <= 0:
             return None
         return filetime_ticks + _FILETIME_TO_DOTNET_TICKS_OFFSET
+    finally:
+        _win_kernel32.CloseHandle(handle)
+
+
+def _win_pid_is_alive_fast(pid: int) -> bool | None:
+    """Win32 ``WaitForSingleObject`` via ``ctypes``. No subprocess, no shell.
+
+    Returns ``None`` -- decline, defer to the ``tasklist`` fallback -- for
+    anything this cannot itself positively resolve, most importantly a
+    process this call cannot open a handle to (e.g. access denied on a
+    protected process that is nonetheless alive): ``tasklist`` can usually
+    still see such a process by enumeration even where ``OpenProcess``
+    cannot open it, and asserting ``False`` here for an access-denied
+    process would be a false "not alive". A timed wait of 0ms, not
+    ``GetExitCodeProcess``, is used deliberately: a real process's own exit
+    code can legitimately equal ``STILL_ACTIVE`` (259), which would make
+    that API ambiguous for this exact question.
+    """
+    if _win_kernel32 is None:
+        return None
+    handle = _win_kernel32.OpenProcess(
+        _PROCESS_QUERY_LIMITED_INFORMATION | _PROCESS_SYNCHRONIZE, False, int(pid)
+    )
+    if not handle:
+        return None
+    try:
+        wait_result = _win_kernel32.WaitForSingleObject(handle, 0)
+        if wait_result == _WAIT_TIMEOUT:
+            return True
+        if wait_result == _WAIT_OBJECT_0:
+            return False
+        return None
     finally:
         _win_kernel32.CloseHandle(handle)
 

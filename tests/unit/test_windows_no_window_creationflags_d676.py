@@ -68,8 +68,15 @@ class TestHostCallSitesWireTheFlag:
     """REAL CALLER CONTRACT: host.py's two subprocess.run() sites."""
 
     def test_pid_is_alive_passes_creationflags_on_windows(self) -> None:
+        """Forces the fast path off (see the equivalent comment on
+        ``test_process_start_identity_passes_creationflags_on_windows``) so
+        this deterministically tests the ``tasklist`` fallback's
+        creationflags wiring rather than depending on whether pid 123
+        happens to be a live process on whatever host runs this suite.
+        """
         with (
             patch.object(os, "name", "nt"),
+            patch.object(host, "_win_pid_is_alive_fast", return_value=None),
             patch.object(subprocess, "run", return_value=_fake_completed("123")) as mock_run,
         ):
             assert host.pid_is_alive(123) is True
@@ -199,6 +206,7 @@ class TestReturnCodeAndErrorPropagationUnchanged:
     def test_pid_is_alive_returncode_nonzero_still_false_when_pid_absent(self) -> None:
         with (
             patch.object(os, "name", "nt"),
+            patch.object(host, "_win_pid_is_alive_fast", return_value=None),
             patch.object(subprocess, "run", return_value=_fake_completed("", returncode=1)),
         ):
             assert host.pid_is_alive(999999) is False
@@ -377,4 +385,115 @@ class TestWinProcessStartTicksFastPathSmoke:
         assert elapsed < 0.5, (
             f"expected the fast path to keep lock acquisition well under a "
             f"second; measured {elapsed:.3f}s"
+        )
+
+
+# ------------------------- AS-WIN-PSI-FASTPATH: pid_is_alive fast path -----
+
+
+class TestWinPidIsAliveFastPathPortable:
+    """Behavior that must hold on every platform, not just Windows."""
+
+    def test_non_windows_or_no_windll_returns_none(self) -> None:
+        if sys.platform == "win32":
+            pytest.skip("covered by the real success-path smoke below")
+        assert host._win_pid_is_alive_fast(os.getpid()) is None
+
+    def test_pid_is_alive_prefers_fast_path_when_it_resolves(self) -> None:
+        with (
+            patch.object(os, "name", "nt"),
+            patch.object(host, "_win_pid_is_alive_fast", return_value=True),
+            patch.object(subprocess, "run") as mock_run,
+        ):
+            assert host.pid_is_alive(1) is True
+        mock_run.assert_not_called()
+
+    def test_pid_is_alive_fast_path_can_positively_say_not_alive(self) -> None:
+        """A resolved "no" (WAIT_OBJECT_0: the process handle signaled, i.e.
+        it exited) must be trusted as-is, not treated as a decline."""
+        with (
+            patch.object(os, "name", "nt"),
+            patch.object(host, "_win_pid_is_alive_fast", return_value=False),
+            patch.object(subprocess, "run") as mock_run,
+        ):
+            assert host.pid_is_alive(1) is False
+        mock_run.assert_not_called()
+
+    def test_pid_is_alive_falls_back_when_fast_path_declines(self) -> None:
+        with (
+            patch.object(os, "name", "nt"),
+            patch.object(host, "_win_pid_is_alive_fast", return_value=None),
+            patch.object(subprocess, "run", return_value=_fake_completed("77")) as mock_run,
+        ):
+            assert host.pid_is_alive(77) is True
+        mock_run.assert_called_once()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="authentic Windows process-path smoke")
+class TestWinPidIsAliveFastPathSmoke:
+    """Real, unmocked Win32 calls against real process lifecycles."""
+
+    def test_self_pid_alive_without_any_subprocess(self) -> None:
+        with patch.object(subprocess, "run") as mock_run:
+            result = host._win_pid_is_alive_fast(os.getpid())
+        assert result is True
+        mock_run.assert_not_called()
+
+    def test_invalid_pid_declines_rather_than_asserting_dead(self) -> None:
+        """No such pid: OpenProcess itself fails, so this must defer
+        (``None``), not assert ``False`` -- `pid_is_alive`'s existing
+        `tasklist`-based answer for "never existed" stays authoritative."""
+        assert host._win_pid_is_alive_fast(999999999) is None
+
+    def test_real_child_process_lifecycle_start_to_exit(self) -> None:
+        """The actual property this exists for: alive while running, not
+        alive once it has genuinely exited -- checked against a real,
+        unmocked child process, not a simulated pid."""
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(2)"],
+            creationflags=host.no_window_creationflags(),
+        )
+        try:
+            assert host._win_pid_is_alive_fast(child.pid) is True
+        finally:
+            child.wait(timeout=10)
+        # Give the OS a moment to finish tearing the process down.
+        deadline = time.perf_counter() + 5.0
+        result = host._win_pid_is_alive_fast(child.pid)
+        while result is True and time.perf_counter() < deadline:
+            time.sleep(0.05)
+            result = host._win_pid_is_alive_fast(child.pid)
+        assert result is False
+
+    def test_negative_control_tasklist_only_path_measurably_slower(self) -> None:
+        """THE ORIGINAL PROBLEM, reproduced on demand: with the fast path
+        forced off (simulating the pre-fix code), `pid_is_alive` spawns a
+        real `tasklist.exe` child. Measured at ~0.13s per call on the
+        validation host -- far smaller than `process_start_identity`'s
+        PowerShell cost, but still ~1000x the in-process check, and the
+        same class of problem in a function that liveness-polling loops
+        call repeatedly.
+        """
+        with patch.object(host, "_win_pid_is_alive_fast", return_value=None):
+            t0 = time.perf_counter()
+            result = host.pid_is_alive(os.getpid())
+            elapsed = time.perf_counter() - t0
+        assert result is True
+        assert elapsed > 0.02, (
+            f"expected the forced-tasklist-only path to be clearly slower "
+            f"than an in-process check (measured ~0.13s during the original "
+            f"investigation); measured {elapsed:.4f}s -- either this host is "
+            f"unrepresentative or the fallback stopped calling tasklist.exe"
+        )
+
+    def test_after_fast_path_the_same_operation_is_orders_of_magnitude_faster(
+        self,
+    ) -> None:
+        t0 = time.perf_counter()
+        result = host.pid_is_alive(os.getpid())
+        elapsed = time.perf_counter() - t0
+        assert result is True
+        assert elapsed < 0.02, (
+            f"expected the fast path to keep this well under the "
+            f"tasklist-based cost; measured {elapsed:.4f}s"
         )
