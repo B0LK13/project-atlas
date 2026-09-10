@@ -118,26 +118,11 @@ def _lock_names_a_reused_pid(data: dict[str, Any], other: int) -> bool:
     return live != recorded
 
 
-def acquire_primary_lock(root: Path) -> bool:
-    """Ensure ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1. Returns False if another live primary."""
-    path = _runtime(root) / LOCK_NAME
-    path.parent.mkdir(parents=True, exist_ok=True)
-    me = os.getpid()
-    if path.is_file():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            other = int(data.get("pid", 0))
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            other = 0
-            data = {}
-        if (
-            other > 0
-            and other != me
-            and pid_is_alive(other)
-            and not _lock_names_a_reused_pid(data, other)
-        ):
-            return False
-    path.write_text(
+_PRIMARY_LOCK_ACQUIRE_ATTEMPTS: Final[int] = 8
+
+
+def _primary_lock_payload(me: int) -> bytes:
+    return (
         json.dumps(
             {
                 "pid": me,
@@ -146,10 +131,65 @@ def acquire_primary_lock(root: Path) -> bool:
             },
             indent=2,
         )
-        + "\n",
-        encoding="utf-8",
-    )
-    return True
+        + "\n"
+    ).encode("utf-8")
+
+
+def acquire_primary_lock(root: Path) -> bool:
+    """Ensure ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1. Returns False if another live primary.
+
+    The create itself is atomic (``O_CREAT | O_EXCL``), same primitive
+    ``host.acquire_supervisor_lock`` already relies on. The version this
+    replaced read the file, decided in Python, then wrote -- a plain
+    check-then-write with no OS-level exclusivity guarantee at all, so two
+    independent processes racing to become the primary governor could both
+    observe "no valid holder" and both succeed. Analytically real (this
+    function's whole contract is "at most one"), not proven to fire on any
+    particular host: the window is a handful of Python bytecode
+    instructions, far smaller than real-world process-start jitter, which
+    is exactly why check-then-write races are the class of bug that goes
+    unnoticed for a long time rather than the class that shows up in CI.
+    """
+    path = _runtime(root) / LOCK_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    me = os.getpid()
+    for _attempt in range(_PRIMARY_LOCK_ACQUIRE_ATTEMPTS):
+        try:
+            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                other = int(data.get("pid", 0))
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                other = 0
+                data = {}
+            if other == me:
+                # Idempotent re-entry: the same process re-asserting it
+                # still holds its own lock (e.g. a later reconcile tick).
+                # Not a race with itself -- overwrite in place.
+                path.write_text(_primary_lock_payload(me).decode("utf-8"), encoding="utf-8")
+                return True
+            if (
+                other > 0
+                and pid_is_alive(other)
+                and not _lock_names_a_reused_pid(data, other)
+            ):
+                return False
+            # Stale (dead, or a reused pid this record cannot vouch for):
+            # reclaim it and retry the exclusive create.
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                return False
+            continue
+        except OSError:
+            return False
+        try:
+            os.write(fd, _primary_lock_payload(me))
+            return True
+        finally:
+            os.close(fd)
+    return False
 
 
 def read_primary_lock_pid(root: Path) -> int:

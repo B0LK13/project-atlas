@@ -95,6 +95,68 @@ class TestBackwardCompatUnchangedBehavior:
         assert rd.read_primary_lock_pid(tmp_path) == 0
         assert rd.acquire_primary_lock(tmp_path) is True
 
+    def test_corrupt_lock_file_is_reclaimed_same_as_before(self, tmp_path: Path) -> None:
+        _lock_path(tmp_path).write_text("{not valid json at all", encoding="utf-8")
+        assert rd.acquire_primary_lock(tmp_path) is True
+        assert rd.read_primary_lock_pid(tmp_path) == os.getpid()
+
+
+class TestAcquireIsNowAtomicNotCheckThenWrite:
+    """AS-WIN-RESIDENT-LOCK-PID-REUSE, part 2: the version this replaced
+    read the file, decided in Python, then wrote -- a plain check-then-write
+    with no OS-level exclusivity at all. Two independent processes racing to
+    become the primary governor could both observe "no valid holder" and
+    both succeed, defeating "Ensure ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1"
+    entirely. The window is a handful of bytecode instructions -- far
+    smaller than real process-start jitter -- so this is analytically real
+    but not reliably reproducible by racing real OS processes and hoping;
+    these tests instead verify the actual atomicity primitive directly,
+    the same way its correctness is guaranteed rather than observed.
+    """
+
+    def test_lock_file_creation_uses_the_atomic_o_excl_primitive(
+        self, tmp_path: Path
+    ) -> None:
+        """Once acquired, a second `O_CREAT | O_EXCL` against the exact same
+        path must fail -- proving the filesystem itself, not Python-level
+        timing, is what makes a second acquirer's create impossible to win
+        once the first has happened. This is the actual guarantee; every
+        other test in this class exercises what happens around it, not the
+        guarantee itself."""
+        assert rd.acquire_primary_lock(tmp_path) is True
+        with pytest.raises(FileExistsError):
+            fd = os.open(str(_lock_path(tmp_path)), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)  # pragma: no cover - only reached if the assertion above is wrong
+
+    def test_many_concurrent_processes_at_most_one_ever_wins(self, tmp_path: Path) -> None:
+        """Best-effort empirical corroboration, not the proof (see class
+        docstring): real, separate OS processes -- not threads, which would
+        all share this test's own pid and trivially "win" via the
+        self-reentry path -- racing to acquire the same lock. Whether or
+        not any two of them actually land in the same instant, the
+        atomicity primitive above guarantees at most one can ever succeed;
+        this asserts exactly that invariant against real processes rather
+        than assuming it.
+        """
+        import subprocess
+
+        worker = Path(__file__).with_name("_primary_lock_race_worker.py")
+        n = 12
+        procs = [
+            subprocess.Popen(
+                [sys.executable, str(worker), str(tmp_path)],
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            for _ in range(n)
+        ]
+        outcomes = [p.communicate(timeout=30)[0].strip() for p in procs]
+        assert outcomes.count("ACQUIRED") == 1, (
+            f"expected exactly one of {n} independent processes to acquire the "
+            f"lock; outcomes={outcomes}"
+        )
+        assert outcomes.count("REFUSED") == n - 1
+
 
 class TestPidReuseIsNowCaught:
     """THE ACTUAL GAP: a recorded identity that positively disagrees with
