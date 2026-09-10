@@ -77,6 +77,14 @@ export function useStudioData() {
     if (preferenceRef.current === next) return;
     preferenceRef.current = next;
     cancelActiveRequest();
+    // Presentation selections belong to a source mode; never carry projection
+    // context into the explicit fixture/design preview.
+    if (next === "fixture") {
+      try {
+        window.localStorage.removeItem("atlas.selectedAttention");
+        window.localStorage.removeItem("atlas.selectedLane");
+      } catch { /* optional presentation state */ }
+    }
     setPreferenceState(next);
     setError(null);
     if (next === "fixture") {

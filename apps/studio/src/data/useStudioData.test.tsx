@@ -119,6 +119,17 @@ describe("useStudioData", () => {
     expect(result.current.data).toBe(fixtureEnvelope);
   });
 
+  it("clears source-bound presentation selections when entering fixture mode", async () => {
+    window.localStorage.setItem("atlas.selectedAttention", JSON.stringify({ version: 1, sourceMode: "PROJECTION", attentionId: "a", repository: "repo" }));
+    window.localStorage.setItem("atlas.selectedLane", JSON.stringify({ version: 1, sourceMode: "PROJECTION", lane: "lane", repository: "repo" }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(packet())));
+    const { result } = renderHook(() => useStudioData());
+    await waitFor(() => expect(result.current.data.source.kind).toBe("PROJECTION"));
+    act(() => result.current.setPreference("fixture"));
+    expect(window.localStorage.getItem("atlas.selectedAttention")).toBeNull();
+    expect(window.localStorage.getItem("atlas.selectedLane")).toBeNull();
+  });
+
   it("isolates fixture refreshes from the bridge", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(packet()));
     vi.stubGlobal("fetch", fetchMock);
