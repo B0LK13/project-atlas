@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_ACTION_INTENT_V1",
+  "description": "AS-STUDIO-A2-001 governed action intent (request object). REQUESTED!=CLAIMED; STUDIO_UI!=AUTHORITY; capability_claims are informational only — never authorization. Forbidden self-authorization fields must be absent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "intent_id",
+    "action_type",
+    "requested_at_utc",
+    "max_age_seconds",
+    "actor_agent_id",
+    "target_agent_id",
+    "target_lane",
+    "target_pr",
+    "source_mc_fingerprint",
+    "capability_claims",
+    "honesty"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_ACTION_INTENT_V1"
+    },
+    "intent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action_type": {
+      "type": "string",
+      "enum": ["OWNERSHIP_CLAIM"],
+      "description": "First implemented type; future types attach via atlas_studio.governance registry (schema enum widens when IMPLEMENTED)"
+    },
+    "requested_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "max_age_seconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "actor_agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_lane": {
+      "type": "string",
+      "pattern": "^pr/[1-9][0-9]*$"
+    },
+    "target_pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "target_head": {
+      "type": ["string", "null"]
+    },
+    "source_mc_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_frontier_fingerprint": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "candidate_action_id": {
+      "type": ["string", "null"]
+    },
+    "capability_claims": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Informational claims only — NOT grants or authorization"
+    },
+    "notes": {
+      "type": ["string", "null"]
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "requested_ne_claimed",
+        "preview_ne_execution",
+        "studio_ui_ne_authority",
+        "capability_claims_ne_authorization",
+        "grants_no_self_authorization"
+      ],
+      "properties": {
+        "requested_ne_claimed": { "const": true },
+        "preview_ne_execution": { "const": true },
+        "studio_ui_ne_authority": { "const": true },
+        "capability_claims_ne_authorization": { "const": true },
+        "grants_no_self_authorization": { "const": true },
+        "attention_ne_authorization": { "const": true },
+        "stale_ne_current": { "const": true }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "not": { "required": ["authorized"] }
+    },
+    {
+      "not": { "required": ["permitted"] }
+    },
+    {
+      "not": { "required": ["grants"] }
+    },
+    {
+      "not": { "required": ["policy_pass"] }
+    },
+    {
+      "not": { "required": ["authorization_granted"] }
+    },
+    {
+      "not": { "required": ["executable"] }
+    }
+  ]
+}

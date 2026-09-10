@@ -16,6 +16,13 @@ the Coder Alpha promise (“never explain your project to an AI twice”) into a
 verifiable shared-reality / digital-twin program. Coder Alpha is not erased.
 Atlas 3 must reuse, not rebuild, the foundations this document describes.
 
+**Atlas Studio (human operating surface):** `docs/atlas-3/studio/` synchronizes
+owner epic [#746](https://github.com/B0LK13/project-atlas/issues/746)
+(`AS-STUDIO-INTAKE-20260908-01`). Studio is a Linux-first projection/control
+interface over Atlas truth and the coordination control plane. It does **not**
+replace Truth Core, grant merge authority, or waive verification.
+`STUDIO_UI != AUTHORITY`.
+
 ---
 
 ## 1. User problem

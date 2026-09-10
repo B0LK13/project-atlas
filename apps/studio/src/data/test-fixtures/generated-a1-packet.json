@@ -1,0 +1,1013 @@
+{
+  "agent": null,
+  "agent_status": "NONE",
+  "attention": [
+    {
+      "attention_id": "external-iv-gated",
+      "attention_ne_authorization": true,
+      "detail": "Verifier pool unbound or absent (EXTERNAL_IV_GATED).",
+      "kind": "EXTERNAL_IV_GATED",
+      "references": [],
+      "tier": 10,
+      "title": "External IV gated / unbound"
+    },
+    {
+      "attention_id": "matrix-gate:pr/10:OWNER_DECISION",
+      "attention_ne_authorization": true,
+      "detail": "state=BLOCKED",
+      "kind": "HUMAN_GATE",
+      "references": [
+        {
+          "id": "pr/10:OWNER_DECISION",
+          "kind": "action_id"
+        }
+      ],
+      "tier": 30,
+      "title": "Human gate action: pr/10:OWNER_DECISION"
+    },
+    {
+      "attention_id": "blocked-hv:pr/11:IMPLEMENT",
+      "attention_ne_authorization": true,
+      "detail": "from F12 typed_rankings.highest_value_blocker_removal",
+      "kind": "BLOCKED_HIGH_VALUE",
+      "references": [
+        {
+          "id": "pr/11:IMPLEMENT",
+          "kind": "action_id"
+        }
+      ],
+      "tier": 40,
+      "title": "Blocked high-value: pr/11:IMPLEMENT"
+    },
+    {
+      "attention_id": "view:agents_lanes:UNKNOWN",
+      "attention_ne_authorization": true,
+      "detail": "projection_of_f15; REGISTRY_ABSENT_OR_INVALID; agent_directory_presentation_only",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "agents_lanes",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View agents_lanes is UNKNOWN"
+    },
+    {
+      "attention_id": "view:ci_iv:UNKNOWN",
+      "attention_ne_authorization": true,
+      "detail": "projection_of_f15; NO_SNAPSHOT_NODES; ci_iv_projection",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "ci_iv",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View ci_iv is UNKNOWN"
+    },
+    {
+      "attention_id": "view:evidence:UNKNOWN",
+      "attention_ne_authorization": true,
+      "detail": "projection_of_f15; EVIDENCE_STORE_ABSENT; O6_evidence_may_be_unknown; UNKNOWN_NE_HEALTHY",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "evidence",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View evidence is UNKNOWN"
+    },
+    {
+      "attention_id": "view:frontier:UNKNOWN",
+      "attention_ne_authorization": true,
+      "detail": "reuse:atlas_dag.frontier_matrix.build_frontier_matrix; PRESENTATION_ONLY; ACTION_RANK_NE_AUTHORITY",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "frontier",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View frontier is UNKNOWN"
+    },
+    {
+      "attention_id": "view:health:DEGRADED",
+      "attention_ne_authorization": true,
+      "detail": "slice_status=DEGRADED; STUDIO_UI_NE_AUTHORITY",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "health",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View health is DEGRADED"
+    },
+    {
+      "attention_id": "view:human_gates:BLOCKED",
+      "attention_ne_authorization": true,
+      "detail": "ATTENTION_NE_AUTHORIZATION; PRESENTATION_ONLY; HUMAN_GATE_ACTIONS_PRESENT; OWNER_DECISION_ACTIONS_PRESENT; EXTERNAL_IV_GATED",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "human_gates",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View human_gates is BLOCKED"
+    },
+    {
+      "attention_id": "view:ownership:UNKNOWN",
+      "attention_ne_authorization": true,
+      "detail": "projection_of_f15; NO_SNAPSHOT_NODES",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "ownership",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View ownership is UNKNOWN"
+    },
+    {
+      "attention_id": "view:postmerge_seal:UNKNOWN",
+      "attention_ne_authorization": true,
+      "detail": "projection_of_f15; SEAL_SCAN_DEFERRED; skipped_for_latency; PRESENTATION_ONLY; O6_seal_may_be_unknown; UNKNOWN_NE_HEALTHY",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "postmerge_seal",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View postmerge_seal is UNKNOWN"
+    },
+    {
+      "attention_id": "view:stacks:UNKNOWN",
+      "attention_ne_authorization": true,
+      "detail": "projection_of_f15; STACKS_ABSENT",
+      "kind": "PANEL_STATUS",
+      "references": [
+        {
+          "id": "stacks",
+          "kind": "view"
+        }
+      ],
+      "tier": 60,
+      "title": "View stacks is UNKNOWN"
+    }
+  ],
+  "freshness": {
+    "age_seconds": 0.0,
+    "generated_at_utc": "2026-09-09T12:00:00Z",
+    "max_age_seconds": 120,
+    "notes": [
+      "rebuild_each_invocation",
+      "no_durable_cache_as_truth"
+    ],
+    "snapshot_fingerprint": "c651eecd661dedf2077325984b06f2052f7e73d1edb56210814fef1aba722c80",
+    "state": "LIVE"
+  },
+  "generated_at_utc": "2026-09-09T12:00:00Z",
+  "honesty": {
+    "atlas_daemon_is_authoritative_runtime": true,
+    "attention_ne_authorization": true,
+    "grants_no_mutation": true,
+    "nested_honesty_fail_closed": true,
+    "no_cli_text_parsing_as_protocol": true,
+    "o1_in_process_atlas_dag_ro_runtime": true,
+    "o6_seal_evidence_may_be_unknown": true,
+    "reuse_before_reimplement": true,
+    "stale_ne_current": true,
+    "studio_crash_ne_agent_task_termination": true,
+    "studio_ui_ne_authority": true,
+    "ui_state_is_projection": true,
+    "unknown_ne_healthy": true
+  },
+  "mission_status": "HUMAN_ATTENTION_REQUIRED",
+  "observation_events": [],
+  "provenance": {
+    "atlas_daemon_is_authoritative_runtime": true,
+    "attention_ne_authorization": true,
+    "generator": "atlas-studio mission-control (AS-STUDIO-A1-001)",
+    "grants_no_mutation": true,
+    "nested_honesty_fail_closed": true,
+    "no_cli_text_parsing_as_protocol": true,
+    "notes": [
+      "PRESENTATION_ONLY",
+      "MISSION_CONTROL_PROJECTION",
+      "ATTENTION_NE_AUTHORIZATION",
+      "STALE_NE_CURRENT",
+      "UNKNOWN_NE_HEALTHY",
+      "NO_MUTATION_API_IN_A1",
+      "O1_IN_PROCESS_ATLAS_DAG",
+      "O6_SEAL_EVIDENCE_MAY_BE_UNKNOWN"
+    ],
+    "o1_in_process_atlas_dag_ro_runtime": true,
+    "o6_seal_evidence_may_be_unknown": true,
+    "presentation_only": true,
+    "reuse_before_reimplement": true,
+    "stale_ne_current": true,
+    "studio_crash_ne_agent_task_termination": true,
+    "studio_ui_ne_authority": true,
+    "truth_sources": [
+      "atlas_studio.snapshot.build_studio_snapshot",
+      "atlas_dag.control_view.build_global_control_view",
+      "atlas_dag.telemetry.build_coordination_telemetry",
+      "atlas_dag.telemetry.build_efficiency_metrics",
+      "atlas_dag.residuals.build_residual_registry",
+      "atlas_dag.frontier_matrix.build_frontier_matrix"
+    ],
+    "ui_state_is_projection": true,
+    "unknown_ne_healthy": true
+  },
+  "repository": "B0LK13/project-atlas",
+  "schema": "ATLAS_STUDIO_MISSION_CONTROL_V1",
+  "slice_status": "DEGRADED",
+  "snapshot_fingerprint": "c651eecd661dedf2077325984b06f2052f7e73d1edb56210814fef1aba722c80",
+  "studio_snapshot": {
+    "agent": null,
+    "agent_status": "NONE",
+    "generated_at_utc": "2026-09-09T12:00:00Z",
+    "honesty": {
+      "atlas_daemon_is_authoritative_runtime": true,
+      "grants_no_mutation": true,
+      "model_provider_ne_atlas_architecture": true,
+      "no_cli_text_parsing_as_protocol": true,
+      "no_wholesale_core_rewrite": true,
+      "reuse_before_reimplement": true,
+      "studio_crash_ne_agent_task_termination": true,
+      "studio_ui_ne_authority": true,
+      "ui_state_is_projection": true
+    },
+    "observation_events": [],
+    "panels": {
+      "control_view": {
+        "body": {
+          "agent": null,
+          "agent_status": "NONE",
+          "generated_at_utc": "2026-09-09T12:00:00Z",
+          "honesty": {
+            "aggregates_live_dag_only": true,
+            "control_view_ne_authority": true,
+            "grants_no_write_claim_dispatch_merge_iv": true,
+            "ui_ne_canonical_truth": true
+          },
+          "panels": {
+            "agents": {
+              "notes": [
+                "REGISTRY_ABSENT_OR_INVALID"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "active_count": null,
+                "agent_status": "NONE",
+                "inactive_count": null
+              }
+            },
+            "dispatch_gates": {
+              "notes": [
+                "NO_SNAPSHOT_NODES"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "frozen_lane_count": 0,
+                "waiting_ci": 0,
+                "waiting_iv": 0
+              }
+            },
+            "event_bus": {
+              "details": {
+                "by_type": {}
+              },
+              "notes": [
+                "NO_EVENTS"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "by_type_top": [],
+                "event_count": 0,
+                "invalid_events": 0
+              }
+            },
+            "evidence_health": {
+              "notes": [
+                "EVIDENCE_STORE_ABSENT"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "record_count": null
+              }
+            },
+            "frontier": {
+              "notes": [
+                "MATRIX_ABSENT"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "blocked_count": null,
+                "eligible_count": null,
+                "ineligible_count": null,
+                "parallel_set_size": null
+              }
+            },
+            "ownership": {
+              "notes": [
+                "NO_SNAPSHOT_NODES"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "ambiguous_count": 0,
+                "owned_count": 0,
+                "unowned_count": 0
+              }
+            },
+            "postmerge": {
+              "notes": [
+                "SEAL_SCAN_DEFERRED",
+                "skipped_for_latency",
+                "PRESENTATION_ONLY"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "not_ready_count": null,
+                "seal_plan_count": null
+              }
+            },
+            "residuals": {
+              "notes": [
+                "RESIDUAL_REGISTRY_ABSENT",
+                "seal_projection:deferred"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "blocked_count": null,
+                "open_count": null,
+                "runnable_count": null
+              }
+            },
+            "stacks": {
+              "notes": [
+                "STACKS_ABSENT"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "max_depth": null,
+                "restack_required_count": null,
+                "stack_record_count": null
+              }
+            },
+            "steal": {
+              "notes": [
+                "PORTFOLIO_STEAL_NO_AGENT",
+                "PRESENTATION_ONLY"
+              ],
+              "status": "OK",
+              "summary": {
+                "candidate_present": false,
+                "utilization": "PORTFOLIO"
+              }
+            },
+            "system_honesty": {
+              "notes": [
+                "CONTROL_VIEW_NE_AUTHORITY",
+                "UI_NE_CANONICAL_TRUTH",
+                "PRESENTATION_ONLY",
+                "EXTERNAL_IV_GATED"
+              ],
+              "status": "DEGRADED",
+              "summary": {
+                "authenticated_verifier_count": 0,
+                "declared_verifier_count": 2,
+                "external_iv_gated": true,
+                "honesty": {
+                  "aggregates_live_dag_only": true,
+                  "control_view_ne_authority": true,
+                  "grants_no_write_claim_dispatch_merge_iv": true,
+                  "ui_ne_canonical_truth": true
+                },
+                "pool_source": "registry"
+              }
+            },
+            "telemetry": {
+              "notes": [
+                "TELEMETRY_ABSENT"
+              ],
+              "status": "UNKNOWN",
+              "summary": {
+                "efficiency_summary": {},
+                "telemetry_fingerprint": null
+              }
+            }
+          },
+          "provenance": {
+            "aggregates_live_dag_only": true,
+            "control_view_ne_authority": true,
+            "generator": "atlas-dag control-view (FEATURE_15)",
+            "grants_no_write_claim_dispatch_merge_iv": true,
+            "notes": [
+              "seal_scan: skipped_for_latency",
+              "PRESENTATION_ONLY",
+              "CONTROL_VIEW_NE_AUTHORITY"
+            ],
+            "presentation_only": true,
+            "seal_projection": "deferred_or_skipped",
+            "seal_scan": "skipped_for_latency",
+            "truth_sources": [
+              "ATLAS_DAG_SNAPSHOT_V1 (Features 1-5)",
+              "FEATURE_03 stack topology",
+              "FEATURE_04 event bus",
+              "FEATURE_05 verifier pool (honesty only)",
+              "FEATURE_11 steal plan (presentation)",
+              "FEATURE_12 multidimensional frontier (presentation)",
+              "FEATURE_13 residual registry (events+stacks; seals deferred)",
+              "FEATURE_14 coordination telemetry (presentation)",
+              "FEATURE_15 global control view (presentation only)"
+            ],
+            "ui_ne_canonical_truth": true
+          },
+          "repository": "B0LK13/project-atlas",
+          "schema": "ATLAS_GLOBAL_CONTROL_VIEW_V1",
+          "view_fingerprint": "abfbc195b912cf05034c499b0fd5620281f03c2f381339184f699fb516424505"
+        },
+        "notes": [
+          "reuse:atlas_dag.control_view"
+        ],
+        "status": "OK"
+      },
+      "efficiency_metrics": {
+        "body": {
+          "agent": null,
+          "generated_at_utc": "2026-09-09T12:00:00Z",
+          "honesty": {
+            "derived_from_live_dag_only": true,
+            "grants_no_write_claim_dispatch_merge_iv": true,
+            "metrics_ne_authorization": true,
+            "telemetry_ne_authority": true
+          },
+          "provenance": {
+            "derived_from_live_dag_only": true,
+            "generator": "atlas-dag efficiency-metrics (FEATURE_14)",
+            "grants_no_write_claim_dispatch_merge_iv": true,
+            "metrics_ne_authorization": true,
+            "projection_of": "ATLAS_COORDINATION_TELEMETRY_V1",
+            "telemetry_ne_authority": true
+          },
+          "repository": "B0LK13/project-atlas",
+          "schema": "ATLAS_EFFICIENCY_METRICS_V1",
+          "source_telemetry_fingerprint": "5509f8d7bee2ee5744135e791add2271f93a4ca0ee2b34215369ac1e872b8768",
+          "summary": {
+            "ambiguous_count": 0,
+            "blocked_action_count": 0,
+            "blocked_reason_distinct": null,
+            "ci_duration_hours": null,
+            "claim_churn": 0,
+            "eligible_action_count": null,
+            "event_count": 0,
+            "invalid_event_count": 0,
+            "iv_duration_hours": null,
+            "owned_count": 0,
+            "owned_lane_count": 0,
+            "owner_claimed_count": 0,
+            "parallel_set_size": null,
+            "residual_blocked": null,
+            "residual_open": null,
+            "residual_runnable": null,
+            "restack_required_count": 0,
+            "safe_runnable_count": null,
+            "steal_candidate_count": null,
+            "steal_success_rate": null,
+            "unowned_count": 0,
+            "unowned_lane_count": 0,
+            "waiting_ci": 0,
+            "waiting_claim_integrity": 0,
+            "waiting_human": 0,
+            "waiting_iv": 0,
+            "waiting_owner": 0
+          }
+        },
+        "notes": [
+          "reuse:atlas_dag.telemetry.build_efficiency_metrics"
+        ],
+        "status": "OK"
+      },
+      "residuals": {
+        "body": {
+          "registry": {
+            "agent": null,
+            "agent_status": "NONE",
+            "blocked_count": 0,
+            "generated_at_utc": "2026-09-09T12:00:00Z",
+            "open_count": 0,
+            "provenance": {
+              "discovered_work_is_not_ephemeral_prose": true,
+              "generator": "atlas-dag residuals (FEATURE_13)",
+              "residual_existence_is_not_execution_authority": true,
+              "truth_sources": [
+                "FEATURE_04 event bus (#719)",
+                "FEATURE_03 stack restack projections",
+                "FEATURE_09 seal-plan required_actions",
+                "FEATURE_01/02 agent+router for derived eligibility"
+              ]
+            },
+            "registry_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "repository": "B0LK13/project-atlas",
+            "residuals": [],
+            "runnable_count": 0,
+            "schema": "ATLAS_RESIDUAL_REGISTRY_V1"
+          },
+          "summary": {
+            "residual_count": 0
+          }
+        },
+        "notes": [
+          "presentation_only"
+        ],
+        "status": "OK"
+      },
+      "telemetry": {
+        "body": {
+          "agent": null,
+          "agent_status": "NONE",
+          "categories": {
+            "blocked_reasons": {
+              "metrics": {
+                "blocked_action_count": 0,
+                "histogram": [],
+                "top_reason": null
+              },
+              "notes": [
+                "MATRIX_ABSENT_OR_INVALID"
+              ],
+              "status": "UNKNOWN"
+            },
+            "ci_iv_latency_proxy": {
+              "metrics": {
+                "ci_duration_hours": null,
+                "iv_duration_hours": null,
+                "lane_state_counts": {},
+                "pr_count": 0
+              },
+              "notes": [
+                "DISPATCH_BY_PR_ABSENT"
+              ],
+              "status": "UNKNOWN"
+            },
+            "event_bus_health": {
+              "metrics": {
+                "by_type": {},
+                "event_count": 0,
+                "invalid_events": 0
+              },
+              "notes": [
+                "NO_EVENTS"
+              ],
+              "status": "UNKNOWN"
+            },
+            "frontier_depth": {
+              "metrics": {
+                "blocked_action_count": null,
+                "eligible_action_count": null,
+                "ineligible_action_count": null,
+                "node_count": 0,
+                "parallel_set_size": null,
+                "restack_required_count": 0,
+                "safe_runnable_count": null,
+                "state_counts": {}
+              },
+              "notes": [
+                "MATRIX_ABSENT"
+              ],
+              "status": "UNKNOWN"
+            },
+            "ownership_contention": {
+              "metrics": {
+                "ambiguous_count": 0,
+                "claim_churn": 0,
+                "owned_count": 0,
+                "unowned_count": 0
+              },
+              "notes": [],
+              "status": "UNKNOWN"
+            },
+            "residual_backlog": {
+              "metrics": {
+                "blocked_count": null,
+                "by_type": {},
+                "open_count": null,
+                "runnable_count": null
+              },
+              "notes": [
+                "RESIDUAL_REGISTRY_ABSENT"
+              ],
+              "status": "UNKNOWN"
+            },
+            "steal_success": {
+              "metrics": {
+                "owner_claimed_count": 0,
+                "owner_released_count": 0,
+                "plan_only": true,
+                "success_rate": null,
+                "utilization": null
+              },
+              "notes": [
+                "PLAN_ONLY_NO_CLAIM_HISTORY",
+                "STEAL_PLAN_ABSENT"
+              ],
+              "status": "UNKNOWN"
+            },
+            "utilization": {
+              "metrics": {
+                "owned_compatible_count": null,
+                "owned_lane_count": 0,
+                "steal_candidate_present": false,
+                "unowned_lane_count": 0,
+                "utilization": "PORTFOLIO"
+              },
+              "notes": [
+                "PORTFOLIO_UTILIZATION_NO_AGENT"
+              ],
+              "status": "UNKNOWN"
+            },
+            "wait_time": {
+              "metrics": {
+                "age_hours_known": 0,
+                "age_hours_unknown": 0,
+                "max_age_hours": null,
+                "waiting_counts": {
+                  "CI": 0,
+                  "CLAIM_INTEGRITY": 0,
+                  "HUMAN": 0,
+                  "IV": 0,
+                  "OWNER": 0
+                }
+              },
+              "notes": [
+                "NO_SNAPSHOT_NODES"
+              ],
+              "status": "UNKNOWN"
+            }
+          },
+          "generated_at_utc": "2026-09-09T12:00:00Z",
+          "honesty": {
+            "derived_from_live_dag_only": true,
+            "grants_no_write_claim_dispatch_merge_iv": true,
+            "metrics_ne_authorization": true,
+            "telemetry_ne_authority": true
+          },
+          "provenance": {
+            "derived_from_live_dag_only": true,
+            "generator": "atlas-dag telemetry (FEATURE_14)",
+            "grants_no_write_claim_dispatch_merge_iv": true,
+            "metrics_ne_authorization": true,
+            "notes": [
+              "SEAL_SCAN_SKIPPED"
+            ],
+            "seal_projection": "deferred_or_skipped",
+            "telemetry_ne_authority": true,
+            "truth_sources": [
+              "ATLAS_DAG_SNAPSHOT_V1",
+              "FEATURE_03 stack topology",
+              "FEATURE_04 event bus",
+              "FEATURE_11 steal plan (presentation)",
+              "FEATURE_12 multidimensional frontier (presentation)",
+              "FEATURE_13 residual registry (events+stacks; seals deferred)"
+            ]
+          },
+          "repository": "B0LK13/project-atlas",
+          "schema": "ATLAS_COORDINATION_TELEMETRY_V1",
+          "telemetry_fingerprint": "5509f8d7bee2ee5744135e791add2271f93a4ca0ee2b34215369ac1e872b8768",
+          "truth_fingerprint": "294c77c212cca6eb19e935e893afce8db33c836ec50ba9560280072ea2b6d3df"
+        },
+        "notes": [
+          "reuse:atlas_dag.telemetry"
+        ],
+        "status": "OK"
+      }
+    },
+    "provenance": {
+      "atlas_daemon_is_authoritative_runtime": true,
+      "generator": "atlas-studio snapshot (AS-STUDIO-A0-001)",
+      "grants_no_mutation": true,
+      "model_provider_ne_atlas_architecture": true,
+      "no_cli_text_parsing_as_protocol": true,
+      "no_wholesale_core_rewrite": true,
+      "notes": [
+        "PRESENTATION_ONLY",
+        "STUDIO_UI_NE_AUTHORITY",
+        "NO_CLI_TEXT_PARSING_AS_PROTOCOL",
+        "STUDIO_CRASH_NE_AGENT_TASK_TERMINATION"
+      ],
+      "presentation_only": true,
+      "reuse_before_reimplement": true,
+      "studio_crash_ne_agent_task_termination": true,
+      "studio_ui_ne_authority": true,
+      "truth_sources": [
+        "atlas_dag.control_view.build_global_control_view",
+        "atlas_dag.telemetry.build_coordination_telemetry",
+        "atlas_dag.telemetry.build_efficiency_metrics",
+        "atlas_dag.residuals (optional)"
+      ],
+      "ui_state_is_projection": true
+    },
+    "repository": "B0LK13/project-atlas",
+    "schema": "ATLAS_STUDIO_SNAPSHOT_V1",
+    "slice_status": "DEGRADED",
+    "snapshot_fingerprint": "a7f206d2c0d7c2160d54104b4476b501ada9013d23790abde3e718e263fd3946"
+  },
+  "views": {
+    "agents_lanes": {
+      "notes": [
+        "projection_of_f15",
+        "REGISTRY_ABSENT_OR_INVALID",
+        "agent_directory_presentation_only"
+      ],
+      "references": [],
+      "source_panel": "agents",
+      "status": "UNKNOWN",
+      "summary": {
+        "active_count": null,
+        "agent_status": "NONE",
+        "inactive_count": null
+      }
+    },
+    "attention": {
+      "notes": [
+        "ATTENTION_NE_AUTHORIZATION",
+        "deterministic_ranking"
+      ],
+      "references": [
+        {
+          "id": "external-iv-gated",
+          "kind": "attention_id"
+        },
+        {
+          "id": "matrix-gate:pr/10:OWNER_DECISION",
+          "kind": "attention_id"
+        },
+        {
+          "id": "blocked-hv:pr/11:IMPLEMENT",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:agents_lanes:UNKNOWN",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:ci_iv:UNKNOWN",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:evidence:UNKNOWN",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:frontier:UNKNOWN",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:health:DEGRADED",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:human_gates:BLOCKED",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:ownership:UNKNOWN",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:postmerge_seal:UNKNOWN",
+          "kind": "attention_id"
+        },
+        {
+          "id": "view:stacks:UNKNOWN",
+          "kind": "attention_id"
+        }
+      ],
+      "source_panel": null,
+      "status": "OK",
+      "summary": {
+        "count": 12
+      }
+    },
+    "ci_iv": {
+      "notes": [
+        "projection_of_f15",
+        "NO_SNAPSHOT_NODES",
+        "ci_iv_projection"
+      ],
+      "references": [],
+      "source_panel": "dispatch_gates",
+      "status": "UNKNOWN",
+      "summary": {
+        "frozen_lane_count": 0,
+        "waiting_ci": 0,
+        "waiting_iv": 0
+      }
+    },
+    "evidence": {
+      "notes": [
+        "projection_of_f15",
+        "EVIDENCE_STORE_ABSENT",
+        "O6_evidence_may_be_unknown",
+        "UNKNOWN_NE_HEALTHY"
+      ],
+      "references": [],
+      "source_panel": "evidence_health",
+      "status": "UNKNOWN",
+      "summary": {
+        "record_count": null
+      }
+    },
+    "frontier": {
+      "action_classes": {
+        "by_action_class": {
+          "HUMAN_GATE": [],
+          "READONLY": [],
+          "VALIDATION": [],
+          "WRITE": []
+        },
+        "notes": [
+          "from_f12_by_action_class"
+        ],
+        "status": "OK"
+      },
+      "frontier_fingerprint": "67c562f769e430981fd3502504cb8457857f042ded28564e2d3d877ffe92e9d3",
+      "human_gate_action_ids": [
+        "pr/10:OWNER_DECISION"
+      ],
+      "notes": [
+        "reuse:atlas_dag.frontier_matrix.build_frontier_matrix",
+        "PRESENTATION_ONLY",
+        "ACTION_RANK_NE_AUTHORITY"
+      ],
+      "owner_decision_action_ids": [
+        "pr/10:OWNER_DECISION"
+      ],
+      "rankings": {
+        "notes": [
+          "from_f12_typed_rankings",
+          "no_studio_re_rank"
+        ],
+        "status": "OK",
+        "typed_rankings": {
+          "best_human_gate": [],
+          "best_readonly": [],
+          "best_validation": [],
+          "best_write": [],
+          "highest_value_blocker_removal": [
+            "pr/11:IMPLEMENT"
+          ]
+        }
+      },
+      "references": [
+        {
+          "id": "67c562f769e430981fd3502504cb8457857f042ded28564e2d3d877ffe92e9d3",
+          "kind": "frontier_fingerprint"
+        }
+      ],
+      "source_panel": "frontier",
+      "status": "UNKNOWN",
+      "summary": {
+        "action_count": 2,
+        "blocked_count": 2,
+        "eligible_count": 0,
+        "ineligible_count": 0,
+        "parallel_set_size": null
+      }
+    },
+    "health": {
+      "notes": [
+        "slice_status=DEGRADED",
+        "STUDIO_UI_NE_AUTHORITY"
+      ],
+      "references": [],
+      "source_panel": null,
+      "status": "DEGRADED",
+      "summary": {
+        "a0_fingerprint": "a7f206d2c0d7c2160d54104b4476b501ada9013d23790abde3e718e263fd3946",
+        "agent_status": "NONE",
+        "slice_status": "DEGRADED"
+      }
+    },
+    "human_gates": {
+      "notes": [
+        "ATTENTION_NE_AUTHORIZATION",
+        "PRESENTATION_ONLY",
+        "HUMAN_GATE_ACTIONS_PRESENT",
+        "OWNER_DECISION_ACTIONS_PRESENT",
+        "EXTERNAL_IV_GATED"
+      ],
+      "references": [
+        {
+          "id": "pr/10:OWNER_DECISION",
+          "kind": "action_id"
+        }
+      ],
+      "source_panel": "frontier+system_honesty",
+      "status": "BLOCKED",
+      "summary": {
+        "external_iv_gated": true,
+        "human_gate_action_ids": [
+          "pr/10:OWNER_DECISION"
+        ],
+        "human_gate_count": 1,
+        "owner_decision_action_ids": [
+          "pr/10:OWNER_DECISION"
+        ],
+        "owner_decision_count": 1
+      }
+    },
+    "ownership": {
+      "notes": [
+        "projection_of_f15",
+        "NO_SNAPSHOT_NODES"
+      ],
+      "references": [],
+      "source_panel": "ownership",
+      "status": "UNKNOWN",
+      "summary": {
+        "ambiguous_count": 0,
+        "owned_count": 0,
+        "unowned_count": 0
+      }
+    },
+    "postmerge_seal": {
+      "notes": [
+        "projection_of_f15",
+        "SEAL_SCAN_DEFERRED",
+        "skipped_for_latency",
+        "PRESENTATION_ONLY",
+        "O6_seal_may_be_unknown",
+        "UNKNOWN_NE_HEALTHY"
+      ],
+      "references": [],
+      "source_panel": "postmerge",
+      "status": "UNKNOWN",
+      "summary": {
+        "not_ready_count": null,
+        "seal_plan_count": null
+      }
+    },
+    "residuals": {
+      "notes": [
+        "projection_of_a0_residuals",
+        "presentation_only"
+      ],
+      "references": [],
+      "source_panel": "residuals",
+      "status": "OK",
+      "summary": {
+        "blocked_count": 0,
+        "open_count": 0,
+        "open_residual_ids": [],
+        "residual_count": 0,
+        "runnable_count": 0
+      }
+    },
+    "stacks": {
+      "notes": [
+        "projection_of_f15",
+        "STACKS_ABSENT"
+      ],
+      "references": [],
+      "source_panel": "stacks",
+      "status": "UNKNOWN",
+      "summary": {
+        "max_depth": null,
+        "restack_required_count": null,
+        "stack_record_count": null
+      }
+    },
+    "telemetry": {
+      "notes": [
+        "TELEMETRY_NE_AUTHORITY",
+        "reuse:atlas_dag.telemetry",
+        "reuse:atlas_dag.telemetry.build_efficiency_metrics"
+      ],
+      "references": [],
+      "source_panel": "telemetry",
+      "status": "OK",
+      "summary": {
+        "metrics_status": "OK",
+        "owned_lane_count": 0,
+        "telemetry_status": "OK",
+        "unowned_lane_count": 0,
+        "waiting_ci": 0,
+        "waiting_human": 0,
+        "waiting_iv": 0
+      }
+    }
+  }
+}

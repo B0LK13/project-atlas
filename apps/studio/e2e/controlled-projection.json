@@ -1,0 +1,537 @@
+{
+  "schema": "ATLAS_STUDIO_MISSION_CONTROL_V1",
+  "generated_at_utc": "2026-09-09T14:50:20Z",
+  "repository": "TEST-INPUT/studio-004",
+  "agent": null,
+  "agent_status": "NONE",
+  "slice_status": "UNKNOWN",
+  "mission_status": "UNKNOWN",
+  "snapshot_fingerprint": "0aeaaaf2a3458f81eb3a193bbe108b0350a1591b025359d3d0ecf30b2f879f83",
+  "freshness": {
+    "generated_at_utc": "2026-09-09T14:50:20Z",
+    "snapshot_fingerprint": "0aeaaaf2a3458f81eb3a193bbe108b0350a1591b025359d3d0ecf30b2f879f83",
+    "max_age_seconds": 120,
+    "age_seconds": 0.0,
+    "state": "LIVE",
+    "notes": [
+      "rebuild_each_invocation",
+      "no_durable_cache_as_truth"
+    ]
+  },
+  "honesty": {
+    "studio_ui_ne_authority": true,
+    "ui_state_is_projection": true,
+    "grants_no_mutation": true,
+    "no_cli_text_parsing_as_protocol": true,
+    "attention_ne_authorization": true,
+    "stale_ne_current": true,
+    "unknown_ne_healthy": true,
+    "nested_honesty_fail_closed": true,
+    "atlas_daemon_is_authoritative_runtime": true,
+    "studio_crash_ne_agent_task_termination": true,
+    "reuse_before_reimplement": true,
+    "o1_in_process_atlas_dag_ro_runtime": true,
+    "o6_seal_evidence_may_be_unknown": true
+  },
+  "views": {
+    "health": {
+      "status": "UNKNOWN",
+      "notes": [
+        "slice_status=UNKNOWN",
+        "STUDIO_UI_NE_AUTHORITY"
+      ],
+      "summary": {
+        "test_input_count": 7
+      },
+      "source_panel": null,
+      "references": []
+    },
+    "agents_lanes": {
+      "status": "UNKNOWN",
+      "notes": [
+        "projection_of_f15",
+        "agent_directory_presentation_only"
+      ],
+      "summary": {
+        "action_classes_hint": "pass --agent <id> to unlock F12 action classes and rankings"
+      },
+      "source_panel": "agents",
+      "references": []
+    },
+    "ownership": {
+      "status": "UNKNOWN",
+      "notes": [
+        "projection_of_f15"
+      ],
+      "summary": null,
+      "source_panel": "ownership",
+      "references": []
+    },
+    "frontier": {
+      "status": "UNKNOWN",
+      "notes": [
+        "MATRIX_ABSENT",
+        "action_classes_unknown_not_fake_healthy",
+        "counts_only_f15_insufficient_for_action_class",
+        "PRESENTATION_ONLY"
+      ],
+      "summary": null,
+      "source_panel": "frontier",
+      "action_classes": {
+        "status": "UNKNOWN",
+        "by_action_class": null,
+        "notes": [
+          "MATRIX_ABSENT",
+          "UNKNOWN_NE_HEALTHY"
+        ]
+      },
+      "rankings": {
+        "status": "UNKNOWN",
+        "typed_rankings": null,
+        "notes": [
+          "MATRIX_ABSENT",
+          "no_invented_eligibility"
+        ]
+      },
+      "human_gate_action_ids": [],
+      "owner_decision_action_ids": [],
+      "frontier_fingerprint": null,
+      "references": []
+    },
+    "human_gates": {
+      "status": "UNKNOWN",
+      "notes": [
+        "ATTENTION_NE_AUTHORIZATION",
+        "PRESENTATION_ONLY",
+        "MATRIX_ABSENT_HUMAN_GATES_UNKNOWN"
+      ],
+      "summary": {
+        "human_gate_count": null,
+        "owner_decision_count": null,
+        "external_iv_gated": false
+      },
+      "source_panel": "frontier+system_honesty",
+      "references": []
+    },
+    "residuals": {
+      "status": "UNKNOWN",
+      "notes": [
+        "projection_of_a0_residuals",
+        "residuals_not_provided"
+      ],
+      "summary": {},
+      "source_panel": "residuals",
+      "references": []
+    },
+    "ci_iv": {
+      "status": "UNKNOWN",
+      "notes": [
+        "projection_of_f15",
+        "ci_iv_projection"
+      ],
+      "summary": null,
+      "source_panel": "dispatch_gates",
+      "references": []
+    },
+    "telemetry": {
+      "status": "UNKNOWN",
+      "notes": [
+        "TELEMETRY_NE_AUTHORITY",
+        "telemetry_unavailable",
+        "metrics_unavailable"
+      ],
+      "summary": {
+        "telemetry_status": "UNKNOWN",
+        "metrics_status": "UNKNOWN"
+      },
+      "source_panel": "telemetry",
+      "references": []
+    },
+    "stacks": {
+      "status": "UNKNOWN",
+      "notes": [
+        "projection_of_f15"
+      ],
+      "summary": null,
+      "source_panel": "stacks",
+      "references": []
+    },
+    "postmerge_seal": {
+      "status": "UNKNOWN",
+      "notes": [
+        "projection_of_f15",
+        "O6_seal_may_be_unknown",
+        "UNKNOWN_NE_HEALTHY"
+      ],
+      "summary": null,
+      "source_panel": "postmerge",
+      "references": []
+    },
+    "evidence": {
+      "status": "UNKNOWN",
+      "notes": [
+        "projection_of_f15",
+        "O6_evidence_may_be_unknown",
+        "UNKNOWN_NE_HEALTHY"
+      ],
+      "summary": null,
+      "source_panel": "evidence_health",
+      "references": []
+    },
+    "attention": {
+      "status": "OK",
+      "notes": [
+        "ATTENTION_NE_AUTHORIZATION",
+        "deterministic_ranking"
+      ],
+      "summary": {
+        "count": 11
+      },
+      "source_panel": null,
+      "references": [
+        {
+          "kind": "attention_id",
+          "id": "view:agents_lanes:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:ci_iv:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:evidence:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:frontier:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:health:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:human_gates:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:ownership:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:postmerge_seal:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:residuals:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:stacks:UNKNOWN"
+        },
+        {
+          "kind": "attention_id",
+          "id": "view:telemetry:UNKNOWN"
+        }
+      ]
+    }
+  },
+  "attention": [
+    {
+      "attention_id": "view:agents_lanes:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View agents_lanes is UNKNOWN",
+      "detail": "projection_of_f15; agent_directory_presentation_only",
+      "references": [
+        {
+          "kind": "view",
+          "id": "agents_lanes"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:ci_iv:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View ci_iv is UNKNOWN",
+      "detail": "projection_of_f15; ci_iv_projection",
+      "references": [
+        {
+          "kind": "view",
+          "id": "ci_iv"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:evidence:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View evidence is UNKNOWN",
+      "detail": "projection_of_f15; O6_evidence_may_be_unknown; UNKNOWN_NE_HEALTHY",
+      "references": [
+        {
+          "kind": "view",
+          "id": "evidence"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:frontier:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View frontier is UNKNOWN",
+      "detail": "MATRIX_ABSENT; action_classes_unknown_not_fake_healthy; counts_only_f15_insufficient_for_action_class; PRESENTATION_ONLY",
+      "references": [
+        {
+          "kind": "view",
+          "id": "frontier"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:health:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View health is UNKNOWN",
+      "detail": "slice_status=UNKNOWN; STUDIO_UI_NE_AUTHORITY",
+      "references": [
+        {
+          "kind": "view",
+          "id": "health"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:human_gates:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View human_gates is UNKNOWN",
+      "detail": "ATTENTION_NE_AUTHORIZATION; PRESENTATION_ONLY; MATRIX_ABSENT_HUMAN_GATES_UNKNOWN",
+      "references": [
+        {
+          "kind": "view",
+          "id": "human_gates"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:ownership:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View ownership is UNKNOWN",
+      "detail": "projection_of_f15",
+      "references": [
+        {
+          "kind": "view",
+          "id": "ownership"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:postmerge_seal:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View postmerge_seal is UNKNOWN",
+      "detail": "projection_of_f15; O6_seal_may_be_unknown; UNKNOWN_NE_HEALTHY",
+      "references": [
+        {
+          "kind": "view",
+          "id": "postmerge_seal"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:residuals:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View residuals is UNKNOWN",
+      "detail": "projection_of_a0_residuals; residuals_not_provided",
+      "references": [
+        {
+          "kind": "view",
+          "id": "residuals"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:stacks:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View stacks is UNKNOWN",
+      "detail": "projection_of_f15",
+      "references": [
+        {
+          "kind": "view",
+          "id": "stacks"
+        }
+      ],
+      "attention_ne_authorization": true
+    },
+    {
+      "attention_id": "view:telemetry:UNKNOWN",
+      "kind": "PANEL_STATUS",
+      "tier": 60,
+      "title": "View telemetry is UNKNOWN",
+      "detail": "TELEMETRY_NE_AUTHORITY; telemetry_unavailable; metrics_unavailable",
+      "references": [
+        {
+          "kind": "view",
+          "id": "telemetry"
+        }
+      ],
+      "attention_ne_authorization": true
+    }
+  ],
+  "studio_snapshot": {
+    "schema": "ATLAS_STUDIO_SNAPSHOT_V1",
+    "generated_at_utc": "2026-09-09T14:50:20Z",
+    "repository": "TEST-INPUT/studio-004",
+    "agent": null,
+    "agent_status": "NONE",
+    "slice_status": "UNKNOWN",
+    "snapshot_fingerprint": "3c404f439f6b5f4c4a5f5826254ec8af6e3966224ea2b232cc511b4ea8cfb640",
+    "honesty": {
+      "studio_ui_ne_authority": true,
+      "ui_state_is_projection": true,
+      "grants_no_mutation": true,
+      "no_cli_text_parsing_as_protocol": true,
+      "atlas_daemon_is_authoritative_runtime": true,
+      "studio_crash_ne_agent_task_termination": true,
+      "model_provider_ne_atlas_architecture": true,
+      "no_wholesale_core_rewrite": true,
+      "reuse_before_reimplement": true
+    },
+    "panels": {
+      "control_view": {
+        "status": "UNKNOWN",
+        "notes": [
+          "control_view_unavailable"
+        ]
+      },
+      "telemetry": {
+        "status": "UNKNOWN",
+        "notes": [
+          "telemetry_unavailable"
+        ]
+      },
+      "efficiency_metrics": {
+        "status": "UNKNOWN",
+        "notes": [
+          "metrics_unavailable"
+        ]
+      },
+      "residuals": {
+        "status": "UNKNOWN",
+        "notes": [
+          "residuals_not_provided"
+        ]
+      }
+    },
+    "observation_events": [
+      {
+        "schema": "ATLAS_STUDIO_EVENT_V1",
+        "event_id": "studio-obs-slice-unknown",
+        "timestamp_utc": "2026-09-09T14:50:20Z",
+        "kind": "SLICE_STATUS",
+        "panel": null,
+        "message": "no control_view/telemetry available",
+        "honesty": {
+          "observation_ne_authority": true,
+          "studio_ui_ne_authority": true,
+          "grants_no_mutation": true
+        },
+        "payload": {
+          "slice_status": "UNKNOWN"
+        }
+      }
+    ],
+    "provenance": {
+      "generator": "atlas-studio snapshot (AS-STUDIO-A0-001)",
+      "presentation_only": true,
+      "truth_sources": [
+        "atlas_dag.control_view.build_global_control_view",
+        "atlas_dag.telemetry.build_coordination_telemetry",
+        "atlas_dag.telemetry.build_efficiency_metrics",
+        "atlas_dag.residuals (optional)"
+      ],
+      "notes": [
+        "PRESENTATION_ONLY",
+        "STUDIO_UI_NE_AUTHORITY",
+        "NO_CLI_TEXT_PARSING_AS_PROTOCOL",
+        "STUDIO_CRASH_NE_AGENT_TASK_TERMINATION"
+      ],
+      "studio_ui_ne_authority": true,
+      "ui_state_is_projection": true,
+      "grants_no_mutation": true,
+      "no_cli_text_parsing_as_protocol": true,
+      "atlas_daemon_is_authoritative_runtime": true,
+      "studio_crash_ne_agent_task_termination": true,
+      "model_provider_ne_atlas_architecture": true,
+      "no_wholesale_core_rewrite": true,
+      "reuse_before_reimplement": true
+    }
+  },
+  "observation_events": [
+    {
+      "schema": "ATLAS_STUDIO_EVENT_V1",
+      "event_id": "studio-obs-slice-unknown",
+      "timestamp_utc": "2026-09-09T14:50:20Z",
+      "kind": "SLICE_STATUS",
+      "panel": null,
+      "message": "no control_view/telemetry available",
+      "honesty": {
+        "observation_ne_authority": true,
+        "studio_ui_ne_authority": true,
+        "grants_no_mutation": true
+      },
+      "payload": {
+        "slice_status": "UNKNOWN"
+      }
+    }
+  ],
+  "provenance": {
+    "generator": "atlas-studio mission-control (AS-STUDIO-A1-001)",
+    "presentation_only": true,
+    "truth_sources": [
+      "atlas_studio.snapshot.build_studio_snapshot",
+      "atlas_dag.control_view.build_global_control_view",
+      "atlas_dag.telemetry.build_coordination_telemetry",
+      "atlas_dag.telemetry.build_efficiency_metrics",
+      "atlas_dag.residuals.build_residual_registry",
+      "atlas_dag.frontier_matrix.build_frontier_matrix"
+    ],
+    "notes": [
+      "PRESENTATION_ONLY",
+      "MISSION_CONTROL_PROJECTION",
+      "ATTENTION_NE_AUTHORIZATION",
+      "STALE_NE_CURRENT",
+      "UNKNOWN_NE_HEALTHY",
+      "NO_MUTATION_API_IN_A1",
+      "O1_IN_PROCESS_ATLAS_DAG",
+      "O6_SEAL_EVIDENCE_MAY_BE_UNKNOWN"
+    ],
+    "studio_ui_ne_authority": true,
+    "ui_state_is_projection": true,
+    "grants_no_mutation": true,
+    "no_cli_text_parsing_as_protocol": true,
+    "attention_ne_authorization": true,
+    "stale_ne_current": true,
+    "unknown_ne_healthy": true,
+    "nested_honesty_fail_closed": true,
+    "atlas_daemon_is_authoritative_runtime": true,
+    "studio_crash_ne_agent_task_termination": true,
+    "reuse_before_reimplement": true,
+    "o1_in_process_atlas_dag_ro_runtime": true,
+    "o6_seal_evidence_may_be_unknown": true
+  }
+}
