@@ -2,7 +2,7 @@
 
 Directive: `ATLAS-STUDIO-PAGE-PURPOSE-AND-USABILITY-003`
 
-Candidate: `feat/atlas-native-daily-workspace-001`, final commit `3be626b2`, built from the #781 Studio shell and existing A1/Mission Journey contracts. This is a presentation-only increment; backend composition, classification, eligibility, recovery, and authority semantics are unchanged.
+Candidate: `feat/atlas-native-daily-workspace-001`; final HEAD is supplied with delivery, built from the #781 Studio shell and existing A1/Mission Journey contracts. This is a presentation-only increment; backend composition, classification, eligibility, recovery, and authority semantics are unchanged.
 
 The shared secondary-route structure now puts a route-specific purpose question and source-shaped detail first. Global attention is represented by one compact count/link to Mission Control rather than a repeated full queue. Mission Control retains the bounded grouped queue and selected record detail. View names are deliberate (`Observed agent directory`, `Frontier action summary`, `Repository stack records`, `CI and independent verification`, `Telemetry snapshot`) while exact source values remain available in details.
 
