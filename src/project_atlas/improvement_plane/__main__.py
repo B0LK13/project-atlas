@@ -7,6 +7,11 @@ import json
 import sys
 from pathlib import Path
 
+from project_atlas.improvement_plane.compare import compare_reports
+from project_atlas.improvement_plane.errors import ImprovementPlaneError
+from project_atlas.improvement_plane.evaluate import evaluate_outcomes
+from project_atlas.improvement_plane.outcomes import load_outcomes, record_outcome
+from project_atlas.improvement_plane.readers import read_json_object
 from project_atlas.improvement_plane.report import (
     PACKAGE_ID,
     compile_improvement_report,
@@ -15,56 +20,100 @@ from project_atlas.improvement_plane.report import (
 )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="python -m project_atlas.improvement_plane",
-        description=(
-            f"{PACKAGE_ID}: read-only delivery-evidence improvement report. "
-            "Recommendations cite sources and grant no authority."
-        ),
-    )
+def _emit_error(exc: ImprovementPlaneError, *, as_json: bool) -> int:
+    if as_json:
+        sys.stdout.write(json.dumps(exc.to_dict(), indent=2, sort_keys=True) + "\n")
+    else:
+        sys.stderr.write(f"error[{exc.code}]: {exc}\n")
+    return 2
+
+
+def _add_repo_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--repo",
         type=Path,
         default=Path("."),
         help="Repository root containing docs/evidence (default: .)",
     )
-    parser.add_argument(
-        "--vault",
-        type=Path,
-        default=None,
-        help="Optional Atlas vault root for read-only ops receipt inventory",
-    )
-    parser.add_argument(
-        "--reference-utc",
-        default=None,
-        help=(
-            "Optional ISO-8601 UTC reference for waiting-age calculation. "
-            "When omitted, waiting age stays unknown."
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m project_atlas.improvement_plane",
+        description=(
+            f"{PACKAGE_ID}: observe → compare → recommend → record outcome → evaluate. "
+            "Recommendations cite sources and grant no authority."
         ),
     )
-    parser.add_argument(
-        "--output-json",
-        type=Path,
-        default=None,
-        help="Optional path for machine-readable report JSON",
+    sub = parser.add_subparsers(dest="command")
+
+    report = sub.add_parser("report", help="Compile read-only improvement report (default)")
+    _add_repo_args(report)
+    report.add_argument("--vault", type=Path, default=None)
+    report.add_argument("--reference-utc", default=None)
+    report.add_argument("--output-json", type=Path, default=None)
+    report.add_argument("--output-md", type=Path, default=None)
+    report.add_argument("--json", action="store_true")
+
+    inspect_p = sub.add_parser("inspect", help="Alias for report (read-only)")
+    _add_repo_args(inspect_p)
+    inspect_p.add_argument("--vault", type=Path, default=None)
+    inspect_p.add_argument("--reference-utc", default=None)
+    inspect_p.add_argument("--output-json", type=Path, default=None)
+    inspect_p.add_argument("--output-md", type=Path, default=None)
+    inspect_p.add_argument("--json", action="store_true")
+
+    compare = sub.add_parser("compare", help="Compare two explicit report snapshots")
+    compare.add_argument("--before", type=Path, required=True)
+    compare.add_argument("--after", type=Path, required=True)
+    compare.add_argument("--output-json", type=Path, default=None)
+    compare.add_argument("--json", action="store_true", default=True)
+
+    outcome = sub.add_parser(
+        "outcome",
+        help="Record a local recommendation outcome annotation (writes local store)",
     )
-    parser.add_argument(
-        "--output-md",
-        type=Path,
-        default=None,
-        help="Optional path for operator Markdown summary",
+    _add_repo_args(outcome)
+    outcome.add_argument("--recommendation-id", required=True)
+    outcome.add_argument(
+        "--status",
+        required=True,
+        choices=["accepted", "deferred", "attempted", "completed"],
     )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Print full JSON report to stdout (default prints Markdown summary)",
+    outcome.add_argument(
+        "--evidence-ref",
+        action="append",
+        default=[],
+        dest="evidence_refs",
+        help="Evidence reference path (repeatable)",
     )
+    outcome.add_argument("--note", default=None)
+    outcome.add_argument("--report-path", default=None)
+    outcome.add_argument("--outcomes-file", type=Path, default=None)
+    outcome.add_argument("--json", action="store_true")
+
+    evaluate = sub.add_parser(
+        "evaluate",
+        help="Evaluate recorded outcomes against before/after reports",
+    )
+    _add_repo_args(evaluate)
+    evaluate.add_argument("--before", type=Path, required=True)
+    evaluate.add_argument("--after", type=Path, required=True)
+    evaluate.add_argument("--outcomes-file", type=Path, default=None)
+    evaluate.add_argument("--output-json", type=Path, default=None)
+    evaluate.add_argument("--json", action="store_true", default=True)
+
+    # Default-compatible top-level flags when no subcommand is used.
+    parser.add_argument("--vault", type=Path, default=None)
+    parser.add_argument("--reference-utc", default=None)
+    parser.add_argument("--output-json", type=Path, default=None)
+    parser.add_argument("--output-md", type=Path, default=None)
+    parser.add_argument("--json", action="store_true")
+    _add_repo_args(parser)
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+def _run_report(args: argparse.Namespace) -> int:
     report = compile_improvement_report(
         args.repo,
         vault_path=args.vault,
@@ -80,6 +129,68 @@ def main(argv: list[str] | None = None) -> int:
     else:
         sys.stdout.write(render_markdown_summary(report))
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    command = args.command or "report"
+    as_json = bool(getattr(args, "json", False))
+
+    try:
+        if command in {"report", "inspect"}:
+            return _run_report(args)
+
+        if command == "compare":
+            before = read_json_object(args.before, label="before report")
+            after = read_json_object(args.after, label="after report")
+            result = compare_reports(
+                before,
+                after,
+                before_label=str(args.before),
+                after_label=str(args.after),
+            )
+            if args.output_json is not None:
+                write_report_files(result, output_json=args.output_json, output_md=None)
+            sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            return 0
+
+        if command == "outcome":
+            result = record_outcome(
+                args.repo,
+                recommendation_id=args.recommendation_id,
+                status=args.status,
+                evidence_refs=list(args.evidence_refs),
+                note=args.note,
+                report_path=args.report_path,
+                outcomes_file=args.outcomes_file,
+            )
+            if as_json:
+                sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            else:
+                sys.stdout.write(
+                    f"recorded {result['outcome']['status']} for "
+                    f"{result['outcome']['recommendation_id']} -> {result['path']}\n"
+                )
+            return 0
+
+        if command == "evaluate":
+            before = read_json_object(args.before, label="before report")
+            after = read_json_object(args.after, label="after report")
+            outcomes = load_outcomes(args.repo, outcomes_file=args.outcomes_file)
+            result = evaluate_outcomes(
+                before_report=before,
+                after_report=after,
+                outcomes=outcomes,
+            )
+            if args.output_json is not None:
+                write_report_files(result, output_json=args.output_json, output_md=None)
+            sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            return 0
+
+        raise ImprovementPlaneError("unknown-command", f"Unknown command: {command}")
+    except ImprovementPlaneError as exc:
+        return _emit_error(exc, as_json=as_json or command in {"compare", "evaluate", "outcome"})
 
 
 if __name__ == "__main__":

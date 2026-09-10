@@ -552,6 +552,20 @@ def analyze_data_quality_risks(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _kind_for_category(category: str) -> str:
+    if category == "owner_decision":
+        return "owner_decision"
+    if category == "recurring_failure":
+        return "engineering"
+    if category in {"evidence_freshness", "stale_evidence"}:
+        return "data_quality"
+    if category == "external_dependency":
+        return "external_dependency"
+    if category == "queued_opportunity":
+        return "engineering"
+    return "other"
+
+
 def build_recommendations(
     *,
     waiting: dict[str, Any],
@@ -570,6 +584,7 @@ def build_recommendations(
             {
                 "score": score,
                 "category": "owner_decision",
+                "recommendation_id": f"owner:{node_id}",
                 "title": f"Resolve owner gate {node_id}",
                 "observed_problem": (
                     f"Owner-gated work {node_id} is blocking progress"
@@ -601,14 +616,15 @@ def build_recommendations(
 
     for item in recurring.get("items") or []:
         score = 70 + int(item["open_occurrences"]) * 10 + int(item["source_count"]) * 5
+        fid = str(item["finding_id"])
         scored.append(
             {
                 "score": score,
                 "category": "recurring_failure",
-                "title": f"Investigate recurring failure {item['finding_id']}",
+                "recommendation_id": f"finding:{fid}",
+                "title": f"Investigate recurring failure {fid}",
                 "observed_problem": (
-                    f"Finding {item['finding_id']} recurs with "
-                    f"failure_class={item['failure_class']}"
+                    f"Finding {fid} recurs with failure_class={item['failure_class']}"
                 ),
                 "proposed_action": (
                     f"Triage failure_class={item['failure_class']} across "
@@ -636,6 +652,35 @@ def build_recommendations(
             }
         )
 
+    for item in waiting.get("items") or []:
+        if item.get("classification") != "BLOCKED_EXTERNAL":
+            continue
+        scored.append(
+            {
+                "score": 60,
+                "category": "external_dependency",
+                "recommendation_id": f"external:{item.get('id')}",
+                "title": f"Unblock external dependency {item.get('id')}",
+                "observed_problem": (
+                    f"External blocker remains: {item.get('summary') or item.get('id')}"
+                ),
+                "proposed_action": (
+                    "Arrange required external capability; this lane cannot execute it."
+                ),
+                "required_actor": "external_executor",
+                "dependency": "external_capability",
+                "scope": "external_dependency",
+                "rationale": item.get("summary") or "BLOCKED_EXTERNAL",
+                "ranking_rationale": "score=60: external blocker below owner, above hygiene",
+                "source_records": [item["source"]],
+                "uncertainty": (
+                    "External readiness is not observable from evidence packets alone."
+                ),
+                "evidence_strength": "medium",
+                "authority": "none",
+            }
+        )
+
     unknown_ts = [
         row
         for row in (freshness.get("items") or [])
@@ -646,6 +691,7 @@ def build_recommendations(
             {
                 "score": 40,
                 "category": "evidence_freshness",
+                "recommendation_id": "quality:missing-timestamps",
                 "title": "Add comparable timestamps to undated evidence packets",
                 "observed_problem": (
                     f"{len(unknown_ts)} evidence packet(s) lack parseable timestamps, "
@@ -682,6 +728,7 @@ def build_recommendations(
             {
                 "score": 55,
                 "category": "stale_evidence",
+                "recommendation_id": f"stale:{row['path']}",
                 "title": f"Refresh or close aged evidence {row['path']}",
                 "observed_problem": (
                     f"Evidence packet age is {elapsed}s vs reference_utc (>= 7d)"
@@ -719,6 +766,7 @@ def build_recommendations(
             {
                 "score": 50,
                 "category": "queued_opportunity",
+                "recommendation_id": f"queue:{item.get('classification')}:{item.get('id')}",
                 "title": f"Consider queued item {item['id']}",
                 "observed_problem": (
                     f"Queued {item['classification']} item remains in successor evidence"
@@ -741,12 +789,31 @@ def build_recommendations(
             }
         )
 
-    scored.sort(key=lambda row: (-int(row["score"]), row["title"]))
+    for row in scored:
+        row["kind"] = _kind_for_category(str(row["category"]))
+
+    # Fair selection: keep top items per kind so owner gates cannot hide engineering.
+    per_kind_caps = {
+        "owner_decision": 5,
+        "engineering": 5,
+        "data_quality": 3,
+        "external_dependency": 3,
+        "other": 2,
+    }
+    selected: list[dict[str, Any]] = []
+    for kind, cap in per_kind_caps.items():
+        bucket = [row for row in scored if row.get("kind") == kind]
+        bucket.sort(key=lambda row: (-int(row["score"]), row["title"]))
+        selected.extend(bucket[:cap])
+    selected.sort(key=lambda row: (-int(row["score"]), str(row["kind"]), row["title"]))
+
     recommendations: list[dict[str, Any]] = []
-    for index, row in enumerate(scored[:12], start=1):
+    for index, row in enumerate(selected[:16], start=1):
         recommendations.append(
             {
                 "rank": index,
+                "recommendation_id": row["recommendation_id"],
+                "kind": row["kind"],
                 "category": row["category"],
                 "title": row["title"],
                 "observed_problem": row["observed_problem"],
@@ -764,6 +831,22 @@ def build_recommendations(
             }
         )
     return recommendations
+
+
+def recommendations_by_kind(
+    recommendations: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {
+        "owner_decision": [],
+        "engineering": [],
+        "data_quality": [],
+        "external_dependency": [],
+        "other": [],
+    }
+    for rec in recommendations:
+        kind = str(rec.get("kind") or "other")
+        grouped.setdefault(kind, []).append(rec)
+    return grouped
 
 
 def collect_source_pin(records: list[dict[str, Any]]) -> dict[str, Any] | None:

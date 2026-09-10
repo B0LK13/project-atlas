@@ -167,8 +167,12 @@ def test_report_answers_operator_questions(evidence_repo: Path) -> None:
     assert all("ranking_rationale" in r for r in recs)
     assert all("scope" in r for r in recs)
     assert all("dependency" in r for r in recs)
+    assert all("recommendation_id" in r for r in recs)
+    assert all("kind" in r for r in recs)
     assert recs[0]["rank"] == 1
+    assert "engineering" in report["recommendations_by_kind"]
     assert report["candidate_identity"]["package_id"] == PACKAGE_ID
+    assert report["coverage"]["provenance"]["accepted_count"] >= 1
     assert report["measures_supported"]["owner_action_backlog"] == "supported"
     assert report["measures_supported"]["validation_coverage"] == (
         "not_instrumented_in_evidence_json_v1"

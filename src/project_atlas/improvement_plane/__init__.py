@@ -1,12 +1,4 @@
-"""AS-IMPR-PLANE-001 — read-only delivery-evidence improvement plane.
-
-Consumes existing Atlas development evidence (``docs/evidence`` JSON and
-optional vault ops receipts) and produces a machine-readable report plus a
-concise operator summary.
-
-Recommendations cite source records, state uncertainty, and propose actions.
-They grant no authority and never dispatch, retry, merge, or reprioritize.
-"""
+"""AS-IMPR-PLANE-001 — read-only delivery-evidence improvement plane."""
 
 from __future__ import annotations
 

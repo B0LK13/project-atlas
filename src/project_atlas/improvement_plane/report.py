@@ -15,8 +15,10 @@ from project_atlas.improvement_plane.analyze import (
     analyze_waiting_work,
     build_recommendations,
     collect_source_pin,
+    recommendations_by_kind,
 )
 from project_atlas.improvement_plane.readers import (
+    build_coverage_report,
     load_evidence_records,
     load_optional_ops_coverage,
 )
@@ -103,6 +105,7 @@ def compile_improvement_report(
     """Compile a read-only improvement report from available evidence."""
     root = repo_root.expanduser().resolve()
     records = load_evidence_records(root)
+    coverage = build_coverage_report(records)
     waiting = analyze_waiting_work(records)
     recurring = analyze_recurring_failures(records)
     freshness = analyze_evidence_freshness(records, reference_utc=reference_utc)
@@ -114,13 +117,21 @@ def compile_improvement_report(
         freshness=freshness,
         owner=owner,
     )
+    by_kind = recommendations_by_kind(recommendations)
     ops_coverage = load_optional_ops_coverage(vault_path)
     source_pin = collect_source_pin(records)
     runtime_pin = _git_pin(root)
     candidate = _candidate_identity(root, runtime_pin)
 
     readable = sum(1 for row in records if row.get("parse_status") == "ok")
-    unreadable = sum(1 for row in records if row.get("parse_status") != "ok")
+    unreadable = sum(
+        1
+        for row in records
+        if row.get("parse_status") not in {"ok", "excluded_self_ingest"}
+    )
+    excluded = sum(
+        1 for row in records if row.get("parse_status") == "excluded_self_ingest"
+    )
 
     return {
         "package_id": PACKAGE_ID,
@@ -157,15 +168,19 @@ def compile_improvement_report(
             "evidence_files_scanned": len(records),
             "evidence_files_readable": readable,
             "evidence_files_unreadable": unreadable,
+            "evidence_files_excluded_self_ingest": excluded,
             "vault_scanned": bool(vault_path),
+            "provenance": coverage,
             "limits": [
                 "Scans docs/evidence/**/*.json only (plus optional vault generated/ops inventory).",
+                "Lane-generated AS-IMPR-PLANE reports/outcomes are excluded (self-ingest guard).",
                 "Does not read Studio mission/session/claim/recovery state.",
                 "Does not call GitHub, CI APIs, or live PR endpoints.",
                 "Does not mutate DAG priority, dispatch agents, retry actions, or resolve gates.",
                 "Markdown evidence and WORKLOG prose are out of scope for v1.",
                 "File mtime is not used as event time.",
                 "validation_coverage is not_instrumented in evidence JSON v1.",
+                "File count alone is not evidence quality.",
             ],
         },
         "panels": {
@@ -177,6 +192,7 @@ def compile_improvement_report(
             "ops_receipt_coverage": ops_coverage,
         },
         "recommendations": recommendations,
+        "recommendations_by_kind": by_kind,
         "optional_adoption_proposal": {
             "summary": (
                 "Optional later: thin `atlas impr report` CLI wrapper calling "
