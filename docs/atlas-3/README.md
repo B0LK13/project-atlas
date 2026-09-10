@@ -25,6 +25,7 @@ Atlas 3.0 is the successor **program**, not a rewrite of Atlas 2.x.
 | [DEPENDENCY-DAG.md](DEPENDENCY-DAG.md) | Package DAG |
 | [MIGRATION-2X-TO-3X.md](MIGRATION-2X-TO-3X.md) | Compatibility and migration |
 | [PRODUCT-EXPERIENCE.md](PRODUCT-EXPERIENCE.md) | Pulse, Start, UX targets |
+| [studio/](studio/) | Atlas Studio canonical package (#746 / AS-STUDIO-INTAKE-20260908-01) |
 | [COMPETITIVE-POSITIONING.md](COMPETITIVE-POSITIONING.md) | Differentiation |
 | [ACCEPTANCE.md](ACCEPTANCE.md) | Program acceptance |
 | [HISTORICAL-INPUTS.md](HISTORICAL-INPUTS.md) | 2.x documents classified as inputs |

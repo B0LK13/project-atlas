@@ -1,0 +1,31 @@
+{
+  "schema": "ATLAS_FRONTIER_WEIGHTS_V1",
+  "weights_id": "atlas-frontier-weights-default",
+  "version": 1,
+  "description": "Repository-backed deterministic frontier weights (FEATURE_10). PRIORITY != AUTHORITY.",
+  "weights": {
+    "severity": 40.0,
+    "trust_governance": 25.0,
+    "blocker_value": 30.0,
+    "critical_path": 15.0,
+    "starvation": 10.0,
+    "evidence_freshness": 12.0,
+    "readiness": 18.0,
+    "coordination_cost": -12.0,
+    "platform_fit": 8.0,
+    "parallelism": 6.0,
+    "postmerge_closure": 20.0,
+    "risk_penalty": -25.0
+  },
+  "caps": {
+    "starvation_max_raw": 5.0,
+    "blocker_children_max": 8,
+    "coordination_depth_max": 6
+  },
+  "tiebreak": [
+    "action_class_rank",
+    "total_desc",
+    "pr_asc",
+    "lane_asc"
+  ]
+}

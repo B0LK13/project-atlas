@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_STUDIO_ACTION_EVIDENCE_V1",
+  "description": "AS-STUDIO-A2-004 read-only action evidence + recovery projection. EXECUTION_FAILURE!=SUCCESS; UNCERTAIN_MUTATION!=NOTHING_CHANGED; CAPTURE!=AUTHORITY; no auto-retry.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "outcome_class",
+    "decision",
+    "recovery",
+    "honesty",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_STUDIO_ACTION_EVIDENCE_V1"
+    },
+    "generated_at_utc": {"type": "string"},
+    "outcome_class": {
+      "type": "string",
+      "enum": [
+        "CONFIRMED_SUCCESS",
+        "REFUSED",
+        "FAILED_UNCERTAIN",
+        "FAILED_CONFIRMED_NO_MUTATION",
+        "DRY_RUN",
+        "PENDING_EXECUTE",
+        "MALFORMED",
+        "UNAVAILABLE"
+      ]
+    },
+    "decision": {
+      "type": ["object", "null"]
+    },
+    "recovery": {
+      "type": "object",
+      "required": ["actions", "auto_retry"],
+      "properties": {
+        "actions": {"type": "array"},
+        "auto_retry": {"type": "boolean"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "knowledge_spool": {
+      "type": ["object", "null"]
+    },
+    "honesty": {"type": "object"},
+    "provenance": {"type": "object"}
+  }
+}

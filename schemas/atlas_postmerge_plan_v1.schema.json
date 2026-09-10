@@ -1,0 +1,432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_POSTMERGE_PLAN_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "plan_id",
+    "generated_at_utc",
+    "pr",
+    "state",
+    "merged",
+    "candidate",
+    "main",
+    "ancestry",
+    "evidence_classification",
+    "post_merge_requirements",
+    "blockers",
+    "required_actions",
+    "seal_state",
+    "uncertainty"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_POSTMERGE_PLAN_V1"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^sealplan-[0-9a-f]{16}$"
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "repo": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "NOT_MERGED",
+        "MERGE_OBJECT_UNRESOLVED",
+        "POSTMERGE_VALIDATION_REQUIRED",
+        "POSTMERGE_RECONCILIATION_REQUIRED",
+        "READY_TO_SEAL",
+        "SEALED",
+        "UNKNOWN"
+      ]
+    },
+    "merged": {
+      "type": "object",
+      "required": [
+        "is_merged",
+        "method",
+        "merge_commit",
+        "verified",
+        "evidence"
+      ],
+      "properties": {
+        "is_merged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "merge",
+            "squash",
+            "rebase",
+            "UNKNOWN",
+            null
+          ]
+        },
+        "merge_commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "evidence_id",
+              "evidence_class",
+              "state",
+              "reasons"
+            ],
+            "properties": {
+              "evidence_id": {
+                "type": "string"
+              },
+              "evidence_class": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "type": "string"
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "reuse_proof": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "head",
+        "tree"
+      ],
+      "properties": {
+        "head": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "main": {
+      "type": "object",
+      "required": [
+        "head_at_merge",
+        "head_current",
+        "advanced_since_merge",
+        "tree_at_merge",
+        "tree_current"
+      ],
+      "properties": {
+        "head_at_merge": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "head_current": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "advanced_since_merge": {
+          "type": [
+            "boolean",
+            "string"
+          ],
+          "enum": [
+            true,
+            false,
+            "UNKNOWN"
+          ]
+        },
+        "tree_at_merge": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree_current": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "ancestry": {
+      "type": "object",
+      "required": [
+        "candidate_in_main",
+        "via"
+      ],
+      "properties": {
+        "candidate_in_main": {
+          "type": [
+            "boolean",
+            "string"
+          ],
+          "enum": [
+            true,
+            false,
+            "UNKNOWN"
+          ]
+        },
+        "via": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "stack_after_merge": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "merged_branch",
+        "retargetable",
+        "stale",
+        "parent_evidence_inherited"
+      ],
+      "properties": {
+        "merged_branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retargetable": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "stale": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "unknown": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "parent_evidence_inherited": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "evidence_classification": {
+      "type": "object",
+      "required": [
+        "transferable_by_contract",
+        "requires_rerun",
+        "invalidated_by_merge",
+        "invalidated_by_main_movement",
+        "reusable_narrow",
+        "unknown"
+      ],
+      "properties": {
+        "transferable_by_contract": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires_rerun": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "invalidated_by_merge": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "invalidated_by_main_movement": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reusable_narrow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unknown": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "post_merge_requirements": {
+      "type": "object",
+      "required": [
+        "tests_required",
+        "reconciliation_required",
+        "freeze_seal_checks",
+        "claim_consistency",
+        "ownership_release_eligible",
+        "ownership_release_reasons"
+      ],
+      "properties": {
+        "tests_required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reconciliation_required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "freeze_seal_checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "claim_consistency": {
+          "type": "string"
+        },
+        "ownership_release_eligible": {
+          "type": "boolean"
+        },
+        "ownership_release_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "required_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "seal_state": {
+      "type": "string",
+      "enum": [
+        "SEALED",
+        "READY_TO_SEAL",
+        "NOT_READY",
+        "UNKNOWN"
+      ]
+    },
+    "uncertainty": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provenance": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "READY_TO_SEAL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "blockers": {
+            "maxItems": 0
+          },
+          "uncertainty": {
+            "maxItems": 0
+          },
+          "merged": {
+            "properties": {
+              "verified": {
+                "const": true
+              },
+              "is_merged": {
+                "const": true
+              }
+            }
+          },
+          "seal_state": {
+            "const": "READY_TO_SEAL"
+          }
+        }
+      }
+    }
+  ]
+}

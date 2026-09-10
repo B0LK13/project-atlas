@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_EVIDENCE_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "evidence_id",
+    "producer",
+    "pr",
+    "head",
+    "tree",
+    "environment",
+    "covered_files",
+    "covered_contract",
+    "result",
+    "negative_control",
+    "scope",
+    "created_at_utc"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_EVIDENCE_V1"
+    },
+    "evidence_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "tree": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "environment": {
+      "type": "string",
+      "minLength": 1
+    },
+    "covered_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "covered_contract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "result": {
+      "type": "string",
+      "minLength": 1
+    },
+    "negative_control": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "NONE"
+      ]
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "CANDIDATE_WIDE",
+        "SUBSYSTEM"
+      ]
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence_class": {
+      "type": "string",
+      "enum": [
+        "exact_head_ci",
+        "formal_iv",
+        "claim_integrity",
+        "platform_validation",
+        "subsystem_tests",
+        "freeze_validation",
+        "equivalence_proof",
+        "post_merge_seal"
+      ]
+    },
+    "parent_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "main_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1
+    },
+    "test_set": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolchain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifier_principal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifier_session": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

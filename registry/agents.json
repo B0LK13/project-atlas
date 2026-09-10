@@ -1,0 +1,371 @@
+{
+  "schema": "ATLAS_AGENT_REGISTRY_V1",
+  "registry_id": "atlas-agent-registry",
+  "version": 1,
+  "agents": [
+    {
+      "agent_id": "independent-verifier",
+      "role": "independent verifier lane (formal IV)",
+      "active": false,
+      "platforms": [
+        "any"
+      ],
+      "capabilities": [
+        "READ_REPO",
+        "READ_GITHUB",
+        "RUN_TESTS",
+        "RUN_SNAPSHOT"
+      ],
+      "prohibitions": [
+        "AUTO_MERGE",
+        "HISTORY_REWRITE",
+        "FORCE_PUSH",
+        "SELF_IV",
+        "FABRICATE_VERIFIER_PRINCIPAL",
+        "BYPASS_OWNER_GATE",
+        "BYPASS_FREEZE",
+        "EMULATE_WINDOWS_VALIDATION",
+        "SUDO_SYSTEM_MUTATION",
+        "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
+        "TRUST_PROSPECTIVE_MERGE_SHA"
+      ],
+      "write_scopes": [
+        "github:issue-comment:719"
+      ],
+      "event_permissions": [
+        "IV_COMPLETED",
+        "CLAIM_INTEGRITY_CHANGED"
+      ],
+      "verification_class": "INDEPENDENT_VERIFIER",
+      "principal": null,
+      "metadata": {
+        "note": "Role description only. principal is unbound: trusted-principal authentication (ATLAS_VERIFIER_POOL_V1 binding) is a later feature. This profile alone satisfies no formal IV and cannot publish IV receipts through the registry."
+      }
+    },
+    {
+      "agent_id": "obsidian-agent",
+      "role": "Obsidian vault generation and OKF note stewardship",
+      "active": false,
+      "platforms": [
+        "linux"
+      ],
+      "capabilities": [
+        "READ_REPO",
+        "READ_GITHUB",
+        "RUN_TESTS",
+        "RUN_LINT",
+        "WRITE_CODE",
+        "WRITE_TESTS",
+        "POST_EVENTS",
+        "CLAIM_OWNERSHIP",
+        "MANAGE_WORKTREE"
+      ],
+      "prohibitions": [
+        "AUTO_MERGE",
+        "HISTORY_REWRITE",
+        "FORCE_PUSH",
+        "SELF_IV",
+        "FABRICATE_VERIFIER_PRINCIPAL",
+        "BYPASS_OWNER_GATE",
+        "BYPASS_FREEZE",
+        "EMULATE_WINDOWS_VALIDATION",
+        "SUDO_SYSTEM_MUTATION",
+        "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
+        "TRUST_PROSPECTIVE_MERGE_SHA"
+      ],
+      "write_scopes": [
+        "path:src/project_atlas",
+        "path:tests",
+        "path:schemas",
+        "github:issue-comment:719",
+        "github:pr-branch:own-lane"
+      ],
+      "event_permissions": [
+        "HEAD_MOVED",
+        "CI_COMPLETED",
+        "NEW_FINDING",
+        "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
+        "CLAIM_INTEGRITY_CHANGED",
+        "OWNER_CLAIMED",
+        "OWNER_RELEASED",
+        "HUMAN_GATE_REQUIRED",
+        "CURRENT_MAIN_COMPATIBILITY_CHANGED",
+        "MERGE_ELIGIBLE",
+        "MERGED",
+        "SEALED",
+        "ZERO_RUNNABLE_FRONTIER"
+      ],
+      "verification_class": "NONE",
+      "principal": null,
+      "metadata": {
+        "note": "Dormant logical role. AS-OBSIDIAN-CAPTURE-001 F1-F4 are sealed on main; no session is currently running."
+      }
+    },
+    {
+      "agent_id": "runtime-specialist",
+      "role": "runtime, orchestration, and process-lifecycle specialist",
+      "active": false,
+      "platforms": [
+        "linux"
+      ],
+      "capabilities": [
+        "READ_REPO",
+        "READ_GITHUB",
+        "RUN_TESTS",
+        "RUN_LINT",
+        "RUN_SNAPSHOT",
+        "WRITE_CODE",
+        "WRITE_TESTS",
+        "POST_EVENTS",
+        "CLAIM_OWNERSHIP",
+        "MANAGE_WORKTREE"
+      ],
+      "prohibitions": [
+        "AUTO_MERGE",
+        "HISTORY_REWRITE",
+        "FORCE_PUSH",
+        "SELF_IV",
+        "FABRICATE_VERIFIER_PRINCIPAL",
+        "BYPASS_OWNER_GATE",
+        "BYPASS_FREEZE",
+        "EMULATE_WINDOWS_VALIDATION",
+        "SUDO_SYSTEM_MUTATION",
+        "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
+        "TRUST_PROSPECTIVE_MERGE_SHA"
+      ],
+      "write_scopes": [
+        "path:src/project_atlas",
+        "path:tests",
+        "github:issue-comment:719",
+        "github:pr-branch:own-lane"
+      ],
+      "event_permissions": [
+        "HEAD_MOVED",
+        "CI_COMPLETED",
+        "NEW_FINDING",
+        "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
+        "CLAIM_INTEGRITY_CHANGED",
+        "OWNER_CLAIMED",
+        "OWNER_RELEASED",
+        "HUMAN_GATE_REQUIRED",
+        "CURRENT_MAIN_COMPATIBILITY_CHANGED",
+        "MERGE_ELIGIBLE",
+        "MERGED",
+        "SEALED",
+        "ZERO_RUNNABLE_FRONTIER"
+      ],
+      "verification_class": "NONE",
+      "principal": null,
+      "metadata": {
+        "note": "Dormant logical role; no session is currently running."
+      }
+    },
+    {
+      "agent_id": "tooling-specialist",
+      "role": "developer tooling, CI, and repository infrastructure",
+      "active": false,
+      "platforms": [
+        "linux"
+      ],
+      "capabilities": [
+        "READ_REPO",
+        "READ_GITHUB",
+        "RUN_TESTS",
+        "RUN_LINT",
+        "RUN_SNAPSHOT",
+        "WRITE_CODE",
+        "WRITE_TESTS",
+        "POST_EVENTS",
+        "CLAIM_OWNERSHIP",
+        "MANAGE_WORKTREE"
+      ],
+      "prohibitions": [
+        "AUTO_MERGE",
+        "HISTORY_REWRITE",
+        "FORCE_PUSH",
+        "SELF_IV",
+        "FABRICATE_VERIFIER_PRINCIPAL",
+        "BYPASS_OWNER_GATE",
+        "BYPASS_FREEZE",
+        "EMULATE_WINDOWS_VALIDATION",
+        "SUDO_SYSTEM_MUTATION",
+        "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
+        "TRUST_PROSPECTIVE_MERGE_SHA"
+      ],
+      "write_scopes": [
+        "path:scripts",
+        "path:tests",
+        "path:.github",
+        "github:issue-comment:719",
+        "github:pr-branch:own-lane"
+      ],
+      "event_permissions": [
+        "HEAD_MOVED",
+        "CI_COMPLETED",
+        "NEW_FINDING",
+        "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
+        "CLAIM_INTEGRITY_CHANGED",
+        "OWNER_CLAIMED",
+        "OWNER_RELEASED",
+        "HUMAN_GATE_REQUIRED",
+        "CURRENT_MAIN_COMPATIBILITY_CHANGED",
+        "MERGE_ELIGIBLE",
+        "MERGED",
+        "SEALED",
+        "ZERO_RUNNABLE_FRONTIER"
+      ],
+      "verification_class": "NONE",
+      "principal": null,
+      "metadata": {
+        "note": "Dormant logical role; no session is currently running."
+      }
+    },
+    {
+      "agent_id": "ubuntu-main",
+      "role": "primary coordinator / implementation agent (Ubuntu main)",
+      "active": true,
+      "platforms": [
+        "linux"
+      ],
+      "capabilities": [
+        "READ_REPO",
+        "READ_GITHUB",
+        "RUN_TESTS",
+        "RUN_LINT",
+        "RUN_SNAPSHOT",
+        "WRITE_CODE",
+        "WRITE_TESTS",
+        "POST_EVENTS",
+        "INGEST_EVIDENCE",
+        "CLAIM_OWNERSHIP",
+        "MANAGE_WORKTREE"
+      ],
+      "prohibitions": [
+        "AUTO_MERGE",
+        "HISTORY_REWRITE",
+        "FORCE_PUSH",
+        "SELF_IV",
+        "FABRICATE_VERIFIER_PRINCIPAL",
+        "BYPASS_OWNER_GATE",
+        "BYPASS_FREEZE",
+        "EMULATE_WINDOWS_VALIDATION",
+        "SUDO_SYSTEM_MUTATION",
+        "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
+        "TRUST_PROSPECTIVE_MERGE_SHA"
+      ],
+      "write_scopes": [
+        "path:scripts/atlas_dag",
+        "path:scripts/atlas-dag.py",
+        "path:tests/unit",
+        "path:schemas",
+        "path:registry",
+        "github:issue-comment:719",
+        "github:pr-branch:own-lane"
+      ],
+      "event_permissions": [
+        "HEAD_MOVED",
+        "CI_COMPLETED",
+        "NEW_FINDING",
+        "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
+        "CLAIM_INTEGRITY_CHANGED",
+        "OWNER_CLAIMED",
+        "OWNER_RELEASED",
+        "HUMAN_GATE_REQUIRED",
+        "CURRENT_MAIN_COMPATIBILITY_CHANGED",
+        "MERGE_ELIGIBLE",
+        "MERGED",
+        "SEALED",
+        "ZERO_RUNNABLE_FRONTIER"
+      ],
+      "verification_class": "IMPLEMENTATION",
+      "principal": "github:B0LK13",
+      "metadata": {
+        "session_id": "ubuntu-main-20260908",
+        "note": "Currently running session. Ownership of lane pr/723 and this feature lane is governed by #719 events and repository truth, not by this registry entry."
+      }
+    },
+    {
+      "agent_id": "windows-main",
+      "role": "Windows-native validation and Windows-lane coordination",
+      "active": false,
+      "platforms": [
+        "windows"
+      ],
+      "capabilities": [
+        "READ_REPO",
+        "READ_GITHUB",
+        "RUN_TESTS",
+        "RUN_SNAPSHOT",
+        "WRITE_CODE",
+        "WRITE_TESTS",
+        "POST_EVENTS",
+        "CLAIM_OWNERSHIP",
+        "MANAGE_WORKTREE"
+      ],
+      "prohibitions": [
+        "AUTO_MERGE",
+        "HISTORY_REWRITE",
+        "FORCE_PUSH",
+        "SELF_IV",
+        "FABRICATE_VERIFIER_PRINCIPAL",
+        "BYPASS_OWNER_GATE",
+        "BYPASS_FREEZE",
+        "SUDO_SYSTEM_MUTATION",
+        "REUSE_CERTIFICATION_AFTER_HEAD_MOVE",
+        "TRUST_PROSPECTIVE_MERGE_SHA"
+      ],
+      "write_scopes": [
+        "path:src/project_atlas",
+        "path:tests",
+        "path:scripts",
+        "github:issue-comment:719",
+        "github:pr-branch:own-lane"
+      ],
+      "event_permissions": [
+        "HEAD_MOVED",
+        "CI_COMPLETED",
+        "NEW_FINDING",
+        "FINDING_RECLASSIFIED",
+        "RESIDUAL_REGISTERED",
+        "RESIDUAL_RESOLVED",
+        "RESIDUAL_SUPERSEDED",
+        "RESIDUAL_ACCEPTED_RISK",
+        "RESIDUAL_REOPENED",
+        "CLAIM_INTEGRITY_CHANGED",
+        "OWNER_CLAIMED",
+        "OWNER_RELEASED",
+        "HUMAN_GATE_REQUIRED",
+        "CURRENT_MAIN_COMPATIBILITY_CHANGED",
+        "MERGE_ELIGIBLE",
+        "MERGED",
+        "SEALED",
+        "ZERO_RUNNABLE_FRONTIER"
+      ],
+      "verification_class": "NONE",
+      "principal": null,
+      "metadata": {
+        "note": "Dormant logical role; no Windows session is currently running. Windows-native validation remains Windows-native; this profile cannot be exercised from Ubuntu."
+      }
+    }
+  ]
+}

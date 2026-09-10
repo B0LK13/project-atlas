@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ATLAS_MULTIDIMENSIONAL_FRONTIER_V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "actions",
+    "parallel_runnable_set",
+    "frontier_fingerprint",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ATLAS_MULTIDIMENSIONAL_FRONTIER_V1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "agent": {
+      "type": ["string", "null"]
+    },
+    "agent_status": {
+      "type": "string"
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/frontier_action"
+      }
+    },
+    "eligible_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ineligible_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocked_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "by_action_class": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "parallel_runnable_set": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "typed_rankings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "frontier_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "generator",
+        "frontier_is_not_single_queue",
+        "action_rank_is_not_authority",
+        "presence_is_not_authority"
+      ],
+      "properties": {
+        "generator": {
+          "type": "string"
+        },
+        "frontier_is_not_single_queue": {
+          "const": true
+        },
+        "action_rank_is_not_authority": {
+          "const": true
+        },
+        "presence_is_not_authority": {
+          "const": true
+        },
+        "truth_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "frontier_action": {
+      "type": "object",
+      "required": [
+        "action_id",
+        "pr",
+        "lane",
+        "action_type",
+        "action_class",
+        "runnable_state",
+        "blocking_reasons",
+        "concurrency_group"
+      ],
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pr": {
+          "type": "integer"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "lifecycle_phase": {
+          "type": "string"
+        },
+        "action_type": {
+          "type": "string",
+          "enum": [
+            "IMPLEMENT",
+            "REMEDIATE",
+            "READONLY_ANALYZE",
+            "CI_DISPATCH",
+            "IV_REQUEST",
+            "POSTMERGE_VALIDATE",
+            "POSTMERGE_RECONCILE",
+            "OWNERSHIP_CLAIM",
+            "RESTACK_REQUIRED",
+            "OWNER_DECISION"
+          ]
+        },
+        "action_class": {
+          "type": "string",
+          "enum": ["WRITE", "READONLY", "VALIDATION", "HUMAN_GATE"]
+        },
+        "runnable_state": {
+          "type": "string",
+          "enum": [
+            "RUNNABLE",
+            "BLOCKED",
+            "INELIGIBLE",
+            "NOT_APPLICABLE",
+            "UNKNOWN_FAIL_CLOSED"
+          ]
+        },
+        "blocking_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "agent_eligible": {
+          "type": "boolean"
+        },
+        "capabilities_required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "platform_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ownership": {
+          "type": ["string", "null"]
+        },
+        "owner": {
+          "type": ["string", "null"]
+        },
+        "frozen": {
+          "type": "boolean"
+        },
+        "stack_state": {
+          "type": ["string", "null"]
+        },
+        "score_total": {
+          "type": ["number", "null"]
+        },
+        "concurrency_group": {
+          "type": "string"
+        },
+        "truth_fingerprint": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
