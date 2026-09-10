@@ -109,7 +109,7 @@ def build_current_projection(
     key = (repository, agent_id or "")
 
     def collect() -> dict[str, Any]:
-        return run_worker(
+        packet = run_worker(
             [
                 sys.executable,
                 str(Path(__file__).with_name("projection_worker.py")),
@@ -118,10 +118,11 @@ def build_current_projection(
             ],
             cancelled=cancelled,
         )
+        if validate_mission_control(packet):
+            raise RuntimeError("A1_SCHEMA_VALIDATION_FAILED")
+        return packet
 
     packet = projection_cache.get(key, collect)
-    if validate_mission_control(packet):
-        raise RuntimeError("A1_SCHEMA_VALIDATION_FAILED")
     return packet
 
 

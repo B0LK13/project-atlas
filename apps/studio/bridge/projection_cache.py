@@ -21,12 +21,19 @@ class _Pending(Generic[T]):
 class ProjectionCache(Generic[T, K]):
     """Cache validated packets briefly and coalesce equivalent in-flight reads."""
 
-    def __init__(self, ttl_seconds: float, clock: Callable[[], float] = time.monotonic):
+    def __init__(
+        self,
+        ttl_seconds: float,
+        failure_backoff_seconds: float = 5,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self.ttl_seconds = ttl_seconds
+        self.failure_backoff_seconds = failure_backoff_seconds
         self.clock = clock
         self._lock = threading.Lock()
         self._values: dict[K, tuple[float, T]] = {}
         self._pending: dict[K, _Pending[T]] = {}
+        self._failures: dict[K, tuple[float, BaseException]] = {}
 
     def get(self, key: K, builder: Callable[[], T]) -> T:
         now = self.clock()
@@ -34,6 +41,9 @@ class ProjectionCache(Generic[T, K]):
             cached = self._values.get(key)
             if cached and now - cached[0] <= self.ttl_seconds:
                 return cached[1]
+            failure = self._failures.get(key)
+            if failure and now < failure[0]:
+                raise failure[1]
             pending = self._pending.get(key)
             if pending is None:
                 pending = _Pending(threading.Event())
@@ -54,10 +64,12 @@ class ProjectionCache(Generic[T, K]):
             with self._lock:
                 pending.error = error
                 self._pending.pop(key, None)
+                self._failures[key] = (self.clock() + self.failure_backoff_seconds, error)
                 pending.event.set()
             raise
         with self._lock:
             self._values[key] = (self.clock(), value)
+            self._failures.pop(key, None)
             pending.value = value
             self._pending.pop(key, None)
             pending.event.set()

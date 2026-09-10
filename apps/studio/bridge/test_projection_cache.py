@@ -5,7 +5,7 @@ from projection_cache import ProjectionCache
 
 
 def test_equivalent_concurrent_reads_share_one_build():
-    cache = ProjectionCache(ttl_seconds=30)
+    cache = ProjectionCache(ttl_seconds=30, failure_backoff_seconds=0)
     started = threading.Event()
     release = threading.Event()
     calls = 0
@@ -48,7 +48,7 @@ def test_cache_expiry_and_context_isolation():
 
 
 def test_failed_build_is_not_cached():
-    cache = ProjectionCache(ttl_seconds=30)
+    cache = ProjectionCache(ttl_seconds=30, failure_backoff_seconds=0)
     calls = 0
 
     def fail():
@@ -61,4 +61,28 @@ def test_failed_build_is_not_cached():
             cache.get(("repo", "agent"), fail)
         except RuntimeError as error:
             assert str(error) == "upstream"
+    assert calls == 2
+
+
+def test_failed_build_is_suppressed_during_backoff_then_retried():
+    now = [100.0]
+    cache = ProjectionCache(ttl_seconds=30, failure_backoff_seconds=5, clock=lambda: now[0])
+    calls = 0
+
+    def fail():
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("rate limited")
+
+    for _ in range(2):
+        try:
+            cache.get(("repo", "agent"), fail)
+        except RuntimeError as error:
+            assert str(error) == "rate limited"
+    assert calls == 1
+    now[0] += 6
+    try:
+        cache.get(("repo", "agent"), fail)
+    except RuntimeError as error:
+        assert str(error) == "rate limited"
     assert calls == 2
