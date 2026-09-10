@@ -1,18 +1,22 @@
 ATLAS-DOC-RECEIPT
 
 ```yaml
-event_id: AE-AS-IMPR-PLANE-OBSERVE-TO-EVALUATE-002-20260910
-goal_id: ATLAS-IMPROVEMENT-PLANE-OBSERVE-TO-EVALUATE-002
-directive: ATLAS-IMPROVEMENT-PLANE-CONTINUATION-002
+event_id: AE-AS-IMPR-PLANE-DECISION-QUALITY-003-20260910
+goal_id: ATLAS-IMPROVEMENT-PLANE-DECISION-QUALITY-003
+directive: ATLAS-IMPROVEMENT-PLANE-DECISION-QUALITY-003
 raw_event: docs/evidence/AS-IMPR-PLANE-001-DOC-RECEIPT.md
 normalized_event: pending
 atlas_updates:
   - src/project_atlas/improvement_plane/
   - tests/unit/test_as_impr_plane_001.py
   - tests/unit/test_as_impr_plane_002_cycle.py
+  - tests/unit/test_as_impr_plane_003_decision_quality.py
+  - tests/unit/test_as_impr_plane_003_dq_corpus.py
+  - tests/fixtures/improvement_plane/dq_corpus/
   - docs/AS-IMPR-PLANE-001.md
-  - docs/evidence/AS-IMPR-PLANE-001-SOURCE-PIN.json
-  - .gitignore
+  - docs/AS-IMPR-PLANE-001-OPERATOR.md
+  - docs/evidence/AS-IMPR-PLANE-001-DQ-BASELINE-PIN.json
+  - docs/evidence/AS-IMPR-PLANE-001-DQ-AUDIT-REPORT.json
 validation: passed
 sync_state: pending
 blockers:
@@ -26,28 +30,40 @@ identity:
   branch: feat/as-impr-plane-001-delivery-evidence-report
   source_pin_head: b87b4a226f4aa8b2f669edf112aa3476454f754f
   source_pin_tree: 46d1989b026a2f15920ec5e1c78a106799bd1249
-  implementation_v1_head: 47a6ef59d5f1dcfe14d82d8cf600a39d2b2c0577
-  implementation_v1_tree: e1b63377c37924dfa3f60f8d91efdd0ae25effeb
-  implementation_v2_head: 619349986b25a5c19116aef894f48173e120ba5b
-  implementation_v2_tree: d15d90bc95d66846bbc6e02f946ff116cb5a7707
-  tip_head: 263350d08588f086a828e8134de49255f18a1c1b
-  tip_tree: b8cab867566832580aa516cc31f22c042e00b0e2
+  dq_baseline_head: a1b3ee413d1ce5bc49e9ad1c083836fb3cada8b7
+  dq_baseline_tree: 829ac6015ba3e1933ac0087b19317c81aaf25a94
+  tip_head: PENDING_COMMIT
+  tip_tree: PENDING_COMMIT
   note: >
-    Source pin is analysis baseline only. Implementation commits are lane
-    checkpoints. Tip HEAD after this receipt commit will differ from v2 if
-    only docs change. Generated DEMO-REPORT and .atlas/improvement-plane
-    outcomes are generated outputs, not source evidence or candidate code.
+    Source pin is analysis baseline only. DQ baseline freeze is a1b3ee41.
+    Tip HEAD filled after checkpoint commit. Generated *-REPORT artifacts
+    are self-ingest excluded. Outcomes under .atlas/ are local annotations.
 focused_tests:
   - tests/unit/test_as_impr_plane_001.py
   - tests/unit/test_as_impr_plane_002_cycle.py
-focused_tests_result: PASS_15
-cycle_demonstrated:
-  - inspect/report on real docs/evidence
-  - coverage/provenance + dedup decisions + self-ingest exclusion
-  - compare with resolved vs unobservable + incomplete/incompatible
-  - kind-split recommendations bound to source_records
-  - outcome annotations (local, non-authoritative)
-  - evaluate improved/persisted/regressed/inconclusive
+  - tests/unit/test_as_impr_plane_003_decision_quality.py
+  - tests/unit/test_as_impr_plane_003_dq_corpus.py
+focused_tests_result: PASS_24
+decision_quality:
+  planted_closure_ne_improved: true
+  path_continuous_closure_required: true
+  coverage_reduction_flagged: true
+  ranking_occurrence_cap: true
+  hard_counter_related_merge: true
+  outcome_journal_self_ref_rejected: true
+  evidence_bounds_and_secret_skip: true
+  corpus_controlled_transitions: 4
+recommendation_quality_assessment: >
+  Live engineering recommendations traced to path-stale-secret-results.json
+  are supported after related-counter merge (GIT_REMOTE_PASSWORD_ECHO absorbs
+  secrets.REMOTE_PASSWORD_ECHO). SYMLINK_LOOP_UNBOUNDED and secrets.SECRET_LEAKS
+  supported. Owner/external items are packet-backed proposals for other lanes —
+  not executed here. Uncertain results remain inconclusive when continuity lacks.
+demonstrated_improvement_cycle: >
+  Baseline defect: planted CLOSED / annotation could classify as improved;
+  near-duplicate hard_counters inflated priority. Fix in owned module +
+  corpus T01 shows claimed_closure + evaluate inconclusive; live report no
+  longer emits finding:secrets.REMOTE_PASSWORD_ECHO. Direct inspection agrees.
 claims:
   merge: false
   independent_verification: false
@@ -57,8 +73,11 @@ claims:
   recommendation_authority: false
   dag_gate_resolution: false
   source_evidence_mutated: false
+  everyday_trust_claim: conditional
 summary: >
-  Observe-to-evaluate cycle is implemented and demonstrated for
-  AS-IMPR-PLANE-001. Not a static-report-only deliverable. Sync to canonical
-  vault remains pending; CI/IV/merge remain not claimed.
+  Decision-quality-003 hardening accepted observe-to-evaluate as candidate and
+  repaired material false-improvement / comparability / ranking / journal /
+  consumption defects with regression corpus. Sync remains pending; CI/IV/merge
+  not claimed. Everyday trust is conditional on path-continuous evidence and
+  operator reading of claimed_closure / inconclusive.
 ```

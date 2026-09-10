@@ -200,7 +200,8 @@ def test_compare_resolved_requires_closed_finding_evidence() -> None:
             "closed_findings": {"items": []},
         },
     }
-    after_resolved = {
+    # Planted CLOSED on a new path must NOT count as resolved.
+    after_claimed = {
         "schema": "atlas.improvement-plane.report.v1",
         "panels": {
             "owner_action_backlog": {"items": []},
@@ -217,11 +218,32 @@ def test_compare_resolved_requires_closed_finding_evidence() -> None:
             },
         },
     }
+    after_resolved = {
+        "schema": "atlas.improvement-plane.report.v1",
+        "panels": {
+            "owner_action_backlog": {"items": []},
+            "recurring_failures": {"items": []},
+            "waiting_work": {"items": []},
+            "closed_findings": {
+                "items": [
+                    {
+                        "finding_id": "ENG-1",
+                        "statuses": ["CLOSED"],
+                        "sources": ["a.json"],
+                    }
+                ]
+            },
+        },
+    }
     u = compare_reports(before, after_unobs, before_label="b", after_label="a")
     assert u["counts"]["unobservable"] == 1
     assert u["counts"]["resolved"] == 0
+    claimed = compare_reports(before, after_claimed, before_label="b", after_label="a")
+    assert claimed["counts"]["resolved"] == 0
+    assert claimed["counts"]["claimed_closure"] == 1
     r = compare_reports(before, after_resolved, before_label="b", after_label="a")
     assert r["counts"]["resolved"] == 1
+    assert r["counts"]["claimed_closure"] == 0
     assert r["counts"]["unobservable"] == 0
 
 

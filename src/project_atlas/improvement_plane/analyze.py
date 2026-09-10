@@ -7,6 +7,8 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
+from project_atlas.improvement_plane.quality import capped_occurrence_score_inputs
+
 _ISO_RE = re.compile(
     r"(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))"
 )
@@ -184,6 +186,27 @@ def _finding_is_open(finding: dict[str, Any]) -> bool:
     return True
 
 
+def _related_finding_bucket_key(
+    buckets: dict[str, dict[str, Any]], finding_id: str
+) -> str | None:
+    """Return an existing bucket when hard-counter IDs echo a finding code.
+
+    Example: ``secrets.REMOTE_PASSWORD_ECHO`` relates to
+    ``GIT_REMOTE_PASSWORD_ECHO``. Prevents near-duplicate recommendations from
+    the same packet. Requires leaf length >= 8 to avoid trivial collisions.
+    """
+    if finding_id in buckets:
+        return finding_id
+    leaf = finding_id.rsplit(".", 1)[-1]
+    if len(leaf) < 8:
+        return None
+    for existing in buckets:
+        existing_leaf = existing.rsplit(".", 1)[-1]
+        if existing.endswith(leaf) or leaf.endswith(existing_leaf):
+            return existing
+    return None
+
+
 def _record_failure(
     buckets: dict[str, dict[str, Any]],
     *,
@@ -192,18 +215,27 @@ def _record_failure(
     path: str,
     open_hit: bool,
     status: str | None,
+    merge_related: bool = False,
 ) -> None:
+    key = finding_id
+    if merge_related:
+        related = _related_finding_bucket_key(buckets, finding_id)
+        if related is not None:
+            key = related
     bucket = buckets.setdefault(
-        finding_id,
+        key,
         {
-            "finding_id": finding_id,
+            "finding_id": key,
             "failure_class": failure_class,
             "occurrences": 0,
             "open_occurrences": 0,
             "sources": set(),
             "statuses": set(),
+            "related_ids": set(),
         },
     )
+    if key != finding_id:
+        bucket["related_ids"].add(finding_id)
     bucket["occurrences"] += 1
     if open_hit:
         bucket["open_occurrences"] += 1
@@ -266,6 +298,7 @@ def analyze_recurring_failures(records: list[dict[str, Any]]) -> dict[str, Any]:
                     path=path,
                     open_hit=True,
                     status="OPEN",
+                    merge_related=True,
                 )
 
     items: list[dict[str, Any]] = []
@@ -288,6 +321,7 @@ def analyze_recurring_failures(records: list[dict[str, Any]]) -> dict[str, Any]:
                 "source_count": len(bucket["sources"]),
                 "sources": sorted(bucket["sources"]),
                 "statuses": sorted(bucket["statuses"]),
+                "related_ids": sorted(bucket.get("related_ids") or []),
             }
         )
 
@@ -623,7 +657,8 @@ def _kind_for_category(category: str) -> str:
     if category == "external_dependency":
         return "external_dependency"
     if category == "queued_opportunity":
-        return "engineering"
+        # Queued READY/DERIVABLE is opportunity hygiene, not a defect signal.
+        return "other"
     return "other"
 
 
@@ -676,7 +711,11 @@ def build_recommendations(
         )
 
     for item in recurring.get("items") or []:
-        score = 70 + int(item["open_occurrences"]) * 10 + int(item["source_count"]) * 5
+        capped_occ, sources, rank_note = capped_occurrence_score_inputs(
+            open_occurrences=int(item["open_occurrences"]),
+            source_count=int(item["source_count"]),
+        )
+        score = 70 + capped_occ * 10 + sources * 15
         fid = str(item["finding_id"])
         scored.append(
             {
@@ -696,17 +735,21 @@ def build_recommendations(
                 "scope": "failure_triage",
                 "rationale": (
                     f"Observed {item['open_occurrences']} open occurrence(s) "
-                    f"({item['occurrences']} total) for the same finding id."
+                    f"across {item['source_count']} unique source(s)."
+                    + (
+                        f" Related counter IDs merged: {item['related_ids']}."
+                        if item.get("related_ids")
+                        else ""
+                    )
                 ),
                 "ranking_rationale": (
-                    f"score={score}: base 70 + 10*open_occurrences"
-                    f"({item['open_occurrences']}) + 5*source_count"
-                    f"({item['source_count']})"
+                    f"score={score}: base 70 + 10*capped_occurrences({capped_occ}) "
+                    f"+ 15*unique_sources({sources}); {rank_note}"
                 ),
                 "source_records": list(item["sources"]),
                 "uncertainty": (
-                    "Packets may duplicate the same incident; recurrence count is an "
-                    "upper bound on distinct failures."
+                    "Packets may duplicate the same incident; ranking uses unique "
+                    "sources and caps raw occurrences to limit duplicate inflation."
                 ),
                 "evidence_strength": "high" if item["source_count"] >= 2 else "medium",
                 "authority": "none",

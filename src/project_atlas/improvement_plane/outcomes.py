@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from project_atlas.improvement_plane.errors import ImprovementPlaneError
+from project_atlas.improvement_plane.readers import is_self_ingest_path
 
 OutcomeStatus = Literal["accepted", "deferred", "attempted", "completed"]
 
@@ -18,6 +19,11 @@ OUTCOME_STATUSES: frozenset[str] = frozenset(
 _REC_ID_RE = re.compile(r"^[A-Za-z0-9_.:/=+-]{1,128}$")
 
 DEFAULT_OUTCOMES_REL = Path(".atlas") / "improvement-plane" / "outcomes.jsonl"
+MAX_OUTCOMES_BYTES = 5_000_000
+SINGLE_WRITER_NOTE = (
+    "Supported usage is single-writer. Concurrent writers are not coordinated "
+    "across hosts; local advisory locking is best-effort only."
+)
 
 
 def outcomes_path(repo_root: Path, explicit: Path | None = None) -> Path:
@@ -26,17 +32,50 @@ def outcomes_path(repo_root: Path, explicit: Path | None = None) -> Path:
     return (repo_root.expanduser().resolve() / DEFAULT_OUTCOMES_REL).resolve()
 
 
+def _lock_file(handle: Any) -> None:
+    try:
+        import fcntl
+    except ImportError:
+        return
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    except OSError:
+        # Best-effort only; limitation documented in SINGLE_WRITER_NOTE.
+        return
+
+
+def _unlock_file(handle: Any) -> None:
+    try:
+        import fcntl
+    except ImportError:
+        return
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        return
+
+
 def _write_atomic_append(path: Path, line: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Append via temp+concatenate for simple atomicity of the new line write.
-    existing = path.read_text(encoding="utf-8") if path.is_file() else ""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    try:
-        tmp.write_text(existing + line, encoding="utf-8")
-        os.replace(tmp, path)
-    finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
+    path.touch(exist_ok=True)
+    with path.open("a+", encoding="utf-8") as handle:
+        _lock_file(handle)
+        try:
+            handle.seek(0, os.SEEK_END)
+            handle.write(line)
+            handle.flush()
+            os.fsync(handle.fileno())
+        finally:
+            _unlock_file(handle)
+
+
+def _next_sequence(existing: list[dict[str, Any]]) -> int:
+    seq = 0
+    for row in existing:
+        value = row.get("sequence")
+        if isinstance(value, int) and value > seq:
+            seq = value
+    return seq + 1
 
 
 def record_outcome(
@@ -71,10 +110,30 @@ def record_outcome(
                 "invalid-evidence-ref",
                 "evidence_refs entries must be non-empty strings",
             )
+        normalized = ref.replace("\\", "/")
+        if (
+            is_self_ingest_path(normalized)
+            or normalized.startswith(".atlas/improvement-plane/")
+            or "/improvement-plane/outcomes" in normalized
+        ):
+            raise ImprovementPlaneError(
+                "invalid-evidence-ref-self",
+                "evidence_refs must not point at outcome journals or lane-generated reports",
+            )
 
+    path = outcomes_path(repo_root, outcomes_file)
+    if path.is_file() and path.stat().st_size > MAX_OUTCOMES_BYTES:
+        raise ImprovementPlaneError(
+            "outcomes-store-too-large",
+            f"Outcomes store exceeds {MAX_OUTCOMES_BYTES} byte bound: {path}",
+        )
+
+    existing = load_outcomes(repo_root, outcomes_file=outcomes_file)
+    sequence = _next_sequence(existing)
     payload = {
         "schema": "atlas.improvement-plane.outcome.v1",
         "package_id": "AS-IMPR-PLANE-001",
+        "sequence": sequence,
         "recommendation_id": recommendation_id,
         "status": status,
         "evidence_refs": list(evidence_refs),
@@ -82,20 +141,20 @@ def record_outcome(
         "report_path": report_path,
         "authority": "none",
         "dag_gate_resolved": False,
+        "certifies_resolution": False,
+        "writer_model": "single_writer_best_effort_lock",
         "truth_boundary": (
             "OUTCOME ANNOTATION ≠ AUTHORITY / ANNOTATION ≠ GATE RESOLUTION / "
-            "ANNOTATION ≠ SOURCE EVIDENCE"
+            "ANNOTATION ≠ SOURCE EVIDENCE / ANNOTATION ≠ CERTIFIED IMPROVEMENT"
         ),
     }
-    path = outcomes_path(repo_root, outcomes_file)
-    # Bound store growth: refuse pathological files.
-    if path.is_file() and path.stat().st_size > 5_000_000:
-        raise ImprovementPlaneError(
-            "outcomes-store-too-large",
-            f"Outcomes store exceeds 5MB bound: {path}",
-        )
     _write_atomic_append(path, json.dumps(payload, sort_keys=True) + "\n")
-    return {"ok": True, "path": str(path), "outcome": payload}
+    return {
+        "ok": True,
+        "path": str(path),
+        "outcome": payload,
+        "writer_limitation": SINGLE_WRITER_NOTE,
+    }
 
 
 def load_outcomes(

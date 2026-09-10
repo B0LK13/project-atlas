@@ -1,0 +1,65 @@
+{
+  "directive": "ATLAS-IMPROVEMENT-PLANE-DECISION-QUALITY-003",
+  "live_report": {
+    "accepted_count": 25,
+    "engineering_ids": [
+      "finding:GIT_REMOTE_PASSWORD_ECHO",
+      "finding:SYMLINK_LOOP_UNBOUNDED",
+      "finding:secrets.SECRET_LEAKS"
+    ],
+    "recommendation_count": 11
+  },
+  "package_id": "AS-IMPR-PLANE-001",
+  "recommendation_audit": [
+    {
+      "classification": "supported",
+      "reason": "traced to findings and/or hard_counters in listed sources",
+      "recommendation_id": "finding:GIT_REMOTE_PASSWORD_ECHO",
+      "related_ids": [
+        "secrets.REMOTE_PASSWORD_ECHO"
+      ],
+      "sources": [
+        "docs/evidence/d064-overnight/path-stale-secret-results.json"
+      ]
+    },
+    {
+      "classification": "supported",
+      "reason": "traced to findings and/or hard_counters in listed sources",
+      "recommendation_id": "finding:SYMLINK_LOOP_UNBOUNDED",
+      "related_ids": [],
+      "sources": [
+        "docs/evidence/d064-overnight/path-stale-secret-results.json"
+      ]
+    },
+    {
+      "classification": "supported",
+      "reason": "traced to findings and/or hard_counters in listed sources",
+      "recommendation_id": "finding:secrets.SECRET_LEAKS",
+      "related_ids": [],
+      "sources": [
+        "docs/evidence/d064-overnight/path-stale-secret-results.json"
+      ]
+    }
+  ],
+  "schema": "atlas.improvement-plane.dq-audit.v1",
+  "self_lane_cycle": {
+    "baseline_defect": "claimed_closure and near-duplicate hard_counters could inflate improvement/priority",
+    "demo_agrees_with_inspection": true,
+    "demo_planted_compare_disposition": {
+      "changed": 0,
+      "claimed_closure": 1,
+      "new": 0,
+      "persistent": 0,
+      "resolved": 0,
+      "unobservable": 0
+    },
+    "demo_planted_evaluate": "inconclusive",
+    "note": "Association only; not Truth Core; not merge/IV authority",
+    "post_fix_engineering_ids": [
+      "finding:GIT_REMOTE_PASSWORD_ECHO",
+      "finding:SYMLINK_LOOP_UNBOUNDED",
+      "finding:secrets.SECRET_LEAKS"
+    ],
+    "recommendation": "Prevent planted CLOSED / annotation from classifying as improved; merge related hard-counters"
+  }
+}

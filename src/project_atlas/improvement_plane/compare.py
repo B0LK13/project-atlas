@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from project_atlas.improvement_plane.errors import ImprovementPlaneError
+from project_atlas.improvement_plane.quality import (
+    coverage_fingerprint,
+    path_continuous_closure,
+)
 
 
 def _snapshot_compat(report: object, *, label: str) -> dict[str, Any]:
@@ -159,15 +163,24 @@ def render_compare_summary(result: dict[str, Any]) -> str:
         f"- Before: `{result.get('before_label')}`",
         f"- After: `{result.get('after_label')}`",
         f"- Comparison status: `{result.get('comparison_status')}`",
+        f"- Coverage reduced: `{result.get('coverage_reduced')}`",
         f"- Counts: {result.get('counts')}",
         "",
-        "Honesty: disappearance ≠ resolved without positive closed-finding evidence.",
+        "Honesty: planted CLOSED on a new path is claimed_closure, not resolved.",
+        "Disappearance alone is unobservable. Annotations cannot certify resolution.",
         "",
     ]
     if result.get("comparison_status") != "ok":
         lines.append(f"Issue: {result.get('comparison_issue')}")
         return "\n".join(lines) + "\n"
-    for label in ("resolved", "new", "changed", "persistent", "unobservable"):
+    for label in (
+        "resolved",
+        "claimed_closure",
+        "new",
+        "changed",
+        "persistent",
+        "unobservable",
+    ):
         rows = result.get(label) or []
         lines.append(f"## {label} ({len(rows)})")
         for row in rows[:8]:
@@ -183,11 +196,7 @@ def compare_reports(
     before_label: str,
     after_label: str,
 ) -> dict[str, Any]:
-    """Compare two explicit snapshots.
-
-    Disappearing evidence is ``unobservable`` unless the after snapshot carries
-    explicit closed-finding evidence for the same stable id.
-    """
+    """Compare two explicit snapshots with path-continuous resolution rules."""
     before_compat = _snapshot_compat(before, label=before_label)
     after_compat = _snapshot_compat(after, label=after_label)
     statuses = {before_compat["status"], after_compat["status"]}
@@ -197,9 +206,13 @@ def compare_reports(
         "changed": 0,
         "unobservable": 0,
         "resolved": 0,
+        "claimed_closure": 0,
     }
     honesty = {
         "disappearing_ne_resolved": True,
+        "annotation_ne_resolution": True,
+        "planted_closure_ne_resolved": True,
+        "coverage_reduction_ne_improvement": True,
         "ordering_insensitive": True,
         "timestamp_noise_ignored_for_identity": True,
         "authority": "none",
@@ -212,12 +225,14 @@ def compare_reports(
             "after_label": after_label,
             "comparison_status": "incompatible",
             "comparison_issue": {"before": before_compat, "after": after_compat},
+            "coverage_reduced": None,
             "counts": empty_counts,
             "new": [],
             "persistent": [],
             "changed": [],
             "unobservable": [],
             "resolved": [],
+            "claimed_closure": [],
             "honesty": honesty,
             "note": "Comparison refused: one or both inputs are incompatible.",
         }
@@ -229,15 +244,26 @@ def compare_reports(
             "after_label": after_label,
             "comparison_status": "incomplete",
             "comparison_issue": {"before": before_compat, "after": after_compat},
+            "coverage_reduced": None,
             "counts": empty_counts,
             "new": [],
             "persistent": [],
             "changed": [],
             "unobservable": [],
             "resolved": [],
+            "claimed_closure": [],
             "honesty": honesty,
             "note": "Comparison incomplete: required panels missing on one or both inputs.",
         }
+
+    before_fp = coverage_fingerprint(before)
+    after_fp = coverage_fingerprint(after)
+    coverage_reduced = after_fp["accepted_count"] < before_fp["accepted_count"]
+    repo_mismatch = (
+        before.get("repo_root")
+        and after.get("repo_root")
+        and before.get("repo_root") != after.get("repo_root")
+    )
 
     left = _observation_map(before)
     right = _observation_map(after)
@@ -258,31 +284,54 @@ def compare_reports(
             changed.append({"id": oid, "before": a, "after": b})
 
     resolved: list[dict[str, Any]] = []
+    claimed_closure: list[dict[str, Any]] = []
     unobservable: list[dict[str, Any]] = []
     for oid in gone_ids:
-        if oid in closed_after:
+        closed = closed_after.get(oid)
+        if closed and path_continuous_closure(
+            before_sources=list(left[oid].get("sources") or []),
+            closed_sources=list(closed.get("sources") or []),
+        ):
             resolved.append(
                 {
                     "id": oid,
                     "before": left[oid],
                     "disposition": "resolved",
-                    "resolution_evidence": closed_after[oid],
+                    "trust": "path_continuous_closure",
+                    "resolution_evidence": closed,
                     "note": (
-                        "Resolved because after snapshot includes explicit "
-                        "closed-finding evidence for this id."
+                        "Resolved: CLOSED evidence overlaps a before-open source path. "
+                        "This is observed continuity, not an outcome annotation."
+                    ),
+                }
+            )
+        elif closed:
+            claimed_closure.append(
+                {
+                    "id": oid,
+                    "before": left[oid],
+                    "disposition": "claimed_closure",
+                    "trust": "operator_or_new_path_assertion",
+                    "resolution_evidence": closed,
+                    "note": (
+                        "CLOSED appears only on paths not present in the before-open "
+                        "sources. Treated as unproven claim, not resolved improvement."
                     ),
                 }
             )
         else:
+            note = (
+                "Observation absent in after snapshot; disappearing evidence is not "
+                "proof the blocker was resolved."
+            )
+            if coverage_reduced:
+                note += " After snapshot also has reduced accepted coverage."
             unobservable.append(
                 {
                     "id": oid,
                     "before": left[oid],
                     "disposition": "unobservable",
-                    "note": (
-                        "Observation absent in after snapshot; disappearing evidence is not "
-                        "proof the blocker was resolved."
-                    ),
+                    "note": note,
                 }
             )
 
@@ -292,23 +341,27 @@ def compare_reports(
         "before_label": before_label,
         "after_label": after_label,
         "comparison_status": "ok",
-        "comparison_issue": None,
+        "comparison_issue": {"repo_mismatch": bool(repo_mismatch)} if repo_mismatch else None,
+        "coverage": {"before": before_fp, "after": after_fp},
+        "coverage_reduced": coverage_reduced,
         "counts": {
             "new": len(new_ids),
             "persistent": len(persistent),
             "changed": len(changed),
             "unobservable": len(unobservable),
             "resolved": len(resolved),
+            "claimed_closure": len(claimed_closure),
         },
         "new": [{"id": oid, "after": right[oid]} for oid in new_ids],
         "persistent": persistent,
         "changed": changed,
         "unobservable": unobservable,
         "resolved": resolved,
+        "claimed_closure": claimed_closure,
         "honesty": honesty,
         "note": (
-            "resolved requires explicit closed-finding evidence in the after snapshot; "
-            "compare never invents resolution from absence alone."
+            "resolved requires path-continuous CLOSED evidence; planted CLOSED on a "
+            "new path is claimed_closure; reduced coverage cannot be treated as improvement."
         ),
     }
 

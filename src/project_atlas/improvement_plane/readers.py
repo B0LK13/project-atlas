@@ -9,8 +9,14 @@ from typing import Any
 
 from project_atlas.improvement_plane.errors import ImprovementPlaneError
 from project_atlas.ops_receipts import inventory_ops_receipts
+from project_atlas.secrets import scan_text
 
 EVIDENCE_REL = Path("docs") / "evidence"
+
+# Hard bounds for safe consumption of repository evidence as *data*.
+MAX_EVIDENCE_FILES = 500
+MAX_FILE_BYTES = 2_000_000
+MAX_TOTAL_BYTES = 20_000_000
 
 # Lane-generated artifacts must never become delivery evidence for themselves.
 _SELF_INGEST_NAME_RE = re.compile(
@@ -32,7 +38,7 @@ def is_self_ingest_path(relative_posix: str) -> bool:
         return True
     return bool(
         "/improvement-plane/" in relative_posix
-        and name.endswith(".json")
+        and name.endswith((".json", ".jsonl"))
         and ("outcomes" in name or "report" in name or "compare" in name)
     )
 
@@ -55,6 +61,9 @@ def load_evidence_records(repo_root: Path) -> list[dict[str, Any]]:
 
     Unreadable or non-object JSON is skipped with an honest skip record rather
     than fabricated content. Lane-generated reports are excluded (self-ingest).
+    Source bytes are treated as data only — never executed. Secret-bearing
+    files are rejected with metadata-only findings (matched content never
+    returned). File/count/byte bounds fail closed with skip records.
     """
     root = repo_root.expanduser().resolve()
     evidence_dir = root / EVIDENCE_REL
@@ -62,10 +71,33 @@ def load_evidence_records(repo_root: Path) -> list[dict[str, Any]]:
     if not evidence_dir.is_dir():
         return records
 
+    total_bytes = 0
+    files_seen = 0
     for path in sorted(evidence_dir.rglob("*.json")):
         if path.name.endswith(".tmp"):
             continue
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        # Bound: only under docs/evidence of this repo.
+        if not resolved.is_relative_to(evidence_dir.resolve()):
+            continue
+
+        files_seen += 1
         rel = path.relative_to(root).as_posix()
+        if files_seen > MAX_EVIDENCE_FILES:
+            records.append(
+                {
+                    "path": rel,
+                    "parse_status": "skipped_limit",
+                    "error": f"max-evidence-files-{MAX_EVIDENCE_FILES}",
+                    "payload": None,
+                    "format": "skipped_limit",
+                }
+            )
+            continue
+
         if is_self_ingest_path(rel):
             records.append(
                 {
@@ -77,9 +109,76 @@ def load_evidence_records(repo_root: Path) -> list[dict[str, Any]]:
                 }
             )
             continue
+
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            size = path.stat().st_size
+        except OSError as exc:
+            records.append(
+                {
+                    "path": rel,
+                    "parse_status": "unreadable",
+                    "error": type(exc).__name__,
+                    "payload": None,
+                    "format": "unreadable",
+                }
+            )
+            continue
+
+        if size > MAX_FILE_BYTES:
+            records.append(
+                {
+                    "path": rel,
+                    "parse_status": "skipped_limit",
+                    "error": f"max-file-bytes-{MAX_FILE_BYTES}",
+                    "payload": None,
+                    "format": "skipped_limit",
+                }
+            )
+            continue
+        if total_bytes + size > MAX_TOTAL_BYTES:
+            records.append(
+                {
+                    "path": rel,
+                    "parse_status": "skipped_limit",
+                    "error": f"max-total-bytes-{MAX_TOTAL_BYTES}",
+                    "payload": None,
+                    "format": "skipped_limit",
+                }
+            )
+            continue
+
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            records.append(
+                {
+                    "path": rel,
+                    "parse_status": "unreadable",
+                    "error": type(exc).__name__,
+                    "payload": None,
+                    "format": "unreadable",
+                }
+            )
+            continue
+
+        # Treat content as data: scan for secrets; never echo matched values.
+        secret_hits = scan_text(text)
+        if secret_hits:
+            records.append(
+                {
+                    "path": rel,
+                    "parse_status": "excluded_secrets",
+                    "error": "secret-patterns-detected",
+                    "payload": None,
+                    "format": "secrets_excluded",
+                    "secret_patterns": sorted({hit.pattern for hit in secret_hits}),
+                }
+            )
+            continue
+
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError as exc:
             records.append(
                 {
                     "path": rel,
@@ -112,6 +211,8 @@ def load_evidence_records(repo_root: Path) -> list[dict[str, Any]]:
                 }
             )
             continue
+
+        total_bytes += size
         records.append(
             {
                 "path": rel,
@@ -119,6 +220,7 @@ def load_evidence_records(repo_root: Path) -> list[dict[str, Any]]:
                 "error": None,
                 "payload": raw,
                 "format": classify_record_format(raw),
+                "content_treated_as": "data",
             }
         )
     return records
@@ -200,9 +302,16 @@ def build_coverage_report(records: list[dict[str, Any]]) -> dict[str, Any]:
         "accepted": accepted,
         "rejected": rejected,
         "missing_fields": missing_fields,
+        "bounds": {
+            "max_evidence_files": MAX_EVIDENCE_FILES,
+            "max_file_bytes": MAX_FILE_BYTES,
+            "max_total_bytes": MAX_TOTAL_BYTES,
+            "supported_root": str(EVIDENCE_REL.as_posix()),
+        },
         "note": (
             "Coverage describes parse/format acceptance only. "
-            "File count alone is not evidence quality."
+            "File count alone is not evidence quality. "
+            "Source content is consumed as data; embedded instructions are not executed."
         ),
     }
 
@@ -261,8 +370,33 @@ def read_json_object(path: Path, *, label: str) -> dict[str, Any]:
     if not target.is_file():
         raise ImprovementPlaneError("input-not-found", f"{label} not found: {target}")
     try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        size = target.stat().st_size
+    except OSError as exc:
+        raise ImprovementPlaneError(
+            "input-unreadable",
+            f"{label} is not readable: {target} ({type(exc).__name__})",
+        ) from None
+    if size > MAX_FILE_BYTES:
+        raise ImprovementPlaneError(
+            "input-too-large",
+            f"{label} exceeds {MAX_FILE_BYTES} byte bound: {target}",
+        )
+    try:
+        text = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ImprovementPlaneError(
+            "input-unreadable",
+            f"{label} is not readable JSON: {target} ({type(exc).__name__})",
+        ) from None
+    secret_hits = scan_text(text)
+    if secret_hits:
+        raise ImprovementPlaneError(
+            "input-secrets-detected",
+            f"{label} rejected: secret patterns detected (content not echoed)",
+        )
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError as exc:
         raise ImprovementPlaneError(
             "input-unreadable",
             f"{label} is not readable JSON: {target} ({type(exc).__name__})",

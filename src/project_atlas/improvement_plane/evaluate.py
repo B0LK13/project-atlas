@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from project_atlas.improvement_plane.compare import _closed_finding_map, _observation_map
+from project_atlas.improvement_plane.quality import path_continuous_closure
 
 
 def render_evaluate_summary(result: dict[str, Any]) -> str:
@@ -14,8 +15,8 @@ def render_evaluate_summary(result: dict[str, Any]) -> str:
         f"- Sample size: {result.get('sample_size')}",
         f"- Counts: {result.get('counts')}",
         "",
-        "Honesty: association ≠ causation; time saved not claimed; "
-        "disappearance ≠ resolved.",
+        "Honesty: association ≠ causation; annotations ≠ certification; "
+        "planted CLOSED on a new path is inconclusive.",
         "",
         "## Evaluations",
         "",
@@ -38,13 +39,27 @@ def evaluate_outcomes(
     """Compare annotations with later observations.
 
     Distinguishes improved / persisted / regressed / inconclusive.
-    Association only; no causation or time-saved claims.
+    A local annotation cannot certify itself as improvement.
     """
     before = _observation_map(before_report)
     after = _observation_map(after_report)
     closed_after = _closed_finding_map(after_report)
+    before_accepted = int(
+        ((before_report.get("coverage") or {}).get("provenance") or {}).get(
+            "accepted_count"
+        )
+        or 0
+    )
+    after_accepted = int(
+        ((after_report.get("coverage") or {}).get("provenance") or {}).get(
+            "accepted_count"
+        )
+        or 0
+    )
+    coverage_reduced = (
+        before_accepted > 0 and after_accepted > 0 and after_accepted < before_accepted
+    )
 
-    # Latest annotation wins per recommendation_id.
     latest: dict[str, dict[str, Any]] = {}
     for row in outcomes:
         rid = row.get("recommendation_id")
@@ -54,28 +69,35 @@ def evaluate_outcomes(
     evaluations: list[dict[str, Any]] = []
     for rid, outcome in sorted(latest.items()):
         status = outcome.get("status")
-        obs_id = rid
-        if rid.startswith("rec:"):
-            obs_id = rid[4:]
+        obs_id = rid[4:] if rid.startswith("rec:") else rid
         before_obs = before.get(obs_id)
         after_obs = after.get(obs_id)
+        closed = closed_after.get(obs_id)
+        continuous = bool(
+            before_obs
+            and closed
+            and path_continuous_closure(
+                before_sources=list(before_obs.get("sources") or []),
+                closed_sources=list(closed.get("sources") or []),
+            )
+        )
 
         if before_obs is None and after_obs is None:
-            if obs_id in closed_after and status in {"completed", "accepted"}:
-                result = "improved"
-                detail = (
-                    "Observation absent from open panels but after snapshot includes "
-                    "explicit closed-finding evidence; association only."
-                )
-            else:
-                result = "inconclusive"
-                detail = "Observation id not present in before or after open panels."
+            result = "inconclusive"
+            detail = "Observation id not present in before or after open panels."
         elif before_obs is not None and after_obs is None:
-            if obs_id in closed_after:
+            if continuous:
                 result = "improved"
                 detail = (
-                    "Open observation gone and after snapshot includes closed-finding "
-                    "evidence for the same id; association only, not causation."
+                    "Open observation gone with path-continuous CLOSED evidence; "
+                    "association only. Outcome annotation is not the certifier."
+                )
+            elif closed:
+                result = "inconclusive"
+                detail = (
+                    "CLOSED evidence exists only on new/unrelated paths "
+                    "(claimed_closure). Operator annotation cannot upgrade this "
+                    "to improved."
                 )
             else:
                 result = "inconclusive"
@@ -83,11 +105,12 @@ def evaluate_outcomes(
                     "Observation unobservable in after snapshot; disappearance is not "
                     "proof of resolution even when annotated completed."
                 )
+                if coverage_reduced:
+                    detail += " After coverage is reduced versus before."
         elif before_obs is None and after_obs is not None:
             result = "regressed"
             detail = "Observation absent before but present after (new/reopened)."
         else:
-            # both present
             assert before_obs is not None
             assert after_obs is not None
             before_occ = before_obs.get("open_occurrences")
@@ -116,7 +139,7 @@ def evaluate_outcomes(
                 result = "persisted"
                 detail = (
                     f"Annotated as {status}, but observation remains present after; "
-                    "association only, not causation."
+                    "annotation is not certification."
                 )
             elif status == "deferred":
                 result = "persisted"
@@ -138,7 +161,9 @@ def evaluate_outcomes(
                 "evidence_refs": list(outcome.get("evidence_refs") or []),
                 "before_present": before_obs is not None,
                 "after_present": after_obs is not None,
-                "closed_evidence_present": obs_id in closed_after,
+                "closed_evidence_present": closed is not None,
+                "path_continuous_closure": continuous,
+                "annotation_certified_resolution": False,
             }
         )
 
@@ -158,17 +183,20 @@ def evaluate_outcomes(
         "package_id": "AS-IMPR-PLANE-001",
         "sample_size": len(evaluations),
         "counts": counts,
+        "coverage_reduced": coverage_reduced,
         "evaluations": evaluations,
         "honesty": {
             "association_ne_causation": True,
             "time_saved_claimed": False,
             "disappearing_ne_resolved": True,
+            "annotation_ne_certification": True,
+            "planted_closure_ne_improved": True,
             "authority": "none",
             "dag_gate_resolved": False,
         },
         "note": (
-            "Evaluation reports association between annotations and later observations. "
-            "It does not claim causal productivity improvement or time saved. "
-            "`inconclusive` replaces unverifiable cases (including false resolution)."
+            "Evaluation reports association only. Local outcome annotations never "
+            "certify resolution. Path-continuous CLOSED evidence is required before "
+            "an absent observation may be classified improved."
         ),
     }
