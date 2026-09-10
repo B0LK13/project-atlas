@@ -935,8 +935,13 @@ def human_summary(ev: dict[str, Any]) -> str:
             add(f"   interpreter{ep['interpreter']}")
             add(f"   origin     {ep['worker_import_origin']}")
             add(f"   isolated={ep['worker_isolated']} no_user_site={ep['worker_no_user_site']}")
+            ig = ep.get("integrity") or {}
+            add(f"   integrity  {ig.get('record_files_verified')} RECORD files hashed, "
+                f"{ig.get('dependency_versions_recorded')} dep versions pinned, "
+                f"bytecode purged")
             add(f"   covers     {', '.join(ep['covers'])}")
-            add(f"   NOT proven {', '.join(ep['does_not_cover'])}")
+            add(f"   NOT proven {', '.join(ep['does_not_cover'])}; "
+                f"dependency file contents not hashed")
         else:
             add(f"PROVENANCE  NOT ESTABLISHED -- {str(ep.get('error'))[:200]}")
         add("")
@@ -1092,6 +1097,15 @@ def main(argv: list[str] | None = None) -> int:
             "distribution_version": probe["version"],
             "covers": ["project_atlas", "atlas_contracts"],
             "does_not_cover": ["atlas_studio (lives in scripts/, not in the wheel)"],
+            "integrity": {
+                "record_files_verified": (probe.get("manifest") or {}).get("checked"),
+                "record_mismatched": (probe.get("manifest") or {}).get("n_mismatched"),
+                "record_missing": (probe.get("manifest") or {}).get("n_missing"),
+                "dependency_versions_recorded": len(
+                    (probe.get("manifest") or {}).get("dependencies") or {}),
+                "bytecode": "purged at verification; .pyc carries no digest in RECORD",
+                "dependency_file_contents_hashed": False,
+            },
         }
         ev["execution_provenance"]["env_cache"] = str(cache)
         ev["execution_provenance"]["env_cache_owned_by_run"] = res.env_cache is not None

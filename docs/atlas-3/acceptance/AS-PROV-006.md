@@ -48,11 +48,62 @@ method, distribution version, worker import origin, isolation flags.
 **Fail closed.** If identity cannot be established the run exits **3** having
 executed nothing. There is no fallback to the caller's environment.
 
-## Strongest positive evidence
+## What the claim covers, precisely
 
-The installed `orchestration/mission/execution.py` is **byte-identical** to
-`git show HEAD:src/project_atlas/orchestration/mission/execution.py`. Not a
-version string or a path — the bytes.
+Byte equality for one file proves that file. Here is what establishes the
+identity of everything else, measured on a provisioned environment rather than
+asserted.
+
+Warm reuse verifies pip's own `RECORD` for the installed distribution:
+
+| RECORD lines | 971 |
+|---|---|
+| carry a sha256 | 557 |
+| `.pyc`, no digest written by pip | 413 |
+| outside site-packages (`../../../bin/atlas`) | 1 |
+| **hash-verified every run** | **556** |
+
+Those 556 break down as **537 `project_atlas` modules**, **12 `atlas_contracts`
+modules**, and **7 `project_atlas-2.0.0.dist-info` metadata files** — so the
+candidate's modules *and* its installed distribution metadata are covered, not
+just one file.
+
+**Dependencies: versions only.** All 13 installed distributions are recorded in
+the marker and compared on warm reuse, so a changed `pydantic` fails closed. But
+their *file contents* are not hashed. An unchanged source tree does not imply an
+unchanged environment, and this is where that stops being checked.
+
+**Bytecode is not in RECORD, and that mattered.** pip writes no digest for
+`.pyc`, and CPython's staleness check is a forgeable source mtime+size stamp. A
+`.pyc` compiled from modified source and stamped with the real `.py`'s mtime and
+size **executed**, while RECORD verification reported zero mismatches. So
+`purge_bytecode` removes `__pycache__` at every verification point, forcing
+compilation from the hash-verified sources. The regression test asserts the
+attack works *before* asserting the repair.
+
+**Not covered at all:** `atlas_studio` — it lives in `scripts/` and is not in
+the wheel (verified by inspecting the wheel). `--probe-boundaries` also still
+runs in the caller's environment.
+
+A cache key, a path, a version string, or a parent-side check is **not** worker
+provenance and is never presented as such.
+
+## Cache lifecycle — five risks, each reproduced before repair
+
+| Risk | Was | Now |
+|---|---|---|
+| env modified after provisioning | warm reuse **accepted** the tampered env | 556 RECORD hashes checked; tampered env is a cache miss and is rebuilt |
+| provisioning interrupted | markerless `env-*` published + orphan build dir; prune reclaimed neither | built under `.staging-*`, published with one `os.replace`; nothing partial is ever published; prune sweeps staging |
+| concurrent provisioning | 3 callers raced in one venv; **2 died** in `ensurepip` with a raw `CalledProcessError` | serialised by a kernel lock per key; **3/3 succeed**, one env; builder errors wrapped |
+| prune while in use | deleted a live environment | skips any key whose lock is held, and reports it |
+| deps differ, tree unchanged | invisible | 13 versions recorded; drift fails closed |
+
+Markerless `env-*` directories are deliberately **not** reclaimed: atomic publish
+means this module can no longer produce one, so deleting it would be a guess
+about someone else's directory.
+
+Cost: cold **5.6 s**, warm **0.17 s** (probe + 556 hashes + dependency compare +
+bytecode purge).
 
 ## Negative evidence — the claim is falsifiable
 
