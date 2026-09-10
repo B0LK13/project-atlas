@@ -48,3 +48,7 @@ The screenshot is WebDriver webview evidence, not compositor-decoration or AT-SP
 The real projection depends on GitHub API quota. When quota is exhausted the bridge correctly returns 503, Studio labels the projection unavailable, retains no stale data as current, and exposes the sanitized diagnostic reference. Candidate verification, knowledge, history, mission catalog, and dependency-edge contracts remain outside this A1 projection and are not fabricated here.
 
 CI, independent verification, merge status, and documentation synchronization remain separate statuses. The documentation vault still has 27 raw events and no normalized/routed/validated events or canonical receipt; no synchronization claim is made.
+
+## Quota-efficient continuation
+
+The follow-on cache boundary keys validated projections by repository and agent, coalesces equivalent in-flight reads, and serves a packet for 15 seconds without rewriting its source timestamp. A cold projection remains 238 upstream reads (full source coverage); equivalent concurrent requests and Mission Journey/Task Context calls during the interval share that one collection. An expired entry performs a new cold collection, and failed collections are never cached. This is bounded request coalescing, not a durable truth cache.

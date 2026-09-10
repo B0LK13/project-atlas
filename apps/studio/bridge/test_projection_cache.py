@@ -1,0 +1,64 @@
+import threading
+import time
+
+from projection_cache import ProjectionCache
+
+
+def test_equivalent_concurrent_reads_share_one_build():
+    cache = ProjectionCache(ttl_seconds=30)
+    started = threading.Event()
+    release = threading.Event()
+    calls = 0
+
+    def build():
+        nonlocal calls
+        calls += 1
+        started.set()
+        release.wait(timeout=2)
+        return {"snapshot": "same"}
+
+    results = []
+    threads = [threading.Thread(target=lambda: results.append(cache.get(("repo", "agent"), build))) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    assert started.wait(timeout=1)
+    release.set()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert calls == 1
+    assert results == [{"snapshot": "same"}] * 3
+
+
+def test_cache_expiry_and_context_isolation():
+    now = [100.0]
+    cache = ProjectionCache(ttl_seconds=10, clock=lambda: now[0])
+    calls = []
+
+    def build():
+        calls.append(True)
+        return {"call": len(calls)}
+
+    assert cache.get(("repo-a", "agent"), build) == {"call": 1}
+    assert cache.get(("repo-a", "agent"), build) == {"call": 1}
+    assert cache.get(("repo-b", "agent"), build) == {"call": 2}
+    now[0] += 11
+    assert cache.get(("repo-a", "agent"), build) == {"call": 3}
+    assert len(calls) == 3
+
+
+def test_failed_build_is_not_cached():
+    cache = ProjectionCache(ttl_seconds=30)
+    calls = 0
+
+    def fail():
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("upstream")
+
+    for _ in range(2):
+        try:
+            cache.get(("repo", "agent"), fail)
+        except RuntimeError as error:
+            assert str(error) == "upstream"
+    assert calls == 2

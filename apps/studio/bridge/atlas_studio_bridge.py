@@ -38,6 +38,7 @@ from atlas_studio.task_context import (  # noqa: E402
     build_task_context,
     validate_task_context,
 )
+from projection_cache import ProjectionCache  # noqa: E402
 
 SCHEMA = "ATLAS_STUDIO_BRIDGE_STATUS_V1"
 ALLOWED_ORIGINS = frozenset(
@@ -49,6 +50,10 @@ ALLOWED_ORIGINS = frozenset(
         "tauri://localhost",
         "https://tauri.localhost",
     }
+)
+PROJECTION_CACHE_TTL_SECONDS = 15
+projection_cache: ProjectionCache[dict[str, Any], tuple[str, ...]] = ProjectionCache(
+    ttl_seconds=PROJECTION_CACHE_TTL_SECONDS
 )
 
 
@@ -101,15 +106,20 @@ def run_worker(command, *, timeout=20, cancelled=lambda: False):
 def build_current_projection(
     repository: str, agent_id: str | None, cancelled=lambda: False
 ) -> dict[str, Any]:
-    packet = run_worker(
-        [
-            sys.executable,
-            str(Path(__file__).with_name("projection_worker.py")),
-            repository,
-            agent_id or "",
-        ],
-        cancelled=cancelled,
-    )
+    key = (repository, agent_id or "")
+
+    def collect() -> dict[str, Any]:
+        return run_worker(
+            [
+                sys.executable,
+                str(Path(__file__).with_name("projection_worker.py")),
+                repository,
+                agent_id or "",
+            ],
+            cancelled=cancelled,
+        )
+
+    packet = projection_cache.get(key, collect)
     if validate_mission_control(packet):
         raise RuntimeError("A1_SCHEMA_VALIDATION_FAILED")
     return packet
