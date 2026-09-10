@@ -32,6 +32,12 @@ test("bounded decision queue supports keyboard detail and explicit disappearance
   await expect(first).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByText("source record 0")).toBeVisible();
+  await page.getByRole("link", { name: "Inspect supported detail" }).click();
+  await expect(page.getByRole("heading", { name: "verification", exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByText("source record 0")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("source record 0")).toBeVisible();
   await page.getByRole("button", { name: "Refresh read-only projection" }).click();
   await expect(page.getByText("source record 0")).toBeVisible();
   removeSelected = true;

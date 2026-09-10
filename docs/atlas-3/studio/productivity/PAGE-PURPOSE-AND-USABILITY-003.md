@@ -2,7 +2,7 @@
 
 Directive: `ATLAS-STUDIO-PAGE-PURPOSE-AND-USABILITY-003`
 
-Candidate: `feat/atlas-native-daily-workspace-001` (final commit recorded below), built from the #781 Studio shell and existing A1/Mission Journey contracts. This is a presentation-only increment; backend composition, classification, eligibility, recovery, and authority semantics are unchanged.
+Candidate: `feat/atlas-native-daily-workspace-001`, final commit `f7cd5d28` plus the selection-persistence checkpoint recorded in delivery, built from the #781 Studio shell and existing A1/Mission Journey contracts. This is a presentation-only increment; backend composition, classification, eligibility, recovery, and authority semantics are unchanged.
 
 The shared secondary-route structure now puts a route-specific purpose question and source-shaped detail first. Global attention is represented by one compact count/link to Mission Control rather than a repeated full queue. Mission Control retains the bounded grouped queue and selected record detail. View names are deliberate (`Observed agent directory`, `Frontier action summary`, `Repository stack records`, `CI and independent verification`, `Telemetry snapshot`) while exact source values remain available in details.
 
@@ -18,7 +18,7 @@ Validation:
 
 - `npm run check`: 43 Vitest tests, typecheck, and production build passed.
 - Full Playwright suite: 20 passed, 1 skipped (authenticated real-data test remains opt-in).
-- Mission Control usability fixture: 118 attention records, grouped selection, keyboard focus, refresh persistence, disappearance handling; passed.
+- Mission Control usability fixture: 118 attention records, grouped selection, keyboard focus, refresh persistence, browser-back context, reload persistence, and disappearance handling; passed.
 - Controlled accessibility viewports: 600×800, 980×700, 1366×768, 1920×1080; axe checks passed.
 - Native Tauri Debian bundle rebuilt and opened on Linux; AT-SPI confirmed Mission Control, Agents, and Work Graph purpose content.
 - Final executable SHA-256: `3db8c4cd8601e00fd9b5ef7a850603d70969e216bf82c4cb9ad74861693eb8e2`.
