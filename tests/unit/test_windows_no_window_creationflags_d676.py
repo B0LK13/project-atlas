@@ -25,6 +25,9 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
+import time
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -78,8 +81,18 @@ class TestHostCallSitesWireTheFlag:
         assert kwargs["check"] is False
 
     def test_process_start_identity_passes_creationflags_on_windows(self) -> None:
+        """This exercises the PowerShell fallback specifically, not whichever
+        path `process_start_identity` happens to take. AS-WIN-PSI-FASTPATH
+        gave it an in-process ``ctypes`` fast path that is tried first and,
+        for pid 123, would usually fail anyway (no live process at that pid)
+        -- but "usually" is not this test's business: forcing the fast path
+        to report no answer, rather than relying on pid 123 being unclaimed
+        on whatever host runs this suite, is what actually keeps this a test
+        of the fallback's creationflags wiring rather than a coin flip.
+        """
         with (
             patch.object(os, "name", "nt"),
+            patch.object(host, "_win_process_start_ticks_fast", return_value=None),
             patch.object(subprocess, "run", return_value=_fake_completed("42")) as mock_run,
         ):
             identity = host.process_start_identity(123)
@@ -221,3 +234,147 @@ class TestAuthenticWindowsSmoke:
     def test_process_start_identity_real_powershell_call(self) -> None:
         identity = host.process_start_identity(os.getpid())
         assert identity.startswith("win:") or identity == "unknown"
+
+
+# ------------------------- AS-WIN-PSI-FASTPATH: in-process fast path -------
+
+
+class TestWinProcessStartTicksFastPathPortable:
+    """Behavior that must hold on every platform, not just Windows."""
+
+    def test_non_windows_or_no_windll_returns_none(self) -> None:
+        """`ctypes.windll` genuinely does not exist off Windows -- this must
+        not raise, it must decline. Runs for real (unmocked) on Linux/macOS
+        CI; on a real Windows host it is skipped in favor of the smoke class
+        below, which exercises the actual success path instead."""
+        if sys.platform == "win32":
+            pytest.skip("covered by the real success-path smoke below")
+        assert host._win_process_start_ticks_fast(os.getpid()) is None
+
+    def test_filetime_to_dotnet_ticks_offset_matches_known_reference_point(self) -> None:
+        """1970-01-01T00:00:00Z is a fixed point both epochs agree exists.
+        Win32 FILETIME ticks for it and .NET `DateTime(1970,1,1).Ticks` are
+        both well-known published constants; the offset this module uses
+        must carry one into the other exactly, or a value handed off
+        between the fast path and the PowerShell fallback would silently
+        disagree about what a running process's own start time was."""
+        filetime_ticks_at_unix_epoch = 116_444_736_000_000_000
+        dotnet_ticks_at_unix_epoch = 621_355_968_000_000_000
+        assert (
+            filetime_ticks_at_unix_epoch + host._FILETIME_TO_DOTNET_TICKS_OFFSET
+            == dotnet_ticks_at_unix_epoch
+        )
+
+    def test_process_start_identity_prefers_fast_path_when_it_resolves(self) -> None:
+        """With the fast path stubbed to succeed, the PowerShell fallback
+        must never run at all -- not "run and be ignored"."""
+        with (
+            patch.object(os, "name", "nt"),
+            patch.object(host, "_win_process_start_ticks_fast", return_value=123456789),
+            patch.object(subprocess, "run") as mock_run,
+        ):
+            identity = host.process_start_identity(1)
+        assert identity == "win:123456789"
+        mock_run.assert_not_called()
+
+    def test_process_start_identity_falls_back_when_fast_path_declines(self) -> None:
+        with (
+            patch.object(os, "name", "nt"),
+            patch.object(host, "_win_process_start_ticks_fast", return_value=None),
+            patch.object(subprocess, "run", return_value=_fake_completed("999")) as mock_run,
+        ):
+            identity = host.process_start_identity(1)
+        assert identity == "win:999"
+        mock_run.assert_called_once()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="authentic Windows process-path smoke")
+class TestWinProcessStartTicksFastPathSmoke:
+    """Real, unmocked Win32 calls -- the actual success path, and its exact
+    agreement with the PowerShell fallback for the same live process."""
+
+    def test_self_pid_resolves_without_any_subprocess(self) -> None:
+        with patch.object(subprocess, "run") as mock_run:
+            ticks = host._win_process_start_ticks_fast(os.getpid())
+        assert ticks is not None
+        assert ticks > 0
+        mock_run.assert_not_called()
+
+    def test_matches_the_powershell_fallback_value_exactly(self) -> None:
+        """The fast path and the PowerShell path must agree, not merely both
+        succeed -- a lock record written by one and re-read through the
+        other has to compare equal."""
+        pid = os.getpid()
+        fast = host._win_process_start_ticks_fast(pid)
+        assert fast is not None
+
+        ps_cmd = f"(Get-Process -Id {pid} -ErrorAction Stop).StartTime.ToUniversalTime().Ticks"
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            check=False,
+            creationflags=host.no_window_creationflags(),
+        )
+        assert proc.returncode == 0
+        assert str(fast) == proc.stdout.strip()
+
+    def test_invalid_pid_declines_rather_than_guessing(self) -> None:
+        assert host._win_process_start_ticks_fast(999999999) is None
+
+    def test_negative_control_powershell_only_path_costs_roughly_a_second_or_more(
+        self,
+    ) -> None:
+        """THE ORIGINAL PROBLEM, reproduced on demand: with the fast path
+        forced off (simulating the pre-fix code), a single
+        ``acquire_supervisor_lock`` call -- which computes
+        ``process_start_identity`` for this process as part of its payload
+        -- costs whatever a cold ``powershell.exe`` launch costs on this
+        host. This was measured at 1.7-1.9s during the PR #797 Windows
+        investigation; the bound here is deliberately loose (must exceed
+        0.5s) so the test is a reliable smoke/regression signal across
+        hosts of very different speed, not a tight benchmark assertion.
+        """
+        from project_atlas.orchestration.sdk.host import (
+            acquire_supervisor_lock,
+            release_supervisor_lock,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(host, "_win_process_start_ticks_fast", return_value=None):
+                t0 = time.perf_counter()
+                token = "negative-control"
+                acquired = acquire_supervisor_lock(root, instance_id=token)
+                elapsed = time.perf_counter() - t0
+            assert acquired is True
+            release_supervisor_lock(root, instance_id=token)
+        assert elapsed > 0.5, (
+            f"expected the forced-PowerShell-only path to be slow (it was "
+            f"1.7-1.9s during the original investigation); measured "
+            f"{elapsed:.3f}s -- either this host is unrepresentative or the "
+            f"fallback stopped calling powershell.exe at all"
+        )
+
+    def test_after_fast_path_the_same_operation_is_orders_of_magnitude_faster(
+        self,
+    ) -> None:
+        """THE FIX, on the same operation, same host, fast path enabled
+        (the actual default -- nothing patched here)."""
+        from project_atlas.orchestration.sdk.host import (
+            acquire_supervisor_lock,
+            release_supervisor_lock,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            t0 = time.perf_counter()
+            token = "positive-control"
+            acquired = acquire_supervisor_lock(root, instance_id=token)
+            elapsed = time.perf_counter() - t0
+            assert acquired is True
+            release_supervisor_lock(root, instance_id=token)
+        assert elapsed < 0.5, (
+            f"expected the fast path to keep lock acquisition well under a "
+            f"second; measured {elapsed:.3f}s"
+        )
