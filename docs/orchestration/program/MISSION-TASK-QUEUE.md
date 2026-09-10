@@ -59,12 +59,21 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
 - [x] T34 Verification separation re-checked after enrollment substitution
 - [x] T35 16 further tests (`test_orchestration_program_enrollment.py`)
 
-## M4 — Concurrent agents
+## M4 — Concurrent agents  ✅ COMPLETE
 
-- [ ] T40 Multiple workers through the existing DAG ownership mechanisms
-- [ ] T41 Conflicting-write and duplicate-dispatch prevention under concurrency
-- [ ] T42 Frozen candidates and independent-verifier separation respected
-- [ ] T43 Completion releases/transitions ownership and triggers next selection
+- [x] T40 `max_concurrent_workers` (default 1); only `adapter.run` leaves the
+      supervisor's thread, so program state is never mutated concurrently
+- [x] T41 Surface-overlap gate, one-lease-per-task and one-worker-per-agent all
+      hold under concurrency; exactly one DISPATCH_INTENT per task at every
+      concurrency tested
+- [x] T42 Owner gates unaffected by free capacity; verifier separation
+      re-checked after enrollment substitution
+- [x] T43 A finished task releases its lease and its dependant starts without
+      a prompt; program completion is never declared with a worker running
+- [x] T44 13 further tests (`test_orchestration_program_concurrency.py`)
+- [x] T45 Systemwide acceptance run: Claude + Codex, separate queues, one
+      supervisor, 2 concurrent workers observed
+      (`evidence/SYSTEMWIDE-ACCEPTANCE.md`)
 
 ## M5 — Durable execution
 
@@ -88,7 +97,10 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
 
 ## Systemwide acceptance
 
-- [ ] Codex and Claude workers progressing through separate approved queues
-      under one supervisor, with ownership protection, restart recovery,
-      explicit limits, and no user prompt between eligible tasks
-- [ ] Support reported per runtime and environment
+- [x] Codex and Claude workers progressing through separate approved queues
+      under one supervisor, with ownership protection, explicit limits, and no
+      user prompt between eligible tasks
+      (`evidence/SYSTEMWIDE-ACCEPTANCE.md`). Restart recovery is covered by the
+      test suites rather than by that paid run
+- [x] Support reported per runtime and environment (`program runtimes`,
+      `SUPPORT-MATRIX.md`)

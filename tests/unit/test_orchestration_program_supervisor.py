@@ -714,17 +714,17 @@ def test_cancelling_a_running_worker_records_an_uncertain_outcome(
     )
     supervisor = _supervisor(program, tmp_path)
 
-    # Ask for cancellation as soon as the worker is polled, which is the real
-    # shape of an operator pressing stop while something is running.
-    state_holder: dict[str, Any] = {}
-    original = supervisor._dispatch
+    # Ask for cancellation the instant the worker is launched, which is the
+    # real shape of an operator pressing stop while something is running: the
+    # child is already alive and the cancel check it polls is what stops it.
+    original = supervisor._begin_dispatch
 
-    def dispatch_then_cancel(state: Any, choice: Any, result: Any) -> bool:
-        state_holder["state"] = state
+    def dispatch_then_cancel(state: Any, choice: Any, result: Any) -> Any:
+        running = original(state, choice, result)
         state.cancel_requested = True
-        return original(state, choice, result)
+        return running
 
-    supervisor._dispatch = dispatch_then_cancel  # type: ignore[method-assign]
+    supervisor._begin_dispatch = dispatch_then_cancel  # type: ignore[method-assign]
     report = supervisor.start()
 
     assert report.stop_reason is ProgramStopReason.CANCELLED

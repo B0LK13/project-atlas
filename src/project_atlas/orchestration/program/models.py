@@ -331,6 +331,16 @@ class ProgramLimits(BaseModel):
     #: Seconds to sleep between cycles when nothing is dispatchable but an
     #: external wait is outstanding.
     idle_sleep_seconds: float = Field(default=5.0, ge=0.0, le=600.0)
+    #: How many workers may run at once. Defaults to 1: sequential execution
+    #: is the proven case, and a program gets concurrency because it asked for
+    #: it, not because a default changed underneath it.
+    #:
+    #: Raising it does not relax any other gate. The existing surface-overlap
+    #: gate still refuses to run two tasks that touch the same paths or share
+    #: a mutation semantic, the durable lease projection still refuses a second
+    #: active lease for one task or one agent, and owner gates still hold. What
+    #: this number bounds is how many *non-conflicting* tasks may be in flight.
+    max_concurrent_workers: int = Field(default=1, ge=1, le=16)
 
 
 class ProgramTask(BaseModel):

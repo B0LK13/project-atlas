@@ -30,6 +30,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
@@ -60,6 +61,7 @@ from project_atlas.orchestration.program.acceptance import (
     progress_fingerprint,
 )
 from project_atlas.orchestration.program.adapters.base import (
+    AdapterOutcome,
     AdapterRequest,
     AdapterUnavailableError,
     RuntimeAdapter,
@@ -121,6 +123,20 @@ IN_FLIGHT_STATES: frozenset[NodeState] = frozenset(
 #: States that count as this program's own definition of "done with it".
 DONE_STATES: frozenset[NodeState] = frozenset({NodeState.CERTIFIED, NodeState.CLOSED})
 
+#: Stop reasons that describe "nothing to start right now", which is a
+#: different statement from "the program is finished". While a worker is still
+#: running, any of these is provisional and is re-derived on the next cycle;
+#: reporting one as the program's verdict would end a program that is simply
+#: busy.
+_NOT_TERMINAL_WHILE_RUNNING: frozenset[ProgramStopReason] = frozenset(
+    {
+        ProgramStopReason.NO_ELIGIBLE_WORK,
+        ProgramStopReason.OWNER_DECISION_REQUIRED,
+        ProgramStopReason.AWAITING_INDEPENDENT_VERIFICATION,
+        ProgramStopReason.HARD_BLOCKER,
+    }
+)
+
 
 class SupervisorError(ProgramError):
     code = "SUPERVISOR_ERROR"
@@ -143,6 +159,25 @@ class DispatchChoice:
     resume_session_id: str | None = None
 
 
+@dataclass(frozen=True)
+class RunningWork:
+    """One launched worker the supervisor is waiting on.
+
+    Deliberately holds no mutable program state. A worker thread only ever
+    sees ``adapter`` and ``request``; everything it could change lives on the
+    supervisor's thread, which is why concurrency here needs no lock.
+    """
+
+    attempt_id: str
+    task_id: str
+    mode: DispatchMode
+    verifying: bool
+    profile: AgentProfile
+    adapter: RuntimeAdapter
+    request: AdapterRequest
+    started_at: float
+
+
 @dataclass
 class CycleResult:
     """One pass of the loop. Never authority."""
@@ -150,6 +185,10 @@ class CycleResult:
     cycle: int
     dispatched_task_id: str | None = None
     dispatch_mode: DispatchMode | None = None
+    #: Every task this cycle launched. ``dispatched_task_id`` is the first of
+    #: them, kept because sequential programs read more clearly with it.
+    dispatched: list[tuple[str, DispatchMode]] = field(default_factory=list)
+    settled: list[str] = field(default_factory=list)
     stop_reason: ProgramStopReason | None = None
     progressed: bool = False
     notes: list[str] = field(default_factory=list)
@@ -173,6 +212,10 @@ class SupervisorReport:
     estimated_cost_usd: float
     notifications: list[dict[str, Any]]
     truth_boundary: str
+    #: The most workers actually in flight at once. Reported because a program
+    #: that permits four and never ran more than one has not demonstrated
+    #: concurrency, and saying "max_concurrent_workers: 4" would imply it did.
+    max_concurrent_observed: int = 1
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -181,14 +224,11 @@ class SupervisorReport:
             "program_complete": self.complete,
             "cycles_run": len(self.cycles),
             "tasks_dispatched": [
-                {
-                    "cycle": cycle.cycle,
-                    "task_id": cycle.dispatched_task_id,
-                    "mode": cycle.dispatch_mode.value if cycle.dispatch_mode else None,
-                }
+                {"cycle": cycle.cycle, "task_id": task_id, "mode": mode.value}
                 for cycle in self.cycles
-                if cycle.dispatched_task_id
+                for task_id, mode in cycle.dispatched
             ],
+            "max_concurrent_workers_observed": self.max_concurrent_observed,
             "total_launches": self.launches,
             "launches_this_run": self.launches_this_run,
             "estimated_cost_usd": self.estimated_cost_usd,
@@ -285,6 +325,9 @@ class ProgramSupervisor:
         self._leases: dict[str, AgentLease] = {}
         self._notifications: list[dict[str, Any]] = []
         self._launches_this_run = 0
+        self._running: dict[str, tuple[RunningWork, Future[AdapterOutcome]]] = {}
+        self._executor: ThreadPoolExecutor | None = None
+        self._max_concurrent_observed = 0
 
     # ------------------------------------------------------------- ownership
 
@@ -450,6 +493,7 @@ class ProgramSupervisor:
         cycles: list[CycleResult] = []
         self._notifications = []
         self._launches_this_run = 0
+        self._running = {}
         started_at = self._clock()
         try:
             state = self.load_or_init_state()
@@ -497,15 +541,41 @@ class ProgramSupervisor:
                         {"idle_cycles": state.idle_cycles},
                     )
                     break
-                if not result.dispatched_task_id:
-                    # Nothing dispatched but not stopped: an external wait is
-                    # outstanding. Sleep briefly rather than spinning.
+                if not result.dispatched_task_id and not self._running:
+                    # Nothing dispatched, nothing running, but not stopped: an
+                    # external wait is outstanding. Sleep briefly rather than
+                    # spinning. With workers in flight the cycle already
+                    # blocked on one of them finishing, so sleeping again here
+                    # would add latency for no reason.
                     self._sleep(self.program.limits.idle_sleep_seconds)
+
+            # Never exit with a worker unaccounted for. An outcome that was
+            # produced but never applied would leave an attempt stuck at
+            # ADAPTER_INVOKED, which the next start correctly refuses to
+            # redispatch -- turning a clean finish into a reconciliation.
+            if self._running:
+                final = CycleResult(cycle=len(cycles) + 1)
+                self._drain(state, final)
+                if final.settled:
+                    cycles.append(final)
+                if state.complete is False and all(
+                    record.state in DONE_STATES for record in state.tasks.values()
+                ):
+                    state.complete = True
+                    stop = ProgramStopReason.PROGRAM_COMPLETE
+                    self._notify(
+                        "PROGRAM_COMPLETE",
+                        "every task in the approved program reached an accepted state",
+                        {"tasks": sorted(state.tasks)},
+                    )
 
             state.last_stop_reason = stop
             persist_state(self.root, state)
             return self._report(state, cycles, stop)
         finally:
+            if self._executor is not None:
+                self._executor.shutdown(wait=True)
+                self._executor = None
             self._release()
 
     def status(self) -> dict[str, Any]:
@@ -859,14 +929,24 @@ class ProgramSupervisor:
         # 1. Ownership, before anything else this cycle decides.
         self._assert_still_supervisor()
 
-        # 2. Cancellation and program limits.
+        # 2. Collect anything that finished since the last cycle. Settling
+        #    comes before deciding, so a task that just completed can unblock
+        #    its dependants in this same cycle rather than the next one.
+        if self._collect_finished(state, result, block=False):
+            result.progressed = True
+
+        # 3. Cancellation and program limits.
         if state.cancel_requested or stop_requested(self.lock_root):
             state.cancel_requested = True
             cancelled = cancel_observers(self.root, program_id=self.program.program_id)
+            # Workers already running are asked to stop through the cancel
+            # check they poll; whatever they had already done is recorded as
+            # UNCERTAIN, never assumed either way.
+            self._collect_finished(state, result, block=True)
             result.stop_reason = ProgramStopReason.CANCELLED
             result.notes.append(f"cancelled; {cancelled} pending observer(s) stood down")
             self._notify(
-                "CANCELLED", "the program was cancelled before this cycle dispatched", {}
+                "CANCELLED", "the program was cancelled", {}
             )
             return result
         if state.total_launches >= self.program.limits.max_task_launches:
@@ -909,8 +989,14 @@ class ProgramSupervisor:
         if self._poll_waits(state, result):
             result.progressed = True
 
-        # 5. Program completion, checked against evidence-backed states only.
-        if all(record.state in DONE_STATES for record in state.tasks.values()):
+        # 6. Program completion, checked against evidence-backed states only,
+        #    and never while a worker is still running: a task whose worker has
+        #    not reported cannot be in a done state, so this is belt and
+        #    braces, but declaring a program finished with work in flight is
+        #    the kind of claim that must be impossible rather than unlikely.
+        if not self._running and all(
+            record.state in DONE_STATES for record in state.tasks.values()
+        ):
             state.complete = True
             result.stop_reason = ProgramStopReason.PROGRAM_COMPLETE
             self._notify(
@@ -920,22 +1006,131 @@ class ProgramSupervisor:
             )
             return result
 
-        # 6. Choose what to run. Finish started work before starting more.
-        choice = self._choose(state, result)
-        if choice is None:
-            return result
+        # 7. Fill the available worker slots. Each iteration re-derives
+        #    eligibility from the state the previous dispatch just changed, so
+        #    the surface-overlap gate and the dependency rule are applied
+        #    against what is actually in flight -- never against a snapshot
+        #    taken before this cycle started dispatching.
+        limit = self.program.limits.max_concurrent_workers
+        while len(self._running) < limit:
+            if state.total_launches >= self.program.limits.max_task_launches:
+                if not result.dispatched:
+                    result.stop_reason = ProgramStopReason.LIMIT_REACHED
+                    self._notify(
+                        "LAUNCH_LIMIT",
+                        "the program's launch limit was reached",
+                        {"total_launches": state.total_launches},
+                    )
+                break
 
-        # 7. Recheck immediately before the consequential action.
-        self._assert_still_supervisor()
-        if state.cancel_requested or stop_requested(self.lock_root):
-            result.stop_reason = ProgramStopReason.CANCELLED
-            return result
+            choice = self._choose(state, result)
+            if choice is None:
+                break
 
-        dispatched = self._dispatch(state, choice, result)
-        if dispatched:
-            result.dispatched_task_id = choice.task_id
-            result.dispatch_mode = choice.mode
+            # Recheck immediately before the consequential action. An
+            # eligibility decision taken a moment ago is not a licence to
+            # dispatch now: ownership can have changed, and a dispatch by a
+            # supervisor that no longer owns the program is exactly the
+            # duplicate-dispatch case this guards.
+            self._assert_still_supervisor()
+            if state.cancel_requested or stop_requested(self.lock_root):
+                result.stop_reason = ProgramStopReason.CANCELLED
+                break
+
+            running = self._begin_dispatch(state, choice, result)
+            if running is None:
+                break
+            self._submit(running)
+            result.dispatched.append((choice.task_id, choice.mode))
+            if result.dispatched_task_id is None:
+                result.dispatched_task_id = choice.task_id
+                result.dispatch_mode = choice.mode
+            result.progressed = True
+            # A stop reason set while filling slots (an owner gate, an
+            # exhausted queue) is not a reason to abandon workers already
+            # launched this cycle; it just ends the filling.
+            if result.stop_reason is not None:
+                break
+
+        # 8. With workers still in flight, "nothing more to start" is a
+        #    statement about this instant, not about the program. Selection
+        #    reached it while a dependency was mid-flight, a surface was held,
+        #    or an agent was busy -- all of which the next settle can change.
+        #    Reporting it as the program's verdict would stop a program that
+        #    is simply busy, so it is cleared and re-derived next cycle.
+        if self._running:
+            if result.stop_reason in _NOT_TERMINAL_WHILE_RUNNING:
+                result.stop_reason = None
+            # Wait for the FIRST worker to finish, never for all of them: a
+            # supervisor that waited on the slowest before noticing the
+            # fastest had unblocked three dependants would be serialising the
+            # very thing concurrency is for. Every slot that could be filled
+            # was filled above, before this wait. A stop reason that survived
+            # the clearing above is real (cancelled, a limit) and skips it.
+            if result.stop_reason is None and self._collect_finished(
+                state, result, block=True
+            ):
+                result.progressed = True
         return result
+
+    # ------------------------------------------------------- worker slots
+
+    def _submit(self, running: RunningWork) -> None:
+        """Hand one launched worker to a thread. Nothing shared goes with it."""
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(
+                max_workers=self.program.limits.max_concurrent_workers,
+                thread_name_prefix=f"atlas-program-{self.program.program_id}",
+            )
+        future = self._executor.submit(running.adapter.run, running.request)
+        self._running[running.attempt_id] = (running, future)
+        self._max_concurrent_observed = max(
+            self._max_concurrent_observed, len(self._running)
+        )
+
+    def _collect_finished(
+        self, state: ProgramStateRecord, result: CycleResult, *, block: bool
+    ) -> bool:
+        """Settle every worker that has finished. Optionally wait for one.
+
+        ``block=True`` waits for the FIRST worker to finish, not for all of
+        them: a supervisor that waited for the slowest worker before noticing
+        the fastest one had unblocked three dependants would be serialising
+        the very thing concurrency is for.
+        """
+        if not self._running:
+            return False
+        if block:
+            futures = [future for _running, future in self._running.values()]
+            wait(futures, return_when=FIRST_COMPLETED)
+
+        settled = False
+        for attempt_id, (running, future) in list(self._running.items()):
+            if not future.done():
+                continue
+            del self._running[attempt_id]
+            try:
+                outcome: AdapterOutcome | BaseException = future.result()
+            except BaseException as exc:
+                outcome = exc
+            self._settle_running(state, running, outcome, result)
+            result.settled.append(running.task_id)
+            settled = True
+        if settled:
+            persist_state(self.root, state)
+        return settled
+
+    def _drain(self, state: ProgramStateRecord, result: CycleResult) -> None:
+        """Settle every outstanding worker before the supervisor exits.
+
+        A worker whose outcome was never applied is an attempt stuck at
+        ADAPTER_INVOKED, which the next start correctly refuses to redispatch.
+        Draining converts that into a real recorded outcome wherever the work
+        actually finished, which is the difference between a program that
+        resumes cleanly and one that needs a human to reconcile it.
+        """
+        while self._running:
+            self._collect_finished(state, result, block=True)
 
     def _promote_unconditioned(self, state: ProgramStateRecord) -> bool:
         """DISCOVERED -> READY for every task with no external precondition.
@@ -1044,10 +1239,15 @@ class ProgramSupervisor:
         self, state: ProgramStateRecord, result: CycleResult
     ) -> DispatchChoice | None:
         """Pick one action. In-flight work first, then newly eligible work."""
+        busy = self._busy_agents()
+
         # Independent verification of work that already passed acceptance.
         for task in self.program.tasks:
             record = state.tasks[task.task_id]
             if not record.awaiting_independent_verification:
+                continue
+            verifier = self.loaded.verifiers.get(task.task_id)
+            if verifier is not None and verifier.agent_id in busy:
                 continue
             if task.verifier_profile_ref is None:
                 result.stop_reason = None
@@ -1068,6 +1268,8 @@ class ProgramSupervisor:
             if record.state is not NodeState.REMEDIATING:
                 continue
             profile = self.loaded.effective_profile(task.task_id)
+            if profile.agent_id in busy:
+                continue
             budget = min(
                 self.program.limits.max_attempts_per_task, profile.limits.max_attempts
             )
@@ -1101,6 +1303,8 @@ class ProgramSupervisor:
                 continue
             if self._has_open_attempt(state, task.task_id):
                 continue
+            if self.loaded.effective_profile(task.task_id).agent_id in busy:
+                continue
             return DispatchChoice(
                 task_id=task.task_id,
                 mode=DispatchMode.NEW,
@@ -1112,12 +1316,18 @@ class ProgramSupervisor:
         # task sitting in an in-flight DAG state with every attempt settled is
         # recoverable, and calling it stuck would stop a program that has
         # nothing wrong with it.
+        live = {running.task_id for running, _future in self._running.values()}
         stuck = [
             task_id
             for task_id, record in state.tasks.items()
             if record.state in {NodeState.LEASED, NodeState.ACTIVE, NodeState.VERIFYING}
             and not record.awaiting_independent_verification
             and self._has_open_attempt(state, task_id)
+            # A worker this supervisor is currently waiting on is not stuck.
+            # Its attempt is open precisely because it is still running, and
+            # calling that a reconciliation matter would stop a healthy
+            # program the moment concurrency was switched on.
+            and task_id not in live
         ]
         if stuck:
             result.stop_reason = ProgramStopReason.RECONCILE_REQUIRED
@@ -1132,7 +1342,7 @@ class ProgramSupervisor:
             return None
 
         # Newly eligible work, chosen by the existing continuation policy.
-        nodes = self._nodes(state)
+        nodes = self._nodes_for_selection(state)
         decision = select_next(nodes)
         if decision.next_package_id is not None:
             handoff = state.handoffs.get(decision.next_package_id)
@@ -1154,6 +1364,45 @@ class ProgramSupervisor:
 
         result.stop_reason = self._map_stop_reason(state, decision.stop_reason, result)
         return None
+
+    def _busy_agents(self) -> frozenset[str]:
+        """Agents that already have a worker in flight.
+
+        An enrolled agent is ONE worker, not a pool. Concurrency in this
+        package comes from different agents working different surfaces, which
+        is also what the durable lease projection independently enforces --
+        it refuses a second active lease for one agent_id. Filtering here as
+        well means that refusal is never reached in the ordinary case, so a
+        busy agent produces "not eligible right now" rather than an exception.
+        """
+        return frozenset(
+            running.profile.agent_id for running, _future in self._running.values()
+        )
+
+    def _nodes_for_selection(self, state: ProgramStateRecord) -> tuple[WorkNode, ...]:
+        """The node list `select_next` sees, with busy agents' work held back.
+
+        A READY task whose agent is already working is projected as
+        DISCOVERED for this selection only. Nothing is persisted: the task is
+        genuinely READY, it simply cannot start this instant, and saying so by
+        reusing the existing "not yet eligible" state keeps one scheduler
+        rather than adding a second filter `select_next` knows nothing about.
+        """
+        busy = self._busy_agents()
+        if not busy:
+            return self._nodes(state)
+        nodes: list[WorkNode] = []
+        for task in self.program.tasks:
+            record = state.tasks[task.task_id]
+            node_state = record.state
+            if (
+                node_state is NodeState.READY
+                and self.loaded.effective_profile(task.task_id).agent_id in busy
+            ):
+                node_state = NodeState.DISCOVERED
+            node = task.to_work_node(base_pin=self.program.base_pin)
+            nodes.append(node.model_copy(update={"state": node_state}))
+        return tuple(nodes)
 
     def _has_open_attempt(self, state: ProgramStateRecord, task_id: str) -> bool:
         """Does this task have an attempt that never reached a terminal phase?"""
@@ -1201,7 +1450,7 @@ class ProgramSupervisor:
                         "reason": decision.reason,
                     }
                 )
-            self._notify(
+            self._notify_unless_busy(
                 "OWNER_DECISION_REQUIRED",
                 "remaining work is owner-gated and cannot be started autonomously",
                 {"gates": gates},
@@ -1218,7 +1467,7 @@ class ProgramSupervisor:
             return None
 
         if awaiting_iv:
-            self._notify(
+            self._notify_unless_busy(
                 "AWAITING_INDEPENDENT_VERIFICATION",
                 (
                     "every remaining task has passed acceptance and needs an "
@@ -1234,7 +1483,7 @@ class ProgramSupervisor:
                 for task_id, record in state.tasks.items()
                 if record.state is NodeState.BLOCKED
             )
-            self._notify(
+            self._notify_unless_busy(
                 "HARD_BLOCKER",
                 "no eligible work remains and blocked work needs attention",
                 {"blocked": blocked},
@@ -1244,7 +1493,7 @@ class ProgramSupervisor:
         if reason is StopReason.RESOURCE_BOUNDARY:
             return ProgramStopReason.LIMIT_REACHED
 
-        self._notify(
+        self._notify_unless_busy(
             "NO_ELIGIBLE_WORK",
             "no task is eligible and nothing is pending",
             {
@@ -1459,12 +1708,22 @@ class ProgramSupervisor:
             cancel_requested=cancel_check,
         )
 
-    def _dispatch(
+    def _begin_dispatch(
         self,
         state: ProgramStateRecord,
         choice: DispatchChoice,
         result: CycleResult,
-    ) -> bool:
+    ) -> RunningWork | None:
+        """Take one task all the way to a launched worker, then return.
+
+        Everything up to and including the launch happens on the supervisor's
+        own thread: the lease, the durable dispatch intent, the DAG
+        transitions. Only ``adapter.run`` is handed to a worker thread. That
+        split is what makes concurrency safe without a single lock -- program
+        state is never mutated from more than one thread, because the worker
+        threads never touch it. They receive an immutable request and return
+        an outcome; the supervisor settles it.
+        """
         task = self.program.task(choice.task_id)
         record = state.tasks[task.task_id]
         verifying = choice.mode is DispatchMode.VERIFY
@@ -1495,10 +1754,35 @@ class ProgramSupervisor:
                 f"the runtime for profile {profile.profile_id} cannot run: {exc}",
                 {"task_id": task.task_id, "code": getattr(exc, "code", "ADAPTER_UNAVAILABLE")},
             )
-            return False
+            return None
 
         if not verifying:
-            self._ensure_lease(state, task, profile)
+            try:
+                self._ensure_lease(state, task, profile)
+            except SupervisorError as exc:
+                if getattr(exc, "code", "") not in {
+                    "FOREIGN_WORKER",
+                    "DUPLICATE_ACTIVE_LEASE",
+                }:
+                    raise
+                # The durable projection refused because this agent, or this
+                # task, is already owned. That is the ownership rule doing its
+                # job, not a failure: the task waits and is offered again next
+                # cycle. Nothing is transitioned and nothing is launched.
+                append_event(
+                    self.root,
+                    "DISPATCH_DEFERRED",
+                    {
+                        "task_id": task.task_id,
+                        "agent_id": profile.agent_id,
+                        "code": getattr(exc, "code", ""),
+                    },
+                )
+                result.notes.append(
+                    f"{task.task_id}: deferred, ownership already held "
+                    f"({getattr(exc, 'code', '')})"
+                )
+                return None
 
         capabilities = adapter.capabilities
         attempt_number = record.attempts + 1
@@ -1596,18 +1880,46 @@ class ProgramSupervisor:
         record.launches += 1
         self._launches_this_run += 1
 
-        try:
-            outcome = adapter.run(request)
-        except Exception as exc:
+        return RunningWork(
+            attempt_id=attempt_id,
+            task_id=task.task_id,
+            mode=choice.mode,
+            verifying=verifying,
+            profile=profile,
+            adapter=adapter,
+            request=request,
+            started_at=self._clock(),
+        )
+
+    def _settle_running(
+        self,
+        state: ProgramStateRecord,
+        running: RunningWork,
+        outcome: AdapterOutcome | BaseException,
+        result: CycleResult,
+    ) -> None:
+        """Apply one finished worker's outcome. Always on the supervisor's thread."""
+        task = self.program.task(running.task_id)
+        attempt = state.attempts[running.attempt_id]
+        attempt_id = running.attempt_id
+        verifying = running.verifying
+        profile = running.profile
+
+        if isinstance(outcome, BaseException):
             attempt.phase = AttemptPhase.ADAPTER_RETURNED
             attempt.confidence = ExecutionConfidence.UNCERTAIN
             attempt.failure_class = FailureClass.UNCERTAIN_OUTCOME
-            attempt.notes = (*attempt.notes, f"adapter raised: {exc}"[:512])
+            attempt.notes = (*attempt.notes, f"adapter raised: {outcome}"[:512])
+            attempt.ended_at = _now_iso()
             persist_state(self.root, state)
             append_event(
                 self.root,
                 "ADAPTER_RAISED",
-                {"attempt_id": attempt_id, "task_id": task.task_id, "error": str(exc)[:512]},
+                {
+                    "attempt_id": attempt_id,
+                    "task_id": task.task_id,
+                    "error": str(outcome)[:512],
+                },
             )
             result.stop_reason = ProgramStopReason.RECONCILE_REQUIRED
             self._notify(
@@ -1615,7 +1927,7 @@ class ProgramSupervisor:
                 f"the adapter for {task.task_id} raised; its effect is unknown",
                 {"task_id": task.task_id, "attempt_id": attempt_id},
             )
-            return True
+            return
 
         attempt.phase = AttemptPhase.ADAPTER_RETURNED
         attempt.exit_status = outcome.exit_status
@@ -1650,7 +1962,7 @@ class ProgramSupervisor:
 
         if outcome.confidence is ExecutionConfidence.UNCERTAIN:
             self._handle_uncertain(state, task, attempt, outcome.terminal_state, result)
-            return True
+            return
 
         self._evaluate_and_settle(
             state,
@@ -1661,7 +1973,6 @@ class ProgramSupervisor:
             verifier_agent_id=profile.agent_id if verifying else None,
             result=result,
         )
-        return True
 
     def _handle_uncertain(
         self,
@@ -2083,6 +2394,23 @@ class ProgramSupervisor:
 
     # ----------------------------------------------------------------- misc
 
+    def _notify_unless_busy(
+        self, kind: str, message: str, detail: dict[str, Any]
+    ) -> None:
+        """Raise a notification only if it is still true with workers in flight.
+
+        Found by the systemwide acceptance run, not by reasoning: selection
+        reached "no task is eligible and nothing is pending" while a Codex
+        worker was mid-task, and said so out loud. The stop reason itself was
+        already cleared as provisional a few lines later and the program went
+        on to complete, so nothing behaved wrongly -- but the operator was told
+        something false, and a notification that can be false is worse than no
+        notification at all.
+        """
+        if self._running:
+            return
+        self._notify(kind, message, detail)
+
     def _notify(self, kind: str, message: str, detail: dict[str, Any]) -> None:
         """Record an operator-actionable notification.
 
@@ -2113,6 +2441,7 @@ class ProgramSupervisor:
             launches=state.total_launches,
             launches_this_run=self._launches_this_run,
             estimated_cost_usd=state.estimated_cost_usd,
+            max_concurrent_observed=self._max_concurrent_observed,
             notifications=list(self._notifications),
             truth_boundary=TRUTH_BOUNDARY,
         )
