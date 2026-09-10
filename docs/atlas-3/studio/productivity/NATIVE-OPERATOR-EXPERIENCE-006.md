@@ -4,8 +4,8 @@
 
 - Repository: `https://github.com/B0LK13/project-atlas.git`
 - Branch: `feat/atlas-native-daily-workspace-001`
-- HEAD: `92568e14a206a3c918493f97b5253ca374fb5148`
-- Tree: `68c4c0154601051eec8a5fca942798135a2be615`
+- HEAD: `81fa9558df5ac7f1d441c3186dfbe234ddb3e741`
+- Tree: `a993a2bd85565e82a142c4a0e5e2bf9b3f1d6309`
 - Prior accepted candidate preserved: `664325fc` (`atlas-studio-page-purpose-003`)
 
 ## Implemented
@@ -17,6 +17,7 @@ Mission Control now has a local, explicitly scoped filter over loaded attention 
 - `npm run check`: passed (typecheck, 46 unit tests, production build).
 - Browser: new loaded-record filter journey passed with Playwright using the documented `chromiumSandbox:false` environment workaround; existing Mission Control and Mission Journey suites remain passing from the preserved candidate.
 - Native: release executable launched under `DISPLAY=:0` for an 8-second smoke window (expected timeout while the app remained running). The desktop automation surface exposed no native app for direct interaction, so the new filter itself remains browser-validated rather than claimed as native-interaction evidence.
+- Native loading-state capture: [native-loading-state-006.png](evidence/native-loading-state-006.png).
 - Fresh native artifacts:
   - executable SHA-256 `0438b41843ea211e10b920c1a03908be6c532b1de9354cf8fcf6ae03cdb8d82e`
   - AppImage SHA-256 `7e64ddba6adaacf68a67bb02f19cb18651160b87e49cabb3d9b49baa6d85fa12`
