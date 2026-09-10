@@ -28,6 +28,8 @@ In a second terminal, run `STUDIO_NATIVE_SOURCE=fixture npm run native:acceptanc
 
 `npm run native:prereqs` checks the installed route; `npm run native:inspect` reports evidence hashes. Stop only the driver and bridge processes created for the run. WebDriver screenshots are native webview captures, not compositor or window-decoration captures.
 
+The fixture runner owns its temporary HTTP server and closes it in `finally`, including when WebDriver session creation or an assertion fails. For real data, leave the supported read-only bridge running separately and set `STUDIO_NATIVE_SOURCE=real`; a 2026-09-10 attempt returned `503 PROJECTION_FAILED_UPSTREAM_READS`, so no real-data journey is claimed.
+
 ## Evidence
 
 - Current implementation candidate preserved: `28ac8677`, tree `eb9aeb9037f0de0843ca143b98a55d35d9f807ba6`
@@ -35,3 +37,4 @@ In a second terminal, run `STUDIO_NATIVE_SOURCE=fixture npm run native:acceptanc
 - Native executable SHA-256: `0438b41843ea211e10b920c1a03908be6c532b1de9354cf8fcf6ae03cdb8d82e`
 - Fixture native webview capture: `apps/studio/artifacts/native/mission-control-filter.png`, SHA-256 `b7d49c34619c2df0d7f5eb57888cb01278454634ada985c20fd9b6d44f00f86d`
 - Real bridge smoke: one WebDriver session loaded Mission Control, located the filter, activated it, and returned HTTP 200 from the raw screenshot endpoint; real upstream timing can leave the projection unavailable and is reported separately from fixture results.
+- Complete fixture campaign: navigation/return, keyboard focus, filter, changed detail, selected-record disappearance, stale, malformed, and recovered states all passed through observable native WebDriver UI conditions.
