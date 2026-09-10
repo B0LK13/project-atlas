@@ -1,0 +1,235 @@
+{
+  "agent": "ubuntu-main",
+  "development": {
+    "candidate_identity": {
+      "agent": null,
+      "agent_status": "NONE",
+      "claim_candidate_count": 0,
+      "snapshot_fingerprint": "c651eecd661dedf2077325984b06f2052f7e73d1edb56210814fef1aba722c80",
+      "studio_slice_status": "DEGRADED",
+      "top_claim_lanes": []
+    },
+    "closed_capabilities": [
+      "CI_DISPATCH",
+      "IV_REQUEST",
+      "HANDOFF_DELIVER",
+      "STEAL_EXECUTE",
+      "MERGE",
+      "WORKTREE_OPEN"
+    ],
+    "missing_prerequisites": [],
+    "prerequisites": [
+      "mission_control_packet",
+      "repository_identity",
+      "agent_bind_for_claim_when_mutating"
+    ],
+    "repository": "B0LK13/project-atlas",
+    "supported_capabilities": [
+      "OWNERSHIP_CLAIM"
+    ]
+  },
+  "generated_at_utc": "2026-09-10T07:15:00Z",
+  "honesty": {
+    "a1_read_only_preserved": true,
+    "attention_ne_authorization": true,
+    "development_context_ne_authorization": true,
+    "grants_no_mutation": true,
+    "journey_ne_mutation": true,
+    "knowledge_ne_permission": true,
+    "preview_ne_execution": true,
+    "stale_ne_current": true,
+    "studio_ui_ne_authority": true,
+    "ui_state_is_projection": true,
+    "unknown_ne_healthy": true
+  },
+  "knowledge": {
+    "items": [
+      {
+        "kind": "decision",
+        "path": "docs/adr/ADR-035.md",
+        "provenance": {
+          "authority": false,
+          "source_path": "docs/adr/ADR-035.md"
+        },
+        "title": "ADR 035"
+      }
+    ],
+    "notes": [
+      "knowledge_ne_permission",
+      "reuse:filesystem_docs_projection",
+      "injected"
+    ],
+    "state": "RETRIEVED"
+  },
+  "mission": {
+    "attention_count": 12,
+    "freshness_state": "LIVE",
+    "mc_schema": "ATLAS_STUDIO_MISSION_CONTROL_V1",
+    "mission_status": "HUMAN_ATTENTION_REQUIRED",
+    "slice_status": "DEGRADED",
+    "snapshot_fingerprint": "c651eecd661dedf2077325984b06f2052f7e73d1edb56210814fef1aba722c80",
+    "top_attention": [
+      {
+        "attention_id": "external-iv-gated",
+        "attention_ne_authorization": true,
+        "detail": "Verifier pool unbound or absent (EXTERNAL_IV_GATED).",
+        "kind": "EXTERNAL_IV_GATED",
+        "references": [],
+        "tier": 10,
+        "title": "External IV gated / unbound"
+      },
+      {
+        "attention_id": "matrix-gate:pr/10:OWNER_DECISION",
+        "attention_ne_authorization": true,
+        "detail": "state=BLOCKED",
+        "kind": "HUMAN_GATE",
+        "references": [
+          {
+            "id": "pr/10:OWNER_DECISION",
+            "kind": "action_id"
+          }
+        ],
+        "tier": 30,
+        "title": "Human gate action: pr/10:OWNER_DECISION"
+      },
+      {
+        "attention_id": "blocked-hv:pr/11:IMPLEMENT",
+        "attention_ne_authorization": true,
+        "detail": "from F12 typed_rankings.highest_value_blocker_removal",
+        "kind": "BLOCKED_HIGH_VALUE",
+        "references": [
+          {
+            "id": "pr/11:IMPLEMENT",
+            "kind": "action_id"
+          }
+        ],
+        "tier": 40,
+        "title": "Blocked high-value: pr/11:IMPLEMENT"
+      },
+      {
+        "attention_id": "view:agents_lanes:UNKNOWN",
+        "attention_ne_authorization": true,
+        "detail": "projection_of_f15; REGISTRY_ABSENT_OR_INVALID; agent_directory_presentation_only",
+        "kind": "PANEL_STATUS",
+        "references": [
+          {
+            "id": "agents_lanes",
+            "kind": "view"
+          }
+        ],
+        "tier": 60,
+        "title": "View agents_lanes is UNKNOWN"
+      },
+      {
+        "attention_id": "view:ci_iv:UNKNOWN",
+        "attention_ne_authorization": true,
+        "detail": "projection_of_f15; NO_SNAPSHOT_NODES; ci_iv_projection",
+        "kind": "PANEL_STATUS",
+        "references": [
+          {
+            "id": "ci_iv",
+            "kind": "view"
+          }
+        ],
+        "tier": 60,
+        "title": "View ci_iv is UNKNOWN"
+      }
+    ]
+  },
+  "next_actions": {
+    "claim_candidates": {
+      "agent": "ubuntu-main",
+      "agent_status": "UNKNOWN",
+      "candidates": [],
+      "generated_at_utc": "2026-09-10T07:15:00Z",
+      "honesty": {
+        "attention_ne_authorization": true,
+        "preview_ne_execution": true,
+        "ranking_ne_authorization": true,
+        "requested_ne_claimed": true,
+        "studio_ui_ne_authority": true
+      },
+      "notes": [
+        "reuse:atlas_dag.frontier_matrix.write_steal_candidates",
+        "MATRIX_ABSENT"
+      ],
+      "ownership_claim_actions": [],
+      "schema": "ATLAS_STUDIO_CLAIM_CANDIDATES_V1",
+      "source_frontier_fingerprint": "67c562f769e430981fd3502504cb8457857f042ded28564e2d3d877ffe92e9d3",
+      "source_mc_fingerprint": "c651eecd661dedf2077325984b06f2052f7e73d1edb56210814fef1aba722c80"
+    },
+    "continuity": {
+      "auto_retry": false,
+      "command": "atlas-studio intent-continuity --intent-file <intent.json> [--decision-file <decision.json>]",
+      "notes": [
+        "STALE_INTENT!=PERMISSION",
+        "DUPLICATE_SUBMIT!=AUTO_RETRY",
+        "INSPECT!=EXECUTE"
+      ],
+      "package": "AS-STUDIO-A2-005"
+    },
+    "mission_session": {
+      "auto_retry": false,
+      "command": "atlas-studio mission-session --intent-file <intent.json> [--decision-file <decision.json>] [--json]",
+      "notes": [
+        "SESSION!=AUTHORITY",
+        "composes continuity+evidence for cross-process resume",
+        "AUTO_RETRY=FORBIDDEN"
+      ],
+      "package": "AS-STUDIO-A2-006"
+    },
+    "monitoring": {
+      "auto_retry": false,
+      "command": "atlas-studio action-evidence --decision-file <decision.json> [--json]",
+      "notes": [
+        "MONITOR!=RE-EXECUTE",
+        "AUTO_RETRY=FORBIDDEN",
+        "CAPTURE!=AUTHORITY",
+        "inspect EXECUTION_FAILED before any fresh intent",
+        "use intent-continuity after interrupt/stale/duplicate risk"
+      ],
+      "optional_spool": "atlas-studio action-evidence --decision-file <decision.json> --write-spool --spool-dir <dir>",
+      "package": "AS-STUDIO-A2-004"
+    },
+    "notes": [
+      "PREVIEW!=EXECUTION",
+      "AVAILABLE!=AUTHORIZED",
+      "use claim-evaluate/claim-execute for gated mutation",
+      "use action-evidence after evaluate/execute to monitor/recover",
+      "use mission-session to resume after interrupt without re-execute"
+    ],
+    "preview": null,
+    "task_context": {
+      "built_here": false,
+      "command": "atlas-studio task-context --lane <lane> --agent <agent> --repo <owner/name> [--vault <vault> --project <id>]",
+      "notes": [
+        "lane-scoped preparation owned by A2-003; journey does not reimplement",
+        "KNOWLEDGE!=PERMISSION",
+        "AUTHORIZATION=NOT_GRANTED_BY_THIS_PACKET"
+      ],
+      "ownership": "PR_786_DRAFT",
+      "package": "AS-STUDIO-A2-003"
+    }
+  },
+  "provenance": {
+    "generator": "atlas-studio mission-journey (AS-STUDIO-A2-002)",
+    "grants_no_mutation": true,
+    "journey_fingerprint": "5336538ca46a840e7abcff7e7fd159fa947dffe60a87c86f12de9d311dba7ffc",
+    "notes": [
+      "package:AS-STUDIO-A2-002",
+      "journey_ne_mutation",
+      "reuse:mission_control",
+      "reuse:action_intent.list_claim_candidates",
+      "mc_injected",
+      "claim_listing_matrix_absent_or_empty"
+    ],
+    "presentation_only": true,
+    "truth_sources": [
+      "ATLAS_STUDIO_MISSION_CONTROL_V1",
+      "atlas_studio.action_intent.list_claim_candidates",
+      "atlas_studio.mission_journey.project_knowledge"
+    ]
+  },
+  "repository": "B0LK13/project-atlas",
+  "schema": "ATLAS_STUDIO_MISSION_JOURNEY_V1"
+}

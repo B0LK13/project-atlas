@@ -861,3 +861,22 @@ code, kbd, time, .mono { font-family: "SFMono-Regular", "Cascadia Code", "Libera
 .signal-reading strong, .signal-pair strong { font-size: 25px; }
 .live-overview .projection-attention { padding: 10px 0; }
 .live-overview .projection-attention h3 { font-size: 15px; }
+
+/* Mission Journey / Task Context: contract-shaped, read-only workspace detail. */
+.mission-journey { margin: var(--gap) 0; }
+.journey-header, .task-context > header { display: flex; justify-content: space-between; align-items: start; gap: 18px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.journey-header h2, .task-context h2 { margin: 0; }
+.journey-header p { margin: 4px 0 0; color: var(--text-soft); }
+.journey-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin-top: var(--gap); }
+.contract-status { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--mint-strong); }
+.contract-status-unknown, .contract-status-unavailable, .contract-status-stale, .contract-status-conflict { color: var(--amber); }
+.journey-knowledge, .contract-handoffs { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; }
+.journey-knowledge li, .contract-handoffs li { display: grid; gap: 3px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.journey-knowledge span, .journey-knowledge small, .contract-handoffs span { color: var(--text-soft); }
+.journey-knowledge small { overflow-wrap: anywhere; }
+.journey-grid select { width: 100%; margin: 8px 0 12px; padding: 10px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface-raised); color: var(--text); }
+.journey-grid .inspection-button { display: block; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface-raised); color: var(--text); cursor: pointer; }
+.journey-grid .inspection-button:disabled { cursor: not-allowed; opacity: .55; }
+.contract-handoffs code { display: block; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--mint-strong); }
+.task-context { margin-top: var(--gap); }
+@media (max-width: 900px) { .journey-grid { grid-template-columns: 1fr; } }

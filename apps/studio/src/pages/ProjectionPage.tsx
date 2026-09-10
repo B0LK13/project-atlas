@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { ScreenId, StudioEnvelope } from "../types";
+import type { MissionJourneyProjection, TaskContextProjection } from "../types";
 import { Panel } from "../components/Panel";
+import { MissionJourneyPanel } from "./MissionJourneyPanel";
 
 const views: Partial<Record<ScreenId, string[]>> = {
   agents: ["agents_lanes", "ownership"], "work-graph": ["frontier", "ownership"],
@@ -20,7 +22,7 @@ function Value({ value }: { value: unknown }): ReactNode {
   return String(value);
 }
 
-export function ProjectionPage({ data, screen }: { data: StudioEnvelope; screen: ScreenId }) {
+export function ProjectionPage({ data, screen, journey, journeyLoading, journeyError, taskContext, taskLoading, taskError, onLoadTask }: { data: StudioEnvelope; screen: ScreenId; journey?: MissionJourneyProjection | null; journeyLoading?: boolean; journeyError?: string | null; taskContext?: TaskContextProjection | null; taskLoading?: boolean; taskError?: string | null; onLoadTask?: (lane: string) => void }) {
   const packet = data.projection;
   const mission = screen === "mission-control";
   const keys = mission ? Object.keys(packet.views) : views[screen] ?? [];
@@ -78,6 +80,7 @@ export function ProjectionPage({ data, screen }: { data: StudioEnvelope; screen:
         </Panel>;
       })}</div>
       {!keys.length && <Panel eyebrow="NOT WIRED" title="Detail projection unavailable"><p>A1 does not supply this detail view. Demonstration content is available only in explicitly selected fixture mode.</p></Panel>}
+      {mission && onLoadTask && <MissionJourneyPanel journey={journey ?? null} loading={journeyLoading ?? false} error={journeyError ?? null} taskContext={taskContext ?? null} taskLoading={taskLoading ?? false} taskError={taskError ?? null} onLoadTask={onLoadTask} />}
       <details><summary>Projection provenance</summary><dl className="projection-fields">
         <div><dt>Generated at (source supplied)</dt><dd>{packet.generated_at_utc}</dd></div>
         <div><dt>Fingerprint</dt><dd>{packet.snapshot_fingerprint}</dd></div>

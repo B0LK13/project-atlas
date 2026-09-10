@@ -30,6 +30,11 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from atlas_studio.mission_control import (  # noqa: E402
     validate_mission_control,
 )
+from atlas_studio.mission_journey import (  # noqa: E402
+    build_mission_journey,
+    validate_mission_journey,
+)
+from atlas_studio.task_context import validate_task_context  # noqa: E402
 
 SCHEMA = "ATLAS_STUDIO_BRIDGE_STATUS_V1"
 ALLOWED_ORIGINS = frozenset(
@@ -107,6 +112,80 @@ def build_current_projection(
     return packet
 
 
+def build_current_journey_projection(
+    repository: str, agent_id: str | None, cancelled=lambda: False
+) -> dict[str, Any]:
+    """Pass the validated A1 read through the integration journey builder."""
+    mission_control = build_current_projection(repository, agent_id, cancelled)
+    packet = build_mission_journey(
+        agent_id=agent_id,
+        repo=repository,
+        mission_control=mission_control,
+        live=False,
+        docs_root=REPO_ROOT / "docs",
+    )
+    if validate_mission_journey(packet):
+        raise RuntimeError("MISSION_JOURNEY_SCHEMA_VALIDATION_FAILED")
+    return packet
+
+
+def build_current_task_context(
+    repository: str, agent_id: str | None, lane: str, cancelled=lambda: False
+) -> dict[str, Any]:
+    """Invoke the integration-owned task-context CLI through a read-only seam."""
+    if not agent_id:
+        raise RuntimeError("TASK_CONTEXT_AGENT_REQUIRED")
+    if not lane.startswith("pr/") or not lane[3:].isdigit() or len(lane) > 80:
+        raise RuntimeError("TASK_CONTEXT_LANE_INVALID")
+    if cancelled():
+        raise RuntimeError("REQUEST_CANCELLED")
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(REPO_ROOT / "scripts")
+    command = [
+        sys.executable,
+        "-m",
+        "atlas_studio",
+        "task-context",
+        "--lane",
+        lane,
+        "--agent",
+        agent_id,
+        "--repo",
+        repository,
+        "--json",
+    ]
+    process = subprocess.Popen(
+        command,
+        cwd=REPO_ROOT,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, _stderr = process.communicate(timeout=20)
+    except subprocess.TimeoutExpired as exc:
+        # The integration CLI may invoke network helpers. Own the process
+        # group so a deadline cannot leave work running after the request.
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        raise RuntimeError("TASK_CONTEXT_DEADLINE") from exc
+    except OSError as exc:
+        with contextlib.suppress(OSError):
+            os.killpg(process.pid, signal.SIGKILL)
+        raise RuntimeError("TASK_CONTEXT_UPSTREAM_UNAVAILABLE") from exc
+    if process.returncode:
+        raise RuntimeError("TASK_CONTEXT_UPSTREAM_UNAVAILABLE")
+    try:
+        packet = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("TASK_CONTEXT_CONTRACT_INVALID") from exc
+    if validate_task_context(packet):
+        raise RuntimeError("TASK_CONTEXT_SCHEMA_VALIDATION_FAILED")
+    return packet
+
+
 class ReadOnlyStudioHandler(BaseHTTPRequestHandler):
     server_version = "AtlasStudioReadOnly/0.1"
 
@@ -162,7 +241,8 @@ class ReadOnlyStudioHandler(BaseHTTPRequestHandler):
                 },
             )
             return
-        if self.path != "/v1/mission-control":
+        route, _, query = self.path.partition("?")
+        if route not in {"/v1/mission-control", "/v1/mission-journey", "/v1/task-context"}:
             self._send_json(HTTPStatus.NOT_FOUND, {"schema": SCHEMA, "status": "UNKNOWN"})
             return
         if not self.config.slots.acquire(blocking=False):
@@ -171,9 +251,21 @@ class ReadOnlyStudioHandler(BaseHTTPRequestHandler):
             )
             return
         try:
-            packet = build_current_projection(
-                self.config.repository, self.config.agent_id, self._disconnected
-            )
+            if route == "/v1/mission-control":
+                packet = build_current_projection(
+                    self.config.repository, self.config.agent_id, self._disconnected
+                )
+            elif route == "/v1/mission-journey":
+                packet = build_current_journey_projection(
+                    self.config.repository, self.config.agent_id, self._disconnected
+                )
+            else:
+                from urllib.parse import parse_qs
+
+                lane = parse_qs(query, strict_parsing=False).get("lane", [""])[0]
+                packet = build_current_task_context(
+                    self.config.repository, self.config.agent_id, lane, self._disconnected
+                )
         except (RuntimeError, ValueError, OSError) as exc:
             if self._disconnected():
                 return

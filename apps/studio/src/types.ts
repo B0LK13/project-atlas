@@ -161,6 +161,37 @@ export interface MissionControlProjection {
   };
 }
 
+export interface MissionJourneyProjection {
+  schema: "ATLAS_STUDIO_MISSION_JOURNEY_V1";
+  generated_at_utc: string;
+  repository: string | null;
+  agent?: string | null;
+  mission: Record<string, unknown>;
+  knowledge: { state: string; items: Array<Record<string, unknown>>; notes?: string[] };
+  development: Record<string, unknown>;
+  next_actions: Record<string, unknown>;
+  honesty: HonestyBlock;
+  provenance: Record<string, unknown>;
+}
+
+export interface TaskContextProjection {
+  schema: "ATLAS_STUDIO_TASK_CONTEXT_V1";
+  generated_at_utc: string;
+  repository?: string | null;
+  agent?: string | null;
+  lane: string;
+  freshness: Record<string, unknown>;
+  lane_state: Record<string, unknown>;
+  knowledge: Record<string, unknown>;
+  next_step: Record<string, unknown>;
+  recovery: Array<Record<string, unknown>>;
+  continuation: Record<string, unknown>;
+  missing: string[];
+  honesty: HonestyBlock;
+  provenance: Record<string, unknown>;
+  fingerprint: string;
+}
+
 export type AgentPresence = "ACTIVE" | "IDLE" | "WAITING" | "INACTIVE";
 
 export interface AgentPreview {

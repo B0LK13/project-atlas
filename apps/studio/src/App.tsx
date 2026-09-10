@@ -3,6 +3,7 @@ import type { DensityMode, ScreenId, ThemeMode } from "./types";
 import { AppShell } from "./components/AppShell";
 import { CommandPalette } from "./components/CommandPalette";
 import { useStudioData } from "./data/useStudioData";
+import { useMissionContracts } from "./data/useMissionContracts";
 import { MissionControlPage } from "./pages/MissionControlPage";
 import { DesignLabPage } from "./pages/DesignLabPage";
 import { ProjectionPage } from "./pages/ProjectionPage";
@@ -45,6 +46,7 @@ export default function App() {
   const [density, setDensity] = useState<DensityMode>("compact");
   const [palette, setPalette] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const contracts = useMissionContracts(screen === "mission-control" && studio.data.source.kind !== "DESIGN_PREVIEW");
 
   const navigate = useCallback((target: ScreenId) => {
     window.location.hash = paths[target];
@@ -92,7 +94,7 @@ export default function App() {
   }
   if (screen === "design-lab") page = <DesignLabPage key={route} data={studio.data} />;
   if (studio.data.source.kind !== "DESIGN_PREVIEW" && screen !== "settings" && screen !== "design-lab") {
-    page = <ProjectionPage data={studio.data} screen={screen} />;
+    page = <ProjectionPage data={studio.data} screen={screen} journey={contracts.journey} journeyLoading={contracts.journeyLoading} journeyError={contracts.journeyError} taskContext={contracts.taskContext} taskLoading={contracts.taskLoading} taskError={contracts.taskError} onLoadTask={contracts.loadTask} />;
   }
 
   return (
@@ -107,7 +109,7 @@ export default function App() {
         density={density}
         onTheme={() => setTheme((value) => (value === "dark" ? "light" : "dark"))}
         onDensity={() => setDensity((value) => (value === "comfortable" ? "compact" : value === "compact" ? "focus" : "comfortable"))}
-        onRefresh={() => void studio.refresh()}
+        onRefresh={() => { void studio.refresh(); void contracts.refreshJourney(); }}
         onPalette={() => setPalette(true)}
         mobileOpen={mobileOpen}
         onMobileOpen={setMobileOpen}

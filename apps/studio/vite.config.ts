@@ -8,6 +8,8 @@ import standaloneCode from "ajv/dist/standalone/index.js";
 // D-006: compile canonical contracts at build time; native CSP forbids eval.
 const validatorSchemas = {
   validateMissionControl: "atlas_studio_mission_control_v1",
+  validateMissionJourney: "atlas_studio_mission_journey_v1",
+  validateTaskContext: "atlas_studio_task_context_v1",
   validateStudioSnapshot: "atlas_studio_snapshot_v1",
   validateStudioEvent: "atlas_studio_event_v1",
   validateControlView: "atlas_global_control_view_v1",
