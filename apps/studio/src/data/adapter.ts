@@ -218,12 +218,17 @@ export async function loadProjection(
       BUSY: "The bridge is already serving its request limit. Wait for those reads to finish, then refresh.",
     };
     let reason: unknown;
+    let diagnosticRef: unknown;
     try {
       const body = await response.json();
       reason = body?.reason ?? body?.status;
+      diagnosticRef = body?.diagnostic_ref;
     } catch { /* An absent diagnostic is not a successful projection. */ }
-    throw new ProjectionContractError(typeof reason === "string" && Object.hasOwn(explanations, reason)
-      ? explanations[reason] : `Bridge returned ${response.status}`);
+    const explanation = typeof reason === "string" && Object.hasOwn(explanations, reason)
+      ? explanations[reason] : `Bridge returned ${response.status}`;
+    const reference = typeof diagnosticRef === "string" && /^ATLAS-STUDIO-[A-Z0-9_-]+$/.test(diagnosticRef)
+      ? ` Diagnostic reference: ${diagnosticRef}.` : "";
+    throw new ProjectionContractError(`${explanation}${reference}`);
   }
   const packet: unknown = await response.json();
   assertHonestProjection(packet);

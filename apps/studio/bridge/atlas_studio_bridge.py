@@ -253,6 +253,12 @@ class ReadOnlyStudioHandler(BaseHTTPRequestHandler):
                     "reason": str(exc)
                     if isinstance(exc, RuntimeError)
                     else "PROJECTION_UNAVAILABLE",
+                    "diagnostic_ref": (
+                        f"ATLAS-STUDIO-{str(exc)}"
+                        if isinstance(exc, RuntimeError)
+                        and str(exc).startswith("PROJECTION_FAILED_")
+                        else "ATLAS-STUDIO-PROJECTION-UNAVAILABLE"
+                    ),
                     "unknown_ne_healthy": True,
                     "fixture_served": False,
                 },
