@@ -101,9 +101,11 @@ from project_atlas.orchestration.program.store import (
     ProgramStateRecord,
     TaskRecord,
     append_event,
+    clear_launch,
     evidence_dir,
     load_state,
     persist_state,
+    record_launch,
     state_dir,
     write_evidence,
 )
@@ -861,6 +863,7 @@ class ProgramSupervisor:
                 adapter=adapter,
                 capabilities=adapter.capabilities,
                 request=request,
+                root=self.root,
             )
             findings.append(
                 {
@@ -1834,7 +1837,27 @@ class ProgramSupervisor:
             timeout_seconds=timeout,
             evidence_dir=evidence_dir(self.root),
             cancel_requested=cancel_check,
+            process_started=self._launch_recorder(attempt.attempt_id),
         )
+
+    def _launch_recorder(self, attempt_id: str) -> Callable[[int, str], None]:
+        """The callback the adapter fires the instant a child exists.
+
+        It runs on the WORKER thread, so it must not touch ``state``: this
+        package's one concurrency rule is that only the supervisor thread
+        mutates the state object. It writes its own single-attempt file
+        instead, which is also what makes it useful -- the state object is only
+        persisted at checkpoints, and the whole point is to survive a kill
+        between two of them.
+        """
+        root = self.root
+
+        def record(pid: int, start_identity: str) -> None:
+            record_launch(
+                root, attempt_id=attempt_id, pid=pid, start_identity=start_identity
+            )
+
+        return record
 
     def _begin_dispatch(
         self,
@@ -1971,6 +1994,11 @@ class ProgramSupervisor:
                 choice.resume_session_id
                 or (new_session_id() if capabilities.accepts_assigned_session else None)
             ),
+            # B2: copy provenance at DISPATCH_INTENT. Missing on legacy tasks
+            # stays None (UNKNOWN) — never invent digests after the fact.
+            contract_digest=task.contract_digest,
+            source_item_digest=task.source_item_digest,
+            origination_identity=task.origination_identity,
         )
         if choice.resume_session_id:
             attempt.runtime_session_id = choice.resume_session_id
@@ -2088,6 +2116,10 @@ class ProgramSupervisor:
         attempt.worker_reported = outcome.reported
         attempt.process_pid = outcome.pid
         attempt.process_start_identity = outcome.process_start_identity
+        # The in-flight record has done its job: the identity now lives on the
+        # attempt itself. Left behind it would name a pid the OS is free to
+        # hand to a stranger.
+        clear_launch(self.root, attempt_id)
         attempt.runtime_session_id = outcome.session_id or attempt.runtime_session_id
         attempt.evidence_paths = outcome.evidence
         attempt.estimated_cost_usd = outcome.estimated_cost_usd
@@ -2483,6 +2515,7 @@ class ProgramSupervisor:
                 adapter=adapter,
                 capabilities=adapter.capabilities,
                 request=request,
+                root=self.root,
             )
             append_event(
                 self.root,

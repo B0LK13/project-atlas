@@ -17,6 +17,7 @@ Neither is authority. Both are evidence. A worker cannot write either.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from datetime import UTC, datetime
@@ -39,6 +40,12 @@ from project_atlas.orchestration.program.models import (
 STATE_NAME: Final[str] = "state.json"
 EVENTS_NAME: Final[str] = "events.jsonl"
 EVIDENCE_DIR: Final[str] = "evidence"
+#: One file per in-flight attempt, holding the pid and start identity of the
+#: child the moment it exists. Deliberately NOT part of ``state.json``: it is
+#: written by the worker thread, which never touches the state object, and it
+#: has to survive a supervisor that is killed between checkpoints -- which is
+#: exactly when it is needed.
+LAUNCHES_DIR: Final[str] = "launches"
 #: Program state lives beside, never inside, the workspace the workers mutate,
 #: so a worker's own diff can never contain the supervisor's checkpoint.
 DEFAULT_STATE_RELATIVE: Final[Path] = Path(".atlas") / "orchestration" / "program"
@@ -98,6 +105,11 @@ class AttemptRecord(BaseModel):
     usage: dict[str, Any] = Field(default_factory=dict)
     notes: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     merge_authorized: Literal[False] = False
+    #: Provenance copied from ProgramTask at DISPATCH_INTENT (B2). Optional;
+    #: legacy attempts without these fields remain readable as UNKNOWN.
+    contract_digest: str | None = Field(default=None, max_length=64)
+    source_item_digest: str | None = Field(default=None, max_length=128)
+    origination_identity: str | None = Field(default=None, max_length=64)
 
 
 class TaskRecord(BaseModel):
@@ -206,6 +218,84 @@ def events_path(root: Path) -> Path:
 
 def evidence_dir(root: Path) -> Path:
     return state_dir(root) / EVIDENCE_DIR
+
+
+def launches_dir(root: Path) -> Path:
+    return state_dir(root) / LAUNCHES_DIR
+
+
+def _launch_name(attempt_id: str) -> str:
+    """A filesystem-safe name for an attempt id, collision-free.
+
+    Attempt ids contain dots and are otherwise tame, but they are built from a
+    program id and a task id that a program file supplies, so the name is
+    hashed rather than trusted. Truncating instead would let two attempts share
+    a file, and a worker overwriting another worker's pid is worse than a long
+    filename.
+    """
+    return hashlib.sha256(attempt_id.encode("utf-8")).hexdigest() + ".json"
+
+
+def record_launch(
+    root: Path, *, attempt_id: str, pid: int, start_identity: str
+) -> Path:
+    """Make one in-flight process identity durable, immediately.
+
+    Called on the worker thread from the adapter's spawn site, so it touches no
+    shared object: one attempt, one file, written atomically and fsynced before
+    the adapter does anything else. The supervisor may be killed one
+    instruction later and the identity still survives.
+    """
+    target = launches_dir(root) / _launch_name(attempt_id)
+    _write_atomic(
+        target,
+        json.dumps(
+            {
+                "attempt_id": attempt_id,
+                "pid": int(pid),
+                "process_start_identity": start_identity,
+                "recorded_at": _utc_now(),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+    )
+    return target
+
+
+def load_launch(root: Path, attempt_id: str) -> dict[str, Any] | None:
+    """The recorded in-flight identity, or None when none was ever written.
+
+    None means "never recorded", which is NOT the same as "the process is
+    gone". Callers must not collapse the two.
+    """
+    path = launches_dir(root) / _launch_name(attempt_id)
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        # A torn or unreadable record is not evidence of absence either.
+        return None
+    if not isinstance(raw, dict) or raw.get("attempt_id") != attempt_id:
+        return None
+    return raw
+
+
+def clear_launch(root: Path, attempt_id: str) -> None:
+    """Drop the record once the attempt is terminal.
+
+    Left behind, it would name a pid the operating system is free to reuse, and
+    a later reader would have to decide whether a live stranger is our worker.
+    The start identity would catch that, but not keeping the stale record is
+    the cheaper answer.
+    """
+    path = launches_dir(root) / _launch_name(attempt_id)
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        return
 
 
 def _write_atomic(target: Path, text: str) -> None:

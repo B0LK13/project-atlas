@@ -132,6 +132,8 @@ SCHEMA_FILES: dict[str, str] = {
     "kci-compile-receipt": "kci-compile-receipt.schema.json",
     # AS-2.0-CTX-001 — fixture-safe context packs (provenance pointers; ≠ estate facts)
     "context-pack": "context-pack.schema.json",
+    # AS-TASK-CONTEXT-AND-CONTINUITY-001 — task-bound context packets (≠ authority)
+    "task-context-packet": "task-context-packet.schema.json",
     # AS-2.2-RUNTIME-001 — hybrid retrieve + context compiler (derived; ≠ LLM authority)
     "runtime-hybrid-retrieval": "runtime-hybrid-retrieval.schema.json",
     "runtime-context-compiler": "runtime-context-compiler.schema.json",

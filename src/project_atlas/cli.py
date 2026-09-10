@@ -3420,6 +3420,28 @@ def build_parser() -> argparse.ArgumentParser:
     register_program_parser(subparsers)
     register_agent_parser(subparsers)
 
+    # AS-TASK-CONTRACT-001 additive command, same seam and same reasoning as
+    # the two above: `task` prepares a backlog item into a reviewable contract
+    # and executes nothing. It attaches independently of the Atlas 3 surface.
+    from project_atlas.orchestration.taskcontract.cli import register_task_parser
+
+    register_task_parser(subparsers)
+
+    # AS-TASK-CONTEXT-AND-CONTINUITY-001 — additive; does not replace task/program.
+    from project_atlas.task_context.cli import register_parser as register_task_context_parser
+
+    register_task_context_parser(subparsers)
+
+    # AS-WORK-READINESS-001 — derived queue / handoff prep (advise only).
+    from project_atlas.orchestration.work_readiness.cli import register_work_readiness_parsers
+
+    register_work_readiness_parsers(subparsers)
+
+    # AS-LIVE-COMPONENT-INTEGRATION-002 — live public-interface bridge.
+    from project_atlas.orchestration.live_integration.cli import register_live_integrate_parsers
+
+    register_live_integrate_parsers(subparsers)
+
     return parser
 
 
@@ -6164,6 +6186,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"unknown orchestrator command: {args.orchestrator_command}"
         )
 
+    if args.command == "task":
+        # AS-TASK-CONTRACT-001. Same one-interface rule as `program`/`agent`
+        # below: `atlas task ...` and the module entry point call the same
+        # dispatcher, so they cannot drift into two behaviours.
+        from project_atlas.orchestration.taskcontract.cli import dispatch_task
+
+        payload, exit_code = dispatch_task(args)
+        if payload:
+            print(json.dumps(payload, indent=2, sort_keys=True, default=str))
+        return exit_code
+
+    if args.command == "task-context":
+        from project_atlas.task_context.cli import run as run_task_context
+
+        return run_task_context(args)
+
     if args.command in {"program", "agent"}:
         # One lifecycle interface, not a second one: these delegate straight
         # into the same functions `python -m project_atlas.orchestration
@@ -6180,6 +6218,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     atlas3_exit = dispatch_atlas3(args)
     if atlas3_exit is not None:
         return atlas3_exit
+
+    from project_atlas.orchestration.work_readiness.cli import dispatch_work_readiness
+
+    wr_exit = dispatch_work_readiness(args)
+    if wr_exit is not None:
+        return wr_exit
+
+    from project_atlas.orchestration.live_integration.cli import dispatch_live_integrate
+
+    li_exit = dispatch_live_integrate(args)
+    if li_exit is not None:
+        return li_exit
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 

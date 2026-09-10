@@ -44,6 +44,20 @@ from project_atlas.orchestration.program.profiles import (
 
 MAX_PROGRAM_BYTES = 2 * 1024 * 1024
 
+#: Top-level keys the loader understands. Render metadata from the task-
+#: contract seam (provenance / identity chain) is allowed and ignored for
+#: execution — it must not force a hand-edit strip before ``load_program``.
+_ALLOWED_TOP_LEVEL: frozenset[str] = frozenset(
+    {
+        "schema_version",
+        "program",
+        "profile_defaults",
+        "profiles",
+        "field_provenance",
+        "identity_chain",
+    }
+)
+
 
 class ProgramLoadError(ProgramError):
     code = "PROGRAM_LOAD_ERROR"
@@ -136,9 +150,7 @@ def load_program(path: Path) -> LoadedProgram:
             "program file must contain a JSON object", code="FILE_MALFORMED"
         )
 
-    unknown = sorted(
-        set(raw) - {"schema_version", "program", "profile_defaults", "profiles"}
-    )
+    unknown = sorted(set(raw) - _ALLOWED_TOP_LEVEL)
     if unknown:
         raise ProgramLoadError(
             f"program file has unknown top-level key(s): {', '.join(unknown)}",

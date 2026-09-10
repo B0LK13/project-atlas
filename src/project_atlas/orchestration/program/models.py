@@ -386,12 +386,27 @@ class ProgramTask(BaseModel):
     #: attempt be launched again? Only ever true for a task whose effect is
     #: idempotent by construction. Default is to stop and require reconcile.
     retry_safe_when_no_launch_evidence: bool = False
+    #: Optional provenance chain (AS-EXECUTION-SEAM-CLOSURE-003 / B2).
+    #: Absent on legacy programs — readers must treat missing as UNKNOWN,
+    #: never invent a digest after the fact.
+    contract_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    source_item_digest: str | None = Field(default=None, min_length=8, max_length=128)
+    origination_identity: str | None = Field(default=None, min_length=64, max_length=64)
 
     @field_validator("task_id", "profile_ref", "surface_id")
     @classmethod
     def _ident(cls, value: str) -> str:
         if not _ID_RE.fullmatch(value):
             raise ValueError("identifier must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+        return value
+
+    @field_validator("contract_digest", "origination_identity")
+    @classmethod
+    def _opt_sha256(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ValueError("digest must be lowercase sha256 hex")
         return value
 
     @field_validator("verifier_profile_ref")
@@ -473,6 +488,7 @@ class ProgramTask(BaseModel):
             owner_gate=self.owner_gate,
             retry_policy=RetryPolicy(),
             state=NodeState.DISCOVERED,
+            origination_identity=self.origination_identity,
         )
 
 
