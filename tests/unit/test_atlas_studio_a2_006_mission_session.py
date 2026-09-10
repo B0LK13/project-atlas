@@ -14,6 +14,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
@@ -240,9 +242,40 @@ def test_success_session_schema():
     assert packet["session_state"] == ms.SESSION_CONFIRMED_SUCCESS
     assert packet["recovery"]["auto_retry"] is False
     assert packet["binding"]["binding_ok"] is True
-    assert packet["dependencies"]["task_context"]["state"] == "UNAVAILABLE"
+    # task_context (#786) state is a PROPERTY OF THE STACK, not an invariant:
+    # UNAVAILABLE when A2-003 is absent, AVAILABLE once it composes in. Both
+    # branches are pinned deterministically below.
+    assert packet["dependencies"]["task_context"]["state"] in {"AVAILABLE", "UNAVAILABLE"}
     assert packet["dependencies"]["control_plane_observation"]["state"] == "UNAVAILABLE"
     assert ms.validate_mission_session(packet) == []
+
+
+def test_task_context_dependency_unavailable_when_module_absent(monkeypatch):
+    """A2-003 absent -> explicit UNAVAILABLE with an actionable command."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def blocked(name, *a, **k):
+        if name == "atlas_studio.task_context":
+            raise ImportError("blocked for test")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", blocked)
+    monkeypatch.delitem(sys.modules, "atlas_studio.task_context", raising=False)
+    dep = ms._task_context_dependency()
+    assert dep["state"] == "UNAVAILABLE"
+    assert dep["ownership"] == "PR_786_DRAFT"
+    assert "task-context" in dep["command"]
+
+
+def test_task_context_dependency_available_when_module_present():
+    """A2-003 composed in -> AVAILABLE, and A2-006 still does not build it here."""
+    pytest.importorskip("atlas_studio.task_context")
+    dep = ms._task_context_dependency()
+    assert dep["state"] == "AVAILABLE"
+    assert dep["ownership"] == "PR_786"
+    assert dep["built_here"] is False
 
 
 def test_fingerprint_stable_across_wall_clock():
