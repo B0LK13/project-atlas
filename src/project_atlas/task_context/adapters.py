@@ -112,7 +112,7 @@ def try_load_live_taskcontract(path: Path) -> ContractSnapshot | None:
     closed — this helper never silently invents fields.
     """
     try:
-        from project_atlas.orchestration.taskcontract.models import (  # type: ignore[import-not-found]
+        from project_atlas.orchestration.taskcontract.models import (  # type: ignore[import-not-found, unused-ignore]
             TaskContract,
         )
     except ImportError:
