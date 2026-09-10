@@ -29,8 +29,8 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -70,6 +70,7 @@ from project_atlas.orchestration.program.adapters.claude_code import (
 )
 from project_atlas.orchestration.program.adapters.codex import CodexAdapter
 from project_atlas.orchestration.program.adapters.local_command import LocalCommandAdapter
+from project_atlas.orchestration.program.enrollment import EnrolledAgent, bind
 from project_atlas.orchestration.program.loader import LoadedProgram, profile_digest
 from project_atlas.orchestration.program.models import (
     PERMANENT_FAILURES,
@@ -80,7 +81,11 @@ from project_atlas.orchestration.program.models import (
     ProgramStopReason,
     ProgramTask,
 )
-from project_atlas.orchestration.program.profiles import AdapterKind, AgentProfile
+from project_atlas.orchestration.program.profiles import (
+    AdapterKind,
+    AgentProfile,
+    ProfileLimits,
+)
 from project_atlas.orchestration.program.recovery import RecoveryAction, classify_attempt
 from project_atlas.orchestration.program.store import (
     AttemptRecord,
@@ -258,7 +263,11 @@ class ProgramSupervisor:
         adapters: Mapping[str, RuntimeAdapter] | None = None,
         clock: Callable[[], float] = time.time,
         sleeper: Callable[[float], None] = time.sleep,
+        enrolled_agents: Sequence[EnrolledAgent] = (),
     ) -> None:
+        if enrolled_agents:
+            loaded = _apply_enrollments(loaded, enrolled_agents)
+        self.enrolled_agents = tuple(enrolled_agents)
         self.loaded = loaded
         self.program = loaded.program
         self.workspace = loaded.workspace
@@ -2122,6 +2131,113 @@ def _lease_id_for(
         return None
     lease = leases.get(task_id)
     return lease.lease_id if lease is not None else None
+
+
+def _apply_enrollments(
+    loaded: LoadedProgram, agents: Sequence[EnrolledAgent]
+) -> LoadedProgram:
+    """Substitute enrolled agents' bound profiles for the roles they fill.
+
+    What changes is the principal and any narrowing the enrollment carries.
+    What does not change is where permissions come from: the approved
+    program's profile for that role, narrowed. An enrollment cannot widen it,
+    and `bind` refuses the attempt.
+
+    The implementer-cannot-verify check is re-run afterwards, on the
+    substituted `agent_id`s. Two profiles that looked independent while they
+    were placeholders can resolve to one enrolled agent, and that is precisely
+    the case a check performed only at load time would miss.
+    """
+    by_role: dict[str, EnrolledAgent] = {}
+    for agent in agents:
+        previous = by_role.get(agent.role)
+        if previous is not None and previous.agent_id != agent.agent_id:
+            raise SupervisorError(
+                f"role {agent.role!r} is claimed by two enrolled agents "
+                f"({previous.agent_id}, {agent.agent_id})",
+                code="ROLE_CONTENTION",
+            )
+        by_role[agent.role] = agent
+
+    effective = dict(loaded.effective)
+    verifiers = dict(loaded.verifiers)
+    for task in loaded.program.tasks:
+        # Deliberately a new name: reusing the loop variable from the
+        # role-contention loop above shadows a non-optional binding with an
+        # optional one, which mypy catches and a reader would not.
+        task_agent = by_role.get(task.profile_ref)
+        if task_agent is not None:
+            bound = bind(task_agent, loaded, allow_runtime_substitution=True)
+            # The task's own override is applied on top of the program profile
+            # by the loader; re-applying the enrollment's narrowing over that
+            # result would lose the task override, so both are layered here.
+            base = loaded.effective[task.task_id]
+            effective[task.task_id] = base.model_copy(
+                update={
+                    "agent_id": bound.agent_id,
+                    "adapter": bound.adapter,
+                    "permission_mode": _tighter(
+                        base.permission_mode, bound.permission_mode
+                    ),
+                    "allowed_tools": tuple(
+                        sorted(set(base.allowed_tools) & set(bound.allowed_tools))
+                    )
+                    if base.allowed_tools and bound.allowed_tools
+                    else (bound.allowed_tools or base.allowed_tools),
+                    "limits": _tighter_limits(base.limits, bound.limits),
+                    "adapter_options": bound.adapter_options or base.adapter_options,
+                }
+            )
+        verifier_agent: EnrolledAgent | None = (
+            by_role.get(task.verifier_profile_ref)
+            if task.verifier_profile_ref
+            else None
+        )
+        if verifier_agent is not None and task.task_id in verifiers:
+            verifiers[task.task_id] = verifiers[task.task_id].model_copy(
+                update={"agent_id": verifier_agent.agent_id}
+            )
+
+    for task in loaded.program.tasks:
+        verifier = verifiers.get(task.task_id)
+        if verifier is None:
+            continue
+        if verifier.agent_id == effective[task.task_id].agent_id:
+            raise SupervisorError(
+                f"task {task.task_id}: after enrollment its implementer and "
+                f"verifier are the same agent ({verifier.agent_id}); an agent "
+                "cannot independently verify its own work",
+                code="IMPLEMENTER_CANNOT_VERIFY",
+            )
+
+    return replace(loaded, effective=effective, verifiers=verifiers)
+
+
+def _tighter(left: str, right: str) -> str:
+    """The more restrictive of two permission modes."""
+    from project_atlas.orchestration.program.profiles import PERMISSION_RANK
+
+    return left if PERMISSION_RANK[left] <= PERMISSION_RANK[right] else right
+
+
+def _tighter_limits(left: ProfileLimits, right: ProfileLimits) -> ProfileLimits:
+    """The tighter of two limit sets, field by field.
+
+    Taking the minimum rather than one side wholesale: an enrollment that says
+    "this agent never runs longer than 60s" and a program that says "this task
+    never runs longer than 300s" both mean it, and honouring only one of them
+    would silently discard a bound somebody set on purpose.
+    """
+    costs = [
+        value
+        for value in (left.max_estimated_cost_usd, right.max_estimated_cost_usd)
+        if value is not None
+    ]
+    return ProfileLimits(
+        max_seconds=min(left.max_seconds, right.max_seconds),
+        max_attempts=min(left.max_attempts, right.max_attempts),
+        max_estimated_cost_usd=min(costs) if costs else None,
+    )
 
 
 def _verification_instruction(task: ProgramTask) -> str:

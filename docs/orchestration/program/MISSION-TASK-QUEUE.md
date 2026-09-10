@@ -47,13 +47,17 @@ continuous execution across all enrolled Atlas agents and supported runtimes.
 - [x] T25 Real Codex demonstration (`evidence/REAL-RUNTIME-DEMO-CODEX.md`)
 - [x] T26 31 further tests (`test_orchestration_program_runtimes.py`)
 
-## M3 — Shared enrollment
+## M3 — Shared enrollment  ✅ COMPLETE
 
-- [ ] T30 One supported way to register a profile + workspace + role
-- [ ] T31 Assign an approved program to an enrolled agent and launch it
-- [ ] T32 Separate agent identity, runtime/session identity, task ownership,
-      supervisor lifecycle
-- [ ] T33 Explicit enrollment/handoff of existing sessions; never silent adoption
+- [x] T30 `agent enroll` — one registry holding identity, role, runtime,
+      workspace and narrowing-only profile overrides
+- [x] T31 `agent assign` (binding proved before it is recorded) + `agent launch`
+- [x] T32 Four identities separated and reported with their lifetimes
+      (`agent status`); a dead supervisor releases no ownership
+- [x] T33 Existing sessions enter only through `program handoff`; no live
+      process is ever adopted
+- [x] T34 Verification separation re-checked after enrollment substitution
+- [x] T35 16 further tests (`test_orchestration_program_enrollment.py`)
 
 ## M4 — Concurrent agents
 

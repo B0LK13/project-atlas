@@ -27,6 +27,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from project_atlas.orchestration.program.enrollment import (
+    AgentStatus,
+    EnrollmentError,
+    assign,
+    bind,
+    enroll,
+    identity_view,
+    load_registry,
+    set_status,
+)
 from project_atlas.orchestration.program.loader import (
     LoadedProgram,
     ProgramLoadError,
@@ -34,7 +44,10 @@ from project_atlas.orchestration.program.loader import (
     profile_digest,
 )
 from project_atlas.orchestration.program.models import ProgramError
-from project_atlas.orchestration.program.profiles import UNENFORCED_MODES
+from project_atlas.orchestration.program.profiles import (
+    UNENFORCED_MODES,
+    AdapterKind,
+)
 from project_atlas.orchestration.program.runtimes import (
     UNIVERSALLY_UNSUPPORTED,
     describe_all,
@@ -199,6 +212,163 @@ def run_events(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return {"program_id": loaded.program.program_id, "events": rows}, EXIT_OK
 
 
+# --------------------------------------------------------------- enrollment
+
+
+def _registry_root(args: argparse.Namespace) -> Path:
+    return Path(args.registry).expanduser().resolve()
+
+
+def run_agent_enroll(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    narrowing: dict[str, Any] = {}
+    raw = getattr(args, "narrow", None)
+    if raw:
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise EnrollmentError(
+                f"--narrow is not valid JSON: {exc}", code="NARROWING_MALFORMED"
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise EnrollmentError(
+                "--narrow must be a JSON object", code="NARROWING_MALFORMED"
+            )
+        narrowing = parsed
+    agent = enroll(
+        _registry_root(args),
+        agent_id=str(args.agent_id),
+        role=str(args.role),
+        adapter=str(args.adapter),
+        workspace_root=Path(args.workspace),
+        enrolled_by=str(args.enrolled_by),
+        description=str(getattr(args, "description", "") or ""),
+        profile_narrowing=narrowing,
+        replace=bool(getattr(args, "replace", False)),
+    )
+    return (
+        {
+            "enrolled": agent.model_dump(mode="json"),
+            "note": (
+                "ENROLLMENT != AUTHORIZATION. This records that the agent "
+                "exists, which runtime it is, where it works and what it may "
+                "narrow. It grants nothing"
+            ),
+        },
+        EXIT_OK,
+    )
+
+
+def run_agent_list(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    registry = load_registry(_registry_root(args))
+    return (
+        {
+            "registry": str(_registry_root(args)),
+            "agents": [
+                agent.model_dump(mode="json")
+                for agent in sorted(
+                    registry.agents.values(), key=lambda item: item.agent_id
+                )
+            ],
+        },
+        EXIT_OK,
+    )
+
+
+def run_agent_assign(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    agent, loaded = assign(
+        _registry_root(args),
+        agent_id=str(args.agent_id),
+        program_path=Path(args.program),
+        assigned_by=str(args.assigned_by),
+        allow_runtime_substitution=bool(
+            getattr(args, "allow_runtime_substitution", False)
+        ),
+    )
+    effective = bind(agent, loaded, allow_runtime_substitution=True)
+    return (
+        {
+            "agent_id": agent.agent_id,
+            "role": agent.role,
+            "program_id": loaded.program.program_id,
+            "program_sha256": loaded.digest,
+            "assigned_program": agent.assigned_program,
+            "effective_profile_sha256": profile_digest(effective),
+            "effective_permission_mode": effective.permission_mode,
+            "note": (
+                "the binding was resolved before being recorded, so an "
+                "assignment that could not run is refused now rather than when "
+                "a worker would have started"
+            ),
+            "merge_authorized": False,
+        },
+        EXIT_OK,
+    )
+
+
+def run_agent_status(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    registry = load_registry(_registry_root(args))
+    agent = registry.agents.get(str(args.agent_id))
+    if agent is None:
+        raise EnrollmentError(
+            f"unknown agent {args.agent_id}", code="UNKNOWN_AGENT"
+        )
+    assigned = agent.assigned_program
+    loaded = load_program(Path(assigned)) if assigned is not None else None
+    payload = identity_view(agent, loaded)
+    if loaded is not None and assigned is not None:
+        supervisor = ProgramSupervisor(loaded, state_root=Path(assigned).parent)
+        payload["program_status"] = supervisor.status()
+    return payload, EXIT_OK
+
+
+def run_agent_set_status(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    agent = set_status(
+        _registry_root(args), agent_id=str(args.agent_id), status=str(args.status)
+    )
+    return (
+        {
+            "agent_id": agent.agent_id,
+            "status": agent.status.value,
+            "note": (
+                "dispatch is withheld; task ownership is deliberately not "
+                "touched, because dropping a lease on a surface somebody may "
+                "still be writing is worse than pausing dispatch"
+            ),
+        },
+        EXIT_OK,
+    )
+
+
+def run_agent_launch(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """Launch the program assigned to an enrolled agent, under supervision."""
+    registry = load_registry(_registry_root(args))
+    agent = registry.agents.get(str(args.agent_id))
+    if agent is None:
+        raise EnrollmentError(
+            f"unknown agent {args.agent_id}", code="UNKNOWN_AGENT"
+        )
+    if agent.status is not AgentStatus.ACTIVE:
+        raise EnrollmentError(
+            f"agent {agent.agent_id} is {agent.status.value}", code="AGENT_NOT_ACTIVE"
+        )
+    if agent.assigned_program is None:
+        raise EnrollmentError(
+            f"agent {agent.agent_id} has no assigned program", code="NO_ASSIGNMENT"
+        )
+    loaded = load_program(Path(agent.assigned_program))
+    supervisor = ProgramSupervisor(
+        loaded,
+        state_root=Path(
+            getattr(args, "state_root", None) or Path(agent.assigned_program).parent
+        ),
+        enrolled_agents=(agent,),
+    )
+    report = supervisor.start()
+    payload = report.to_public_dict()
+    payload["launched_as_agent"] = agent.agent_id
+    return payload, EXIT_OK
+
+
 _HANDLERS = {
     "validate": run_validate,
     "start": run_start,
@@ -208,6 +378,15 @@ _HANDLERS = {
     "events": run_events,
     "runtimes": run_runtimes,
     "handoff": run_handoff,
+}
+
+_AGENT_HANDLERS = {
+    "enroll": run_agent_enroll,
+    "list": run_agent_list,
+    "assign": run_agent_assign,
+    "status": run_agent_status,
+    "set-status": run_agent_set_status,
+    "launch": run_agent_launch,
 }
 
 #: Commands that operate on a program file. ``runtimes`` does not.
@@ -308,10 +487,116 @@ def register_program_parser(
     return parser
 
 
+def register_agent_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> argparse.ArgumentParser:
+    """Attach the ``agent`` command: enroll, assign, launch, inspect."""
+    parser = subparsers.add_parser(
+        "agent",
+        help="Enroll agents, assign approved programs, and launch under supervision.",
+        description=(
+            "One supported way to register an agent profile, associate its "
+            "workspace and role, assign an approved work program, and launch "
+            "it. ENROLLMENT != AUTHORIZATION: enrolling grants nothing, and "
+            "no existing session or process is ever adopted silently."
+        ),
+    )
+    sub = parser.add_subparsers(dest="agent_command", required=True)
+
+    def _with_registry(child: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        child.add_argument(
+            "--registry",
+            required=True,
+            type=Path,
+            help="Directory holding the agent registry.",
+        )
+        return child
+
+    enroll_cmd = _with_registry(
+        sub.add_parser("enroll", help="Register an agent, or replace its record.")
+    )
+    enroll_cmd.add_argument("--agent-id", required=True)
+    enroll_cmd.add_argument(
+        "--role",
+        required=True,
+        help="The program-profile name this agent fills.",
+    )
+    enroll_cmd.add_argument(
+        "--adapter",
+        required=True,
+        choices=[kind.value for kind in AdapterKind],
+        help="Which runtime this agent is.",
+    )
+    enroll_cmd.add_argument("--workspace", required=True, type=Path)
+    enroll_cmd.add_argument("--enrolled-by", required=True)
+    enroll_cmd.add_argument("--description", default="")
+    enroll_cmd.add_argument(
+        "--narrow",
+        default=None,
+        metavar="JSON",
+        help=(
+            "Narrowing-only profile overrides, as a JSON object. Checked by "
+            "the same rules a task override is; widening is refused."
+        ),
+    )
+    enroll_cmd.add_argument(
+        "--replace",
+        action="store_true",
+        help="Replace an existing record. Keeps any program assignment.",
+    )
+
+    _with_registry(sub.add_parser("list", help="List enrolled agents."))
+
+    assign_cmd = _with_registry(
+        sub.add_parser("assign", help="Assign an approved program to an agent.")
+    )
+    assign_cmd.add_argument("--agent-id", required=True)
+    assign_cmd.add_argument("--program", required=True, type=Path)
+    assign_cmd.add_argument("--assigned-by", required=True)
+    assign_cmd.add_argument(
+        "--allow-runtime-substitution",
+        action="store_true",
+        help=(
+            "Permit an agent to run a role written for a different runtime. "
+            "A decision, never a default."
+        ),
+    )
+
+    status_cmd = _with_registry(
+        sub.add_parser(
+            "status",
+            help="The four identities side by side, plus program status.",
+        )
+    )
+    status_cmd.add_argument("--agent-id", required=True)
+
+    set_status_cmd = _with_registry(
+        sub.add_parser("set-status", help="Suspend, retire or reactivate an agent.")
+    )
+    set_status_cmd.add_argument("--agent-id", required=True)
+    set_status_cmd.add_argument(
+        "--status", required=True, choices=[item.value for item in AgentStatus]
+    )
+
+    launch_cmd = _with_registry(
+        sub.add_parser("launch", help="Run this agent's assigned program.")
+    )
+    launch_cmd.add_argument("--agent-id", required=True)
+    launch_cmd.add_argument("--state-root", type=Path, default=None)
+    return parser
+
+
 def dispatch_program(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     handler = _HANDLERS.get(getattr(args, "program_command", ""))
     if handler is None:
         return {"error": "unknown program command"}, EXIT_USAGE
+    return handler(args)
+
+
+def dispatch_agent(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    handler = _AGENT_HANDLERS.get(getattr(args, "agent_command", ""))
+    if handler is None:
+        return {"error": "unknown agent command"}, EXIT_USAGE
     return handler(args)
 
 
@@ -324,8 +609,8 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    program = register_program_parser(sub)
-    _ = program
+    register_program_parser(sub)
+    register_agent_parser(sub)
     return parser
 
 
@@ -333,7 +618,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
-        payload, code = dispatch_program(args)
+        if getattr(args, "command", "") == "agent":
+            payload, code = dispatch_agent(args)
+        else:
+            payload, code = dispatch_program(args)
     except (ProgramLoadError, ProgramError) as exc:
         print(
             json.dumps(
