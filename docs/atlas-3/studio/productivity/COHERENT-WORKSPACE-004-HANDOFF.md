@@ -10,7 +10,7 @@ smallest supported continuation increment.
 - Accepted candidate tag: `atlas-studio-page-purpose-003`
 - Accepted candidate commit: `664325fc539ebbca73254084f56d0edd62c38848`
 - Accepted candidate tree: `ca925adddf2128dc4a0f2d636c9622b25ee651c3`
-- Continuation UI HEAD: `cfd1905cfa80e2813d9d1686e08b38af4f3ccd57` (tree recorded by git at build time)
+- Continuation UI HEAD: `13a435e81d2e8d3a8295d13a8bddf050a23fc65c` (tree `83e635039e70ac659a56d7f959a0f399e2f9f2f8`)
 - Working branch: `feat/atlas-native-daily-workspace-001`
 - Remote: `origin https://github.com/B0LK13/project-atlas.git`
 - Remote branch: `origin/feat/atlas-native-daily-workspace-001` at `1628017c682986292ffe5fef2bc3767fc5a97db6` (pushed for durable review).
@@ -75,6 +75,11 @@ compact context strip with a return route to the decision queue. On reopening,
 the selection is read only after the refreshed projection is loaded; a changed
 repository or disappeared record clears it explicitly. This state cannot
 execute, acknowledge, or retry work.
+
+Task Context follows the same local presentation path. Once a lane is
+inspected, its repository-bound lane identity is restored on the next route or
+application start through the read-only Task Context contract. Missing or
+unavailable Task Context remains an explicit error.
 
 ## Documentation status
 
