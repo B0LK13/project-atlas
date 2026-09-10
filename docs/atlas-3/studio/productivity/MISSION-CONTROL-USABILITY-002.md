@@ -19,7 +19,7 @@ Validation:
 - `npm run check`: 40 Vitest tests, typecheck, and production build passed.
 - Mission Control usability E2E: 1 passed (118-item fixture, grouping, keyboard focus, selection persistence, disappearance).
 - Existing controlled accessibility E2E: 4 passed at 600×800, 980×700, 1366×768, and 1920×1080, including axe checks.
-- Full browser suite is run before delivery; the real authenticated test remains opt-in.
-- Native Tauri Debian bundle rebuilt from this lane; hashes are recorded in the delivery receipt.
+- Full browser suite: 19 passed, 1 skipped (the authenticated real-data test is opt-in).
+- Native Tauri Debian bundle rebuilt from this lane. Executable SHA-256: `80d7cad893c389bdb008839e364423f5672cd1ef5d80d49631cd3fce4633a35d`; Debian SHA-256: `54798ecb714ab101529b3714a72397fc30670714358fbc6a7ca56bb635b0697b`.
 
 Limitations remain source-accurate: A1 supplies no mission catalog or declared mission objective; unknown metrics remain unknown; the bridge does not grant authority or execute actions. Documentation synchronization is attempted only through the governed process; if the remote credit blocker remains, no receipt will be claimed.
