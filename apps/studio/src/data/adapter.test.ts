@@ -145,8 +145,8 @@ describe("Studio projection boundary", () => {
 
 
 it("explains allowlisted bridge failures without reflecting untrusted diagnostic text", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:false,status:503,json:async()=>({reason:"PROJECTION_FAILED_UPSTREAM_READS"})}));
-  await expect(loadProjection()).rejects.toThrow("GitHub reads failed");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:false,status:503,json:async()=>({reason:"PROJECTION_FAILED_UPSTREAM_READS", diagnostic_ref:"ATLAS-STUDIO-PROJECTION_FAILED_UPSTREAM_READS"})}));
+  await expect(loadProjection()).rejects.toThrow("Diagnostic reference: ATLAS-STUDIO-PROJECTION_FAILED_UPSTREAM_READS");
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:false,status:503,json:async()=>({reason:"credential-canary"})}));
   await expect(loadProjection()).rejects.toThrow("Bridge returned 503");
   vi.unstubAllGlobals();

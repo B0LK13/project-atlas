@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { remote } from "webdriverio";
 import fixturePacket from "../src/data/test-fixtures/generated-a1-packet.json" with { type: "json" };
 
@@ -9,6 +10,25 @@ const driverPort = Number(process.env.STUDIO_NATIVE_DRIVER_PORT ?? 4444);
 const evidenceDir = path.resolve(process.env.STUDIO_NATIVE_EVIDENCE_DIR ?? "artifacts/native");
 const sourceLabel = process.env.STUDIO_NATIVE_SOURCE ?? "unspecified";
 const fixtureMode = sourceLabel === "fixture";
+const managedBridge = process.env.STUDIO_NATIVE_MANAGE_BRIDGE === "1" && !fixtureMode;
+let bridgeProcess;
+
+function startManagedBridge() {
+  bridgeProcess = spawn(
+    process.env.STUDIO_NATIVE_PYTHON ?? "/home/gebruiker/Projects/project-atlas/.venv/bin/python",
+    ["bridge/atlas_studio_bridge.py", "--port", "47631", "--repository", "B0LK13/project-atlas", "--agent", "ubuntu-main"],
+    { cwd: path.resolve("."), stdio: "ignore" },
+  );
+}
+
+async function saveScreenshot(browser) {
+  const screenshotResponse = await fetch(`http://127.0.0.1:${driverPort}/session/${browser.sessionId}/screenshot`);
+  if (!screenshotResponse.ok) throw new Error(`webdriver screenshot failed: HTTP ${screenshotResponse.status}`);
+  const screenshot = await screenshotResponse.json();
+  const screenshotPath = path.join(evidenceDir, fixtureMode ? "mission-control-filter.png" : `mission-control-${sourceLabel}.png`);
+  fs.writeFileSync(screenshotPath, Buffer.from(screenshot.value, "base64"));
+  console.log(`screenshot=${screenshotPath}`);
+}
 
 function fixtureServer() {
   const state = { mode: "normal" };
@@ -32,6 +52,7 @@ if (fixtureMode) {
   fixture = fixtureServer();
   await new Promise((resolve, reject) => { fixture.server.once("error", reject); fixture.server.listen(47631, "127.0.0.1", resolve); });
 }
+if (managedBridge) startManagedBridge();
 let browser;
 try {
   browser = await remote({
@@ -52,7 +73,18 @@ try {
   console.log(`heading=${await (await browser.$("h1")).getText()}`);
 
   const filter = await browser.$('input[placeholder="Search IDs, titles, causes"]');
-  await filter.waitForExist({ timeout: 20_000 });
+  try {
+    await filter.waitForExist({ timeout: 20_000 });
+  } catch (error) {
+    const page = await browser.getPageSource();
+    if (!fixtureMode && page.includes("Projection unavailable")) {
+      console.log("real_projection_unavailable=true");
+      console.log(`error_detail=${page.match(/<p>([^<]*(?:reads failed|unavailable)[^<]*)<\/p>/i)?.[1] ?? "sanitized bridge error is shown"}`);
+      await saveScreenshot(browser);
+      throw new Error("REAL_PROJECTION_UNAVAILABLE");
+    }
+    throw error;
+  }
   await filter.click();
   await browser.keys(["TAB"]);
   const focus = await browser.execute(() => ({ tag: document.activeElement?.tagName, id: (document.activeElement instanceof HTMLElement) ? document.activeElement.id : "" }));
@@ -78,6 +110,19 @@ try {
   await browser.$('input[placeholder="Search IDs, titles, causes"]').waitForExist({ timeout: 5_000 });
   console.log(`returned=${await (await browser.$("h1")).getText()}`);
 
+  if (managedBridge) {
+    bridgeProcess.kill("SIGTERM");
+    bridgeProcess = undefined;
+    await (await browser.$('button[aria-label="Refresh read-only projection"]')).click();
+    await browser.waitUntil(async () => (await browser.getPageSource()).includes("Projection unavailable"), { timeout: 10_000 });
+    console.log("bridge_disconnected_state=true");
+    startManagedBridge();
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await (await browser.$('button[aria-label="Refresh read-only projection"]')).click();
+    await browser.waitUntil(async () => (await browser.$('input[placeholder="Search IDs, titles, causes"]').isExisting()), { timeout: 25_000 });
+    console.log("bridge_recovered_state=true");
+  }
+
   if (fixtureMode) {
     fixture.state.mode = "changed";
     await (await browser.$('button[aria-label="Refresh read-only projection"]')).click();
@@ -101,13 +146,12 @@ try {
     console.log("recovered_state=true");
   }
 
-  const screenshotResponse = await fetch(`http://127.0.0.1:${driverPort}/session/${browser.sessionId}/screenshot`);
-  if (!screenshotResponse.ok) throw new Error(`webdriver screenshot failed: HTTP ${screenshotResponse.status}`);
-  const screenshot = await screenshotResponse.json();
-  const screenshotPath = path.join(evidenceDir, "mission-control-filter.png");
-  fs.writeFileSync(screenshotPath, Buffer.from(screenshot.value, "base64"));
-  console.log(`screenshot=${screenshotPath}`);
+  await saveScreenshot(browser);
 } finally {
   if (browser) await browser.deleteSession();
   if (fixture) await new Promise((resolve) => fixture.server.close(resolve));
+  if (bridgeProcess) {
+    bridgeProcess.kill("SIGTERM");
+    bridgeProcess = undefined;
+  }
 }

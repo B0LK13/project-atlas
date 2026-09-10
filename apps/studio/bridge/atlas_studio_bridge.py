@@ -38,6 +38,7 @@ from atlas_studio.task_context import (  # noqa: E402
     build_task_context,
     validate_task_context,
 )
+from projection_cache import ProjectionCache  # noqa: E402
 
 SCHEMA = "ATLAS_STUDIO_BRIDGE_STATUS_V1"
 ALLOWED_ORIGINS = frozenset(
@@ -50,6 +51,15 @@ ALLOWED_ORIGINS = frozenset(
         "https://tauri.localhost",
     }
 )
+PROJECTION_CACHE_TTL_SECONDS = 15
+projection_cache: ProjectionCache[dict[str, Any], tuple[str, ...]] = ProjectionCache(
+    ttl_seconds=PROJECTION_CACHE_TTL_SECONDS
+)
+
+
+def projection_cache_key(repository: str, agent_id: str | None) -> tuple[str, ...]:
+    """Bind reuse to source identity and the bridge's non-secret host context."""
+    return (repository, agent_id or "", os.environ.get("GH_HOST", "github.com"))
 
 
 def run_worker(command, *, timeout=20, cancelled=lambda: False):
@@ -101,17 +111,23 @@ def run_worker(command, *, timeout=20, cancelled=lambda: False):
 def build_current_projection(
     repository: str, agent_id: str | None, cancelled=lambda: False
 ) -> dict[str, Any]:
-    packet = run_worker(
-        [
-            sys.executable,
-            str(Path(__file__).with_name("projection_worker.py")),
-            repository,
-            agent_id or "",
-        ],
-        cancelled=cancelled,
-    )
-    if validate_mission_control(packet):
-        raise RuntimeError("A1_SCHEMA_VALIDATION_FAILED")
+    key = projection_cache_key(repository, agent_id)
+
+    def collect() -> dict[str, Any]:
+        packet = run_worker(
+            [
+                sys.executable,
+                str(Path(__file__).with_name("projection_worker.py")),
+                repository,
+                agent_id or "",
+            ],
+            cancelled=cancelled,
+        )
+        if validate_mission_control(packet):
+            raise RuntimeError("A1_SCHEMA_VALIDATION_FAILED")
+        return packet
+
+    packet = projection_cache.get(key, collect)
     return packet
 
 
@@ -253,6 +269,12 @@ class ReadOnlyStudioHandler(BaseHTTPRequestHandler):
                     "reason": str(exc)
                     if isinstance(exc, RuntimeError)
                     else "PROJECTION_UNAVAILABLE",
+                    "diagnostic_ref": (
+                        f"ATLAS-STUDIO-{str(exc)}"
+                        if isinstance(exc, RuntimeError)
+                        and str(exc).startswith("PROJECTION_FAILED_")
+                        else "ATLAS-STUDIO-PROJECTION-UNAVAILABLE"
+                    ),
                     "unknown_ne_healthy": True,
                     "fixture_served": False,
                 },
