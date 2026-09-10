@@ -200,6 +200,78 @@ class TestResidentDriverCallSiteWiresTheFlag:
         assert (status, conclusion, head) == ("in_progress", None, None)
 
 
+class TestResidentWindowsLogonTaskWiresTheFlag:
+    """REAL CALLER CONTRACT: `register_windows_logon_task`'s `schtasks` call.
+
+    Found during AS-WIN-PSI-FASTPATH follow-up: this call site is in the
+    exact same "resident process with no console of its own" module this
+    whole file exists to protect (see the module docstring), spawns the
+    same kind of console-subsystem child (`schtasks.exe`) as `tasklist`/
+    `powershell`/`gh` elsewhere in this family, and had neither
+    `no_window_creationflags()` nor a bounded `timeout` -- unlike every
+    other call site this file already covers. It has no other test
+    coverage anywhere in the suite.
+    """
+
+    def test_register_windows_logon_task_passes_creationflags_and_timeout(
+        self, tmp_path: Path
+    ) -> None:
+        from project_atlas.orchestration.sdk import resident_windows
+
+        with (
+            patch.object(os, "name", "nt"),
+            patch.object(
+                subprocess, "run", return_value=_fake_completed("SUCCESS")
+            ) as mock_run,
+        ):
+            receipt = resident_windows.register_windows_logon_task(
+                root=tmp_path, package_src=tmp_path / "pkg"
+            )
+        _args, kwargs = mock_run.call_args
+        assert kwargs["creationflags"] == _EXPECTED_NO_WINDOW_FLAG
+        assert kwargs["timeout"] == 30
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        assert kwargs["check"] is False
+        assert receipt["registered"] is True
+
+    def test_register_windows_logon_task_timeout_propagates_unchanged(
+        self, tmp_path: Path
+    ) -> None:
+        """Same discipline as `test_poll_github_ci_timeout_propagates_unchanged`:
+        the timeout must surface as a real, catchable failure, never be
+        silently swallowed into a false "not registered"."""
+        from project_atlas.orchestration.sdk import resident_windows
+
+        with (
+            patch.object(os, "name", "nt"),
+            patch.object(
+                subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired(cmd="schtasks", timeout=30),
+            ),
+            pytest.raises(subprocess.TimeoutExpired),
+        ):
+            resident_windows.register_windows_logon_task(
+                root=tmp_path, package_src=tmp_path / "pkg"
+            )
+
+    def test_register_windows_logon_task_non_windows_never_calls_subprocess(
+        self, tmp_path: Path
+    ) -> None:
+        from project_atlas.orchestration.sdk import resident_windows
+
+        with (
+            patch.object(os, "name", "posix"),
+            patch.object(subprocess, "run") as mock_run,
+        ):
+            receipt = resident_windows.register_windows_logon_task(
+                root=tmp_path, package_src=tmp_path / "pkg"
+            )
+        mock_run.assert_not_called()
+        assert receipt == {"registered": False, "reason": "not_windows"}
+
+
 class TestReturnCodeAndErrorPropagationUnchanged:
     """RETURN_CODE_PROPAGATION / TIMEOUT_PROPAGATION = UNCHANGED."""
 
