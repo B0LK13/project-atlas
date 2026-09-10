@@ -878,5 +878,50 @@ code, kbd, time, .mono { font-family: "SFMono-Regular", "Cascadia Code", "Libera
 .journey-grid .inspection-button { display: block; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface-raised); color: var(--text); cursor: pointer; }
 .journey-grid .inspection-button:disabled { cursor: not-allowed; opacity: .55; }
 .contract-handoffs code { display: block; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--mint-strong); }
+
+/* Mission Control usability pass: bounded decision queue with a keyboard detail rail. */
+.mission-orientation { align-items: center; padding: 10px 0 14px; margin-bottom: 14px; }
+.mission-orientation h2 { font-size: 19px; margin: 3px 0 4px; }
+.mission-orientation p { font-size: 13px; line-height: 1.45; }
+.mission-orientation .text-action { display: inline-block; margin-top: 8px; color: var(--cyan); font-size: 12px; text-underline-offset: 3px; }
+.mission-boundary { min-width: 215px; padding-left: 16px; border-left: 1px solid var(--line-strong); font-size: 12px; }
+.mission-boundary span { font-size: 12px; line-height: 1.45; }
+.attention-queue-layout { display: grid; grid-template-columns: minmax(230px, .8fr) minmax(0, 1.2fr); min-height: 220px; }
+.attention-groups { display: grid; align-content: start; gap: 5px; padding-right: 14px; border-right: 1px solid var(--line); }
+.attention-group { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 9px; width: 100%; padding: 9px 8px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.attention-group:hover, .attention-group:focus-visible { border-color: var(--line-strong); background: var(--surface-soft); outline: none; }
+.attention-group.is-selected { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, transparent); }
+.attention-group-count { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber); font-size: 12px; font-variant-numeric: tabular-nums; }
+.attention-group > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.attention-group strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.attention-group small { color: var(--text-soft); font-size: 11px; }
+.all-attention { margin-top: 4px; font-size: 11px; color: var(--text-soft); }
+.all-attention summary { cursor: pointer; padding: 7px 8px; }
+.all-attention > div { display: grid; gap: 4px; padding: 6px 8px 8px; border-top: 1px solid var(--line); }
+.all-attention button { border: 0; padding: 3px 0; background: transparent; color: var(--cyan); text-align: left; cursor: pointer; font-size: 11px; }
+.attention-selection { min-width: 0; padding-left: 18px; }
+.attention-detail-primary { margin: 0 0 7px; color: var(--text); font-size: 15px; font-weight: 600; }
+.attention-detail-content > p:not(.attention-detail-primary) { margin: 0 0 10px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
+.attention-detail-content details { margin-top: 10px; font-size: 12px; }
+.attention-inspect-link { display: inline-block; margin-top: 12px; color: var(--cyan); font-size: 12px; text-underline-offset: 3px; }
+.freshness-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--text-soft); font-size: 12px; }
+.freshness-summary strong { color: var(--text); font-weight: 600; }
+.freshness-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+.freshness-live { background: var(--mint); }
+.freshness-stale { background: var(--amber); }
+.freshness-offline { background: var(--orange); }
+.freshness-summary details { margin-left: auto; }
+.freshness-summary summary { cursor: pointer; color: var(--cyan); }
+.freshness-summary details p { max-width: 80ch; margin: 8px 0 0; line-height: 1.45; }
+.signal-instrument p { max-width: 54ch; }
+@media (max-width: 900px) {
+  .attention-queue-layout { grid-template-columns: 1fr; }
+  .attention-groups { padding-right: 0; padding-bottom: 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .attention-selection { padding: 14px 0 0; }
+}
+@media (max-width: 560px) {
+  .mission-boundary { min-width: 0; padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+  .freshness-summary details { width: 100%; margin-left: 15px; }
+}
 .task-context { margin-top: var(--gap); }
 @media (max-width: 900px) { .journey-grid { grid-template-columns: 1fr; } }

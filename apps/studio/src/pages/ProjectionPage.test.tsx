@@ -38,12 +38,15 @@ describe("Mission Control hierarchy", () => {
     packet.views.agents_lanes = {status:"OK", notes:[], summary:{active_count:3, active_agent_ids:["agent-from-source"]}};
     packet.views.ci_iv = {status:"OK", notes:[], summary:{waiting_ci:4, waiting_iv:9}};
     const html = renderToStaticMarkup(<ProjectionPage data={envelopeFromProjection(packet)} screen="mission-control" />);
-    expect(html).toContain("Mission objective unavailable");
+    expect(html).toContain("Objective not provided");
+    expect(html).toContain("Inspect project context");
+    expect(html).toContain("Your attention is needed");
+    expect(html).toContain("3 attention items");
     expect(html).toContain("Agent activity");
     expect(html).toContain("agent-from-source");
     expect(html).toContain("Verification posture");
     expect(html).toContain("Runnable frontier");
-    expect(html).toContain("Next attention");
+    expect(html).toContain("Your attention is needed");
     expect(html).not.toContain("<pre>");
   });
 });

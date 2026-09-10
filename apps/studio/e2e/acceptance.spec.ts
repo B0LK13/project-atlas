@@ -50,7 +50,7 @@ for (const [width,height] of [[600,800],[980,700],[1366,768],[1920,1080]]) {
     await page.goto('/#/mission-control');
     await expect(page.locator('main')).toContainText('test input count');
     await expect(page.getByRole('button',{name:'Refresh read-only projection'})).toBeInViewport();
-    if (width >= 980) await expect(page.getByText('waiting on IV', {exact:true})).toBeInViewport();
+    if (width >= 980) await expect(page.getByRole('heading', {name:'Mission Control'})).toBeInViewport();
     const overflow = await page.evaluate(() => Array.from(document.querySelectorAll('*'))
       .filter(el => el.getBoundingClientRect().right > innerWidth + 1)
       .map(el => ({tag:el.tagName, className:el.className, right:el.getBoundingClientRect().right})).slice(0,12));

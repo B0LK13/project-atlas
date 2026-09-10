@@ -3,6 +3,8 @@ import type { ScreenId, StudioEnvelope } from "../types";
 import type { MissionJourneyProjection, TaskContextProjection } from "../types";
 import { Panel } from "../components/Panel";
 import { MissionJourneyPanel } from "./MissionJourneyPanel";
+import { attentionLabel, freshnessLabel, groupAttention, metricLabel, sourceStateLabel } from "./missionControlModel";
+import { useEffect, useMemo, useState } from "react";
 
 const views: Partial<Record<ScreenId, string[]>> = {
   agents: ["agents_lanes", "ownership"], "work-graph": ["frontier", "ownership"],
@@ -27,10 +29,33 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
   const mission = screen === "mission-control";
   const keys = mission ? Object.keys(packet.views) : views[screen] ?? [];
   const metric = (view: string, key: string) => <Value value={packet.views[view]?.summary?.[key]} />;
-  const attention = (items: typeof packet.attention) => items.map(item => <article className="projection-attention" key={item.attention_id}>
-    <h3>{item.title}</h3><p>{item.detail}</p>
-    <details><summary>Source classification</summary><p>{item.kind} · tier {item.tier} · {item.attention_id}</p></details>
-  </article>);
+  const attentionGroups = useMemo(() => groupAttention(packet.attention), [packet.attention]);
+  const [selectedAttentionId, setSelectedAttentionId] = useState<string | null>(null);
+  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const selectedAttention = packet.attention.find((item) => item.attention_id === selectedAttentionId) ?? null;
+  useEffect(() => {
+    // Refresh temporarily swaps in an unavailable envelope; preserve selection
+    // through that transport state and only clear it against a real projection.
+    if (data.source.kind !== "PROJECTION") return;
+    if (selectedAttentionId && !packet.attention.some((item) => item.attention_id === selectedAttentionId)) {
+      setSelectionNotice(`The selected attention item (${selectedAttentionId}) is no longer in this projection.`);
+      setSelectedAttentionId(null);
+    }
+  }, [data.source.kind, packet.attention, selectedAttentionId]);
+  const inspectHref = (item: (typeof packet.attention)[number]) => {
+    const ref = item.references?.[0];
+    if (ref?.kind === "view") {
+      const route = String(ref.id);
+      return ["agents_lanes", "ownership"].includes(route) ? "#/agents" : route === "frontier" ? "#/work-graph" : route === "ci_iv" || route === "evidence" || route === "human_gates" ? "#/verification" : "#/mission-control";
+    }
+    if (ref?.kind === "action_id" || item.kind === "BLOCKED_HIGH_VALUE" || item.kind === "HUMAN_GATE") return "#/work-graph";
+    if (item.kind === "EXTERNAL_IV_GATED") return "#/verification";
+    return "#/mission-control";
+  };
+  const renderAttentionDetail = (item: (typeof packet.attention)[number]) => {
+    const translated = attentionLabel(item);
+    return <div className="attention-detail-content"><p className="attention-detail-primary">{translated.primary}</p><p>{item.detail ?? "No detail supplied by the source."}</p><details><summary>Source record</summary><dl className="projection-fields"><div><dt>Exact cause</dt><dd>{translated.exact}</dd></div><div><dt>Record</dt><dd>{item.attention_id}</dd></div><div><dt>Source tier</dt><dd>{item.tier}</dd></div><div><dt>References</dt><dd><Value value={item.references ?? []} /></dd></div></dl></details><a className="attention-inspect-link" href={inspectHref(item)}>Inspect supported detail</a></div>;
+  };
   return <div className="screen projection-screen">
     <header className="screen-header"><div><p>Atlas / Engineering workstation</p>
       <h1>{mission ? "Mission Control" : label(screen.replaceAll("-", " "))}</h1>
@@ -41,32 +66,30 @@ export function ProjectionPage({ data, screen, journey, journeyLoading, journeyE
       <p>{data.source.detail}</p><p>No operational state is available. Refresh to retry, or inspect the explicit design preview in Environment.</p>
     </Panel> : <>
       {mission && <section className="mission-orientation" aria-label="Mission context">
-        <div><span className="context-label">Current objective</span><h2>Mission objective unavailable</h2>
-          <p>A1 supplies repository coordination state, but no declared mission objective. Studio will not infer one.</p></div>
-        <div className="mission-boundary"><strong>Read, inspect, understand.</strong><span>Attention is not authorization.<br />Studio grants no mutation.</span></div>
+        <div><span className="context-label">Project context</span><h2>{packet.repository || "Project identity unavailable"}</h2><p>{packet.agent_status ? `Directory status: ${packet.agent_status}.` : "Repository coordination state is available."} The A1 packet does not provide a mission catalog or declared objective.</p><a className="text-action" href="#/projects">Inspect project context</a></div>
+        <div className="mission-boundary"><strong>Objective not provided</strong><span>Mission selection is unavailable in this source. Read-only inspection remains available.</span></div>
       </section>}
       <div className={mission ? "live-overview" : ""}>
-        <Panel className="attention-panel" eyebrow="ATTENTION ≠ AUTHORIZATION" title={mission ? "Next attention" : "Attention"} meta={<span>{packet.attention.length} supplied</span>}>
-          {packet.attention.length ? <>{attention(packet.attention.slice(0, 3))}
-            {packet.attention.length > 3 && <details className="remaining-attention"><summary>Inspect {packet.attention.length - 3} more attention items</summary>{attention(packet.attention.slice(3))}</details>}
-          </> : <p>No attention items supplied by this projection. This does not establish health.</p>}
+        <Panel className="attention-panel" eyebrow="DECISION QUEUE" title={mission ? "Your attention is needed" : "Attention"} meta={<span>{packet.attention.length} attention items</span>}>
+          {packet.attention.length ? <div className="attention-queue-layout"><div className="attention-groups"><div className="attention-group-options" role="listbox" aria-label="Attention groups" aria-activedescendant={selectedAttentionId ? `attention-${selectedAttentionId}` : undefined}>{attentionGroups.slice(0, 5).map((group) => { const first = group.items[0]; const label = attentionLabel(first); return <button type="button" role="option" id={`attention-${first.attention_id}`} aria-selected={selectedAttentionId === first.attention_id} className={`attention-group ${selectedAttentionId === first.attention_id ? "is-selected" : ""}`} key={group.cause} onClick={() => { setSelectedAttentionId(first.attention_id); setSelectionNotice(null); }}><span className="attention-group-count">{group.items.length}</span><span><strong>{label.primary}</strong><small>Cause: {group.cause}</small></span></button>; })}</div><details className="all-attention"><summary>Inspect all {packet.attention.length} records</summary>{attentionGroups.map((group) => <div key={group.cause}><strong>{group.cause} · {group.items.length}</strong>{group.items.map((item) => <button type="button" key={item.attention_id} onClick={() => { setSelectedAttentionId(item.attention_id); setSelectionNotice(null); }}>{attentionLabel(item).primary} · {item.attention_id}</button>)}</div>)}</details></div><div className="attention-selection" aria-live="polite">{selectionNotice ? <p role="status">{selectionNotice}</p> : selectedAttention ? renderAttentionDetail(selectedAttention) : <p>Select a group to inspect its first record. Ordering follows source order; no priority is inferred.</p>}</div></div> : <p>No attention items projected. This does not establish health.</p>}
         </Panel>
         {mission && <div className="live-instruments">
           <section className="signal-instrument" aria-label="Agent activity"><header><h2>Agent activity</h2><a href="#/agents">Inspect agents</a></header>
-            <div className="signal-reading"><strong>{metric("agents_lanes", "active_count")}</strong><span>active in source directory</span></div>
+            <div className="signal-reading"><strong>{metric("agents_lanes", "active_count")}</strong><span>agents listed active</span></div>
             <div className="agent-identities">{metric("agents_lanes", "active_agent_ids")}</div>
-            <p>Directory activity does not prove a running task.</p>
+            <p>Directory activity does not prove a running task. Exact source values are in details.</p>
           </section>
           <section className="signal-instrument" aria-label="Runnable frontier"><header><h2>Runnable frontier</h2><a href="#/work-graph">Inspect frontier</a></header>
-            <div className="signal-pair"><div><strong>{metric("frontier", "eligible_count")}</strong><span>eligible</span></div><div><strong>{metric("frontier", "blocked_count")}</strong><span>blocked</span></div></div>
-            <p>Source status: {packet.views.frontier?.status ?? "UNKNOWN"}. Eligibility is not permission to execute.</p>
+            <div className="signal-pair"><div><strong>{metric("frontier", "eligible_count")}</strong><span>{metricLabel("eligible_count")}</span></div><div><strong>{metric("frontier", "blocked_count")}</strong><span>{metricLabel("blocked_count")}</span></div></div>
+            <p>{sourceStateLabel(packet.views.frontier?.status ?? "UNKNOWN")}. Eligibility is a source state, not permission.</p>
           </section>
           <section className="signal-instrument" aria-label="Verification posture"><header><h2>Verification posture</h2><a href="#/verification">Inspect verification</a></header>
-            <div className="signal-pair"><div><strong>{metric("ci_iv", "waiting_ci")}</strong><span>waiting on CI</span></div><div><strong>{metric("ci_iv", "waiting_iv")}</strong><span>waiting on IV</span></div></div>
-            <p>Evidence: {packet.views.evidence?.status ?? "UNKNOWN"} · Seal: {packet.views.postmerge_seal?.status ?? "UNKNOWN"}. CI ≠ IV ≠ merge.</p>
+            <div className="signal-pair"><div><strong>{metric("ci_iv", "waiting_ci")}</strong><span>{metricLabel("waiting_ci")}</span></div><div><strong>{metric("ci_iv", "waiting_iv")}</strong><span>{metricLabel("waiting_iv")}</span></div></div>
+            <p>CI and independent verification are separate source states.</p>
           </section>
         </div>}
       </div>
+      {mission && <div className="freshness-summary"><span className={`freshness-dot freshness-${packet.freshness.state.toLowerCase()}`} aria-hidden="true" /> <strong>{sourceStateLabel(data.source.current ? packet.freshness.state : "OFFLINE")}</strong><span>{freshnessLabel(packet.freshness)}</span><details><summary>Connection and source details</summary><p>Connection: {data.source.current ? "connected to the read adapter" : "disconnected from the read adapter"}. Source freshness: {packet.freshness.state}. Local age: {packet.freshness.age_seconds == null ? "unknown" : `${packet.freshness.age_seconds} seconds`}.</p></details></div>}
       {mission && <h2 className="source-section-title">Source detail</h2>}
       <div className="projection-grid">{keys.map(key => {
         const view = packet.views[key];
