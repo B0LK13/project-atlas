@@ -14,7 +14,10 @@ PINS_VERIFIED             = YES (all four unchanged from the stated last-checked
 TRANSITIVE_UNMERGED       = studio #763/#770/#776/#785/#788 + atlas-dag #734..#751 (11 PRs)
 
 LOCAL_GATES               = ruff PASS | mypy PASS (413 files) | pytest see FULL_SUITE
-FULL_SUITE                = recorded in README (run on the final candidate head)
+FULL_SUITE                = 6468 passed, 8 skipped, 4 xfailed, 0 FAILED (666s, cov 85%)
+                            run on the integrated candidate, in a venv whose editable
+                            install points AT the candidate (so subprocess tests really
+                            exercise it, not another checkout)
 CI_THIS_CANDIDATE         = NOT_RUN (local branch; never pushed, so no CI subject exists)
 CI_COMPONENTS             = #781 SUCCESS | #786 SUCCESS | #789 SUCCESS | #791 FAILURE
 FORMAL_IV                 = NOT_STARTED (no self-IV claimed)

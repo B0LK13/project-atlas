@@ -8,7 +8,7 @@ existing components, on one branch, reproducible from a clean checkout.
 
 | Class | State |
 |---|---|
-| IMPLEMENTATION | Integrated and green locally (see Gates) |
+| IMPLEMENTATION | Integrated; full suite **6468 passed, 8 skipped, 4 xfailed, 0 failed** (666 s) |
 | CI (this candidate) | **NOT_RUN** — the candidate is a local branch, not pushed |
 | CI (component PRs) | #781 / #786 / #789 SUCCESS at their pinned heads; #791 **FAILING** |
 | FORMAL_IV | NOT_STARTED |
@@ -62,6 +62,19 @@ around lines 5855–6265) plus one NUL byte. A naive "strip all markers" pass
 corrupts it. `scripts/acceptance/` is accompanied by a resolver that only
 touches complete live `<<<<<<< / ======= / >>>>>>>` triples and reads/writes
 with `surrogateescape`.
+
+## Gates on the integrated candidate
+
+```
+ruff check .   All checks passed
+mypy src       Success: no issues found in 413 source files
+pytest         6468 passed, 8 skipped, 4 xfailed in 666.02s (coverage 85%)
+```
+
+Run in a venv whose editable install points at the candidate itself. This matters:
+subprocess-based tests in this repository resolve `project_atlas` through the
+editable install, not `PYTHONPATH`, so a venv pointing elsewhere silently tests a
+different checkout.
 
 ## Setup from a clean checkout
 
