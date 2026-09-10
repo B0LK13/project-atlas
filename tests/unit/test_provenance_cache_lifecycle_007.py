@@ -284,12 +284,33 @@ def test_stamp_forged_bytecode_cannot_execute(warm, cache):
     assert "pyc-hijack" in hijacked, "forged bytecode did not execute; attack not exercised"
     assert ee.manifest_probe(py)["n_mismatched"] == 0, "RECORD unexpectedly saw it"
 
-    # Repair: a normal warm reuse must purge it.
+    # Repair: the COMPLETE production path -- a warm `provision` (which purges)
+    # followed by a launch through `isolated_command` (which is `-I -B`).
+    #
+    # The two halves do different jobs and the distinction matters: `-B` stops
+    # the run WRITING bytecode, it does not stop the interpreter LOADING
+    # bytecode that is already there. What rejects a pre-existing forged .pyc
+    # is the purge; -B is what keeps the read side empty afterwards. So this
+    # asserts the pair, through the real entry points, not a hand-built command.
     plant()
-    env2, _, _ = ee.provision(REPO_ROOT, "HEAD", cache)
-    after = subprocess.run([str(ee._venv_python(env2)), "-I", "-c", read],
+    env2 = ee.provision(REPO_ROOT, "HEAD", cache)[0]
+    launch = ee.isolated_command(ee._venv_python(env2), ["-c", read])
+    assert launch[1:3] == ["-I", "-B"], "production launch path changed"
+    after = subprocess.run(launch, capture_output=True, text=True,
+                           env=ee.clean_env()).stdout
+    assert "pyc-hijack" not in after, "forged bytecode survived the production path"
+
+    # And -B alone must NOT be credited with this: with the purge skipped, the
+    # same forged bytecode still loads under `-I -B`. Recorded so nobody later
+    # mistakes the flag for the protection.
+    plant()
+    still = subprocess.run(ee.isolated_command(py, ["-c", read]),
                            capture_output=True, text=True, env=ee.clean_env()).stdout
-    assert "pyc-hijack" not in after, "forged bytecode survived warm reuse"
+    assert "pyc-hijack" in still, (
+        "-B unexpectedly blocked a pre-existing .pyc; the purge/-B split above "
+        "would then be mis-documented"
+    )
+    ee.purge_bytecode(env2)
 
 
 def shutil_rmtree(path: Path) -> None:

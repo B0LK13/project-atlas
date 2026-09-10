@@ -341,10 +341,23 @@ def purge_bytecode(env_dir: Path) -> int:
     and then stamped with the real `.py`'s mtime and size WAS EXECUTED in a
     direct test, while RECORD verification reported zero mismatches.
 
-    Removing `__pycache__` closes that gap at every verification point: the
-    interpreter must then compile from the `.py` files that WERE hash-verified.
-    Bytecode written afterwards is derived from those verified sources, and is
-    purged again at the next warm reuse.
+    Removing `__pycache__` is HALF of the protection; `-I -B` on every worker
+    (see `isolated_command`) is the other half, and they do different jobs:
+
+      * the purge REMOVES bytecode that already exists, which is what rejects a
+        pre-existing forged `.pyc`;
+      * `-B` stops the run WRITING new bytecode. It does NOT stop the
+        interpreter LOADING bytecode that is already present -- verified
+        directly: with the purge skipped, a forged `.pyc` still loads under
+        `-I -B`. So `-B` must never be credited with the rejection.
+
+    LIMITS, stated rather than implied. This is a pre-execution check, so a
+    verification-to-execution window remains: bytecode planted between the purge
+    and an import would be read. Nothing in the run writes any. And no claim is
+    made against an actor who can write this environment and its markers
+    CONCURRENTLY -- purge, RECORD and the marker all live in a directory such an
+    actor controls. What is claimed is detection of drift and of modification
+    that is not racing the verification itself.
     """
     removed = 0
     for cache_dir in env_dir.rglob("__pycache__"):
