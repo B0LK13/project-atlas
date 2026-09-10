@@ -300,6 +300,19 @@ def test_detached_start_requires_explicit_registry_binding(tmp_path: Path) -> No
     assert excinfo.value.code == "REGISTRY_REQUIRED"
 
 
+def test_detached_start_refuses_missing_assignment_before_spawning(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    registry = tmp_path / "registry"
+
+    with pytest.raises(service.ServiceError) as excinfo:
+        service.start(tmp_path / "state", program, registry_root=registry)
+
+    assert excinfo.value.code == "REGISTRY_BINDING_MISSING"
+    assert not (tmp_path / "state" / "service" / "service.json").exists()
+
+
 def test_service_run_binds_assigned_registry_agent(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()

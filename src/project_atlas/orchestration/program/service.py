@@ -302,6 +302,11 @@ def start(
             "only for the explicitly supported unregistered mode",
             code="REGISTRY_REQUIRED",
         )
+    if registry_root is not None:
+        # Validate the durable binding before creating a child process.  A
+        # launcher must never start an enrolled program and discover a missing
+        # or unreadable registry only after detaching.
+        _bound_agents(loaded, registry_root)
     directory = service_dir(root)
     directory.mkdir(parents=True, exist_ok=True)
     clear_supervisor_stop(state_dir(root))
