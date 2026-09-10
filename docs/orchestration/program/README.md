@@ -64,7 +64,12 @@ A worked end-to-end path through all of these, with two real runtimes, is in
 | Running as a durable service | `SERVICE.md` |
 | The contract Atlas Studio consumes | `CONTROL.md` |
 | What was reused from the existing control plane | `REUSE-MAP.md` |
+| **Launching it for real** | `LAUNCH.md` |
+| **How continuation works** | `CONTINUATION.md` |
 | The end-to-end operator path | `OPERATOR-JOURNEY.md` |
+| The three-tier capability matrix | `CAPABILITY-MATRIX.md` |
+| Picking the first real program | `WORK-SELECTION.md` |
+| A program to fill in | `programs/first-program-TEMPLATE.json` |
 | Real-runtime evidence | `evidence/` |
 
 Every command prints one JSON object. Exit codes follow the repository

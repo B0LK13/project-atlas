@@ -153,3 +153,22 @@ Continued in the same lane and the same PR (#797).
 - [x] I10 Reproducible operator journey through `atlas`, two real runtimes
 - [x] I11 Cursor and Copilot left explicitly unavailable; no re-probing
 
+---
+
+# ATLAS-SUPERVISOR-OPERATIONAL-INTEGRATION-002 — terminal CI and launch handoff
+
+- [x] C1 One bounded CI monitor; CI checkout subject recorded (merge ref
+      `9dc135dc`, tree `73b1ac8a` -- **identical** to the head's tree, so CI
+      tested exactly this content)
+- [x] C2 Lane-owned CI failure investigated and fixed: 6 test functions
+      (11 with parametrisations) on both ubuntu jobs assumed `claude`/`codex`
+      were on PATH. Verified by reproducing the condition locally
+- [x] C3 LAUNCH.md: install, state location, credentials, concurrency,
+      budgets, and what actually survives terminal closure
+- [x] C4 CONTINUATION.md: task -> next task, external waits, the five states,
+      and why no interactive session can be adopted
+- [x] C5 WORK-SELECTION.md: no unblocked authorized unowned task exists today,
+      with the ownership evidence for each rejection
+- [x] C6 `programs/first-program-TEMPLATE.json` with OPERATOR-SUPPLIED fields
+- [ ] C7 Terminal CI green on the fixed head (monitor active)
+
