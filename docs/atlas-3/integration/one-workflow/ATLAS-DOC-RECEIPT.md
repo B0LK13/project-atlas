@@ -18,7 +18,18 @@ FULL_SUITE                = 6468 passed, 8 skipped, 4 xfailed, 0 FAILED (666s, c
                             run on the integrated candidate, in a venv whose editable
                             install points AT the candidate (so subprocess tests really
                             exercise it, not another checkout)
-CI_THIS_CANDIDATE         = NOT_RUN (local branch; never pushed, so no CI subject exists)
+CI_THIS_CANDIDATE         = SUCCESS on a3a5ce5ea7f06d8641e5fc034429771f750f110c
+                            (tree 696f14c12d87f9a58b5bc402db696599053e794a)
+                            run 34448732581, event=pull_request, PR #793 (DRAFT)
+                              quality (ubuntu-latest, 3.12, full)      SUCCESS
+                              quality (windows-latest, 3.12, windows)  SUCCESS
+                              quality (ubuntu-latest, 3.13, compat)    SUCCESS
+                              control-plane                            SUCCESS
+                            SUBJECT = the assembled candidate ONLY; not evidence for
+                            any component PR, and no component's CI is evidence for it.
+                            Later docs-only heads leave src/tests/scripts/.github trees
+                            byte-identical, but CI conclusions pin to a SHA: any newer
+                            head must re-establish its own.
 CI_COMPONENTS             = #781 SUCCESS | #786 SUCCESS | #789 SUCCESS | #791 FAILURE
 FORMAL_IV                 = NOT_STARTED (no self-IV claimed)
 MERGE_AUTHORIZATION       = NOT_GRANTED

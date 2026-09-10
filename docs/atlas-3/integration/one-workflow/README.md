@@ -9,7 +9,7 @@ existing components, on one branch, reproducible from a clean checkout.
 | Class | State |
 |---|---|
 | IMPLEMENTATION | Integrated; full suite **6468 passed, 8 skipped, 4 xfailed, 0 failed** (666 s) |
-| CI (this candidate) | **NOT_RUN** — the candidate is a local branch, not pushed |
+| CI (this candidate) | **SUCCESS** on `a3a5ce5e` — all 4 jobs incl. Windows (run 34448732581, PR #793 DRAFT) |
 | CI (component PRs) | #781 / #786 / #789 SUCCESS at their pinned heads; #791 **FAILING** |
 | FORMAL_IV | NOT_STARTED |
 | MERGE_AUTHORIZATION | NOT_GRANTED |
