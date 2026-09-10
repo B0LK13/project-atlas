@@ -72,7 +72,12 @@ from project_atlas.orchestration.program.adapters.claude_code import (
 )
 from project_atlas.orchestration.program.adapters.codex import CodexAdapter
 from project_atlas.orchestration.program.adapters.local_command import LocalCommandAdapter
-from project_atlas.orchestration.program.enrollment import EnrolledAgent, bind
+from project_atlas.orchestration.program.enrollment import (
+    AgentStatus,
+    EnrolledAgent,
+    bind,
+    load_registry,
+)
 from project_atlas.orchestration.program.loader import LoadedProgram, profile_digest
 from project_atlas.orchestration.program.models import (
     PERMANENT_FAILURES,
@@ -304,10 +309,17 @@ class ProgramSupervisor:
         clock: Callable[[], float] = time.time,
         sleeper: Callable[[float], None] = time.sleep,
         enrolled_agents: Sequence[EnrolledAgent] = (),
+        registry_root: Path | None = None,
     ) -> None:
         if enrolled_agents:
             loaded = _apply_enrollments(loaded, enrolled_agents)
         self.enrolled_agents = tuple(enrolled_agents)
+        #: Where the enrolment roster lives, so authority can be re-read
+        #: immediately before a dispatch rather than trusted from start-up.
+        #: An agent suspended, retired or un-granted while a long program runs
+        #: must not get one more task because the supervisor cached its
+        #: permissions at launch.
+        self.registry_root = registry_root
         self.loaded = loaded
         self.program = loaded.program
         self.workspace = loaded.workspace
@@ -1418,6 +1430,67 @@ class ProgramSupervisor:
             nodes.append(node.model_copy(update={"state": node_state}))
         return tuple(nodes)
 
+    def _authority_revoked(self, task_id: str) -> str | None:
+        """Has the authority behind this dispatch changed since start-up?
+
+        Re-read from the durable roster, not from the in-memory binding, and
+        called immediately before the launch rather than once at start-up. A
+        long program can outlive the decision that authorized it: an agent gets
+        suspended, retired, re-enrolled, or has its runtime-substitution grant
+        withdrawn, and none of that should be discovered one task too late.
+
+        Returns a reason string when the dispatch must not proceed, else None.
+        """
+        if not self.enrolled_agents or self.registry_root is None:
+            return None
+        profile = self.loaded.effective_profile(task_id)
+        launched_as = next(
+            (
+                agent
+                for agent in self.enrolled_agents
+                if agent.agent_id == profile.agent_id
+            ),
+            None,
+        )
+        if launched_as is None:
+            return None
+        try:
+            registry = load_registry(self.registry_root)
+        except ProgramError as exc:
+            return f"the agent roster could not be read: {exc}"
+        current = registry.agents.get(launched_as.agent_id)
+        if current is None:
+            return (
+                f"agent {launched_as.agent_id} is no longer enrolled; its "
+                "record was removed after this program started"
+            )
+        if current.status is not AgentStatus.ACTIVE:
+            return (
+                f"agent {launched_as.agent_id} is {current.status.value}; "
+                "dispatch is withheld until it is active again"
+            )
+        if current.role != launched_as.role:
+            return (
+                f"agent {launched_as.agent_id} was re-enrolled into role "
+                f"{current.role!r}, not {launched_as.role!r}, since this "
+                "program started"
+            )
+        # A substitution grant is per agent record and is cleared by
+        # re-enrolment. If the effective profile is only valid because of one,
+        # its withdrawal must stop the next dispatch, not merely the next
+        # assignment.
+        program_profile = self.loaded.profiles.profiles.get(launched_as.role)
+        substituting = (
+            program_profile is not None and program_profile.adapter is not current.adapter
+        )
+        if substituting and not current.runtime_substitution_authorized:
+            return (
+                f"agent {launched_as.agent_id} runs role {launched_as.role!r} "
+                "on a substituted runtime and that authorization has been "
+                "withdrawn"
+            )
+        return None
+
     def _has_open_attempt(self, state: ProgramStateRecord, task_id: str) -> bool:
         """Does this task have an attempt that never reached a terminal phase?"""
         return any(
@@ -1747,6 +1820,30 @@ class ProgramSupervisor:
             else self.loaded.effective_profile(task.task_id)
         )
         adapter = self._adapter_for(profile)
+
+        revoked = self._authority_revoked(task.task_id)
+        if revoked is not None:
+            append_event(
+                self.root,
+                "AUTHORITY_REVOKED",
+                {"task_id": task.task_id, "agent_id": profile.agent_id, "reason": revoked},
+            )
+            self._transition(
+                state,
+                task.task_id,
+                NodeState.OWNER_HELD,
+                reason=f"authority revoked: {revoked}"[:512],
+            )
+            result.stop_reason = ProgramStopReason.OWNER_DECISION_REQUIRED
+            self._notify(
+                "AUTHORITY_REVOKED",
+                (
+                    f"task {task.task_id} was not dispatched: {revoked}. "
+                    "Nothing was launched"
+                ),
+                {"task_id": task.task_id, "agent_id": profile.agent_id},
+            )
+            return None
 
         try:
             adapter.preflight(profile)

@@ -34,13 +34,17 @@ from project_atlas.orchestration.program.enrollment import load_registry
 from project_atlas.orchestration.program.loader import LoadedProgram
 from project_atlas.orchestration.program.models import (
     PACKAGE_ID,
+    PERMANENT_FAILURES,
+    RETRYABLE_FAILURES,
     TRUTH_BOUNDARY,
     AttemptPhase,
     ExecutionConfidence,
     ProgramError,
+    ProgramTask,
 )
 from project_atlas.orchestration.program.store import (
     ProgramStateRecord,
+    TaskRecord,
     append_event,
     load_state,
     persist_state,
@@ -54,7 +58,10 @@ from project_atlas.orchestration.program.supervisor import (
 )
 
 CONTRACT_ID: Final[str] = "atlas.program.control"
-CONTRACT_VERSION: Final[int] = 1
+#: Bumped when fields are ADDED. Nothing is ever renamed or repurposed, so a
+#: consumer pinned to an older version keeps working against a newer producer;
+#: the number tells it what it may rely on being present.
+CONTRACT_VERSION: Final[int] = 2
 
 #: What a consumer may ask for. Each is a request routed through existing
 #: governance, never a direct mutation, and none of them can grant anything.
@@ -136,6 +143,15 @@ def control_view(
                 "verified_by_agent_id": record.verified_by_agent_id if record else None,
                 "owner_gate": task.owner_gate.value if task.owner_gate else None,
                 "waiting_on": record.pending_observer_id if record else None,
+                "waiting_condition": (
+                    task.external_precondition.precondition_id
+                    if task.external_precondition is not None
+                    and record is not None
+                    and record.pending_observer_id
+                    else None
+                ),
+                "last_meaningful_progress": _last_progress(state, record),
+                "retry": _retry_eligibility(loaded, task, record),
                 "last_attempt": (
                     {
                         "attempt_id": attempt.attempt_id,
@@ -226,6 +242,9 @@ def control_view(
         "tasks": tasks,
         "ownership": ownership,
         "needs_reconciliation": needs_reconcile,
+        "required_operator_actions": _required_operator_actions(
+            state, loaded, tasks, needs_reconcile
+        ),
         "status": supervisor.status(),
         "limits": {
             "declared": limits.model_dump(mode="json"),
@@ -255,6 +274,147 @@ def control_view(
         "merge_authorized": False,
         "execution_authorized": False,
     }
+
+
+def _last_progress(
+    state: ProgramStateRecord | None, record: TaskRecord | None
+) -> dict[str, Any] | None:
+    """When this task last did something observable, not merely something.
+
+    Keyed on an attempt that ended, plus the workspace fingerprint that attempt
+    left. A task that has been launched four times and left the tree identical
+    has a last *attempt*, and no last *progress* -- and an operator staring at
+    a busy-looking program needs to be able to tell those apart.
+    """
+    if state is None or record is None or record.last_attempt_id is None:
+        return None
+    attempt = state.attempts.get(record.last_attempt_id)
+    if attempt is None:
+        return None
+    return {
+        "at": attempt.ended_at or attempt.started_at,
+        "attempt_id": attempt.attempt_id,
+        "acceptance_passed": attempt.acceptance_passed,
+        "workspace_fingerprint": record.progress_fingerprint,
+        "note": (
+            "an attempt ending is not progress; acceptance_passed and a changed "
+            "workspace fingerprint are what make it progress"
+        ),
+    }
+
+
+def _retry_eligibility(
+    loaded: LoadedProgram, task: ProgramTask, record: TaskRecord | None
+) -> dict[str, Any]:
+    """Whether this task gets another attempt, and why or why not."""
+    profile = loaded.effective_profile(task.task_id)
+    budget = min(loaded.program.limits.max_attempts_per_task, profile.limits.max_attempts)
+    used = record.attempts if record else 0
+    failure = record.last_failure_class if record else None
+    if failure is None:
+        eligible, reason = (used < budget), "no failure recorded"
+    elif failure in PERMANENT_FAILURES:
+        eligible, reason = False, (
+            f"{failure.value} is never retried: another attempt would meet the "
+            "same wall"
+        )
+    elif failure in RETRYABLE_FAILURES:
+        eligible = used < budget
+        reason = (
+            f"{failure.value} is retryable; {used}/{budget} attempts used"
+            if eligible
+            else f"attempt budget of {budget} is exhausted"
+        )
+    else:
+        eligible, reason = False, (
+            f"{failure.value} requires reconciliation, not a retry"
+        )
+    return {
+        "eligible": bool(eligible),
+        "attempts_used": used,
+        "attempt_budget": budget,
+        "last_failure_class": failure.value if failure else None,
+        "reason": reason,
+    }
+
+
+def _required_operator_actions(
+    state: ProgramStateRecord | None,
+    loaded: LoadedProgram,
+    tasks: list[dict[str, Any]],
+    needs_reconcile: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """What actually needs a person, each with the command that does it.
+
+    Deliberately not a list of everything notable. A view that reports
+    "attention required" for routine progress trains its reader to ignore it,
+    which is the failure mode that makes an alert worthless.
+    """
+    actions: list[dict[str, Any]] = []
+    for row in needs_reconcile:
+        actions.append(
+            {
+                "action": "reconcile",
+                "task_id": row["task_id"],
+                "why": (
+                    "an attempt's outcome is unknown; it will not be replayed "
+                    "automatically"
+                ),
+                "command": (
+                    "atlas program control --program <p> --action reconcile "
+                    f"--attempt-id {row['attempt_id']} --requested-by <you>"
+                ),
+            }
+        )
+    for row in tasks:
+        if row["owner_gate"] and not row["is_done"]:
+            actions.append(
+                {
+                    "action": "owner_decision",
+                    "task_id": row["task_id"],
+                    "why": (
+                        f"gate {row['owner_gate']} holds this task; no interface "
+                        "can grant it"
+                    ),
+                    "command": None,
+                }
+            )
+        if row["awaiting_independent_verification"]:
+            task = loaded.program.task(row["task_id"])
+            if task.verifier_profile_ref is None:
+                actions.append(
+                    {
+                        "action": "independent_verification",
+                        "task_id": row["task_id"],
+                        "why": (
+                            "acceptance passed and this program configures no "
+                            "verifier; its own worker cannot satisfy the gate"
+                        ),
+                        "command": None,
+                    }
+                )
+        if row["state"] == "BLOCKED" and not row["retry"]["eligible"]:
+            actions.append(
+                {
+                    "action": "investigate_blocked_task",
+                    "task_id": row["task_id"],
+                    "why": row["retry"]["reason"],
+                    "command": "atlas program events --program <p>",
+                }
+            )
+    if state is not None and state.paused:
+        actions.append(
+            {
+                "action": "resume",
+                "task_id": None,
+                "why": f"the program is paused by {state.paused_by or 'an operator'}",
+                "command": (
+                    "atlas program control --program <p> --action resume "
+                    "--requested-by <you>"
+                ),
+            }
+        )
+    return actions
 
 
 def _agent_rows(root: Path) -> list[dict[str, Any]]:
@@ -297,7 +457,27 @@ def pause(root: Path, *, requested_by: str) -> dict[str, Any]:
     state.paused_by = requested_by
     state.paused_at = _utc_now()
     persist_state(root, state)
-    append_event(root, "PROGRAM_PAUSED", {"requested_by": requested_by})
+    # What is STILL RUNNING at the moment of the pause, named. "Paused" on its
+    # own invites the reader to assume nothing is executing, which is exactly
+    # wrong: a pause withholds new dispatch and leaves in-flight workers alone.
+    still_running = [
+        {
+            "task_id": task_id,
+            "state": record.state.value,
+            "agent_id": _agent_for(root, state, task_id),
+            "attempt_id": record.last_attempt_id,
+        }
+        for task_id, record in sorted(state.tasks.items())
+        if record.state in IN_FLIGHT_STATES
+    ]
+    append_event(
+        root,
+        "PROGRAM_PAUSED",
+        {
+            "requested_by": requested_by,
+            "still_running": [row["task_id"] for row in still_running],
+        },
+    )
     return {
         "program_id": state.program_id,
         "paused": True,
@@ -306,9 +486,25 @@ def pause(root: Path, *, requested_by: str) -> dict[str, Any]:
             "no further worker is started. Any worker already running is "
             "allowed to finish, so nothing becomes UNCERTAIN because of this"
         ),
+        "still_running": still_running,
+        "still_running_note": (
+            f"{len(still_running)} worker(s) were already in flight when this "
+            "pause was requested and are NOT interrupted. Use cancel if you "
+            "need them stopped, and expect UNCERTAIN outcomes if you do"
+        ),
         "reversible": True,
         "merge_authorized": False,
     }
+
+
+def _agent_for(root: Path, state: ProgramStateRecord, task_id: str) -> str | None:
+    """Which agent holds this task, read from its most recent attempt."""
+    _ = root
+    record = state.tasks.get(task_id)
+    if record is None or record.last_attempt_id is None:
+        return None
+    attempt = state.attempts.get(record.last_attempt_id)
+    return attempt.agent_id if attempt is not None else None
 
 
 def resume(root: Path, *, requested_by: str) -> dict[str, Any]:

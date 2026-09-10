@@ -23,7 +23,7 @@ def _top_level_commands() -> set[str]:
     parser = build_parser()
     actions = [
         action
-        for action in parser._actions  # noqa: SLF001 - argparse exposes no public API
+        for action in parser._actions
         if hasattr(action, "choices") and isinstance(action.choices, dict)
     ]
     assert actions, "the Atlas parser has no subcommand group"
@@ -63,13 +63,13 @@ def test_the_supervisor_registers_no_atlas3_owned_name() -> None:
     parser = build_parser()
     group = next(
         action
-        for action in parser._actions  # noqa: SLF001
+        for action in parser._actions
         if hasattr(action, "choices") and isinstance(action.choices, dict)
     )
     supervisor_subcommands: set[str] = set()
     for name in ("program", "agent"):
         sub = group.choices[name]
-        for action in sub._actions:  # noqa: SLF001
+        for action in sub._actions:
             if hasattr(action, "choices") and isinstance(action.choices, dict):
                 supervisor_subcommands |= set(action.choices)
     # They do overlap -- that is the point of checking the nesting holds.

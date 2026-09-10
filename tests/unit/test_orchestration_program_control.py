@@ -124,6 +124,7 @@ def test_the_view_is_versioned_and_declares_itself_read_only(
 
     assert view["contract_id"] == "atlas.program.control"
     assert view["contract_version"] == control.CONTRACT_VERSION
+    assert control.CONTRACT_VERSION >= 2
     assert view["read_only"] is True
     assert view["merge_authorized"] is False
     assert view["execution_authorized"] is False
@@ -456,3 +457,74 @@ def test_cli_control_pause_and_resume(tmp_path: Path, capsys: Any) -> None:
     assert json.loads(capsys.readouterr().out)["paused"] is True
     assert main([*args, "--action", "resume"]) == 0
     assert json.loads(capsys.readouterr().out)["paused"] is False
+
+
+def test_the_view_answers_the_operator_questions(tmp_path: Path) -> None:
+    """Progress, waiting, retry eligibility and required actions, per task."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace, owner_gated="beta")
+    _run(tmp_path, program)
+    view = control.control_view(tmp_path / "state", load_program(program))
+
+    done = next(row for row in view["tasks"] if row["task_id"] == "alpha")
+    assert done["last_meaningful_progress"]["acceptance_passed"] is True
+    assert done["last_meaningful_progress"]["workspace_fingerprint"]
+    assert "not progress" in done["last_meaningful_progress"]["note"]
+    assert done["retry"]["attempt_budget"] >= 1
+    assert done["retry"]["last_failure_class"] is None
+
+    gated = next(row for row in view["tasks"] if row["task_id"] == "beta")
+    assert gated["last_meaningful_progress"] is None, "it never ran"
+    assert gated["waiting_condition"] is None
+
+    actions = view["required_operator_actions"]
+    assert any(
+        row["action"] == "owner_decision" and row["task_id"] == "beta"
+        for row in actions
+    )
+
+
+def test_required_actions_stay_quiet_on_a_clean_run(tmp_path: Path) -> None:
+    """An alert that fires on routine progress trains its reader to ignore it."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    _run(tmp_path, program)
+    view = control.control_view(tmp_path / "state", load_program(program))
+    assert view["required_operator_actions"] == []
+    assert view["program"]["complete"] is True
+
+
+def test_a_paused_program_asks_to_be_resumed(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace)
+    root = tmp_path / "state"
+    ProgramSupervisor(load_program(program), state_root=root).load_or_init_state()
+    control.pause(root, requested_by="wesley")
+    view = control.control_view(root, load_program(program))
+    resume_action = next(
+        row for row in view["required_operator_actions"] if row["action"] == "resume"
+    )
+    assert "wesley" in resume_action["why"]
+    assert "--action resume" in resume_action["command"]
+
+
+def test_retry_eligibility_distinguishes_permanent_from_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace, tasks=["alpha"])
+    monkeypatch.setenv("ATLAS_FIXTURE_MODE", "exit:22")  # POLICY_REFUSAL
+    _run(tmp_path, program)
+    view = control.control_view(tmp_path / "state", load_program(program))
+    row = next(r for r in view["tasks"] if r["task_id"] == "alpha")
+    assert row["retry"]["eligible"] is False
+    assert row["retry"]["last_failure_class"] == "POLICY_REFUSAL"
+    assert "never retried" in row["retry"]["reason"]
+    assert any(
+        action["action"] == "investigate_blocked_task"
+        for action in view["required_operator_actions"]
+    )

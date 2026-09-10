@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.orchestration.program import control, service
+from project_atlas.orchestration.program.credentials import credential_report
 from project_atlas.orchestration.program.enrollment import (
     AgentStatus,
     EnrollmentError,
@@ -198,6 +199,11 @@ def run_runtimes(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         },
         EXIT_OK,
     )
+
+
+def run_credentials(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """Which account each profile will actually authenticate as. No values."""
+    return credential_report(load_program(Path(args.program))), EXIT_OK
 
 
 def run_capabilities(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -432,6 +438,9 @@ def run_agent_launch(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             getattr(args, "state_root", None) or Path(agent.assigned_program).parent
         ),
         enrolled_agents=(agent,),
+        # So a suspension, retirement or withdrawn grant recorded while the
+        # program runs is seen before the NEXT dispatch, not cached from here.
+        registry_root=_registry_root(args),
     )
     report = supervisor.start()
     payload = report.to_public_dict()
@@ -448,6 +457,7 @@ _HANDLERS = {
     "events": run_events,
     "runtimes": run_runtimes,
     "capabilities": run_capabilities,
+    "credentials": run_credentials,
     "handoff": run_handoff,
     "service": run_service,
     "control": run_control,
@@ -473,6 +483,7 @@ _PROGRAM_SCOPED = (
     "handoff",
     "service",
     "control",
+    "credentials",
 )
 
 
@@ -509,6 +520,11 @@ def register_program_parser(
             "capabilities",
             "The three-tier capability matrix: runtime-tested, implemented "
             "fixture-only, and inventoried-unavailable.",
+        ),
+        (
+            "credentials",
+            "Which account each profile will actually authenticate as, and why. "
+            "Reports names and presence; never a credential value.",
         ),
         (
             "handoff",
