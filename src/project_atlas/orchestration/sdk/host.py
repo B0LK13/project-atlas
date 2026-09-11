@@ -225,6 +225,22 @@ def new_supervisor_instance_id() -> str:
     return uuid.uuid4().hex
 
 
+def _boot_id() -> str:
+    """A value that changes on every boot, or "noboot" when unavailable.
+
+    Read from /proc/sys/kernel/random/boot_id. When it cannot be read the
+    identity degrades to what it was before this addition rather than
+    failing: a narrower guarantee, never a wrong answer.
+    """
+    try:
+        value = Path("/proc/sys/kernel/random/boot_id").read_text(
+            encoding="utf-8"
+        ).strip()
+    except OSError:
+        return "noboot"
+    return value.replace("-", "")[:16] or "noboot"
+
+
 def process_start_identity(pid: int) -> str:
     """Best-effort process start identity so PID reuse cannot inherit ownership."""
     if pid <= 0:
@@ -260,7 +276,13 @@ def process_start_identity(pid: int) -> str:
             return "unknown"
         fields = raw[close + 1 :].split()
         # Field 22 in /proc/<pid>/stat is starttime (index 19 after comm).
-        return f"linux:{fields[19]}"
+        #
+        # HARDENING-005 G4b: starttime is counted in clock ticks SINCE BOOT, so
+        # the pair (pid, starttime) repeats after a reboot -- and the identity
+        # files that record it outlive reboots. The boot id makes the identity
+        # unique across them. Kept as a suffix so the value stays one opaque
+        # string to every comparison site.
+        return f"linux:{fields[19]}:{_boot_id()}"
     except (OSError, IndexError, ValueError):
         return "unknown"
 

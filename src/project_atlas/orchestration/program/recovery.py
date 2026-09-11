@@ -93,6 +93,22 @@ class Liveness(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+def _same_process_older_format(live: str, recorded: str) -> bool:
+    """Does a legacy 'linux:<ticks>' identity match a current 'linux:<ticks>:<boot>'?
+
+    Only the pre-boot-id Linux shape is accepted here. Anything else -- a
+    different platform prefix, a current-format identity, a malformed value --
+    is not this case and must fall through to the normal verdict.
+    """
+    recorded_parts = recorded.split(":")
+    live_parts = live.split(":")
+    if len(recorded_parts) != 2 or len(live_parts) != 3:
+        return False
+    if recorded_parts[0] != "linux" or live_parts[0] != "linux":
+        return False
+    return recorded_parts[1] == live_parts[1]
+
+
 def process_liveness(
     pid: int | None, recorded_identity: str | None
 ) -> tuple[Liveness, str]:
@@ -119,6 +135,19 @@ def process_liveness(
             Liveness.ALIVE,
             f"pid {pid} is alive and its start identity matches the one recorded "
             "at launch",
+        )
+    # HARDENING-005 G4b: an identity recorded before the boot id was added has
+    # one field fewer. Its start time may still match exactly, and calling that
+    # GONE would declare a genuinely running worker dead across an upgrade --
+    # the one direction B1 exists to prevent. It is not ALIVE either, because
+    # without the boot id a reboot cannot be ruled out. So: UNKNOWN, which
+    # routes to an operator rather than to a relaunch.
+    if _same_process_older_format(live, recorded_identity):
+        return (
+            Liveness.UNKNOWN,
+            f"pid {pid} is running and matches the start time recorded at "
+            "launch, but that identity predates the boot id, so a reboot "
+            "cannot be ruled out",
         )
     return (
         Liveness.GONE,
