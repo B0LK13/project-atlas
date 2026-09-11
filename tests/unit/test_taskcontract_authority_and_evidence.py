@@ -45,6 +45,13 @@ from project_atlas.orchestration.taskcontract.validate import (
 def test_validation_never_runs_a_command_the_contract_supplies(tmp_path: Path) -> None:
     """The check that would make backlog write access into code execution."""
     sentinel = tmp_path / "SIDE_EFFECT"
+    # argv[0] must be an absolute path that exists AND is executable on every
+    # host, or the validator truthfully reports `acceptance.executable_missing`
+    # and this test fails on Windows for a reason that has nothing to do with
+    # the property it guards. `sys.executable` is the one such path we always
+    # have. The command still CREATES the sentinel if it is ever run, so
+    # `not sentinel.exists()` below stays a real detector rather than passing
+    # because the command would have failed anyway.
     contract, project, workspace = _contract(
         tmp_path,
         acceptance=[
@@ -52,7 +59,11 @@ def test_validation_never_runs_a_command_the_contract_supplies(tmp_path: Path) -
                 "check_id": "behaviour",
                 "kind": "COMMAND",
                 "description": "a command with a side effect",
-                "argv": ["/usr/bin/touch", str(sentinel)],
+                "argv": [
+                    sys.executable,
+                    "-c",
+                    f"open({str(sentinel)!r}, 'w').close()",
+                ],
             }
         ],
     )
