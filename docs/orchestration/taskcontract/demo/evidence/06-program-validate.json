@@ -1,0 +1,43 @@
+{
+  "approval_reference": "docs/origination-acceptance-contracts.yaml#INT-013",
+  "approved_by": "wesley",
+  "base_pin": "80280bfe13c77708cada7af17215acdaff3725e4",
+  "execution_authorized": false,
+  "limits": {
+    "idle_sleep_seconds": 5.0,
+    "max_attempts_per_task": 2,
+    "max_concurrent_workers": 1,
+    "max_cycles": 200,
+    "max_estimated_cost_usd": 5.0,
+    "max_idle_cycles": 5,
+    "max_program_seconds": 14400,
+    "max_task_launches": 2,
+    "max_task_seconds": 2400
+  },
+  "merge_authorized": false,
+  "program_id": "INT-013-BOUNDED-PILOT",
+  "program_sha256": "eae76ef168d358481e7d70cbe503fd8a60e08b854c58f69b94bc64eb288431da",
+  "tasks": [
+    {
+      "acceptance_checks": [
+        "pilot-test",
+        "pilot-file-present"
+      ],
+      "adapter": "local-command",
+      "agent_id": "demo-implementer",
+      "depends_on": [],
+      "effective_profile_sha256": "8cd52b39dcfe179aa3d22457f9daa4774647ad6d154ae2e228e6897fb71218d5",
+      "external_precondition": null,
+      "owner_gate": null,
+      "permission_mode": "dontAsk",
+      "profile_id": "implementer",
+      "requires_independent_verification": false,
+      "task_id": "INT-013-BOUNDED-PILOT",
+      "title": "Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026",
+      "verifier_profile_ref": null
+    }
+  ],
+  "valid": true,
+  "warnings": [],
+  "workspace": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract"
+}

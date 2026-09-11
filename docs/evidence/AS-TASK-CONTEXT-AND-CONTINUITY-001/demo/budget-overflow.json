@@ -1,0 +1,193 @@
+{
+  "budget_chars": 120,
+  "incomplete_mandatory": true,
+  "notes": [
+    "token counts are ESTIMATED (chars/4); no tokenizer bundled",
+    "packet budget does not bound runtime-loaded repo instructions or tool schemas",
+    "no prompt-cache or cost savings claimed",
+    "INCOMPLETE: mandatory requirements exceed budget; packet not fully deliverable"
+  ],
+  "overflow": true,
+  "overflow_parts": [
+    "req-acceptance",
+    "req-exclusions",
+    "req-interfaces",
+    "req-mutation",
+    "req-objective",
+    "req-outcome",
+    "req-requirements",
+    "req-scope",
+    "src-api",
+    "src-arch",
+    "src-cfl-a",
+    "src-cfl-b",
+    "src-arch-dup",
+    "src-bait"
+  ],
+  "parts": [
+    {
+      "bytes": 73,
+      "chars": 73,
+      "exclusion_reason": null,
+      "included": true,
+      "part_id": "policy-refs",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 18
+    },
+    {
+      "bytes": 240,
+      "chars": 240,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-acceptance",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 60
+    },
+    {
+      "bytes": 57,
+      "chars": 57,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-exclusions",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 14
+    },
+    {
+      "bytes": 81,
+      "chars": 81,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-interfaces",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 20
+    },
+    {
+      "bytes": 219,
+      "chars": 219,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-mutation",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 54
+    },
+    {
+      "bytes": 74,
+      "chars": 74,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-objective",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 18
+    },
+    {
+      "bytes": 74,
+      "chars": 74,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-outcome",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 18
+    },
+    {
+      "bytes": 137,
+      "chars": 137,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-requirements",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 34
+    },
+    {
+      "bytes": 64,
+      "chars": 64,
+      "exclusion_reason": "budget-overflow-mandatory-not-silently-truncated",
+      "included": false,
+      "part_id": "req-scope",
+      "tier": "mandatory",
+      "token_measure": "estimated",
+      "tokens": 16
+    },
+    {
+      "bytes": 101,
+      "chars": 101,
+      "exclusion_reason": "budget-skipped-due-to-mandatory-overflow",
+      "included": false,
+      "part_id": "src-api",
+      "tier": "evidence",
+      "token_measure": "estimated",
+      "tokens": 25
+    },
+    {
+      "bytes": 128,
+      "chars": 128,
+      "exclusion_reason": "budget-skipped-due-to-mandatory-overflow",
+      "included": false,
+      "part_id": "src-arch",
+      "tier": "evidence",
+      "token_measure": "estimated",
+      "tokens": 32
+    },
+    {
+      "bytes": 47,
+      "chars": 47,
+      "exclusion_reason": "budget-skipped-due-to-mandatory-overflow",
+      "included": false,
+      "part_id": "src-cfl-a",
+      "tier": "evidence",
+      "token_measure": "estimated",
+      "tokens": 11
+    },
+    {
+      "bytes": 47,
+      "chars": 47,
+      "exclusion_reason": "budget-skipped-due-to-mandatory-overflow",
+      "included": false,
+      "part_id": "src-cfl-b",
+      "tier": "evidence",
+      "token_measure": "estimated",
+      "tokens": 11
+    },
+    {
+      "bytes": 0,
+      "chars": 0,
+      "exclusion_reason": "missing source: docs/does-not-exist.md",
+      "included": false,
+      "part_id": "src-missing",
+      "tier": "evidence",
+      "token_measure": "estimated",
+      "tokens": 0
+    },
+    {
+      "bytes": 128,
+      "chars": 128,
+      "exclusion_reason": "budget-skipped-due-to-mandatory-overflow",
+      "included": false,
+      "part_id": "src-arch-dup",
+      "tier": "background",
+      "token_measure": "estimated",
+      "tokens": 32
+    },
+    {
+      "bytes": 195,
+      "chars": 195,
+      "exclusion_reason": "budget-skipped-due-to-mandatory-overflow",
+      "included": false,
+      "part_id": "src-bait",
+      "tier": "background",
+      "token_measure": "estimated",
+      "tokens": 48
+    }
+  ],
+  "prompt_cache_savings_claimed": false,
+  "remaining_chars": 47,
+  "runtime_context_unbounded": true,
+  "used_chars": 73
+}
