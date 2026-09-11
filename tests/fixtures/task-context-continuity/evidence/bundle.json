@@ -1,0 +1,44 @@
+{
+  "source_kind": "FIXTURE_LABELED",
+  "package_boundary": "ATLAS-EXECUTION-QUALITY-LOOP-001-not-merged; fixture adapter",
+  "records": [
+    {
+      "evidence_id": "ev-fail-001",
+      "action_id": "attempt-1-compose",
+      "summary": "First compose attempt failed schema validation.",
+      "outcome": "failed",
+      "artifact_paths": ["generated/task-context/attempt1.json"],
+      "artifact_digests": ["aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa1"],
+      "check_results": [
+        {"check_id": "CHK-PACKET-SCHEMA", "result": "failed"}
+      ],
+      "completion_proven": false,
+      "source_kind": "FIXTURE_LABELED"
+    },
+    {
+      "evidence_id": "ev-pass-002",
+      "action_id": "attempt-2-repair",
+      "summary": "Direct repair after failure; schema validation passed.",
+      "outcome": "passed",
+      "artifact_paths": ["generated/task-context/attempt2.json"],
+      "artifact_digests": ["bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb2"],
+      "check_results": [
+        {"check_id": "CHK-PACKET-SCHEMA", "result": "passed"},
+        {"check_id": "CHK-TRUST-BOUNDARY", "result": "passed"}
+      ],
+      "completion_proven": true,
+      "source_kind": "FIXTURE_LABELED"
+    },
+    {
+      "evidence_id": "ev-prose-003",
+      "action_id": "agent-closing-claim",
+      "summary": "Agent closing message claimed done without structured proof.",
+      "outcome": "unknown",
+      "artifact_paths": [],
+      "artifact_digests": ["prose-only-not-proof-0000000000000000000000000000000000000000000000000000"],
+      "check_results": [],
+      "completion_proven": false,
+      "source_kind": "FIXTURE_LABELED"
+    }
+  ]
+}

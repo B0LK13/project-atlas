@@ -1,0 +1,117 @@
+{
+  "contract_id": "ATLAS-TASK-CONTEXT-AND-CONTINUITY-001-DEMO",
+  "contract_version": 1,
+  "objective": "Compose a compact task-bound context packet with provenance and freshness.",
+  "observable_outcome": "A packet JSON exists with content_digest, budget_report, and trust layers.",
+  "scope": [
+    "src/project_atlas/task_context/",
+    "docs related to task context"
+  ],
+  "exclusions": [
+    "No new Studio UI",
+    "No dispatch or authorization changes"
+  ],
+  "mutation_paths": [
+    "src/project_atlas/task_context/",
+    "src/project_atlas/schemas/task-context-packet.schema.json",
+    "tests/fixtures/task-context-continuity/",
+    "tests/unit/test_task_context_continuity_001.py",
+    "docs/AS-TASK-CONTEXT-AND-CONTINUITY-001.md"
+  ],
+  "repository": "project-atlas",
+  "base_pin": "b87b4a226f4aa8b2f669edf112aa3476454f754f",
+  "candidate_identity": "fixture-candidate-001",
+  "policy_refs": [
+    "AGENTS.md#fail-closed",
+    "ADR-004-source-quarantine-prompt-injection-boundary"
+  ],
+  "context": [
+    {
+      "source_id": "arch",
+      "path": "docs/architecture.md",
+      "why": "Named architecture doc for the interface under change",
+      "digest": "eb3d73b8c2112804a05ef89f594087e5463c9af5c83fde2204b08c1ae36f2cfb",
+      "tier_hint": "evidence"
+    },
+    {
+      "source_id": "arch-dup",
+      "path": "docs/architecture.md",
+      "why": "Duplicate reference retaining separate provenance",
+      "digest": "eb3d73b8c2112804a05ef89f594087e5463c9af5c83fde2204b08c1ae36f2cfb",
+      "tier_hint": "background"
+    },
+    {
+      "source_id": "api",
+      "path": "src/api.py",
+      "why": "Named interface symbol assemble_packet",
+      "digest": "0734ae0aaeec998720033966f4de7f32948fcc4bf8c384ddf6736c614744ded0",
+      "tier_hint": "evidence"
+    },
+    {
+      "source_id": "bait",
+      "path": "docs/injection-bait.md",
+      "why": "Negative control: instruction-shaped retrieved text",
+      "digest": "cc613e690d48b098dc66920c985202298982d92e82769cb7078b917718b8da20",
+      "tier_hint": "background"
+    },
+    {
+      "source_id": "cfl-a",
+      "path": "docs/conflict-a.md",
+      "why": "Conflicting decision source A",
+      "digest": "1f33ce26c0196cab0a4b1c4aa22085b34790ed657a35e2022d96521d55cd3483",
+      "tier_hint": "evidence"
+    },
+    {
+      "source_id": "cfl-b",
+      "path": "docs/conflict-b.md",
+      "why": "Conflicting decision source B",
+      "digest": "9312f3def6c2a62d117ad4d7013e3e030b9398e7fdf4942bcbfcdcbe04726757",
+      "tier_hint": "evidence"
+    },
+    {
+      "source_id": "missing",
+      "path": "docs/does-not-exist.md",
+      "why": "Intentionally missing source",
+      "tier_hint": "evidence"
+    }
+  ],
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "statement": "Packet includes contract objective, mutation_paths, and acceptance ids.",
+      "verification": "AUTOMATED",
+      "check_ids": ["CHK-PACKET-SCHEMA"]
+    },
+    {
+      "requirement_id": "R2",
+      "statement": "Retrieved instruction text does not widen mutation_paths.",
+      "verification": "AUTOMATED",
+      "check_ids": ["CHK-TRUST-BOUNDARY"]
+    }
+  ],
+  "acceptance": [
+    {
+      "check_id": "CHK-PACKET-SCHEMA",
+      "kind": "FILE_EXISTS",
+      "target": "generated/task-context/demo-packet.json"
+    },
+    {
+      "check_id": "CHK-TRUST-BOUNDARY",
+      "kind": "COMMAND",
+      "target": "pytest -k trust_boundary"
+    }
+  ],
+  "interface_refs": [
+    "project_atlas.task_context.assemble_packet",
+    "project_atlas.task_context.render_view"
+  ],
+  "open_questions": [
+    "Should token counting bind a specific tokenizer in a follow-on package?"
+  ],
+  "depends_on": [
+    "ATLAS-BACKLOG-TO-TASK-CONTRACT-001",
+    "ATLAS-EXECUTION-QUALITY-LOOP-001"
+  ],
+  "execution_authorized": false,
+  "source_kind": "FIXTURE_LABELED"
+}

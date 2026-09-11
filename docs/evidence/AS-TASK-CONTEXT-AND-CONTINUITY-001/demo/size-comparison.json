@@ -1,0 +1,26 @@
+{
+  "definition_full_source_collection": "Naive dump = all files under fixture repo recursively (includes unrefferenced noise)",
+  "honesty": {
+    "mandatory_silently_truncated": false,
+    "model_calls": 0,
+    "smaller_ne_better_proven": true
+  },
+  "hypothesis_for_quality_loop": "SMALLER_PACKET_MAY_IMPROVE_AGENT_PERFORMANCE \u2014 unproven; follow-on for EXECUTION-QUALITY-LOOP; no model calls.",
+  "mandatory_titles_retained": [
+    "Policy references",
+    "Acceptance checks",
+    "Exclusions",
+    "Interfaces",
+    "Mutation paths",
+    "Objective",
+    "Observable outcome",
+    "Result requirements",
+    "Scope"
+  ],
+  "naive_full_repo_chars": 2596,
+  "noise_file_excluded": "docs/unrelated-history.md",
+  "packet_included_chars_total": 1665,
+  "packet_included_mandatory_chars": 1019,
+  "packet_included_retrieved_unique_path_chars": 518,
+  "retrieved_unique_vs_naive_repo_ratio": 0.2
+}
