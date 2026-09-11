@@ -52,6 +52,7 @@ from test_supervisor_g3_reconciliation import (
 )
 
 from project_atlas.orchestration.program.adapters import base as adapters_base
+from project_atlas.orchestration.program.adapters.base import process_start_identity
 from project_atlas.orchestration.program.recovery import (
     Liveness,
     RecoveryAction,
@@ -208,6 +209,9 @@ def _intent(**over: object) -> dict[str, object]:
         "identity_state": "PENDING",
         "supervisor_pid": os.getpid(),
         "supervisor_instance_id": "token-1",
+        # This process really is the "launcher" in these tests, so its start
+        # identity is the honest value to record.
+        "supervisor_start_identity": process_start_identity(os.getpid()),
     }
     base.update(over)
     return base
@@ -240,16 +244,55 @@ def test_an_orphaned_intent_is_unknown_not_in_flight(tmp_path: Path) -> None:
 def test_a_different_supervisor_instance_is_unknown_not_in_flight(
     tmp_path: Path,
 ) -> None:
-    """A live supervisor pid is not yet the RIGHT supervisor.
-
-    Pids are reusable on both sides of this record. Without the instance token
-    a stranger occupying the launcher's old pid would vouch for a stranger
-    occupying the worker's.
-    """
+    """A LIVE supervisor from a later run must not inherit an older intent."""
     _state_with(tmp_path, "a-later-run")
     verdict, reason = _intent_liveness(_intent(), root=tmp_path)
     assert verdict is Liveness.UNKNOWN, reason
-    assert "not the one running now" in reason
+    assert "owns this program now" in reason
+
+
+def test_a_stranger_on_the_dead_launchers_pid_is_unknown(tmp_path: Path) -> None:
+    """The clean-room gate's attack on the first version of this record.
+
+    1. Supervisor A mints token T and writes it into state.json.
+    2. A records an intent naming its own pid and T.
+    3. A is SIGKILLed. `state.supervisor_instance_id` is NEVER cleared on exit
+       -- not by `_release`, and certainly not by a kill -- so state.json still
+       holds T.
+    4. The OS reuses A's pid for an unrelated process.
+    5. An operator reconciles, which is the natural thing to do after a
+       supervisor dies and happens BEFORE any new run mints a new token.
+
+    Against the pid-plus-token version this returned IN_FLIGHT, and its reason
+    string claimed the launcher was "still running and still waiting for it"
+    while nothing was waiting. Both facts it checked came from storage the dead
+    supervisor itself had written.
+
+    The live re-derivation is what breaks the chain: a stranger holding that
+    pid has a different start time, so the launcher's identity no longer
+    matches and the answer degrades to UNKNOWN -- which routes to
+    NEEDS_RECONCILIATION, the correct outcome for an orphan.
+    """
+    _state_with(tmp_path, "token-1")  # stale: A died without clearing it
+    verdict, reason = _intent_liveness(
+        _intent(supervisor_start_identity="linux:not-the-supervisor-that-launched-it"),
+        root=tmp_path,
+    )
+    assert verdict is Liveness.UNKNOWN, reason
+    assert "not the supervisor that launched it" in reason
+    assert "orphaned" in reason
+
+
+def test_an_intent_without_a_launcher_identity_is_unknown(tmp_path: Path) -> None:
+    """Absence of the strong check is not permission to fall back to the weak
+    one. A record written without a launcher start identity cannot rule out a
+    reused launcher pid, so it proves nothing."""
+    _state_with(tmp_path, "token-1")
+    for missing in (None, "", "unknown"):
+        verdict, reason = _intent_liveness(
+            _intent(supervisor_start_identity=missing), root=tmp_path
+        )
+        assert verdict is Liveness.UNKNOWN, f"{missing!r}: {reason}"
 
 
 def test_an_intent_with_no_token_recorded_is_unknown(tmp_path: Path) -> None:
@@ -305,6 +348,7 @@ def test_clearing_a_launch_removes_the_intent_too(tmp_path: Path) -> None:
         pid=os.getpid(),
         supervisor_pid=os.getpid(),
         supervisor_instance_id="i",
+        supervisor_start_identity="linux:1",
     )
     assert load_launch_intent(tmp_path, "att-1") is not None
     clear_launch(tmp_path, "att-1")

@@ -65,6 +65,7 @@ from project_atlas.orchestration.program.adapters.base import (
     AdapterRequest,
     AdapterUnavailableError,
     RuntimeAdapter,
+    process_start_identity,
 )
 from project_atlas.orchestration.program.adapters.claude_code import (
     ClaudeCodeAdapter,
@@ -344,6 +345,8 @@ class ProgramSupervisor:
         self._launches_this_run = 0
         self._running: dict[str, tuple[RunningWork, Future[AdapterOutcome]]] = {}
         self._executor: ThreadPoolExecutor | None = None
+        #: This supervisor's own process start identity, for launch intents.
+        self._start_identity: str | None = None
         self._max_concurrent_observed = 0
 
     # ------------------------------------------------------------- ownership
@@ -380,6 +383,12 @@ class ProgramSupervisor:
                 code="SUPERVISOR_LOCK_CONTENDED",
             )
         self._instance_id = token
+        # Derived ONCE per supervisor run, not per launch. It is invariant
+        # for the life of this process, and on Windows deriving it starts
+        # PowerShell -- the very cost this candidate exists to keep out of
+        # the spawn path. Paying it here costs one probe per run; paying it
+        # per intent would reopen the window the intent was added to close.
+        self._start_identity = process_start_identity(_self_pid())
         return token
 
     def _assert_still_supervisor(self) -> None:
@@ -2019,6 +2028,7 @@ class ProgramSupervisor:
         root = self.root
         supervisor_pid = _self_pid()
         instance_id = self._instance_id
+        start_identity = self._start_identity
 
         def record(pid: int) -> None:
             record_launch_intent(
@@ -2027,6 +2037,7 @@ class ProgramSupervisor:
                 pid=pid,
                 supervisor_pid=supervisor_pid,
                 supervisor_instance_id=instance_id,
+                supervisor_start_identity=start_identity,
             )
 
         return record

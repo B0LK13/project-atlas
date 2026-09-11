@@ -275,6 +275,7 @@ def record_launch_intent(
     pid: int,
     supervisor_pid: int,
     supervisor_instance_id: str | None,
+    supervisor_start_identity: str | None,
 ) -> Path:
     """Record that a child EXISTS, the instant it exists, before asking who it is.
 
@@ -291,13 +292,23 @@ def record_launch_intent(
     established its start identity". It is written between ``Popen`` and the
     probe, so there is no instant at which a live child is unrecorded.
 
-    ``supervisor_pid`` and ``supervisor_instance_id`` travel with it because
-    they are what keeps the weaker record safe to act on. A pid alone cannot be
-    told apart from a reused one; a pid whose launching supervisor is still
-    alive under the same instance token has not been reused, because that
-    supervisor has not stopped waiting for it. Without that pair this file
-    would be exactly the "pid with no identity" case the recovery contract
-    already refuses to trust.
+    The launcher's own identity travels with it, because that is what keeps
+    the weaker record safe to act on. A pid alone cannot be told apart from a
+    reused one, so this record names the supervisor that is waiting for the
+    child -- and names it in a way that survives the supervisor dying.
+
+    All three fields are needed, and the third is the one that is easy to think
+    redundant. ``supervisor_instance_id`` is compared against ``state.json``,
+    which is written by the supervisor and NEVER cleared on exit -- so after a
+    SIGKILL it still holds the dead supervisor's token. A stranger that lands
+    on the dead launcher's recycled pid would then be vouched for by a file the
+    dead launcher wrote. ``supervisor_start_identity`` is what closes that: it
+    is re-derived from the live pid at read time, and a stranger on that number
+    has a different start time. It is the same trick B1 uses to defeat pid
+    reuse for workers, applied to the launcher.
+
+    Found by the clean-room gate against the first version of this record,
+    which carried only the pid and the token.
     """
     target = launches_dir(root) / _launch_intent_name(attempt_id)
     _write_atomic(
@@ -309,6 +320,7 @@ def record_launch_intent(
                 "identity_state": "PENDING",
                 "supervisor_pid": int(supervisor_pid),
                 "supervisor_instance_id": supervisor_instance_id,
+                "supervisor_start_identity": supervisor_start_identity,
                 "recorded_at": _utc_now(),
             },
             indent=2,

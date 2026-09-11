@@ -206,21 +206,50 @@ def _intent_liveness(intent: dict[str, object], *, root: Path) -> tuple[Liveness
             "it is no longer running, so it cannot be told apart from a reused "
             "pid",
         )
-    # A live supervisor pid is not yet the right supervisor: pids are reusable
+    # A live supervisor pid is not yet the RIGHT supervisor. Pids are reusable
     # on both sides of this record, so a stranger occupying the launcher's old
-    # number would otherwise vouch for a stranger occupying the worker's. The
-    # instance token is minted per supervisor run and is what actually ties the
-    # two together. Absent or mismatched, this degrades to UNKNOWN.
+    # number must not be allowed to vouch for a stranger occupying the
+    # worker's. Two independent things are checked, and both are load-bearing.
+    #
+    # First: is the launcher still the same PROCESS? Re-derived live, from the
+    # pid, exactly as B1 does for workers. This is the check that survives the
+    # launcher being killed, because it asks the operating system rather than
+    # asking a file the launcher wrote.
+    recorded_start = intent.get("supervisor_start_identity")
+    if not isinstance(recorded_start, str) or not recorded_start or (
+        recorded_start == "unknown"
+    ):
+        return (
+            Liveness.UNKNOWN,
+            f"pid {pid} was recorded at launch and is running, but no start "
+            "identity was recorded for the supervisor that launched it, so a "
+            "reused launcher pid could not be ruled out",
+        )
+    live_start = process_start_identity(supervisor_pid)
+    if not live_start or live_start == "unknown" or live_start != recorded_start:
+        return (
+            Liveness.UNKNOWN,
+            f"pid {pid} was recorded at launch and is running, but the process "
+            f"now holding the launching supervisor's pid {supervisor_pid} is "
+            "not the supervisor that launched it, so this attempt was orphaned "
+            "and its worker cannot be told apart from a reused pid",
+        )
+    # Second: is that supervisor still the one that owns this PROGRAM? The
+    # token is minted per run and compared against state.json. This is a
+    # weaker check on its own -- state.json is never cleared on exit, so after
+    # a kill it still names the dead supervisor -- and it is kept because it
+    # catches the case the first one does not: a LIVE supervisor from a later
+    # run, whose pid and start identity are genuinely its own, inheriting an
+    # intent written by an earlier one.
     recorded_token = intent.get("supervisor_instance_id")
     state = load_state(root)
     live_token = state.supervisor_instance_id if state is not None else None
     if not recorded_token or not live_token or recorded_token != live_token:
         return (
             Liveness.UNKNOWN,
-            f"pid {pid} was recorded at launch and is running, but its start "
-            "identity was never established and the supervisor instance that "
-            "launched it is not the one running now, so it cannot be told "
-            "apart from a reused pid",
+            f"pid {pid} was recorded at launch and is running, but the "
+            "supervisor instance that launched it is not the one that owns "
+            "this program now, so it cannot be told apart from a reused pid",
         )
     return (
         Liveness.IN_FLIGHT,
