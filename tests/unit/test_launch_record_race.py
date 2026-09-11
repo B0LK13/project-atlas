@@ -63,8 +63,10 @@ from project_atlas.orchestration.program.store import (
     ProgramStateRecord,
     clear_launch,
     launches_dir,
+    load_launch,
     load_launch_intent,
     persist_state,
+    record_launch,
     record_launch_intent,
 )
 
@@ -241,14 +243,40 @@ def test_an_orphaned_intent_is_unknown_not_in_flight(tmp_path: Path) -> None:
     assert "reused" in reason
 
 
-def test_a_different_supervisor_instance_is_unknown_not_in_flight(
+def test_a_second_run_in_the_same_process_is_caught_only_by_the_token(
     tmp_path: Path,
 ) -> None:
-    """A LIVE supervisor from a later run must not inherit an older intent."""
-    _state_with(tmp_path, "a-later-run")
-    verdict, reason = _intent_liveness(_intent(), root=tmp_path)
+    """The case that makes the token check load-bearing rather than belt-and-braces.
+
+    `start()` is re-entrant: `_acquire()` mints a fresh token on every call and
+    `_release()` runs in a finally. So a second `start()` on the SAME process is
+    a new run with the same pid and the same start identity. An intent left by
+    run 1 and evaluated during run 2 passes the launcher-identity check
+    honestly -- the launcher really is that process -- and only the token
+    separates the runs. Identity answers "same process?"; the token answers
+    "same run?", and a process can outlive a run.
+
+    Asserted as a discriminator, not just an outcome: the SAME intent with a
+    matching token is IN_FLIGHT, so this proves the token is what refused it
+    and not some incidental failure earlier in the chain.
+    """
+    intent = _intent()  # real pid, real start identity: the identity check passes
+
+    _state_with(tmp_path, "token-1")  # same run
+    ok_verdict, _ = _intent_liveness(intent, root=tmp_path)
+    assert ok_verdict is Liveness.IN_FLIGHT, (
+        "control failed: this intent must be accepted when the run matches, or "
+        "the test below proves nothing about the token"
+    )
+
+    _state_with(tmp_path, "a-later-run-same-process")  # run 2, same process
+    verdict, reason = _intent_liveness(intent, root=tmp_path)
     assert verdict is Liveness.UNKNOWN, reason
     assert "owns this program now" in reason
+    assert "not the supervisor that launched it" not in reason, (
+        "the launcher-identity check fired, so this test is not exercising the "
+        "token at all"
+    )
 
 
 def test_a_stranger_on_the_dead_launchers_pid_is_unknown(tmp_path: Path) -> None:
@@ -336,6 +364,64 @@ def test_a_bare_unidentified_pid_is_still_unknown() -> None:
 
 
 # ------------------------------------------------------------ cleanup
+
+
+def test_an_interrupted_clear_leaves_the_STRONGER_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The two unlinks are not atomic, so their order decides what survives.
+
+    `clear_launch` runs at ADAPTER_RETURNED, not at TERMINAL, so a reader can
+    still reach `attempt_liveness` for this attempt afterwards. If one unlink
+    lands and the other does not -- a transient OSError, Windows locking
+    against a concurrent reader, or the process dying between them -- whichever
+    record survives is what a later reader acts on.
+
+    The intent is the weaker record: no worker identity, so the best it can say
+    is IN_FLIGHT ("a worker of ours is running, leave it alone") about an
+    attempt whose adapter has already returned. The identified record carries
+    the worker's start identity, so it degrades to a correct GONE once the
+    worker exits.
+
+    Hence: weaker first. This asserts the order rather than the outcome,
+    because the outcome is only safe BECAUSE of the order.
+
+    Raised as an unverified code read by an independent verifier. It was right.
+    """
+    record_launch_intent(
+        tmp_path,
+        attempt_id="att-2",
+        pid=os.getpid(),
+        supervisor_pid=os.getpid(),
+        supervisor_instance_id="i",
+        supervisor_start_identity="linux:1",
+    )
+    record_launch(
+        tmp_path, attempt_id="att-2", pid=os.getpid(), start_identity="linux:1"
+    )
+    assert load_launch_intent(tmp_path, "att-2") is not None
+    assert load_launch(tmp_path, "att-2") is not None
+
+    real_unlink = pathlib.Path.unlink
+    calls: list[str] = []
+
+    def failing_unlink(self: pathlib.Path, *a: object, **k: object) -> None:
+        calls.append(self.name)
+        if len(calls) > 1:  # the SECOND unlink never lands
+            raise OSError(16, "Device or resource busy")
+        real_unlink(self, *a, **k)
+
+    monkeypatch.setattr(pathlib.Path, "unlink", failing_unlink)
+    clear_launch(tmp_path, "att-2")
+    monkeypatch.undo()
+
+    assert load_launch_intent(tmp_path, "att-2") is None, (
+        "the WEAKER record survived an interrupted clear; a later reader would "
+        "get IN_FLIGHT for an attempt whose adapter has already returned"
+    )
+    assert load_launch(tmp_path, "att-2") is not None, (
+        "setup error: the stronger record should be the one still present"
+    )
 
 
 def test_clearing_a_launch_removes_the_intent_too(tmp_path: Path) -> None:

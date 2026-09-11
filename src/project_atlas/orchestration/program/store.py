@@ -368,16 +368,41 @@ def load_launch(root: Path, attempt_id: str) -> dict[str, Any] | None:
 
 
 def clear_launch(root: Path, attempt_id: str) -> None:
-    """Drop the record once the attempt is terminal.
+    """Drop the in-flight records once the adapter has returned.
 
-    Left behind, it would name a pid the operating system is free to reuse, and
-    a later reader would have to decide whether a live stranger is our worker.
-    The start identity would catch that, but not keeping the stale record is
-    the cheaper answer.
+    Left behind, either would name a pid the operating system is free to reuse,
+    and a later reader would have to decide whether a live stranger is our
+    worker.
+
+    THE ORDER IS LOAD-BEARING: the INTENT goes first, always.
+
+    These two unlinks are not atomic together, and this runs at
+    ADAPTER_RETURNED rather than at TERMINAL -- so a reader can still reach
+    `attempt_liveness` for this attempt. If one unlink lands and the other does
+    not (a transient OSError, Windows' stricter locking against a concurrent
+    reader holding the file open, or the process dying in between), whichever
+    record survives is the one a later reader will act on.
+
+    The intent is the WEAKER record: it carries no worker identity, so the best
+    it can say is IN_FLIGHT -- "a worker of ours is running, leave it alone".
+    Said about an attempt whose adapter has already returned, that is the worst
+    available answer. The identified record is the stronger one: it carries the
+    worker's own start identity, so `process_liveness` compares it against the
+    live pid and answers GONE once the worker has exited, which is correct.
+
+    So the weaker record is removed first. An interruption can then only ever
+    leave the stronger one behind, and a surviving stronger record degrades to
+    a correct verdict rather than a dangerous one. Removing them the other way
+    round -- which is how this was first written -- leaves exactly the
+    dangerous survivor.
+
+    Raised as an unverified code-read by an independent verifier looking for
+    the corner nobody had examined. It was right, and this is the ordering
+    invariant that answers it.
     """
     for path in (
-        launches_dir(root) / _launch_name(attempt_id),
         launches_dir(root) / _launch_intent_name(attempt_id),
+        launches_dir(root) / _launch_name(attempt_id),
     ):
         try:
             path.unlink(missing_ok=True)

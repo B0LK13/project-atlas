@@ -234,13 +234,24 @@ def _intent_liveness(intent: dict[str, object], *, root: Path) -> tuple[Liveness
             "not the supervisor that launched it, so this attempt was orphaned "
             "and its worker cannot be told apart from a reused pid",
         )
-    # Second: is that supervisor still the one that owns this PROGRAM? The
-    # token is minted per run and compared against state.json. This is a
-    # weaker check on its own -- state.json is never cleared on exit, so after
-    # a kill it still names the dead supervisor -- and it is kept because it
-    # catches the case the first one does not: a LIVE supervisor from a later
-    # run, whose pid and start identity are genuinely its own, inheriting an
-    # intent written by an earlier one.
+    # Second: is that supervisor still the one that owns this RUN? The token is
+    # minted per run and compared against state.json. On its own it is the
+    # weaker check -- state.json is never cleared on exit, so after a kill it
+    # still names the dead supervisor -- and it is kept because it catches
+    # precisely what the first one cannot.
+    #
+    # `start()` is public and re-entrant: it calls `_acquire()` on entry, which
+    # mints a FRESH token every time, and `_release()` in a finally. So a second
+    # `start()` on the SAME process yields a new run with the same pid and the
+    # same start identity. An intent left by run 1 and evaluated during run 2
+    # passes the identity check honestly -- the launcher really is that process
+    # -- and only the token separates the runs.
+    #
+    # Identity answers "is this the same process?"; the token answers "is this
+    # the same run?". A process can outlive a run, which is what makes this
+    # reachable rather than hypothetical. (Reachability established by the
+    # clean-room gate; my own justification named a later run without noticing
+    # it could be the same process.)
     recorded_token = intent.get("supervisor_instance_id")
     state = load_state(root)
     live_token = state.supervisor_instance_id if state is not None else None
