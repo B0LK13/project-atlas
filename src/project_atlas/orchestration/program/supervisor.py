@@ -1445,7 +1445,12 @@ class ProgramSupervisor:
 
         Returns a reason string when the dispatch must not proceed, else None.
         """
-        if not self.enrolled_agents or self.registry_root is None:
+        # Deliberately NOT `if not self.enrolled_agents`. An empty binding is
+        # the symptom of the very thing this guard exists to catch: the
+        # callers' `--registry` filters keep only ACTIVE agents, so suspending
+        # the only enrolled agent emptied this tuple and the guard that should
+        # have refused the dispatch returned None instead.
+        if self.registry_root is None:
             return None
         try:
             registry = load_registry(self.registry_root)
@@ -1456,7 +1461,66 @@ class ProgramSupervisor:
             reason = self._agent_authority_revoked(registry, agent_id, kind)
             if reason is not None:
                 return reason
+        for role, kind in self._roles_this_dispatch_uses(task_id):
+            reason = self._role_authority_withheld(registry, role, kind)
+            if reason is not None:
+                return reason
         return None
+
+    def _roles_this_dispatch_uses(self, task_id: str) -> list[tuple[str, str]]:
+        """Every program role a dispatch of this task would run as.
+
+        Roles, not bound identities. An agent dropped by the caller's status
+        filter leaves no enrolled identity behind, so there is nothing for
+        `_agent_authority_revoked` to look up -- the role is the only handle
+        on an authority that was withdrawn rather than changed.
+        """
+        task = self.program.task(task_id)
+        used = [(task.profile_ref, "implementer")]
+        if task.verifier_profile_ref is not None:
+            used.append((task.verifier_profile_ref, "verifier"))
+        return used
+
+    def _role_authority_withheld(
+        self, registry: AgentRegistry, role: str, kind: str
+    ) -> str | None:
+        """Refuse a role this roster governs but no ACTIVE agent is bound to.
+
+        Suspended, retired and re-roled agents are filtered out before they
+        reach `enrolled_agents`, so the per-agent re-read above finds nothing
+        to refuse and the task would dispatch on the program's own placeholder
+        profile: unbound, unnarrowed, with nobody left to say no. Withdrawing
+        an agent from the roster and withdrawing the guard that watches it
+        must not be the same act.
+
+        A role with no record at all is refused too, not waved through. An
+        enrollment that was revoked outright, or re-pointed at another role,
+        leaves exactly that shape behind -- indistinguishable, from here, from
+        a roster that never covered the role. `service._bound_agents` already
+        fails closed on it (`REGISTRY_BINDING_MISSING`); the operator CLI
+        silently fell back to the placeholder instead. Passing `--registry` is
+        the operator saying this roster governs the run, so a role it cannot
+        satisfy is a refusal on both paths.
+        """
+        bound = {agent.agent_id for agent in self.enrolled_agents}
+        known = [agent for agent in registry.agents.values() if agent.role == role]
+        if any(
+            agent.agent_id in bound and agent.status is AgentStatus.ACTIVE
+            for agent in known
+        ):
+            return None
+        standing = (
+            ", ".join(
+                sorted(f"{agent.agent_id} is {agent.status.value}" for agent in known)
+            )
+            if known
+            else "the roster holds no agent in this role"
+        )
+        return (
+            f"no active enrolled agent is bound for {kind} role {role!r} "
+            f"({standing}); dispatch is withheld rather than run on the "
+            "program's placeholder profile"
+        )
 
     def _agents_this_dispatch_uses(self, task_id: str) -> list[tuple[str, str]]:
         """Every enrolled identity a dispatch of this task would rely on.
