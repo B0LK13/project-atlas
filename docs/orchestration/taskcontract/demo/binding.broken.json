@@ -1,0 +1,9 @@
+{
+  "binding_id": "demo-broken",
+  "workspace_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract",
+  "state_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.atlas-demo-state",
+  "registry_root": "/home/gebruiker/.cache/atlas-taskcontract-demo/registry",
+  "interpreter": "/usr/bin/definitely-not-here",
+  "profile_ref": "implementer",
+  "agent_role": "implementer"
+}

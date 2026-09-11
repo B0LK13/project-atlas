@@ -1,0 +1,24 @@
+supervisor pid 878722
+worker pid 878730
+supervisor SIGKILLed
+ORPHAN WORKER STILL ALIVE: pid 878730
+--- durable attempt record ---
+  phase=ADAPTER_INVOKED process_pid=None start_identity=None
+--- reconcile ---
+{
+  "interrupted_attempts": [
+    {
+      "attempt_id": "B1-REPRO.hangs.run.1.d445ad59",
+      "confidence": null,
+      "phase": "ADAPTER_INVOKED",
+      "reason": "pid 878730 is alive and its start identity matches the one recorded at launch",
+      "recovery_action": "WORKER_STILL_RUNNING",
+      "runtime_session_id": "21c26e88-6926-43cf-8e1b-a0448a1d429f",
+      "task_id": "hangs"
+    }
+  ],
+  "merge_authorized": false,
+  "program_id": "B1-REPRO",
+  "resolved": null
+}
+orphan cleaned up
