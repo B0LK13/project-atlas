@@ -264,6 +264,78 @@ def record_launch(
     return target
 
 
+def _launch_intent_name(attempt_id: str) -> str:
+    return hashlib.sha256(attempt_id.encode("utf-8")).hexdigest() + ".intent.json"
+
+
+def record_launch_intent(
+    root: Path,
+    *,
+    attempt_id: str,
+    pid: int,
+    supervisor_pid: int,
+    supervisor_instance_id: str | None,
+) -> Path:
+    """Record that a child EXISTS, the instant it exists, before asking who it is.
+
+    The identity probe is not free. On Windows ``process_start_identity`` starts
+    PowerShell, which takes long enough that a worker can finish starting,
+    consult its own program's status, and be told no launch was ever recorded --
+    because at that moment none had been. The record was written after the
+    probe, not after the spawn. Measured: two independent Windows hosts lose
+    that window 18 times out of 18, while a hosted runner wins it every time, so
+    the exposure is a property of the machine and not of chance.
+
+    Splitting the record in two is what removes the window. This file says "a
+    process with this pid was launched for this attempt, and we have not yet
+    established its start identity". It is written between ``Popen`` and the
+    probe, so there is no instant at which a live child is unrecorded.
+
+    ``supervisor_pid`` and ``supervisor_instance_id`` travel with it because
+    they are what keeps the weaker record safe to act on. A pid alone cannot be
+    told apart from a reused one; a pid whose launching supervisor is still
+    alive under the same instance token has not been reused, because that
+    supervisor has not stopped waiting for it. Without that pair this file
+    would be exactly the "pid with no identity" case the recovery contract
+    already refuses to trust.
+    """
+    target = launches_dir(root) / _launch_intent_name(attempt_id)
+    _write_atomic(
+        target,
+        json.dumps(
+            {
+                "attempt_id": attempt_id,
+                "pid": int(pid),
+                "identity_state": "PENDING",
+                "supervisor_pid": int(supervisor_pid),
+                "supervisor_instance_id": supervisor_instance_id,
+                "recorded_at": _utc_now(),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+    )
+    return target
+
+
+def load_launch_intent(root: Path, attempt_id: str) -> dict[str, Any] | None:
+    """The pre-identity launch record, or None when none was written.
+
+    Same rule as ``load_launch``: None means "never recorded", never "gone".
+    """
+    path = launches_dir(root) / _launch_intent_name(attempt_id)
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, dict) or raw.get("attempt_id") != attempt_id:
+        return None
+    return raw
+
+
 def load_launch(root: Path, attempt_id: str) -> dict[str, Any] | None:
     """The recorded in-flight identity, or None when none was ever written.
 
@@ -291,11 +363,14 @@ def clear_launch(root: Path, attempt_id: str) -> None:
     The start identity would catch that, but not keeping the stale record is
     the cheaper answer.
     """
-    path = launches_dir(root) / _launch_name(attempt_id)
-    try:
-        path.unlink(missing_ok=True)
-    except OSError:
-        return
+    for path in (
+        launches_dir(root) / _launch_name(attempt_id),
+        launches_dir(root) / _launch_intent_name(attempt_id),
+    ):
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 def _write_atomic(target: Path, text: str) -> None:

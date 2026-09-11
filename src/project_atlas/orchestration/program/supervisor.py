@@ -106,6 +106,7 @@ from project_atlas.orchestration.program.store import (
     load_state,
     persist_state,
     record_launch,
+    record_launch_intent,
     state_dir,
     write_evidence,
 )
@@ -1994,8 +1995,41 @@ class ProgramSupervisor:
             timeout_seconds=timeout,
             evidence_dir=evidence_dir(self.root),
             cancel_requested=cancel_check,
+            process_launched=self._launch_intent_recorder(attempt.attempt_id),
             process_started=self._launch_recorder(attempt.attempt_id),
         )
+
+    def _launch_intent_recorder(self, attempt_id: str) -> Callable[[int], None]:
+        """The callback the adapter fires the instant a child exists, pid only.
+
+        Fires BEFORE the start identity is probed, because that probe is slow
+        enough on Windows that a worker can start, ask this program for its own
+        status, and finish -- all inside the window in which nothing durable
+        said it had been launched. It ran on the worker thread and wrote its own
+        file for the same reason ``_launch_recorder`` does.
+
+        The supervisor's pid and instance token go into the record. They are
+        what make a pid without an identity safe to act on at all: a pid alone
+        cannot be distinguished from a reused one, but a pid whose launching
+        supervisor is still alive under the same instance token has not been
+        reused, because that supervisor has not stopped waiting for it. If the
+        supervisor is gone, the record deliberately proves nothing and the
+        attempt stays UNKNOWN.
+        """
+        root = self.root
+        supervisor_pid = _self_pid()
+        instance_id = self._instance_id
+
+        def record(pid: int) -> None:
+            record_launch_intent(
+                root,
+                attempt_id=attempt_id,
+                pid=pid,
+                supervisor_pid=supervisor_pid,
+                supervisor_instance_id=instance_id,
+            )
+
+        return record
 
     def _launch_recorder(self, attempt_id: str) -> Callable[[int, str], None]:
         """The callback the adapter fires the instant a child exists.

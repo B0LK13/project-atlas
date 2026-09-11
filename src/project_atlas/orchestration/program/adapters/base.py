@@ -192,6 +192,12 @@ class AdapterRequest:
     #: worker was still running. Same reasoning as ``stdout_path`` below: what
     #: is only in this process's memory dies with this process.
     process_started: Callable[[int, str], None] | None = None
+    #: Called the instant the child process exists, with its pid alone, BEFORE
+    #: the start identity is probed. The probe is slow enough on Windows that
+    #: a worker can run and finish inside it, so an in-flight attempt needs a
+    #: durable record that does not wait for it. ``process_started`` still
+    #: fires afterwards with the resolved identity; this does not replace it.
+    process_launched: Callable[[int], None] | None = None
     extra_env: Mapping[str, str] = field(default_factory=dict)
 
 
@@ -376,6 +382,7 @@ def run_child_to_completion(
     cancel_requested: Callable[[], bool] | None,
     poll_interval: float = 0.25,
     stdout_path: Path | None = None,
+    process_launched: Callable[[int], None] | None = None,
     process_started: Callable[[int, str], None] | None = None,
 ) -> tuple[int | None, str, str, int | None, str | None, str]:
     """Run one child process, honouring cancellation and a wall-clock bound.
@@ -427,6 +434,26 @@ def run_child_to_completion(
             stdout_handle.close()
         raise
     pid = process.pid
+    # Announce EXISTENCE before identity. `process_start_identity` is not free
+    # -- on Windows it starts PowerShell -- and until this call returned,
+    # nothing durable said this child existed. A worker that started, consulted
+    # its own program's status and finished inside that window was told no
+    # launch had been recorded, because none had. Two independent Windows hosts
+    # lost that window 18 times out of 18 while a hosted runner won it every
+    # time, so it is a property of the machine, not of chance.
+    #
+    # Same failure shape as the callback below: what is only in this process's
+    # memory dies with this process. The difference is that this one is written
+    # while the child is already running, so the gap it closes is not a crash
+    # window but an ordinary one.
+    if process_launched is not None:
+        try:
+            process_launched(pid)
+        except BaseException:
+            _terminate_group(process)
+            if stdout_handle is not None:
+                stdout_handle.close()
+            raise
     identity = process_start_identity(pid)
     if process_started is not None:
         # Announced before anything else can fail. A raise here would leave a

@@ -43,7 +43,12 @@ from project_atlas.orchestration.program.models import (
     ExecutionConfidence,
     ProgramTask,
 )
-from project_atlas.orchestration.program.store import AttemptRecord, load_launch
+from project_atlas.orchestration.program.store import (
+    AttemptRecord,
+    load_launch,
+    load_launch_intent,
+    load_state,
+)
 
 
 class RecoveryAction(StrEnum):
@@ -91,6 +96,15 @@ class Liveness(StrEnum):
     #: Nothing can be shown either way -- no identity was recorded, or the
     #: platform cannot report one. Never treated as absence.
     UNKNOWN = "UNKNOWN"
+    #: Launched and recorded, but the start identity probe had not finished
+    #: yet -- and the supervisor that launched it is still alive under the
+    #: instance token it recorded. Narrower than ALIVE, which requires a
+    #: matching identity, and deliberately distinct from UNKNOWN: this is a
+    #: process we wrote down ourselves moments ago, whose launcher is still
+    #: waiting for it. It cannot be a reused pid, because the launcher has not
+    #: stopped waiting. If that launcher is gone, this is UNKNOWN instead and
+    #: reconciliation is exactly right.
+    IN_FLIGHT = "IN_FLIGHT"
 
 
 def process_liveness(
@@ -146,7 +160,74 @@ def attempt_liveness(
             pid = int(recorded.get("pid") or 0) or None
             raw_identity = recorded.get("process_start_identity")
             identity = raw_identity if isinstance(raw_identity, str) else None
+        else:
+            # No identified record yet. There may still be a launch INTENT:
+            # the adapter writes one between the spawn and the identity probe,
+            # and on Windows that probe is slow enough for a whole worker to
+            # run inside it. Before this existed, the gap read as "no process
+            # identity was recorded for this attempt" -- about a worker that
+            # was running -- and reconciliation was demanded for it.
+            intent = load_launch_intent(root, attempt.attempt_id)
+            if intent is not None:
+                return _intent_liveness(intent, root=root)
     return process_liveness(pid, identity)
+
+
+def _intent_liveness(intent: dict[str, object], *, root: Path) -> tuple[Liveness, str]:
+    """Liveness from a launch intent -- a pid we wrote down, no identity yet.
+
+    A pid on its own is never enough: the operating system is free to reuse it,
+    which is the whole reason ``process_liveness`` refuses to call an
+    unidentified pid ALIVE. What makes this record different is the pair it
+    carries. The supervisor that launched the child recorded its own pid and
+    instance token alongside it, and a pid cannot have been reused while the
+    process that is still waiting for it is itself still running.
+
+    So the answer is IN_FLIGHT only while that launcher is alive. If it is gone,
+    this degrades to UNKNOWN -- the orphan case, where a live pid genuinely
+    might belong to a stranger, and where asking an operator is correct.
+    """
+    raw_pid = intent.get("pid")
+    pid = int(raw_pid) if isinstance(raw_pid, int) and raw_pid > 0 else None
+    if pid is None:
+        return Liveness.UNKNOWN, "a launch intent was recorded without a usable pid"
+    if not pid_is_alive(pid):
+        return (
+            Liveness.GONE,
+            f"pid {pid} was recorded at launch and is not running",
+        )
+    raw_sup = intent.get("supervisor_pid")
+    supervisor_pid = int(raw_sup) if isinstance(raw_sup, int) and raw_sup > 0 else None
+    if supervisor_pid is None or not pid_is_alive(supervisor_pid):
+        return (
+            Liveness.UNKNOWN,
+            f"pid {pid} was recorded at launch and is running, but its start "
+            "identity was never established and the supervisor that launched "
+            "it is no longer running, so it cannot be told apart from a reused "
+            "pid",
+        )
+    # A live supervisor pid is not yet the right supervisor: pids are reusable
+    # on both sides of this record, so a stranger occupying the launcher's old
+    # number would otherwise vouch for a stranger occupying the worker's. The
+    # instance token is minted per supervisor run and is what actually ties the
+    # two together. Absent or mismatched, this degrades to UNKNOWN.
+    recorded_token = intent.get("supervisor_instance_id")
+    state = load_state(root)
+    live_token = state.supervisor_instance_id if state is not None else None
+    if not recorded_token or not live_token or recorded_token != live_token:
+        return (
+            Liveness.UNKNOWN,
+            f"pid {pid} was recorded at launch and is running, but its start "
+            "identity was never established and the supervisor instance that "
+            "launched it is not the one running now, so it cannot be told "
+            "apart from a reused pid",
+        )
+    return (
+        Liveness.IN_FLIGHT,
+        f"pid {pid} was recorded at launch and is running; its start identity "
+        f"probe had not completed yet, and the supervisor that launched it "
+        f"(pid {supervisor_pid}) is still running and still waiting for it",
+    )
 
 
 def worker_still_alive(attempt: AttemptRecord, *, root: Path | None = None) -> bool:
@@ -229,7 +310,14 @@ def classify_attempt(
 
     if attempt.phase is AttemptPhase.ADAPTER_INVOKED:
         liveness, why = attempt_liveness(attempt, root=root)
-        if liveness is Liveness.ALIVE:
+        if liveness in (Liveness.ALIVE, Liveness.IN_FLIGHT):
+            # IN_FLIGHT joins ALIVE here and nowhere else. Both mean "a worker
+            # of ours is running", which is the only question this branch asks,
+            # and neither permits a resume or a relaunch. What separates them --
+            # whether the start identity has been established -- matters when
+            # deciding if a pid could have been reused, and IN_FLIGHT is only
+            # ever returned while the launching supervisor is still alive, which
+            # is what rules that out.
             return RecoveryVerdict(
                 action=RecoveryAction.WORKER_STILL_RUNNING,
                 confidence=None,

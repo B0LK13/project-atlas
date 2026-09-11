@@ -302,6 +302,7 @@ class ClaudeCodeAdapter:
             stdin_text=request.instruction,
             timeout_seconds=request.timeout_seconds,
             cancel_requested=request.cancel_requested,
+            process_launched=request.process_launched,
             process_started=request.process_started,
         )
         duration = time.monotonic() - started
