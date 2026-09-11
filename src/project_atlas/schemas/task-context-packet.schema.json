@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/task-context-packet.schema.json",
+  "title": "TaskContextPacket",
+  "description": "AS-TASK-CONTEXT-AND-CONTINUITY-001 versionable task context packet. Derived/selecting; ≠ authority, ≠ dispatch. RETRIEVED ≠ policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "packet_id",
+    "content_digest",
+    "contract",
+    "fragments",
+    "prior_actions",
+    "uncertainties",
+    "selection_limits",
+    "honesty",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-TASK-CONTEXT-AND-CONTINUITY-001" },
+    "packet_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "content_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contract": { "type": "object" },
+    "fragments": { "type": "array" },
+    "prior_actions": { "type": "array" },
+    "uncertainties": { "type": "array" },
+    "selection_limits": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "honesty": { "type": "object" },
+    "truth_boundary": { "type": "string" },
+    "observation_time": { "type": ["string", "null"] },
+    "budget_report": { "type": ["object", "null"] },
+    "report_metadata": { "type": "object" },
+    "generated": { "type": "object" }
+  }
+}
