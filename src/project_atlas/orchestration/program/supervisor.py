@@ -94,7 +94,12 @@ from project_atlas.orchestration.program.profiles import (
     AgentProfile,
     ProfileLimits,
 )
-from project_atlas.orchestration.program.recovery import RecoveryAction, classify_attempt
+from project_atlas.orchestration.program.recovery import (
+    Liveness,
+    RecoveryAction,
+    attempt_liveness,
+    classify_attempt,
+)
 from project_atlas.orchestration.program.store import (
     AttemptRecord,
     HandoffRecord,
@@ -720,10 +725,23 @@ class ProgramSupervisor:
                     {"task_id": task.task_id, "gate": task.owner_gate.value}
                 )
 
+        # HARDENING-005 G3: status and `reconcile` must not disagree about the
+        # same state. Counting only UNCERTAIN attempts hid the ones a killed
+        # supervisor left behind (confidence=None), which are precisely the
+        # ones needing reconciliation. Widening the predicate blindly is the
+        # wrong fix -- it reports every RUNNING attempt too, measured. B1's
+        # in-flight launch record is what separates the two, so ask it, the
+        # same source `classify_attempt` consults.
         for attempt in state.attempts.values():
-            if attempt.confidence is ExecutionConfidence.UNCERTAIN and (
-                attempt.phase is not AttemptPhase.TERMINAL
-            ):
+            if attempt.phase is AttemptPhase.TERMINAL:
+                continue
+            if attempt.confidence is ExecutionConfidence.UNCERTAIN:
+                needs_reconcile.append(
+                    {"task_id": attempt.task_id, "attempt_id": attempt.attempt_id}
+                )
+                continue
+            verdict, _reason = attempt_liveness(attempt, root=self.root)
+            if verdict is not Liveness.ALIVE:
                 needs_reconcile.append(
                     {"task_id": attempt.task_id, "attempt_id": attempt.attempt_id}
                 )
