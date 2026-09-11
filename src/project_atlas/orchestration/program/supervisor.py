@@ -119,6 +119,7 @@ from project_atlas.orchestration.sdk.host import (
     acquire_supervisor_lock,
     clear_supervisor_stop,
     new_supervisor_instance_id,
+    read_supervisor_pause,
     release_supervisor_lock,
     request_supervisor_stop,
     stop_requested,
@@ -593,6 +594,61 @@ class ProgramSupervisor:
                 self._executor = None
             self._release()
 
+    def _dispatch_withheld_because(
+        self, state: ProgramStateRecord, needs_reconcile: list[dict[str, str]]
+    ) -> list[dict[str, str]]:
+        """Every reason no new work will start, each with the way out.
+
+        Silence has to be self-explaining. An operator looking at a program
+        that is doing nothing should not have to guess between "paused",
+        "cancelled", "waiting for a human" and "nothing is ready" -- and every
+        reason names the action that clears it, so the answer never stops at
+        the diagnosis.
+        """
+        reasons: list[dict[str, str]] = []
+        if state.cancel_requested or stop_requested(self.lock_root):
+            reasons.append(
+                {
+                    "reason": "CANCELLED",
+                    "detail": "this program was cancelled",
+                    "clears_with": "start the program again; cancellation is not reversible",
+                }
+            )
+        if state.paused:
+            reasons.append(
+                {
+                    "reason": "PAUSED",
+                    "detail": f"paused by {state.paused_by or 'an operator'}",
+                    "clears_with": "program control --action resume",
+                }
+            )
+        sentinel = read_supervisor_pause(
+            self.lock_root, program_id=self.program.program_id
+        )
+        if sentinel is not None:
+            reasons.append(
+                {
+                    "reason": "PAUSE_SENTINEL_PRESENT",
+                    "detail": (
+                        f"a pause sentinel for this program was written by "
+                        f"{sentinel.get('requested_by', 'an operator')}"
+                    ),
+                    "clears_with": "program control --action resume",
+                }
+            )
+        if needs_reconcile:
+            reasons.append(
+                {
+                    "reason": "NEEDS_RECONCILIATION",
+                    "detail": (
+                        f"{len(needs_reconcile)} attempt(s) were interrupted and "
+                        "their outcome is not established"
+                    ),
+                    "clears_with": "program reconcile (inspect, then settle explicitly)",
+                }
+            )
+        return reasons
+
     def status(self) -> dict[str, Any]:
         """Compact, read-only inspection. Acquires no lock and dispatches nothing."""
         state = load_state(self.root)
@@ -635,12 +691,16 @@ class ProgramSupervisor:
                     {"task_id": task.task_id, "gate": task.owner_gate.value}
                 )
 
-        for attempt in state.attempts.values():
-            if attempt.confidence is ExecutionConfidence.UNCERTAIN and (
-                attempt.phase is not AttemptPhase.TERMINAL
-            ):
+        # The same classifier `reconcile` uses, so the two cannot disagree
+        # about the same bytes on disk. See `_interrupted_findings`.
+        for finding in self._interrupted_findings(state):
+            if finding["recovery_action"] == RecoveryAction.NEEDS_RECONCILIATION.value:
                 needs_reconcile.append(
-                    {"task_id": attempt.task_id, "attempt_id": attempt.attempt_id}
+                    {
+                        "task_id": finding["task_id"],
+                        "attempt_id": finding["attempt_id"],
+                        "reason": finding["reason"],
+                    }
                 )
 
         last_progress = max(
@@ -668,6 +728,9 @@ class ProgramSupervisor:
             "awaiting_independent_verification": sorted(awaiting_iv),
             "owner_decision_required": owner_required,
             "needs_reconciliation": needs_reconcile,
+            "dispatch_withheld_because": self._dispatch_withheld_because(
+                state, needs_reconcile
+            ),
             "remaining_limits": {
                 "launches": max(0, limits.max_task_launches - state.total_launches),
                 "max_task_launches": limits.max_task_launches,
@@ -829,20 +892,20 @@ class ProgramSupervisor:
             "merge_authorized": False,
         }
 
-    def reconcile(self, *, resolve_uncertain: str | None = None) -> dict[str, Any]:
-        """Inspect interrupted attempts, and optionally settle one explicitly.
+    def _interrupted_findings(self, state: ProgramStateRecord) -> list[dict[str, Any]]:
+        """Every non-terminal attempt, classified by the recovery contract.
 
-        With no argument this reports what an interrupted attempt looks like
-        and what the recovery contract permits for it. With
-        ``resolve_uncertain=<attempt_id>`` the operator asserts that they have
-        looked and that the attempt's effect did not land; the attempt is
-        sealed as terminal and its task returns to being schedulable. This is
-        the operator's judgement being recorded, not the supervisor deciding.
+        One place, because `status` and `reconcile` were each deciding for
+        themselves what counts as an open attempt and did not agree. `status`
+        asked "is the confidence UNCERTAIN?", which is silent about the exact
+        shape a killed supervisor leaves behind -- phase ADAPTER_INVOKED and
+        confidence None, because it died before recording one. So reconcile
+        reported an attempt needing a human while status reported nothing at
+        all, about the same bytes on disk.
+
+        Absence of a recorded confidence is not absence of an open attempt.
+        Both callers now ask the classifier the same question.
         """
-        state = load_state(self.root)
-        if state is None:
-            raise SupervisorError("this program has never been started", code="NO_STATE")
-
         findings: list[dict[str, Any]] = []
         for attempt in sorted(state.attempts.values(), key=lambda item: item.started_at):
             if attempt.phase is AttemptPhase.TERMINAL:
@@ -878,6 +941,23 @@ class ProgramSupervisor:
                     "runtime_session_id": attempt.runtime_session_id,
                 }
             )
+        return findings
+
+    def reconcile(self, *, resolve_uncertain: str | None = None) -> dict[str, Any]:
+        """Inspect interrupted attempts, and optionally settle one explicitly.
+
+        With no argument this reports what an interrupted attempt looks like
+        and what the recovery contract permits for it. With
+        ``resolve_uncertain=<attempt_id>`` the operator asserts that they have
+        looked and that the attempt's effect did not land; the attempt is
+        sealed as terminal and its task returns to being schedulable. This is
+        the operator's judgement being recorded, not the supervisor deciding.
+        """
+        state = load_state(self.root)
+        if state is None:
+            raise SupervisorError("this program has never been started", code="NO_STATE")
+
+        findings = self._interrupted_findings(state)
 
         resolved: dict[str, Any] | None = None
         if resolve_uncertain is not None:
@@ -965,7 +1045,17 @@ class ProgramSupervisor:
                 "CANCELLED", "the program was cancelled", {}
             )
             return result
-        if state.paused:
+        # A pause may arrive from OUTSIDE this process while the run is live.
+        # `state` here is this supervisor's in-memory copy, and it is rewritten
+        # to disk at the next checkpoint -- so an operator's `state.paused`
+        # would be overwritten by the very run it was meant to stop. The
+        # sentinel is read from disk on each cycle for that reason, exactly as
+        # the stop file already is, and it is scoped to this program so another
+        # program's leftover file cannot halt this one.
+        sentinel = read_supervisor_pause(
+            self.lock_root, program_id=self.program.program_id
+        )
+        if state.paused or sentinel is not None:
             # A pause lets running workers finish. Interrupting them would
             # convert a reversible operator decision into a set of uncertain
             # outcomes needing reconciliation, which is not what "pause" means
@@ -974,8 +1064,11 @@ class ProgramSupervisor:
                 self._drain(state, result)
                 result.progressed = True
             result.stop_reason = ProgramStopReason.PAUSED
+            paused_by = state.paused_by or (
+                sentinel.get("requested_by") if sentinel else None
+            )
             result.notes.append(
-                f"paused by {state.paused_by or 'an operator'}; running workers "
+                f"paused by {paused_by or 'an operator'}; running workers "
                 "were allowed to finish"
             )
             return result

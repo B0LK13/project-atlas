@@ -15,6 +15,7 @@ from typing import Literal
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, SdkRuntimeError
 
 SUPERVISOR_STOP_NAME = "supervisor.stop"
+SUPERVISOR_PAUSE_NAME = "supervisor.pause"
 SUPERVISOR_LOCK_NAME = "supervisor.lock"
 _LOCK_ACQUIRE_ATTEMPTS = 8
 _HELD_LOCKS_GUARD = threading.Lock()
@@ -161,6 +162,67 @@ def clear_supervisor_stop(root: Path) -> None:
     path = host_state_dir(root) / SUPERVISOR_STOP_NAME
     if path.is_file():
         path.unlink()
+
+
+def request_supervisor_pause(
+    root: Path,
+    *,
+    program_id: str,
+    requested_by: str,
+    requested_at: str,
+) -> None:
+    """Record a pause OUT OF BAND, the way a stop is recorded.
+
+    A pause written only into ``state.json`` is lost: the running supervisor
+    holds that state in memory and rewrites the file at its next checkpoint,
+    so an operator pausing a live run is silently overwritten by the run it
+    was trying to pause. Cancellation already had a second, file-based
+    mechanism for exactly this reason; this gives pause the same one.
+
+    The record names the program. A sentinel is a file in a shared directory,
+    and a file left behind by a different program must not stop this one --
+    so the program id travels with it and is checked on read, rather than the
+    mere existence of a path being treated as consent.
+    """
+    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    _write_atomic_text(
+        path,
+        json.dumps(
+            {
+                "program_id": program_id,
+                "requested_by": requested_by,
+                "requested_at": requested_at,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+    )
+
+
+def clear_supervisor_pause(root: Path) -> None:
+    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    if path.is_file():
+        path.unlink()
+
+
+def read_supervisor_pause(root: Path, *, program_id: str) -> dict[str, str] | None:
+    """The pause record, but only when it names ``program_id``.
+
+    Returns ``None`` for an absent, unreadable, malformed or foreign sentinel.
+    Fail-open is correct here and fail-closed is not: a pause withholds work,
+    so a file nobody can parse must never be able to halt an unrelated program
+    forever. A stop sentinel is the opposite case and keeps its own semantics.
+    """
+    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    if not path.is_file():
+        return None
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict) or record.get("program_id") != program_id:
+        return None
+    return {str(k): str(v) for k, v in record.items()}
 
 
 def new_supervisor_instance_id() -> str:

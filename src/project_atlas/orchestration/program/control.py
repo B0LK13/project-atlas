@@ -56,6 +56,10 @@ from project_atlas.orchestration.program.supervisor import (
     IN_FLIGHT_STATES,
     ProgramSupervisor,
 )
+from project_atlas.orchestration.sdk.host import (
+    clear_supervisor_pause,
+    request_supervisor_pause,
+)
 
 CONTRACT_ID: Final[str] = "atlas.program.control"
 #: Bumped when fields are ADDED. Nothing is ever renamed or repurposed, so a
@@ -470,6 +474,18 @@ def pause(
     state.paused_by = requested_by
     state.paused_at = _utc_now()
     persist_state(root, state)
+    # Two mechanisms, for the two cases -- the same shape cancellation already
+    # uses. A supervisor that is not running yet reads the state flag when it
+    # starts; a supervisor that IS running holds its own copy of that state in
+    # memory and would overwrite this file at its next checkpoint, so it needs
+    # a record it re-reads from disk each cycle. The sentinel names the
+    # program, so it can never stop a different one.
+    request_supervisor_pause(
+        state_dir(root),
+        program_id=state.program_id,
+        requested_by=requested_by,
+        requested_at=state.paused_at or _utc_now(),
+    )
     # What is STILL RUNNING at the moment of the pause, named. "Paused" on its
     # own invites the reader to assume nothing is executing, which is exactly
     # wrong: a pause withholds new dispatch and leaves in-flight workers alone.
@@ -535,6 +551,7 @@ def resume(
     state.paused_by = None
     state.paused_at = None
     persist_state(root, state)
+    clear_supervisor_pause(state_dir(root))
     append_event(root, "PROGRAM_RESUMED", {"requested_by": requested_by})
     return {
         "program_id": state.program_id,
