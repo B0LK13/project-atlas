@@ -698,7 +698,15 @@ def register_program_parser(
             child.add_argument(
                 "--allow-unregistered",
                 action="store_true",
-                help="Explicitly allow the existing unregistered service mode.",
+                help=(
+                    "BYPASS. Runs with no registry at all, which disables the "
+                    "binding check entirely: every role then dispatches under "
+                    "the agent_id written in the program file, a principal no "
+                    "registry knows and no suspension can withdraw. This is "
+                    "not a safe mode and not a lighter mode -- it is the "
+                    "absence of the control. Use only for a program you are "
+                    "developing against a disposable workspace."
+                ),
             )
     return parser
 
