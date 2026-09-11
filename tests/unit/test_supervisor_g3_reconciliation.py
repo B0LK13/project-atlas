@@ -10,19 +10,15 @@ false-positive control that caught the earlier mistake.
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from project_atlas.orchestration.program import service
 from project_atlas.orchestration.program.enrollment import (
-    AgentStatus,
     assign,
     enroll,
-    set_status,
 )
 from project_atlas.orchestration.program.loader import load_program
 from project_atlas.orchestration.program.models import AttemptPhase

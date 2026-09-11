@@ -122,7 +122,10 @@ def _supervisor(program: Path, state_root: Path, registry: Path, agents: tuple[A
 
 # ---------------------------------------------------------------- foreground
 
-@pytest.mark.parametrize("enrollment", ["missing", "suspended", "retired", "mismatched", "unassigned"])
+@pytest.mark.parametrize(
+    "enrollment",
+    ["missing", "suspended", "retired", "mismatched", "unassigned"],
+)
 def test_foreground_refuses_and_launches_nothing(tmp_path: Path, enrollment: str) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()
@@ -166,7 +169,10 @@ def test_foreground_refuses_and_launches_nothing(tmp_path: Path, enrollment: str
 
 # ------------------------------------------------------------------ detached
 
-@pytest.mark.parametrize("enrollment", ["missing", "suspended", "retired", "mismatched", "unassigned"])
+@pytest.mark.parametrize(
+    "enrollment",
+    ["missing", "suspended", "retired", "mismatched", "unassigned"],
+)
 def test_detached_refuses_before_it_detaches(tmp_path: Path, enrollment: str) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()

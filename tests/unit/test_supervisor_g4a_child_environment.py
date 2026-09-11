@@ -19,16 +19,10 @@ import pytest
 
 from project_atlas.orchestration.program import service
 from project_atlas.orchestration.program.enrollment import (
-    AgentStatus,
     assign,
     enroll,
-    set_status,
 )
-from project_atlas.orchestration.program.loader import load_program
-from project_atlas.orchestration.program.models import AttemptPhase
 from project_atlas.orchestration.program.profiles import AdapterKind
-from project_atlas.orchestration.program.store import load_state, persist_state
-from project_atlas.orchestration.program.supervisor import ProgramSupervisor
 
 FIXTURE_WORKER = Path(__file__).with_name("_program_fixture_worker.py")
 PAUSING_WORKER = Path(__file__).with_name("_security_003_pausing_worker.py")
