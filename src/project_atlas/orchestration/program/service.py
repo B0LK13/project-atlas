@@ -103,6 +103,77 @@ def log_path(root: Path) -> Path:
     return service_dir(root) / LOG_NAME
 
 
+#: HARDENING-005 G4a: what the detached supervisor inherits.
+#:
+#: An ALLOW-list, not a deny-list, and the distinction was measured rather than
+#: assumed: a deny-list stripping PYTHONPATH/PYTHONHOME/PYTHONSTARTUP/
+#: PYTHONEXECUTABLE let LD_PRELOAD, LD_LIBRARY_PATH and PYTHONSAFEPATH walk
+#: straight through. LD_PRELOAD injects before Python even starts. A deny-list
+#: must enumerate every vector that exists now and every one added later; an
+#: allow-list only has to name what the supervisor genuinely needs. This
+#: mirrors `adapters.base.build_child_env`, which already does exactly this for
+#: workers -- the supervisor was the one surface left out.
+_SUPERVISOR_ENV_ALLOWLIST: Final[tuple[str, ...]] = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "TMPDIR",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "REQUESTS_CA_BUNDLE",
+)
+
+
+def _supervisor_env() -> dict[str, str]:
+    """The detached supervisor's environment, built explicitly.
+
+    Nothing the operator's shell happens to hold reaches the supervisor unless
+    it is named above. Inheritance would let whoever typed `service start`
+    choose the code that runs, while the recorded revision still described the
+    checkout.
+    """
+    source = os.environ
+    return {name: source[name] for name in _SUPERVISOR_ENV_ALLOWLIST if name in source}
+
+
+def _code_provenance() -> dict[str, str]:
+    """Where the running project_atlas actually came from.
+
+    Recorded so a substitution is detectable after the fact -- otherwise an
+    operator can prove which revision was checked out and nothing at all about
+    which code the supervisor loaded. The git revision is read from the package
+    tree when it is a working copy, and reported as "unknown" rather than
+    guessed when it is not (an installed wheel, for instance).
+    """
+    import project_atlas
+
+    package_path = Path(project_atlas.__file__).resolve().parent
+    revision = "unknown"
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(package_path), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        candidate = (proc.stdout or "").strip()
+        if proc.returncode == 0 and len(candidate) == 40:
+            revision = candidate
+    except (OSError, subprocess.SubprocessError):
+        revision = "unknown"
+    return {
+        "interpreter": sys.executable,
+        "package_path": str(package_path),
+        "code_revision": revision,
+    }
+
+
 def _bound_agents(loaded: LoadedProgram, registry_root: Path) -> tuple[Any, ...]:
     """Resolve every program role to its active, assigned registry record."""
     registry = load_registry(registry_root)
@@ -132,6 +203,12 @@ class ServiceIdentity:
     program_id: str
     program_path: str
     started_at: str
+    #: HARDENING-005 G4a: which code this supervisor actually loaded. A pinned
+    #: checkout does not pin the running code, so record it rather than infer
+    #: it. All optional, so an identity written by an older build still loads.
+    interpreter: str | None = None
+    package_path: str | None = None
+    code_revision: str | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -140,18 +217,25 @@ class ServiceIdentity:
             "program_id": self.program_id,
             "program_path": self.program_path,
             "started_at": self.started_at,
+            "interpreter": self.interpreter,
+            "package_path": self.package_path,
+            "code_revision": self.code_revision,
         }
 
 
 def write_own_identity(root: Path, loaded: LoadedProgram) -> ServiceIdentity:
     """Called by the service process itself, from inside that process."""
     pid = os.getpid()
+    provenance = _code_provenance()
     identity = ServiceIdentity(
         pid=pid,
         process_start_identity=process_start_identity(pid),
         program_id=loaded.program.program_id,
         program_path=str(loaded.source_path),
         started_at=_utc_now(),
+        interpreter=provenance["interpreter"],
+        package_path=provenance["package_path"],
+        code_revision=provenance["code_revision"],
     )
     _write_atomic(
         identity_path(root),
@@ -172,6 +256,17 @@ def read_identity(root: Path) -> ServiceIdentity | None:
         return ServiceIdentity(
             pid=int(raw["pid"]),
             process_start_identity=str(raw.get("process_start_identity", "unknown")),
+            interpreter=(
+                str(raw["interpreter"]) if raw.get("interpreter") is not None else None
+            ),
+            package_path=(
+                str(raw["package_path"]) if raw.get("package_path") is not None else None
+            ),
+            code_revision=(
+                str(raw["code_revision"])
+                if raw.get("code_revision") is not None
+                else None
+            ),
             program_id=str(raw["program_id"]),
             program_path=str(raw["program_path"]),
             started_at=str(raw.get("started_at", "")),
@@ -337,6 +432,7 @@ def start(
     try:
         process = subprocess.Popen(
             argv,
+            env=_supervisor_env(),
             cwd=str(loaded.workspace),
             stdout=handle,
             stderr=subprocess.STDOUT,
