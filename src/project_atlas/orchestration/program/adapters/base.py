@@ -42,11 +42,85 @@ from project_atlas.orchestration.program.models import (
 )
 from project_atlas.orchestration.program.profiles import AgentProfile
 
-#: Environment names always forwarded to a child runtime. Everything else must
-#: be named in the profile's ``env_allowlist``: a worker should not inherit the
-#: supervisor's whole environment by accident, and an inherited credential
-#: variable can silently change which account a run bills.
-BASE_ENV_NAMES: Final[tuple[str, ...]] = ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "TMPDIR")
+#: Environment names always forwarded to a child runtime, on every platform.
+#: Everything else must be named in the profile's ``env_allowlist``: a worker
+#: should not inherit the supervisor's whole environment by accident, and an
+#: inherited credential variable can silently change which account a run bills.
+COMMON_BASE_ENV_NAMES: Final[tuple[str, ...]] = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "TMPDIR",
+)
+
+#: What a child additionally needs on Windows, and only on Windows.
+#:
+#: "The minimum an interpreter needs merely to start" is a per-platform fact,
+#: so a single POSIX list is not a conservative default on Windows -- it is a
+#: broken one. This package is not the first place in the repository to meet
+#: that: ``orchestration.local_process_transport.DEFAULT_ENV_ALLOWLIST`` names
+#: ``SystemRoot``, ``TEMP``, ``TMP`` and ``USERPROFILE`` for exactly this
+#: reason. This module re-implemented the same idea later and carried over only
+#: the POSIX half, so on Windows a worker was handed ``PATH`` and ``HOME`` and
+#: nothing else.
+#:
+#: What that costs is not theoretical. ``sdk.host`` answers "is that worker
+#: still running" by running ``tasklist`` and ``powershell`` on Windows, and
+#: neither starts without ``SystemRoot``. A liveness probe that cannot run
+#: reports UNKNOWN, and ``recovery.classify_attempt`` turns UNKNOWN into
+#: NEEDS_RECONCILIATION -- for a worker that is in fact running. ``HOME`` does
+#: not stand in for ``USERPROFILE`` either: ``ntpath.expanduser`` reads
+#: ``USERPROFILE`` (or ``HOMEDRIVE``/``HOMEPATH``) and ignores ``HOME``, so
+#: ``Path.home()`` raises in a child that was given only ``HOME``.
+#:
+#: None of these names carries a credential, and the rule is unchanged: an
+#: explicit, reviewable list, never ``os.environ.copy()``.
+WINDOWS_BASE_ENV_NAMES: Final[tuple[str, ...]] = (
+    # Where Windows itself lives. Required by the console utilities this
+    # package shells out to, and by much of the CRT.
+    "SystemRoot",
+    "SystemDrive",
+    "windir",
+    # Command resolution: without PATHEXT a bare name does not resolve to
+    # ``.exe``/``.cmd``; without ComSpec there is no command interpreter.
+    "PATHEXT",
+    "ComSpec",
+    # A writable temp directory. Windows does not use TMPDIR.
+    "TEMP",
+    "TMP",
+    # Home, the way Windows spells it.
+    "USERPROFILE",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "PROGRAMDATA",
+    # Read by the CRT and by ``os.cpu_count``-shaped probes in child tooling.
+    "NUMBER_OF_PROCESSORS",
+    "PROCESSOR_ARCHITECTURE",
+)
+
+
+def base_env_names(os_name: str = os.name) -> tuple[str, ...]:
+    """The always-forwarded names for one platform.
+
+    Takes ``os_name`` rather than reading ``os.name`` directly so that both
+    branches are reachable from either host. The Windows behaviour of this
+    function was previously unobservable from the Linux CI job that runs
+    ruff, mypy and the covered suite, which is a large part of why the gap
+    survived: the only runner that could see it was also the only one nobody
+    could reproduce locally.
+    """
+    if os_name == "nt":
+        return COMMON_BASE_ENV_NAMES + WINDOWS_BASE_ENV_NAMES
+    return COMMON_BASE_ENV_NAMES
+
+
+#: This host's always-forwarded set. Kept under the original name because the
+#: credential report publishes it as ``always_forwarded``.
+BASE_ENV_NAMES: Final[tuple[str, ...]] = base_env_names()
 
 _VERSION_RE: Final[re.Pattern[str]] = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 
@@ -187,6 +261,7 @@ def build_child_env(
     *,
     parent: Mapping[str, str] | None = None,
     extra: Mapping[str, str] | None = None,
+    os_name: str = os.name,
 ) -> dict[str, str]:
     """Construct the child's environment explicitly.
 
@@ -205,17 +280,42 @@ def build_child_env(
 
     Values are read here and passed to the child. They are never returned to
     a caller that persists them, never logged, and never placed in evidence.
+
+    ``os_name`` selects which platform's always-forwarded set applies and how
+    names are matched. It defaults to this host and exists so the Windows
+    branch is testable from a Linux runner -- the gap it closes reached CI
+    precisely because nothing off Windows could observe it.
     """
     source = dict(os.environ if parent is None else parent)
+    wanted = (*base_env_names(os_name), *profile.env_allowlist)
     env: dict[str, str] = {}
-    for name in BASE_ENV_NAMES:
-        value = source.get(name)
-        if value is not None:
-            env[name] = value
-    for name in profile.env_allowlist:
-        value = source.get(name)
-        if value is not None:
-            env[name] = value
+    if os_name == "nt":
+        # Windows environment names are case-insensitive, and the casing a
+        # variable is *reported* under is not guaranteed to match the casing
+        # asked for -- ``os.environ`` upper-cases every key it hands back
+        # (``os.py``: ``encodekey = str.upper`` on nt), while a mapping passed
+        # in as ``parent`` carries whatever casing its producer used. An
+        # exact-string lookup therefore silently drops a name that is present,
+        # which is the same defect ``local_process_transport._build_env``
+        # already carries an IV finding for (PR #661). The child is given the
+        # source's own casing, since Windows resolves either.
+        #
+        # This widens matching, never the set of names: a name still has to be
+        # on the list. It opens no credential path -- ``AgentProfile`` validates
+        # every ``env_allowlist`` entry as UPPER_SNAKE, so the exact-match
+        # SUBSCRIPTION_OAUTH guard in the Claude Code adapter stays equivalent.
+        by_folded = {name.casefold(): name for name in source}
+        for name in wanted:
+            actual = by_folded.get(name.casefold())
+            if actual is not None:
+                env[actual] = source[actual]
+    else:
+        # POSIX names are genuinely case-sensitive; folding here would conflate
+        # two distinct real variables.
+        for name in wanted:
+            value = source.get(name)
+            if value is not None:
+                env[name] = value
     for name, value in (extra or {}).items():
         env[name] = value
     return env

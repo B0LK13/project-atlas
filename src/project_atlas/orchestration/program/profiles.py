@@ -194,7 +194,8 @@ class AgentProfile(BaseModel):
     limits: ProfileLimits = Field(default_factory=ProfileLimits)
     credential: CredentialMechanism = CredentialMechanism.SUBSCRIPTION_OAUTH
     #: Environment variable NAMES forwarded to the child. Values are read at
-    #: launch and never persisted. ``PATH`` and ``HOME`` are always forwarded.
+    #: launch and never persisted. A small per-platform operational set is
+    #: always forwarded on top of this; see ``adapters.base.base_env_names``.
     env_allowlist: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     #: Skip the runtime's discovery of hooks, plugins, MCP servers and
     #: CLAUDE.md. Recommended for reproducibility; see PERMISSIONS.md for what
