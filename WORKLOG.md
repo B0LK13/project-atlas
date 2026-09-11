@@ -14915,3 +14915,52 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-TASK-CONTRACT-001 — backlog item to reviewable task contract
+
+**Plan**: one versionable contract as the single structured source for the
+worker instruction, the program configuration and the acceptance checks, so a
+changed path changes everywhere or nowhere. Reuse rather than rebuild: intake
+is `origination.sources.eligible_work_items`, the task/acceptance/profile models
+and `load_program` come from `orchestration.program`, authorization is read
+through `program.enrollment`. No second scheduler, registry, authorization
+system or backlog database.
+
+**Commands**: `atlas task {sources,draft,validate,render,review,diff,verify}`,
+registered additively in `cli.py` (18 insertions, 0 deletions) on the same seam
+as `program`/`agent`. `docs/orchestration/taskcontract/demo/run-demo.sh` runs
+the whole flow against this repository's own INT-013, read-only.
+
+**Results**: 29 targeted tests, hermetic, zero model calls. The demonstration's
+generated program is accepted by the official `atlas program validate`
+(`valid: true`), and AS-PREFLIGHT-001 independently reports
+`acceptance.executable` OK because `render` substituted the binding's absolute
+interpreter for the contract's bare `python3`. Two tools reached
+"authorization not demonstrated" without either being told by the other. The
+blocked example exits 3 on six concrete errors.
+
+**Two findings the tests produced, not the design**: a path written into a
+prose field is a second copy that will drift when the structured field moves
+(now `content.path_repeated_in_prose`, a WARNING because text matching cannot
+tell a duplicate from a legitimate mention); and `review_note` reaches the
+worker verbatim, so it counts as prose for that check — the first version of
+the heuristic missed it and a test caught it.
+
+**What this does NOT do**: it does not judge whether a check is a good check.
+A `COMMAND` that exits 0 unconditionally passes validation; nothing here reads
+what a command does. It does not detect dependency cycles spanning several
+contracts — `WorkProgram`'s own validator does that when they are rendered into
+one program, and a second implementation would be a second answer that can
+disagree. `execution_authorization: DEMONSTRATED` describes one moment and is
+not a standing grant: the supervisor re-checks status, role and assignment
+immediately before every dispatch, and that check is the authoritative one.
+
+**Not claimed**: no receipt issued, no independent verification, nothing merged,
+no worker run. `acceptance_outcome` is `NOT_EVALUATED` in every report this
+package produces and there is no code path that sets it otherwise. INT-013's
+`EXTERNAL_BLOCKED` state is unchanged and the demonstration preserves it in the
+contract's `executable_when`.
+
+Evidence: `docs/orchestration/taskcontract/demo/evidence/` (11 raw files),
+`docs/orchestration/taskcontract/demo/snapshot/` (the item text and digest the
+run observed).
