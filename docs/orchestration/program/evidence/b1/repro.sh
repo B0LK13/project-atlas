@@ -2,6 +2,9 @@
 # B1 reproducer: SIGKILL only the supervisor; the worker survives; reconcile lies.
 # Test-owned resources only. No model calls, no registry, no operational state.
 set -uo pipefail
+# find_worker.py ships next to this script; resolve it from here rather than
+# from one machine's cache path, or the reproducer only runs on that machine.
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K="$1"; S="$2"; PY="$K/.venv/bin/python"
 WS="$S/ws"; ST="$S/state"
 rm -rf "$WS" "$ST"; mkdir -p "$WS/src" "$ST"
@@ -47,7 +50,7 @@ echo "supervisor pid $SUP"
 # Wait for the worker to actually exist, then note its pid.
 WORKER=""
 for _ in $(seq 1 100); do
-  WORKER=$("$PY" "/home/gebruiker/.cache/atlas-b1-repro/find_worker.py" "$FIX")
+  WORKER=$("$PY" "$SELF_DIR/find_worker.py" "$FIX")
   [ -n "$WORKER" ] && break
   sleep 0.2
 done
