@@ -118,6 +118,7 @@ from project_atlas.orchestration.program.waiting import (
 from project_atlas.orchestration.sdk.host import (
     acquire_supervisor_lock,
     clear_supervisor_stop,
+    read_supervisor_pause,
     new_supervisor_instance_id,
     release_supervisor_lock,
     request_supervisor_stop,
@@ -298,6 +299,90 @@ def idempotency_key(
             "base_pin": base_pin,
         }
     )
+
+
+def _dispatch_withheld_reasons(
+    *,
+    state: ProgramStateRecord,
+    pause_sentinel: dict[str, str] | None,
+    program_id: str,
+    ready: list[str],
+    running: list[str],
+    needs_reconcile: list[dict[str, str]],
+    owner_required: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Every reason a dispatch is not happening right now, named explicitly.
+
+    Silence is the hardest state for an operator to read: a paused program, a
+    program with nothing eligible and a program whose only attempt is stuck all
+    look identical from the outside. Each entry is a reason plus what would
+    clear it.
+    """
+    reasons: list[dict[str, str]] = []
+    if state.cancel_requested:
+        reasons.append(
+            {"reason": "CANCELLED", "clears_with": "start the program again"}
+        )
+    if state.paused:
+        reasons.append(
+            {
+                "reason": "PAUSED",
+                "detail": f"paused by {state.paused_by or 'an operator'}",
+                "clears_with": "program control --action resume",
+            }
+        )
+    if pause_sentinel is not None:
+        owner = pause_sentinel["program_id"]
+        if owner in ("", program_id):
+            reasons.append(
+                {
+                    "reason": "PAUSE_SENTINEL_PRESENT",
+                    "detail": (
+                        "an on-disk pause sentinel applies to this program"
+                        + (
+                            f", requested by {pause_sentinel['requested_by']}"
+                            if pause_sentinel["requested_by"]
+                            else " (unattributed)"
+                        )
+                    ),
+                    "clears_with": "program control --action resume",
+                }
+            )
+        else:
+            reasons.append(
+                {
+                    "reason": "STALE_PAUSE_SENTINEL_IGNORED",
+                    "detail": (
+                        f"a pause sentinel for program {owner!r} is present and "
+                        "is NOT being applied to this one"
+                    ),
+                    "clears_with": "program control --action resume on that program",
+                }
+            )
+    if needs_reconcile:
+        reasons.append(
+            {
+                "reason": "NEEDS_RECONCILIATION",
+                "detail": f"{len(needs_reconcile)} interrupted attempt(s)",
+                "clears_with": "program reconcile (check the process table first)",
+            }
+        )
+    if owner_required:
+        reasons.append(
+            {
+                "reason": "OWNER_DECISION_REQUIRED",
+                "detail": f"{len(owner_required)} task(s) behind an owner gate",
+                "clears_with": "an owner decision; no interface can grant it",
+            }
+        )
+    if not ready and not running and not state.complete:
+        reasons.append(
+            {
+                "reason": "NO_ELIGIBLE_WORK",
+                "clears_with": "a dependency completing, or an external wait ending",
+            }
+        )
+    return reasons
 
 
 class ProgramSupervisor:
@@ -668,6 +753,15 @@ class ProgramSupervisor:
             "awaiting_independent_verification": sorted(awaiting_iv),
             "owner_decision_required": owner_required,
             "needs_reconciliation": needs_reconcile,
+            "dispatch_withheld_because": _dispatch_withheld_reasons(
+                state=state,
+                pause_sentinel=read_supervisor_pause(self.lock_root),
+                program_id=self.program.program_id,
+                ready=ready,
+                running=running,
+                needs_reconcile=needs_reconcile,
+                owner_required=owner_required,
+            ),
             "remaining_limits": {
                 "launches": max(0, limits.max_task_launches - state.total_launches),
                 "max_task_launches": limits.max_task_launches,
@@ -965,7 +1059,28 @@ class ProgramSupervisor:
                 "CANCELLED", "the program was cancelled", {}
             )
             return result
-        if state.paused:
+        # HARDENING-005 G2: the pause must also be read from disk. The
+        # in-memory record is this supervisor's own and its next save
+        # overwrites whatever an operator wrote mid-run.
+        #
+        # A sentinel naming a DIFFERENT program is not adopted: sentinels
+        # outlive the run that wrote them, and silently inheriting one would
+        # stop a fresh program for a reason nobody could see.
+        sentinel = read_supervisor_pause(self.lock_root)
+        sentinel_applies = sentinel is not None and sentinel["program_id"] in (
+            "",
+            self.program.program_id,
+        )
+        if sentinel is not None and not sentinel_applies:
+            result.notes.append(
+                "a pause sentinel for program "
+                f"{sentinel['program_id']!r} was found and NOT applied to "
+                f"{self.program.program_id!r}; it is stale state from another run"
+            )
+        if state.paused or sentinel_applies:
+            state.paused = True
+            if sentinel_applies and sentinel is not None and not state.paused_by:
+                state.paused_by = sentinel["requested_by"] or None
             # A pause lets running workers finish. Interrupting them would
             # convert a reversible operator decision into a set of uncertain
             # outcomes needing reconciliation, which is not what "pause" means

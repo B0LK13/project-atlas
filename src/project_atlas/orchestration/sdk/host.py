@@ -15,6 +15,15 @@ from typing import Literal
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, SdkRuntimeError
 
 SUPERVISOR_STOP_NAME = "supervisor.stop"
+#: HARDENING-005 G2: pause needs the same on-disk sentinel that stop has.
+#: `state.paused` lives in the supervisor's in-memory record, and its next save
+#: overwrites whatever an operator wrote, so a pause requested DURING a run was
+#: silently lost. A file is read fresh on every check.
+#:
+#: It carries a payload rather than a marker byte, because a bare sentinel from
+#: an earlier run would be adopted in silence by the next one: the reader can
+#: see WHICH program it belongs to, who asked and when, and refuse the rest.
+SUPERVISOR_PAUSE_NAME = "supervisor.pause"
 SUPERVISOR_LOCK_NAME = "supervisor.lock"
 _LOCK_ACQUIRE_ATTEMPTS = 8
 _HELD_LOCKS_GUARD = threading.Lock()
@@ -150,6 +159,54 @@ def _write_atomic_text(path: Path, content: str) -> None:
     finally:
         if tmp.exists():
             tmp.unlink(missing_ok=True)
+
+
+def read_supervisor_pause(root: Path) -> dict[str, str] | None:
+    """The pause sentinel's payload, or None when no pause is recorded.
+
+    A malformed sentinel is reported as an *unattributed* pause rather than
+    ignored: refusing to act on a pause because its metadata is unreadable
+    would be the one failure direction an operator cannot afford.
+    """
+    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"program_id": "", "requested_by": "", "requested_at": ""}
+    if not isinstance(raw, dict):
+        return {"program_id": "", "requested_by": "", "requested_at": ""}
+    return {
+        "program_id": str(raw.get("program_id", "")),
+        "requested_by": str(raw.get("requested_by", "")),
+        "requested_at": str(raw.get("requested_at", "")),
+    }
+
+
+def request_supervisor_pause(
+    root: Path, *, program_id: str, requested_by: str, requested_at: str
+) -> None:
+    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    _write_atomic_text(
+        path,
+        json.dumps(
+            {
+                "program_id": program_id,
+                "requested_by": requested_by,
+                "requested_at": requested_at,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+    )
+
+
+def clear_supervisor_pause(root: Path) -> None:
+    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    if path.is_file():
+        path.unlink()
 
 
 def request_supervisor_stop(root: Path) -> None:
