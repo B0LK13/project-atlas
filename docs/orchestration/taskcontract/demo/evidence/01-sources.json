@@ -1,0 +1,304 @@
+{
+  "grants": "NOTHING. Listing eligible work is not selecting or approving it.",
+  "item_count": 24,
+  "items": [
+    {
+      "blockers": [
+        "declared blocker language in title (external_blocked): Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": true,
+      "item_digest": "54ba22388093de15e27b3442e1859f9063680fe3a800a32b2e2588f5d961813e",
+      "item_id": "INT-013",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (blocked on): Minimal-diff marker append + CLI disclosure of source-tree identity writes -- implemented, tested, red/green proven on `repair/dogfood-001-source-safe-genesis`, but **blocked on an owner decision**: t"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "eb46b731cd4aeb986182b1f2e83c8ab7f94f150764633ec5468061fbfd68c534",
+      "item_id": "DOGFOOD-001",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Minimal-diff marker append + CLI disclosure of source-tree identity writes -- implemented, tested, red/green proven on `repair/dogfood-001-source-safe-genesis`, but **blocked on an owner decision**: the fix edits `ingestion.py`, which `tests/unit/test_atl\u2026"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "8a4b68c35117e5c2174906b0b802c6459d40261123b365770515a144ddabcfa5",
+      "item_id": "WEB003-006",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Governor review and merge to `main`"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "9b3361749665ebd18c5626576e74d6042970ad744ee38b2cddd5d02f983462a4",
+      "item_id": "WEB003-007",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "WEB APPLICATION ACCEPTED criteria package (later \u2014 not this PR)"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (merge_authorization not_granted): machine-scored fixture harness (current-main; do not retarget #375; HARNESS!=AUTHENTIC_PILOT; MERGE_AUTHORIZATION NOT_GRANTED)"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "2c188e69aeec7c2b1308b8daed3df40df122824686203ba2d7b88b9ff0dde0a8",
+      "item_id": "AS-CODER-ALPHA-FRESH-AGENT-CHALLENGE-V2",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "machine-scored fixture harness (current-main; do not retarget #375; HARNESS!=AUTHENTIC_PILOT; MERGE_AUTHORIZATION NOT_GRANTED)"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (blocked on, genuinely attempted): Authentic Local Windows Cursor agent dispatch acceptance (unaffected by activation below -- separately outstanding; genuinely attempted 2026-08-29 through a real, owner-trusted workspace; transport/tr"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "685683148b1a0098d41285a731da66b2c480e48c7467337d61be489cb98cb3c3",
+      "item_id": "ORCH001D-012",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Authentic Local Windows Cursor agent dispatch acceptance (unaffected by activation below -- separately outstanding; genuinely attempted 2026-08-29 through a real, owner-trusted workspace; transport/trust layers both proved correct end to end; blocked on t\u2026"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (owner-reserved, not this package): Owner merge gate (not this package) -- activation of the stack is not a grant of automatic merge authority to the loop itself, which remains permanently Owner-reserved"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "93f1d52aadcb5a6e6504a16e9a7a1984a4899a3dcf89e2b670ee3345c797b10e",
+      "item_id": "ORCH001E-009",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Owner merge gate (not this package) -- activation of the stack is not a grant of automatic merge authority to the loop itself, which remains permanently Owner-reserved"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (merge_authorization = not_granted): Wiring origination into the live governed DAG/lease/dispatch loop (`orchestration/autonomy/loop.py` and friends) -- explicitly deferred by D-PHASE2A-1's own scoping (\"Phase 2A-1 only... a separate lat"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "122036daa39fb661180ade354e1878e5bb37eebeb114a878dd31c35447e024be",
+      "item_id": "D-PHASE2A-2",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Wiring origination into the live governed DAG/lease/dispatch loop (`orchestration/autonomy/loop.py` and friends) -- explicitly deferred by D-PHASE2A-1's own scoping (\"Phase 2A-1 only... a separate later PR\"). Both of its prior blockers are now resolved: D\u2026"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (not this package): Owner merge gate (not this package)"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "8ce7f6378532c5abf41e4770f4470c24a91887544b9b83a46cf1176f1967a2b9",
+      "item_id": "ORCHAUT-013",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Owner merge gate (not this package)"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (not this package): Owner merge gate (not this package)"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "94f9a0c20036f5b7fb980580323f7903fcb05b259df564d662b6c58605997e1d",
+      "item_id": "ORCHAUT-020",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Owner merge gate (not this package)"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "5db61ce1de752c8f47a5a80588703e2a190591d16aa600786e632cdb2e0e72b3",
+      "item_id": "MDA-R1-005",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Authentic PATH mda 0.2.9 + billed OpenRouter + `normalize_event` (host-blocked here)"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "7ec0fdf113ce60aaa5357c846e9697feae8671f40e73f180b9bcdfcc41828592",
+      "item_id": "MDA-R1-006",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Independent verification against published R1 HEAD/TREE"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "04bdedcd3c823e3a60ed6d12cbcc628ca413ffbcc5cc3f3f221d543398bb8f35",
+      "item_id": "MDA-R1-007",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Exact-head GitHub CI + owner merge gate (merge not authorized)"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (not this package): Owner merge gate (not this package)"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "5b365187cdeb6a404a2d15994f68712f639a40fe173d497c5b15b3ec7577a495",
+      "item_id": "ORCHLEASE-007",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Owner merge gate (not this package)"
+    },
+    {
+      "blockers": [
+        "duplicate task-list item id: AT3-037"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "04e84efe01583ba488ad45d042987bb1768d97695f00c960830940d9c2e06e16",
+      "item_id": "AT3-037",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Claude native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)"
+    },
+    {
+      "blockers": [
+        "duplicate task-list item id: AT3-038"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "1ef2e192748be96370d8fe020e558a265f00d5b7836eaa886a07318c2907c32e",
+      "item_id": "AT3-038",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Gemini native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)"
+    },
+    {
+      "blockers": [
+        "duplicate task-list item id: AT3-057"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "3982cc423d6a66c20b50d02702b7ec9af74f1fa5e9f1dcb1279187e1a0c0354e",
+      "item_id": "AT3-057",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Cursor Cloud history sync (NOT IMPLEMENTED; LOCAL_SESSION honesty)"
+    },
+    {
+      "blockers": [
+        "duplicate task-list item id: AT3-058"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "87daf2fcbe7714050fa8489351ffcf4f4aae7b42f3cd6281d8e8e4edd74bd7ab",
+      "item_id": "AT3-058",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Codex native history sync (NOT IMPLEMENTED; STRUCTURED_SUBMISSION honesty)"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (external_blocked): Incremental live provider sync (EXTERNAL_BLOCKED; credentials / history API)",
+        "duplicate task-list item id: AT3-046"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "1ddfd5720d2e60f17a96c8d3abe403d23957b805a776dd6ccef725360be866a0",
+      "item_id": "AT3-046",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Incremental live provider sync (EXTERNAL_BLOCKED; credentials / history API)"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "be8362668e00f286fcbf44fdee8cad90171677fa8022115412cee7bec240c331",
+      "item_id": "AS-OBSIDIAN-CAPTURE-002",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Localhost capture API + browser extension (BLOCKED: LIVE_API is contractually read-only; needs its own work package)"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (owner-gated): The mkdir failure site in each writer (IMPLEMENTED; AWAITING IV -- merge NOT pre-authorized). F6 closed the error boundary for the read of the prior note and for `os.replace`; creating the note's pare"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "87ff013a151fc8b4cf14397f5f4052ad1d47545c9d8697ffcfc53e77604185c1",
+      "item_id": "AS-OBSIDIAN-CAPTURE-001-F11",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "The mkdir failure site in each writer (IMPLEMENTED; AWAITING IV -- merge NOT pre-authorized). F6 closed the error boundary for the read of the prior note and for `os.replace`; creating the note's parent directory was left OUTSIDE the guard in **both** gen\u2026"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "35199c5bd735510bf259fb3d447c1a8ee6033df1a6a059a00e9b9f165996b1d2",
+      "item_id": "AS-OBSIDIAN-CAPTURE-001-F12",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "The committed instruments must actually run (IMPLEMENTED; AWAITING IV -- merge NOT pre-authorized). Three evidence instruments under `docs/scripts/` were each committed because \"an instrument described is not an instrument available\", and measured on `a7a\u2026"
+    },
+    {
+      "blockers": [
+        "declared blocker language in title (owner-gated): Line-ending fidelity at the fourth writer (OWNER-GATED; not runnable by this lane). `ingestion.py:99` (`_generated_content`) preserves a generated span and reads the prior note with `Path.read_text(en"
+      ],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "095265654ba18d355487d61d3a65ab37f46af52e12b63408a5191d6c0f8bd750",
+      "item_id": "AS-OBSIDIAN-CAPTURE-001-F5-B",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Line-ending fidelity at the fourth writer (OWNER-GATED; not runnable by this lane). `ingestion.py:99` (`_generated_content`) preserves a generated span and reads the prior note with `Path.read_text(encoding=\"utf-8\")`, so it carries the identical F5 defect\u2026"
+    },
+    {
+      "blockers": [],
+      "depends_on": [],
+      "has_acceptance_contract": false,
+      "item_digest": "5e35abc2946194e4536498dd5192697d676c0725b75ea8e628220b0c1b800d35",
+      "item_id": "AS-OBSIDIAN-CAPTURE-003",
+      "lifecycle": "READY",
+      "source_path": "docs/backlog.md",
+      "status": "NOT_STARTED",
+      "title": "Conversation intelligence (summary/decision/action extraction; consumes AS-OBSIDIAN-CAPTURE-001 CaptureRecords; AI enrichment stays opt-in)"
+    }
+  ],
+  "project_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract"
+}
