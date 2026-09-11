@@ -68,7 +68,7 @@ def register_work_readiness_parsers(subparsers: argparse._SubParsersAction[Any])
         "--out",
         type=Path,
         default=None,
-        help="Write proposal JSON (idempotent; same inputs → same handoff_id).",
+        help="Write proposal JSON (idempotent; same inputs -> same handoff_id).",
     )
 
     refresh_p = sub.add_parser(

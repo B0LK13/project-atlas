@@ -2540,7 +2540,7 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_hybrid.add_argument(
         "--include-graph-slot",
         action="store_true",
-        help="Attach derived impact-graph summary (GRAPH ≠ AUTHORITY).",
+        help="Attach derived impact-graph summary (GRAPH != AUTHORITY).",
     )
     runtime_hybrid.add_argument("--json", action="store_true")
     runtime_compile = runtime_sub.add_parser(
@@ -2735,7 +2735,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--authentic-pilot-roots",
         type=int,
         default=0,
-        help="Authentic PILOT root count (0 keeps healthy→unknown demotion).",
+        help="Authentic PILOT root count (0 keeps healthy->unknown demotion).",
     )
     twin_build.add_argument("--json", action="store_true")
 
@@ -2782,7 +2782,7 @@ def build_parser() -> argparse.ArgumentParser:
     oai_sub = oai_parser.add_subparsers(dest="openai_import_command", required=True)
     oai_parse = oai_sub.add_parser(
         "parse",
-        help="Parse sample-chat-export.md → fixture receipt (+ PROV quarantine).",
+        help="Parse sample-chat-export.md -> fixture receipt (+ PROV quarantine).",
     )
     oai_parse.add_argument("--vault", type=Path, required=True)
     oai_parse.add_argument("--receipt-id", required=True)
