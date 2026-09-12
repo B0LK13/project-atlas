@@ -527,3 +527,35 @@ class TestF700AdversarialClass:
         assert "missing-1999.md" not in masked
         assert "](final-missing.md)" in masked
         assert len(masked) == len(text)
+
+    def test_tilde_fence_wrapping_unclosed_backtick_does_not_swallow_later_live(
+        self,
+    ) -> None:
+        """Successive whole-document fence passes let an inner unclosed
+        backtick opener ``\\Z``-mask past the outer tilde closer, hiding a
+        later live link from H-007. Reproduced on #700 HEAD ``076f4643``:
+        ``LINK.findall`` after mask was empty. Document-order masking
+        keeps the live link visible."""
+        text = "~~~\n```\nstill inside tilde\n~~~\n[live](missing-after-nested.md)\n"
+        masked = _mask_inert_markdown_regions(text)
+        assert "](missing-after-nested.md)" in masked
+        assert len(masked) == len(text)
+
+    def test_backtick_info_string_containing_backtick_is_not_a_fence(self) -> None:
+        """CommonMark forbids backticks in a backtick fence info string.
+        ``[^\n]*`` treated `` ```foo`bar `` as an opener and ``\\Z``-swallowed
+        the following live link. Reproduced on #700 HEAD ``076f4643``."""
+        text = "```foo`bar\nnot a fence\n[live](missing-after-info.md)\n"
+        masked = _mask_inert_markdown_regions(text)
+        assert "](missing-after-info.md)" in masked
+        assert len(masked) == len(text)
+
+    def test_backtick_fence_wrapping_unclosed_tilde_does_not_swallow_later_live(
+        self,
+    ) -> None:
+        """Symmetric control: leftmost backtick fence must close on its
+        own closer, not let an inner unclosed tilde run to EOF."""
+        text = "```\n~~~\nstill inside backtick\n```\n[live](missing-after-tilde-inner.md)\n"
+        masked = _mask_inert_markdown_regions(text)
+        assert "](missing-after-tilde-inner.md)" in masked
+        assert len(masked) == len(text)

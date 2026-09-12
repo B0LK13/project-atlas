@@ -61,6 +61,17 @@ LINK = re.compile(r"\]\(([^)]+)\)")
 # would wrongly accept a mixed-character run like "`~`" as a fence, and
 # would let a backtick fence be closed by tildes or vice versa).
 #
+# Backtick fences further forbid backticks in the info string (CommonMark:
+# otherwise a line-starting inline code span would be taken as a fence).
+# The opener therefore uses ``[^`\n]*``, not ``[^\n]*``.
+#
+# The two patterns are applied in document order -- leftmost opener wins
+# -- rather than as successive whole-document passes. A later pass that
+# does not see the other delimiter's closer would let an inner unclosed
+# opener fall through to ``\Z`` and blank every live link after the outer
+# fence. Tilde fences exist so authors can quote backtick fences,
+# including an opener that never closes.
+#
 # The closing-fence alternative's trailing ``\r?`` tolerates CRLF line
 # endings: Python's ``re.M`` ``$`` anchors immediately before a bare
 # ``\n``, not before a ``\r`` that precedes it, so on CRLF text the
@@ -70,7 +81,7 @@ LINK = re.compile(r"\]\(([^)]+)\)")
 # found via an adversarial CRLF regression test, not part of the verifier's
 # three reported findings.
 _FENCED_CODE_BLOCK = re.compile(
-    r"^ {0,3}(`{3,})[^\n]*\n.*?(?:^ {0,3}\1`*[ \t]*\r?$|\Z)", re.M | re.S
+    r"^ {0,3}(`{3,})[^`\n]*\n.*?(?:^ {0,3}\1`*[ \t]*\r?$|\Z)", re.M | re.S
 )
 _FENCED_CODE_BLOCK_TILDE = re.compile(
     r"^ {0,3}(~{3,})[^\n]*\n.*?(?:^ {0,3}\1~*[ \t]*\r?$|\Z)", re.M | re.S
@@ -148,9 +159,36 @@ def _mask_inert_markdown_regions(text: str) -> str:
     """
     if "`" not in text and "~" not in text:
         return text
-    masked = _FENCED_CODE_BLOCK.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
-    masked = _FENCED_CODE_BLOCK_TILDE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), masked)
+    masked = _mask_fenced_code_blocks(text)
     return _INLINE_CODE_SPAN.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), masked)
+
+
+def _earliest_fence(text: str, pos: int) -> re.Match[str] | None:
+    """Return the leftmost backtick or tilde fence starting at or after ``pos``."""
+    backtick = _FENCED_CODE_BLOCK.search(text, pos)
+    tilde = _FENCED_CODE_BLOCK_TILDE.search(text, pos)
+    if backtick is None:
+        return tilde
+    if tilde is None:
+        return backtick
+    return backtick if backtick.start() <= tilde.start() else tilde
+
+
+def _mask_fenced_code_blocks(text: str) -> str:
+    """Mask fenced blocks in document order so an inner unclosed opener
+    cannot ``\\Z``-swallow past an earlier outer fence of the other type.
+    """
+    pieces: list[str] = []
+    pos = 0
+    while pos < len(text):
+        match = _earliest_fence(text, pos)
+        if match is None:
+            pieces.append(text[pos:])
+            break
+        pieces.append(text[pos : match.start()])
+        pieces.append(re.sub(r"[^\n]", " ", match.group(0)))
+        pos = match.end()
+    return "".join(pieces)
 
 
 def validate(
