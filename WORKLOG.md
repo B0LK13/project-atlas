@@ -14915,3 +14915,24 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AS-2.0-OBS-UX-WRITE-BOUNDARY — derived writers must not leak raw OSError
+
+**Date:** 2026-09-12
+**Branch:** `fix/obsidian-ux-write-error-boundary`
+**Base:** `origin/main` `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Mode:** Isolated package. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+Not mixed into F6/F11/F14 carriers.
+
+**Defect:** `obsidian_ux._atomic_write_json` and
+`obsidian_workspace._atomic_write_json` mkdir+write+replace were unguarded.
+Reproduced on live main: a file where `generated/` must be a directory leaked
+`NotADirectoryError` past `ObsidianUxError` / `ObsidianWorkspaceError`.
+
+**Fix:** wrap both writers; raise `unwritable-derived-registry:` /
+`unwritable-derived-binding:`; best-effort tmp cleanup via `suppress(OSError)`.
+
+**Tests:** `tests/unit/test_obsidian_ux_write_error_boundary.py` plus existing
+UX/auto suites (12 passed). ruff/mypy clean on the two modules.
