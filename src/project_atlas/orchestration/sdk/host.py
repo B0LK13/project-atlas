@@ -63,7 +63,6 @@ def write_host_identity(
     worktree: str,
 ) -> Path:
     store = host_state_dir(root)
-    store.mkdir(parents=True, exist_ok=True)
     payload = {
         "supervisor_pid": pid,
         "supervisor_backend": backend,
@@ -74,8 +73,21 @@ def write_host_identity(
         "execution_authorized": False,
     }
     target = store / "supervisor-host.json"
-    target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (store / "supervisor.pid").write_text(f"{pid}\n", encoding="utf-8")
+    pid_path = store / "supervisor.pid"
+    encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    try:
+        store.mkdir(parents=True, exist_ok=True)
+        target.write_text(encoded, encoding="utf-8")
+        pid_path.write_text(f"{pid}\n", encoding="utf-8")
+    except OSError as exc:
+        # Callers (cli.py, live_dag.py, resident_windows.py) catch
+        # SdkRuntimeError, not OSError. A blocked identity store previously
+        # crashed the supervisor entrypoint instead of the fail-closed
+        # JSON response every other host failure already gets.
+        raise SdkRuntimeError(
+            f"unable to write supervisor host identity: {exc}",
+            code="HOST_IDENTITY_WRITE_FAILED",
+        ) from exc
     return target
 
 
