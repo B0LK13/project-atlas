@@ -95,10 +95,19 @@ class TestBackwardCompatUnchangedBehavior:
         assert rd.read_primary_lock_pid(tmp_path) == 0
         assert rd.acquire_primary_lock(tmp_path) is True
 
-    def test_corrupt_lock_file_is_reclaimed_same_as_before(self, tmp_path: Path) -> None:
+    def test_unreadable_lock_file_is_not_stolen(self, tmp_path: Path) -> None:
+        """An empty or corrupt lock file is the in-progress O_EXCL→write
+        window (or leftover garbage). Treating parse failure as stale and
+        unlinking it is what produced two concurrent ACQUIRED winners.
+        Fail closed: do not acquire."""
         _lock_path(tmp_path).write_text("{not valid json at all", encoding="utf-8")
-        assert rd.acquire_primary_lock(tmp_path) is True
-        assert rd.read_primary_lock_pid(tmp_path) == os.getpid()
+        assert rd.acquire_primary_lock(tmp_path) is False
+        assert rd.read_primary_lock_pid(tmp_path) == 0
+
+    def test_empty_lock_file_is_not_stolen(self, tmp_path: Path) -> None:
+        _lock_path(tmp_path).write_bytes(b"")
+        assert rd.acquire_primary_lock(tmp_path) is False
+        assert rd.read_primary_lock_pid(tmp_path) == 0
 
 
 class TestAcquireIsNowAtomicNotCheckThenWrite:
@@ -145,17 +154,29 @@ class TestAcquireIsNowAtomicNotCheckThenWrite:
         procs = [
             subprocess.Popen(
                 [sys.executable, str(worker), str(tmp_path)],
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 text=True,
             )
             for _ in range(n)
         ]
-        outcomes = [p.communicate(timeout=30)[0].strip() for p in procs]
-        assert outcomes.count("ACQUIRED") == 1, (
-            f"expected exactly one of {n} independent processes to acquire the "
-            f"lock; outcomes={outcomes}"
-        )
-        assert outcomes.count("REFUSED") == n - 1
+        # Read every first line while winners still hold the lock. Closing
+        # stdin (or waiting for exit) before this would re-introduce the
+        # sequential-reclaim flake the hold-until-stdin contract exists to
+        # close.
+        outcomes = [p.stdout.readline().strip() for p in procs]
+        try:
+            assert outcomes.count("ACQUIRED") == 1, (
+                f"expected exactly one of {n} independent processes to acquire "
+                f"the lock concurrently; outcomes={outcomes}"
+            )
+            assert outcomes.count("REFUSED") == n - 1
+        finally:
+            for p in procs:
+                if p.stdin is not None:
+                    p.stdin.close()
+            for p in procs:
+                p.wait(timeout=30)
 
 
 class TestPidReuseIsNowCaught:

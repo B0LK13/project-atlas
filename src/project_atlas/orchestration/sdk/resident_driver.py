@@ -143,12 +143,14 @@ def acquire_primary_lock(root: Path) -> bool:
     replaced read the file, decided in Python, then wrote -- a plain
     check-then-write with no OS-level exclusivity guarantee at all, so two
     independent processes racing to become the primary governor could both
-    observe "no valid holder" and both succeed. Analytically real (this
-    function's whole contract is "at most one"), not proven to fire on any
-    particular host: the window is a handful of Python bytecode
-    instructions, far smaller than real-world process-start jitter, which
-    is exactly why check-then-write races are the class of bug that goes
-    unnoticed for a long time rather than the class that shows up in CI.
+    observe "no valid holder" and both succeed.
+
+    After the exclusive create the payload is written in a second step.
+    A peer that observes the empty (or otherwise unreadable) file must
+    retry the read, not unlink-and-recreate: unlinking the in-progress
+    create is a second TOCTOU and was independently measured to yield two
+    live holders. ``host.acquire_supervisor_lock`` already treats an
+    unreadable record as "retry / fail closed", never as stale.
     """
     path = _runtime(root) / LOCK_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,11 +160,16 @@ def acquire_primary_lock(root: Path) -> bool:
             fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
             try:
-                data = json.loads(path.read_text(encoding="utf-8"))
+                raw = path.read_text(encoding="utf-8")
+                data = json.loads(raw)
                 other = int(data.get("pid", 0))
             except (OSError, json.JSONDecodeError, TypeError, ValueError):
-                other = 0
-                data = {}
+                # Empty or unreadable is the in-progress O_EXCL→write window
+                # (or leftover corruption). Unlinking here is what lets a
+                # second process win while the first still holds the fd --
+                # measured: two live ACQUIRED outcomes with hold-until-stdin
+                # workers. Retry the read; never treat "no parse" as stale.
+                continue
             if other == me:
                 # Idempotent re-entry: the same process re-asserting it
                 # still holds its own lock (e.g. a later reconcile tick).
@@ -175,8 +182,9 @@ def acquire_primary_lock(root: Path) -> bool:
                 and not _lock_names_a_reused_pid(data, other)
             ):
                 return False
-            # Stale (dead, or a reused pid this record cannot vouch for):
-            # reclaim it and retry the exclusive create.
+            # Parsed record that is stale (dead, or a reused pid this
+            # record cannot vouch for): reclaim it and retry the exclusive
+            # create. Unreadable files never reach this branch.
             try:
                 path.unlink(missing_ok=True)
             except OSError:
