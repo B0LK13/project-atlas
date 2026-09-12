@@ -45,6 +45,7 @@ adapter's.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -132,23 +133,101 @@ class CodexAdapter:
         return found
 
     def _detect_version(self) -> str | None:
+        """Ask the installed CLI its version. Never runs a model.
+
+        INSTALLED AND VERSION ARE SEPARATE FACTS and stay separate: a runtime
+        that is present but whose version cannot be read is still installed.
+        This method only ever answers the second question.
+
+        Two ways the answer was being lost, both observed as the same symptom
+        (`installed=True, version=None`), and both reproduced before this fix:
+
+        1. THE VERSION ON STDERR. The regex read `completed.stdout` only, so a
+           CLI that announces its version on stderr -- which plenty do -- read
+           as versionless even though the probe ran perfectly and exited 0.
+           `runtimes._probe_version` already reads stdout-or-stderr; this
+           adapter did not, and that asymmetry was the whole bug on that path.
+
+        2. A WRAPPER THAT CANNOT BE EXECUTED DIRECTLY. On Windows an npm-style
+           install puts `codex.cmd` on PATH. `shutil.which` finds it (hence
+           installed=True), but a `.cmd` is a script for the command
+           interpreter, not an image `CreateProcess` can start, so the direct
+           call raises OSError -- which the old `except` swallowed into None.
+
+        The retry for (2) goes through ComSpec with an argument list and
+        never `shell=True`. That avoids Python's own shell, and it is the
+        reason this does not simply hand the command to one.
+
+        WHAT IT DOES NOT DO, stated because an earlier draft of this comment
+        claimed otherwise: it does NOT make cmd metacharacters safe. On Windows
+        `subprocess` flattens an argument sequence into a single command line
+        (`subprocess.list2cmdline`), and `cmd.exe /c` then PARSES that string
+        again. So a path containing a space, an ampersand or a quote is subject
+        to cmd's own parsing rules regardless of the list form.
+
+            WINDOWS_METACHAR_SAFETY = NOT_VERIFIED
+
+        No Linux test can establish it -- the retry branch never executes a
+        real `cmd.exe` here. It is owned by the native-Windows acceptance gate
+        (Agent 5), and until that gate reports, this code must not be described
+        as metacharacter-safe.
+
+        POSIX behaviour is deliberately unchanged: `os.name != "nt"` never
+        reaches the retry, so a direct executable resolves exactly as before.
+        """
         if self._version_probed:
             return self._version
         self._version_probed = True
         try:
+            resolved = self._resolve()
+        except AdapterUnavailableError:
+            self._version = None
+            return None
+
+        text = self._run_version_probe([resolved, "--version"])
+
+        if text is None and os.name == "nt":
+            # (2) above. ComSpec is the documented interpreter for .cmd/.bat;
+            # `/c` runs one command and exits. Still an argument list.
+            #
+            # Looked up as "COMSPEC", upper-case, deliberately: on nt
+            # `os.environ` upper-cases every key it stores (`os.py`:
+            # `encodekey = str.upper`), so the mixed-case spelling would miss
+            # on exactly the platform this branch exists for. ruff caught this
+            # -- the first version of this fix read "ComSpec" and would have
+            # returned None on Windows while passing every Linux test.
+            comspec = os.environ.get("COMSPEC")
+            if comspec:
+                text = self._run_version_probe(
+                    [comspec, "/c", resolved, "--version"]
+                )
+
+        if text is None:
+            self._version = None
+            return None
+
+        match = _VERSION_RE.search(text)
+        self._version = match.group(0) if match else None
+        return self._version
+
+    @staticmethod
+    def _run_version_probe(argv: list[str]) -> str | None:
+        """Run one version probe. None means "could not ask", not "no version".
+
+        Returns stdout-or-stderr so a CLI that announces itself on either
+        stream is read correctly -- see (1) in `_detect_version`.
+        """
+        try:
             completed = subprocess.run(
-                [self._resolve(), "--version"],
+                argv,
                 capture_output=True,
                 text=True,
                 timeout=30,
                 check=False,
             )
-        except (OSError, subprocess.SubprocessError, AdapterUnavailableError):
-            self._version = None
+        except (OSError, subprocess.SubprocessError):
             return None
-        match = _VERSION_RE.search(completed.stdout or "")
-        self._version = match.group(0) if match else None
-        return self._version
+        return (completed.stdout or "") + (completed.stderr or "")
 
     @property
     def capabilities(self) -> AdapterCapabilities:

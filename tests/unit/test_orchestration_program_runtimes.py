@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import stat
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -705,3 +708,148 @@ def test_the_inventory_never_launches_a_model() -> None:
     for row in rows:
         if row.installed:
             assert row.version is None or isinstance(row.version, str)
+
+
+# ---------------------------------------------------------------- W-1 regression
+#
+# W-1: codex was `installed=True` with `version=None` on native Windows, found
+# by Agent 5 against candidate 010c. CI could never have caught it -- the
+# version test above skips when the runtime is absent, and CI has neither real
+# runtime on PATH. So these tests deliberately use FAKE runtimes: they must
+# catch the regression on any host, including a CI box with nothing installed.
+#
+# Both failure modes below were reproduced against 010c before the fix, and
+# both presented as the same symptom.
+
+
+def _fake_runtime(tmp_path: Path, name: str, script: str) -> Path:
+    """An executable stand-in for a runtime CLI. No model, no network."""
+    path = tmp_path / name
+    path.write_text(script)
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+    return path
+
+
+def test_a_runtime_announcing_its_version_on_stderr_is_still_detected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mode 1: the version was on stderr and the probe read stdout only.
+
+    Plenty of CLIs announce themselves on stderr. The probe exited 0 and the
+    output was right there, but the regex only ever saw `completed.stdout`, so
+    the runtime read as versionless. `runtimes._probe_version` already read
+    stdout-or-stderr; this adapter did not, and that asymmetry was the bug.
+
+    Platform-neutral on purpose: this fails on 010c on Linux too.
+    """
+    _fake_runtime(tmp_path, "w1probe", "#!/bin/sh\necho 'codex-cli 9.9.9' >&2\nexit 0\n")
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+
+    assert CodexAdapter(executable="w1probe")._detect_version() == "9.9.9", (
+        "a runtime that announces its version on stderr was reported as having "
+        "no version; the probe is reading only one of the two streams"
+    )
+
+
+def test_a_windows_wrapper_is_probed_through_comspec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mode 2: a .cmd shim that `CreateProcess` cannot start directly.
+
+    An npm-style install puts `codex.cmd` on PATH. `shutil.which` finds it, so
+    `installed` is True -- but a `.cmd` is a script for the command
+    interpreter, not an executable image, so the direct call raises OSError and
+    the old `except` swallowed it into None.
+
+    The Windows branch is made reachable from any host the same way
+    `base_env_names` made its own branch reachable: by injecting `os.name`
+    rather than requiring the platform. That is what lets this test defend the
+    fix on the Linux runner that will actually run it.
+    """
+    wrapper = tmp_path / "w1wrap.cmd"
+    wrapper.write_text("@echo off\r\necho codex-cli 7.7.7\r\n")
+    wrapper.chmod(0o644)  # present, but NOT directly executable
+
+    comspec = _fake_runtime(
+        tmp_path,
+        "fake_comspec",
+        # Mimics `cmd.exe /c <file> --version`: ignores /c, reads the script.
+        "#!/bin/sh\nshift\ngrep -o 'codex-cli [0-9.]*' \"$1\"\n",
+    )
+
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setenv("COMSPEC", str(comspec))
+    monkeypatch.setattr(shutil, "which", lambda _name: str(wrapper))
+
+    assert CodexAdapter(executable="w1wrap")._detect_version() == "7.7.7", (
+        "a Windows wrapper that cannot be executed directly produced no "
+        "version; the probe gave up instead of asking the command interpreter"
+    )
+
+
+def test_the_comspec_retry_passes_an_argument_list_not_a_command_string(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REGRESSION GUARD ONLY -- NOT causal evidence for W-1.
+
+    This test passes against the pre-fix tree as well, so it discriminates
+    nothing about the repair and must never be cited as proof of it. It exists
+    to fail in future if someone rewrites the retry to build a command string
+    or to pass `shell=True`.
+
+    It also does NOT establish metacharacter safety. On Windows `subprocess`
+    flattens the list into one command line via `list2cmdline`, and `cmd.exe
+    /c` re-parses it. What is asserted here is only the SHAPE of the call --
+    a list, and shell=False. WINDOWS_METACHAR_SAFETY remains NOT_VERIFIED and
+    is owned by the native-Windows acceptance gate.
+    """
+    seen: dict[str, object] = {}
+
+    def fake_run(argv: object, **kwargs: object) -> object:
+        seen["argv"] = argv
+        seen["shell"] = kwargs.get("shell", False)
+        raise OSError("probe not executed; this test inspects the call only")
+
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setenv("COMSPEC", "C:\\Windows\\system32\\cmd.exe")
+    monkeypatch.setattr(
+        shutil, "which", lambda _name: "C:\\Program Files\\a & b\\codex.cmd"
+    )
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert CodexAdapter(executable="codex")._detect_version() is None
+
+    argv = seen["argv"]
+    assert isinstance(argv, list), "the probe must pass an argument LIST"
+    assert seen["shell"] is False, "the probe must never use shell=True"
+    assert "C:\\Program Files\\a & b\\codex.cmd" in argv, (
+        "the resolved path must reach the interpreter as ONE argument; a path "
+        "with a space and an ampersand is exactly what quoting bugs mangle"
+    )
+
+
+def test_installed_and_version_remain_separate_facts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A runtime whose version cannot be read is still INSTALLED.
+
+    The fix must not repair the version by making an unreadable one look
+    absent, nor by making a present runtime look missing.
+    """
+    _fake_runtime(tmp_path, "w1silent", "#!/bin/sh\nexit 0\n")
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+
+    adapter = CodexAdapter(executable="w1silent")
+    assert adapter._detect_version() is None
+    assert shutil.which("w1silent") is not None, (
+        "the runtime is still present on PATH; an unreadable version must not "
+        "be reported as an absent runtime"
+    )
+
+
+def test_a_genuinely_missing_runtime_is_still_classified_safely() -> None:
+    """Absence must stay absence, and must not raise."""
+    assert (
+        CodexAdapter(executable="w1-definitely-not-installed-xyz")._detect_version()
+        is None
+    )
