@@ -21,6 +21,7 @@ the test declining to look at one.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import resource
@@ -29,6 +30,7 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -77,7 +79,7 @@ from project_atlas.orchestration.program.reconciliation import (
     reconcile_one,
     reconcile_root,
 )
-from project_atlas.orchestration.program.recovery import Liveness
+from project_atlas.orchestration.program.recovery import Liveness, process_liveness
 from project_atlas.orchestration.program.resident import (
     DispatcherState,
     DispatcherStopReason,
@@ -85,12 +87,14 @@ from project_atlas.orchestration.program.resident import (
     dispatcher_status,
     read_heartbeat,
 )
-from project_atlas.orchestration.program.store import state_dir
+from project_atlas.orchestration.program.store import launches_dir, state_dir
 
 FIXTURE_WORKER = Path(__file__).with_name("_program_fixture_worker.py")
 FIXTURE_SESSION = Path(__file__).with_name("_continuation_fixture_session.py")
 READY_MARK = "FIXTURE_SESSION_READY"
 CLI = "project_atlas.orchestration.program.cli"
+#: The CLI's operational-error exit code (project_atlas.cli: 0 ok, 1 error, 2 usage).
+EXIT_ERROR_CODE = 1
 
 #: Every pid this module starts, so the cleanup proof can assert on the exact
 #: set rather than on a pattern. R-12: never kill by name, pattern or working
@@ -150,6 +154,7 @@ def _program_file(
     program_id: str = "continuation-program",
     name: str = "program.json",
     profiles: dict[str, dict[str, Any]] | None = None,
+    max_attempts_per_task: int = 3,
 ) -> Path:
     payload = {
         "schema_version": 1,
@@ -164,6 +169,7 @@ def _program_file(
                 "max_cycles": 20,
                 "idle_sleep_seconds": 0.0,
                 "max_concurrent_workers": 1,
+                "max_attempts_per_task": max_attempts_per_task,
             },
             "tasks": tasks,
         },
@@ -1935,6 +1941,401 @@ def test_a_projection_never_overwrites_an_unreadable_checkpoint(
     )
     assert written == (), "a projection must not overwrite an unusable record"
     assert path.read_bytes() == before
+
+
+# ============================ ATLAS-CONTINUITY-RELEASE-HANDOFF-001 gap closure
+#
+# Three properties the release handoff directive names explicitly, each of which
+# the first round tested only in HALVES. Written after mapping the fourteen
+# proofs onto the plan, which is what made the halves visible.
+
+
+def test_pause_survives_a_restart_and_still_withholds_an_ELIGIBLE_task(
+    tmp_path: Path,
+) -> None:
+    """Pause survives a restart AND withholds work that would otherwise run.
+
+    The first round tested both halves and neither together:
+    ``test_a_pause_record_survives_a_dispatcher_restart`` ran with an EMPTY
+    queue, so it could show the record survived but not that it withheld
+    anything, and the withholding test never restarted. A pause that survived
+    as a file while quietly ceasing to block would have passed both.
+
+    The eligibility is PROVEN rather than assumed, and that is the part that
+    matters: `0 launches` is the same observation whether pause caused it or
+    whether the work was never dispatchable. So the same dispatcher instance
+    that reported PAUSED is made to launch the moment pause is cleared, with
+    nothing else changed. ROLE_CONTENTION and RECONCILE_REQUIRED cannot be
+    hiding here, because either would still be present after the clear.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(
+        tmp_path, workspace, tasks=[_task("pr-one"), _task("pr-two")]
+    )
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    approved_queue.admit(
+        queue_root,
+        program_path=program,
+        program_id="continuation-program",
+        state_root=state_root,
+        admitted_by="fixture-operator",
+        reference="pause across restart",
+    )
+
+    resident.request_pause(state_root, requested_by="operator:test")
+
+    first = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    paused = first.tick()
+    assert paused.state is DispatcherState.PAUSED
+    assert paused.launched == 0
+
+    # RESTART: a brand-new dispatcher object with its own session id, which is
+    # what `clear_signals` runs against.
+    second = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    assert second.session_id != first.session_id
+    reason = second.run(max_ticks=2)
+    assert reason is not DispatcherStopReason.OPERATOR_STOP
+    assert second._launches == 0, "a restarted dispatcher must still honour pause"
+    assert resident.pause_requested(state_root) is not None
+
+    # The work was eligible the whole time: the entry never left a runnable
+    # status, so nothing but pause was withholding it.
+    entry = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    assert entry.status in approved_queue.RUNNABLE_STATUSES, entry.status
+    assert entry.runs == 0, "pause must withhold before the program is ever run"
+    assert not (workspace / "pr-one.txt").exists()
+
+    # THE DISCRIMINATOR: clear pause, change nothing else, and the SAME
+    # restarted dispatcher launches. That is what makes the zero above
+    # attributable to pause rather than to contention or ineligibility.
+    assert resident.clear_pause(state_root) is True
+    ran = second.tick()
+    assert ran.report is not None
+    assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert ran.launched == 2, ran.notes
+    for name in ("pr-one.txt", "pr-two.txt"):
+        assert (workspace / name).read_text(encoding="utf-8").count("\n") == 1
+
+
+def test_process_ownership_and_cleanup_on_the_REAL_dispatch_route(
+    tmp_path: Path,
+) -> None:
+    """Ownership and cleanup on dispatcher -> supervisor -> adapter -> worker.
+
+    The first round proved the identity rules against a helper this test file
+    spawned itself. That establishes the rules and not the route: the pids that
+    matter in production are the ones the ADAPTER records at spawn, through a
+    code path the earlier test never entered.
+
+    Everything below is read from durable records the real route wrote.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(
+        tmp_path, workspace, tasks=[_task("own-a"), _task("own-b", depends_on=["own-a"])]
+    )
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    approved_queue.admit(
+        queue_root,
+        program_path=program,
+        program_id="continuation-program",
+        state_root=state_root,
+        admitted_by="fixture-operator",
+        reference="real route cleanup",
+    )
+    before = _child_pids()
+
+    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    ran = dispatcher.tick()
+    assert ran.report is not None
+    assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert ran.launched == 2
+
+    state = _load_state(state_root)
+    attempts = [a for a in state.attempts.values() if a.task_id in {"own-a", "own-b"}]
+    assert len(attempts) == 2, sorted(state.attempts)
+
+    for attempt in attempts:
+        # The pid and its start identity travel together, on the real route.
+        assert attempt.process_pid is not None, attempt.attempt_id
+        assert attempt.process_start_identity, attempt.attempt_id
+        assert attempt.process_start_identity != "unknown"
+        # And each recorded worker is demonstrably finished -- established by
+        # the identity pair, not by a timeout and not by a name match.
+        liveness, why = process_liveness(
+            attempt.process_pid, attempt.process_start_identity
+        )
+        assert liveness is Liveness.GONE, (attempt.attempt_id, liveness, why)
+
+    # The adapter's in-flight records are cleared, so no later reader can be
+    # handed a pid the operating system is free to reuse.
+    leftover = sorted(p.name for p in launches_dir(state_root).glob("*.json"))
+    assert leftover == [], leftover
+
+    # No process this test caused is still running. Compared as a SET of pids
+    # this process owns, never by pattern, name or working directory (R-12).
+    after = _child_pids()
+    assert after - before == set(), sorted(after - before)
+
+
+def test_a_real_dispatcher_run_records_a_LIVE_task_not_only_completed_ones(
+    tmp_path: Path,
+) -> None:
+    """The layer is fed with tasks that did NOT finish, which is the hard case.
+
+    The first round showed a dispatcher run producing envelopes and checkpoints
+    for tasks that all reached CERTIFIED. Every disposition was
+    ALREADY_COMPLETE, so the capsule proved the plumbing and nothing about the
+    state a replacement session actually needs to act on.
+
+    Here task ``live-a`` runs a worker that CLAIMS success and changes nothing,
+    so acceptance fails against what the supervisor observes locally, and
+    ``live-b`` depends on it and therefore never becomes eligible. The capsule
+    must show both, must not call either complete, and must give a next action
+    for each.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(
+        tmp_path,
+        workspace,
+        tasks=[_task("live-a"), _task("live-b", depends_on=["live-a"])],
+        max_attempts_per_task=1,
+    )
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    approved_queue.admit(
+        queue_root,
+        program_path=program,
+        program_id="continuation-program",
+        state_root=state_root,
+        admitted_by="fixture-operator",
+        reference="live task",
+    )
+
+    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    with _fixture_mode("claim-only"):
+        ran = dispatcher.tick()
+    assert ran.report is not None
+    assert ran.report.stop_reason is not ProgramStopReason.PROGRAM_COMPLETE
+    assert ran.launched >= 1, "the worker must really have run"
+
+    # A worker's confident claim is not acceptance: nothing was written.
+    assert not (workspace / "live-a.txt").exists()
+
+    capsule = build_capsule(
+        state_root, for_worker_id="agent-one", queue_root=queue_root
+    )
+    by_id = {t.task_id: t for t in capsule.tasks}
+    assert sorted(by_id) == ["live-a", "live-b"], sorted(by_id)
+
+    for task in capsule.tasks:
+        assert task.disposition is not Disposition.ALREADY_COMPLETE, task.task_id
+        assert task.replay_class != ReplayClass.COMPLETED.value, task.task_id
+        assert task.next_action, task.task_id
+
+    # live-b never ran and must not be presented as if it had.
+    assert by_id["live-b"].last_completed_step is None
+    checkpoint_b = load_checkpoint(state_root, "live-b")
+    assert checkpoint_b is not None
+    assert checkpoint_b.terminal is False
+    assert checkpoint_b.consumed_budget.launches == 0
+
+    rendered = render_capsule(capsule)
+    assert "live-a" in rendered and "live-b" in rendered
+    assert "do not replay it" not in rendered
+
+
+# ---------------------------------------------------------- new helpers
+
+
+def _child_pids() -> set[int]:
+    """Pids whose parent is THIS process, read from /proc.
+
+    A set of pids we own, never a name or a command-line pattern. R-12 in this
+    program exists because a pattern kill once took out a peer session's
+    process, and a pattern *check* has the matching failure: it reports
+    strangers as ours.
+    """
+    me = os.getpid()
+    found: set[int] = set()
+    proc = Path("/proc")
+    if not proc.is_dir():  # pragma: no cover - POSIX-only, as is this test file
+        return found
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            status = (entry / "status").read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for line in status.splitlines():
+            if line.startswith("PPid:"):
+                if int(line.split()[1]) == me:
+                    found.add(int(entry.name))
+                break
+    return found
+
+
+@contextlib.contextmanager
+def _fixture_mode(mode: str) -> Iterator[None]:
+    """Run the fixture worker in one of its declared modes."""
+    previous = os.environ.get("ATLAS_FIXTURE_MODE")
+    os.environ["ATLAS_FIXTURE_MODE"] = mode
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("ATLAS_FIXTURE_MODE", None)
+        else:
+            os.environ["ATLAS_FIXTURE_MODE"] = previous
+
+
+# ================== findings from independent verification (Agent 9)
+
+
+def test_a_capsule_spans_every_admitted_programs_state_root(tmp_path: Path) -> None:
+    """IV finding F1: the capsule must not report emptiness that is a wrong lookup.
+
+    The dispatcher publishes its heartbeat under its OWN root -- the one on the
+    command line -- while each admitted program keeps its task records under the
+    state root in its queue entry. Those are allowed to differ and by design do
+    whenever one dispatcher serves several programs.
+
+    Reading only the dispatcher's root meant a healthy, completed program
+    produced a capsule saying "no task envelopes recorded under this state
+    root". An independent verifier hit it on a real run and nearly filed a FAIL
+    against their own configuration twice before reading the source. The capsule
+    is the ONLY surface a replacement session has; an absence it reports must be
+    a real absence.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("split-one")])
+    dispatcher_root = tmp_path / "dispatcher-root"
+    program_state = tmp_path / "program-state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+
+    # The split: admitted against one root, dispatcher run against another.
+    approved_queue.admit(
+        queue_root,
+        program_path=program,
+        program_id="continuation-program",
+        state_root=program_state,
+        admitted_by="fixture-operator",
+        reference="F1",
+    )
+    dispatcher = _dispatcher(dispatcher_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    ran = dispatcher.tick()
+    assert ran.report is not None
+    assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert ran.launched == 1
+
+    # The records really are in the other root -- this is the split, not a fiction.
+    assert list_envelopes(program_state), "the program keeps its own records"
+    assert list_envelopes(dispatcher_root) == ()
+
+    capsule = build_capsule(
+        dispatcher_root, for_worker_id="agent-one", queue_root=queue_root
+    )
+    # ONE capsule carries both halves: the dispatcher's health AND the tasks.
+    assert capsule.dispatcher, "the heartbeat lives under the dispatcher root"
+    assert [t.task_id for t in capsule.tasks] == ["split-one"]
+    assert capsule.tasks[0].state_root == str(program_state.resolve())
+    assert str(program_state.resolve()) in capsule.state_roots_scanned
+    assert capsule.root_split_note, "a split must be stated, not inferred"
+
+    rendered = render_capsule(capsule)
+    assert "no task envelopes recorded" not in rendered
+    assert "split-one" in rendered
+    assert "records in:" in rendered
+    assert str(program_state.resolve()) in rendered
+
+
+def test_an_empty_capsule_says_which_roots_it_actually_looked_in(
+    tmp_path: Path,
+) -> None:
+    """The other half of F1: a genuine emptiness must still name its scope.
+
+    "Nothing to resume" and "you pointed me at the wrong root" read identically
+    unless the capsule says where it looked. Without a --queue-root it has only
+    one root to offer, and it must say so rather than implying it searched.
+    """
+    root = tmp_path / "state"
+    capsule = build_capsule(root, for_worker_id="nobody")
+    assert capsule.tasks == ()
+    assert capsule.state_roots_scanned == (str(root.resolve()),)
+    assert "re-run with --queue-root" in capsule.root_split_note
+    rendered = render_capsule(capsule)
+    assert "no task records found in 1 scanned root(s)" in rendered
+    assert str(root.resolve()) in rendered
+
+
+def test_an_unreadable_queue_is_distinguishable_from_an_empty_one_AT_THE_CLI(
+    tmp_path: Path,
+) -> None:
+    """IV finding F2: fail closed is not enough; it must fail DISTINGUISHABLY.
+
+    The in-process test above already asserted the tick reports
+    WAITING_ON_WORK with a note. That was true and invisible: the CLI `run`
+    payload carried neither, so from the operator's surface a corrupt manifest
+    and an empty queue both showed exit 0, zero launches and no error. The
+    verifier compared the two outputs and could not tell them apart.
+
+    Three independent signals now separate them, and all three are asserted
+    because any one of them could be dropped by a refactor.
+    """
+    corrupt_state = tmp_path / "corrupt-state"
+    corrupt_queue = tmp_path / "corrupt-queue"
+    corrupt_queue.mkdir()
+    approved_queue.queue_path(corrupt_queue).write_text("{not json", encoding="utf-8")
+
+    empty_state = tmp_path / "empty-state"
+    empty_queue = tmp_path / "empty-queue"
+    empty_queue.mkdir()
+
+    def _run(state: Path, queue: Path) -> tuple[dict[str, Any], int]:
+        completed = subprocess.run(
+            [
+                sys.executable, "-m", CLI, "program", "dispatcher",
+                "--state-root", str(state), "--queue-root", str(queue),
+                "--action", "run", "--max-ticks", "1", "--tick-seconds", "1",
+            ],
+            capture_output=True, text=True, timeout=120, check=False,
+        )
+        return json.loads(completed.stdout), completed.returncode
+
+    corrupt, corrupt_rc = _run(corrupt_state, corrupt_queue)
+    empty, empty_rc = _run(empty_state, empty_queue)
+
+    # Both fail closed: nothing dispatched either way.
+    assert corrupt["launches"] == 0 and empty["launches"] == 0
+    assert corrupt["programs_started"] == 0 and empty["programs_started"] == 0
+
+    # 1. queue_status
+    assert corrupt["queue_status"] == "UNREADABLE"
+    assert empty["queue_status"] == "READABLE"
+    # 2. a machine-readable code and an error naming the path and the parse fault
+    assert corrupt["code"] == "QUEUE_UNREADABLE"
+    assert "unreadable" in corrupt["error"]
+    assert str(approved_queue.queue_path(corrupt_queue)) in corrupt["error"]
+    assert "code" not in empty and "error" not in empty
+    # 3. process exit status
+    assert corrupt_rc == EXIT_ERROR_CODE, corrupt_rc
+    assert empty_rc == 0, empty_rc
+
+    # And the heartbeat carries it too, for a reader who arrives later.
+    beat = read_heartbeat(corrupt_state)
+    assert beat is not None
+    assert beat.queue_status == "UNREADABLE"
+    assert beat.queue_error
 
 
 # ---------------------------------------------------------------- helpers

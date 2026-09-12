@@ -134,6 +134,24 @@
       "title": "Programs Started",
       "type": "integer"
     },
+    "queue_error": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Queue Error"
+    },
+    "queue_status": {
+      "default": "UNKNOWN",
+      "title": "Queue Status",
+      "type": "string"
+    },
     "revision_head": {
       "default": "",
       "maxLength": 64,

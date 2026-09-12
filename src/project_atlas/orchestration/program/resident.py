@@ -187,6 +187,13 @@ class Heartbeat(BaseModel):
     pause_requested_by: str | None = None
     current_program_id: str | None = None
     last_program_stop_reason: str | None = None
+    #: Whether the last tick could READ the approved-work queue, and why not.
+    #: Published because "the queue is empty" and "the queue could not be read"
+    #: are different facts that otherwise present identically from outside: an
+    #: idle dispatcher and a dispatcher staring at a corrupt manifest both show
+    #: zero launches. An independent verifier hit exactly that.
+    queue_status: str = "UNKNOWN"
+    queue_error: str | None = Field(default=None, max_length=1024)
     terminal_reason: DispatcherStopReason | None = None
     #: Cumulative, across this dispatcher process only.
     programs_started: int = Field(default=0, ge=0, le=1_000_000)
@@ -206,6 +213,9 @@ class TickResult:
     report: SupervisorReport | None = None
     launched: int = 0
     slept_seconds: float = 0.0
+    #: READABLE / UNREADABLE / UNKNOWN. Distinct from "nothing runnable".
+    queue_status: str = "UNKNOWN"
+    queue_error: str | None = None
     notes: list[str] = field(default_factory=list)
     decisions_raised: list[str] = field(default_factory=list)
 
@@ -382,6 +392,9 @@ class ResidentDispatcher:
         self._supervisor_factory = supervisor_factory
         self.session_id = new_session_id("dispatcher")
         self._ticks = 0
+        self._last_queue_status = "UNKNOWN"
+        self._last_queue_error: str | None = None
+        self._last_notes: list[str] = []
         self._programs_started = 0
         self._launches = 0
         self._started_at = utc_now()
@@ -406,6 +419,8 @@ class ResidentDispatcher:
         program_id: str | None = None,
         last_stop: str | None = None,
         terminal: DispatcherStopReason | None = None,
+        queue_status: str | None = None,
+        queue_error: str | None = None,
     ) -> Heartbeat:
         """Write the heartbeat. Atomic, so a reader never sees a torn one."""
         pause = pause_requested(self.root)
@@ -418,6 +433,9 @@ class ResidentDispatcher:
             str(pause.get("requested_by")) if pause is not None else None
         )
         beat.current_program_id = program_id
+        if queue_status is not None:
+            beat.queue_status = queue_status
+            beat.queue_error = queue_error
         if last_stop is not None:
             beat.last_program_stop_reason = last_stop
         beat.terminal_reason = terminal
@@ -465,20 +483,33 @@ class ResidentDispatcher:
             queue = load_queue(self.queue_root)
         except QueueError as exc:
             result.state = DispatcherState.WAITING_ON_WORK
+            result.queue_status = "UNREADABLE"
+            result.queue_error = str(exc)
             result.notes.append(f"queue unreadable, nothing dispatched: {exc}")
-            self.publish(state=DispatcherState.WAITING_ON_WORK)
+            self.publish(
+                state=DispatcherState.WAITING_ON_WORK,
+                queue_status="UNREADABLE",
+                queue_error=str(exc),
+            )
             return result
 
         entry, notes = self._select(queue)
         result.notes.extend(notes)
+        result.queue_status = "READABLE"
         if entry is None:
             result.state = DispatcherState.IDLE_EMPTY_QUEUE
-            self.publish(state=DispatcherState.IDLE_EMPTY_QUEUE)
+            self.publish(
+                state=DispatcherState.IDLE_EMPTY_QUEUE, queue_status="READABLE"
+            )
             return result
 
         result.program_id = entry.program_id
         result.state = DispatcherState.RUNNING_PROGRAM
-        self.publish(state=DispatcherState.RUNNING_PROGRAM, program_id=entry.program_id)
+        self.publish(
+            state=DispatcherState.RUNNING_PROGRAM,
+            program_id=entry.program_id,
+            queue_status="READABLE",
+        )
         report = self._run_entry(entry, result)
         result.report = report
         return result
@@ -822,6 +853,9 @@ class ResidentDispatcher:
         started = self._clock()
         reason = DispatcherStopReason.TICK_BUDGET_REACHED
         last_stop: str | None = None
+        self._last_queue_status = "UNKNOWN"
+        self._last_queue_error = None
+        self._last_notes = []
         try:
             while True:
                 if (dispatcher_dir(self.root) / STOP_NAME).is_file():
@@ -842,6 +876,11 @@ class ResidentDispatcher:
                 )
                 if result.report is not None:
                     last_stop = result.report.stop_reason.value
+                if result.queue_status != "UNKNOWN":
+                    self._last_queue_status = result.queue_status
+                    self._last_queue_error = result.queue_error
+                if result.notes:
+                    self._last_notes = list(result.notes)
                 if draining:
                     reason = DispatcherStopReason.OPERATOR_DRAIN
                     break
@@ -860,10 +899,16 @@ class ResidentDispatcher:
                 state=DispatcherState.STOPPED,
                 last_stop=last_stop,
                 terminal=DispatcherStopReason.FATAL_ERROR,
+                queue_status=self._last_queue_status,
+                queue_error=self._last_queue_error,
             )
             raise
         self.publish(
-            state=DispatcherState.STOPPED, last_stop=last_stop, terminal=reason
+            state=DispatcherState.STOPPED,
+            last_stop=last_stop,
+            terminal=reason,
+            queue_status=self._last_queue_status,
+            queue_error=self._last_queue_error,
         )
         return reason
 
@@ -911,6 +956,8 @@ def dispatcher_status(root: Path) -> dict[str, Any]:
         "heartbeat": beat.model_dump(mode="json"),
         "alive": alive,
         "detail": detail,
+        "queue_status": beat.queue_status,
+        "queue_error": beat.queue_error,
         "paused": pause_requested(root) is not None,
         "program_paused": bool(state.paused) if state is not None else None,
         "model_backed_dispatch": "DISABLED",

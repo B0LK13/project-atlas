@@ -56,6 +56,66 @@ reuses the package's existing cross-platform identity helpers, but every test
 here ran on Linux. `resource.getrusage` in the idle-waiting test is POSIX-only
 and that test would need a different oracle on Windows.
 
+## Corrected after independent verification
+
+Two defects found by an independent verifier (Agent 9,
+`session_018dYPZn6KzN79PQhZWS1JS9`) running this as an operator rather than as
+a test suite. Both are fixed and both now have a test that a mutation kills.
+
+**F1 — the state root split.** The dispatcher publishes its heartbeat under its
+own root (the `--state-root` flag) while each admitted program keeps its task
+records under the root in its queue entry. Those differ by design whenever one
+dispatcher serves several programs. `build_capsule` read only the dispatcher's
+root, so a healthy, completed program produced a capsule saying *"no task
+envelopes recorded under this state root"* — and a replacement session reading
+that would reasonably conclude there was nothing to resume. This is the same
+silent-emptiness failure the layer is supposed to prevent, in the one surface
+that matters most. The capsule now scans every admitted program's state root,
+records which root each task came from, and states the split explicitly. An
+empty capsule now names the roots it actually looked in.
+
+**F2 — a corrupt queue failed closed but not distinguishably.** `queue --action
+list` reported `QUEUE_UNREADABLE` correctly, but `dispatcher --action run`
+returned exit 0, zero launches and no error, so an operator could not tell an
+unreadable manifest from an empty queue. The in-process test asserted the tick's
+state and notes, which were correct and *invisible* — the CLI payload carried
+neither. Now three independent signals separate them: `queue_status`
+`UNREADABLE` vs `READABLE`, a `QUEUE_UNREADABLE` code with the path and parse
+error, and process exit status 1 vs 0. The heartbeat carries it too, for a
+reader who arrives later.
+
+The lesson recorded, because it recurs: a test can assert a true thing about a
+surface the operator never sees.
+
+## Coverage gaps closed in the release-handoff round
+
+Mapping the fourteen proofs onto the plan showed three properties tested only in
+**halves**, where the halves do not compose:
+
+* **pause** survived a restart in a test with an *empty queue* (so it could not
+  show withholding) and withheld work in a test that never restarted. A pause
+  that survived as a file while ceasing to block would have passed both. Now
+  tested together, with eligibility proven by making the same restarted
+  dispatcher launch the instant pause is cleared — so `ROLE_CONTENTION` and
+  `RECONCILE_REQUIRED` cannot be the hidden cause.
+* **cleanup** was proven against a helper the test file spawned itself, not
+  against the dispatcher → supervisor → adapter route where the pids actually
+  come from. Now proven on that route, from the records the adapter wrote.
+* **the dispatcher feeding the layer** was only ever shown with tasks that all
+  reached `CERTIFIED`, so every disposition was `ALREADY_COMPLETE`. Now shown
+  with a task whose acceptance fails and a dependant that never becomes
+  eligible.
+
+### Still open: G4
+
+Plan §2 lists *changed files*, *commands and observed results* and *artifacts
+and hashes* as checkpoint contents. The model carries all three and the schema
+validates them, but the dispatcher's **boundary projection leaves them empty**,
+because it writes at program boundaries and does not observe a worker's diff. A
+task that writes its own step checkpoints can populate them. A capsule from a
+dispatcher-run program therefore shows `artifacts: []` — honest, but less than
+the plan asks for.
+
 ## Open risks carried in from the program
 
 * **R-12 open.** Cleanup by process identity in a shared session. This layer

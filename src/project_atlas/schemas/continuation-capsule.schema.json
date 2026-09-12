@@ -125,6 +125,10 @@
           "default": null,
           "title": "Resume Step"
         },
+        "state_root": {
+          "title": "State Root",
+          "type": "string"
+        },
         "task_id": {
           "title": "Task Id",
           "type": "string"
@@ -145,6 +149,7 @@
       },
       "required": [
         "task_id",
+        "state_root",
         "disposition",
         "replay_class",
         "reason",
@@ -220,6 +225,11 @@
       "title": "Queue",
       "type": "object"
     },
+    "root_split_note": {
+      "default": "",
+      "title": "Root Split Note",
+      "type": "string"
+    },
     "schema_version": {
       "const": 1,
       "default": 1,
@@ -229,6 +239,14 @@
     "state_root": {
       "title": "State Root",
       "type": "string"
+    },
+    "state_roots_scanned": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "State Roots Scanned",
+      "type": "array"
     },
     "tasks": {
       "default": [],

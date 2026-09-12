@@ -225,15 +225,34 @@ def cmd_dispatcher(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             max_seconds=args.max_seconds,
             exit_when_drained=bool(args.exit_when_drained),
         )
-        return {
+        status = dispatcher_status(root)
+        queue_status = str(status.get("queue_status") or "UNKNOWN")
+        payload: dict[str, Any] = {
             "terminal_reason": reason.value,
             "ticks": dispatcher._ticks,
             "programs_started": dispatcher._programs_started,
             "launches": dispatcher._launches,
+            # READABLE / UNREADABLE / UNKNOWN. Surfaced at the TOP level, not
+            # only inside the heartbeat, because zero launches means something
+            # different under each and an operator reading this output was
+            # previously unable to tell them apart.
+            "queue_status": queue_status,
+            "queue_error": status.get("queue_error"),
+            "notes": dispatcher._last_notes,
             "model_calls": 0,
             "model_backed_dispatch": "DISABLED",
-            "status": dispatcher_status(root),
-        }, EXIT_OK
+            "status": status,
+        }
+        if queue_status == "UNREADABLE":
+            # A refusal, in the same shape every other refusal in this CLI uses,
+            # so a script branching on `code` sees it without special-casing.
+            payload["code"] = "QUEUE_UNREADABLE"
+            payload["error"] = (
+                "the approved-work queue could not be read, so nothing was "
+                f"dispatched: {status.get('queue_error')}"
+            )
+            return payload, EXIT_ERROR
+        return payload, EXIT_OK
     return {"error": f"unknown dispatcher action {action}"}, EXIT_USAGE
 
 

@@ -75,6 +75,10 @@ class CapsuleTask(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     task_id: str
+    #: Which state root this task's envelope and checkpoint were read from.
+    #: Present because a dispatcher's own root and a program's root can differ,
+    #: and a reader that cannot see which is which cannot find the records.
+    state_root: str
     disposition: Disposition
     replay_class: str
     reason: str
@@ -112,6 +116,15 @@ class ContinuationCapsule(BaseModel):
     dispatcher: dict[str, Any] = Field(default_factory=dict)
     queue: dict[str, Any] = Field(default_factory=dict)
     tasks: tuple[CapsuleTask, ...] = ()
+    #: Every state root this capsule actually looked in, in scan order. A
+    #: reader can tell "there is nothing to resume" from "you did not point me
+    #: at the root the work is in" only if this is visible.
+    state_roots_scanned: tuple[str, ...] = ()
+    #: Set when the dispatcher's own root holds no task records but an admitted
+    #: program keeps its records elsewhere. Silence here was a real defect: a
+    #: replacement session read "no task envelopes recorded" off a perfectly
+    #: healthy program and concluded there was nothing to do.
+    root_split_note: str = ""
     open_decisions: tuple[dict[str, Any], ...] = ()
     #: Set when any list was shortened to fit. Never silent.
     truncated: bool = False
@@ -126,6 +139,7 @@ class _TaskView:
     envelope: TaskEnvelope
     checkpoint: ContinuationCheckpoint | None
     verdict: ReconciliationVerdict
+    state_root: Path
 
 
 def _budget_remaining(
@@ -192,6 +206,37 @@ def _next_action(view: _TaskView) -> str:
     return f"Start task {view.envelope.task_id}{first}."
 
 
+def _scan_roots(root: Path, queue_root: Path | None) -> tuple[Path, ...]:
+    """Every state root a capsule for this dispatcher must look in.
+
+    The dispatcher publishes its heartbeat under its OWN root -- the one given
+    on the command line -- while each admitted program keeps its task records
+    under the state root recorded in its queue entry. Those are allowed to
+    differ, and by design do whenever one dispatcher serves several programs.
+
+    Reading only the dispatcher's root was a real defect, found by an
+    independent verifier running this as an operator rather than as a test: a
+    healthy, completed program produced a capsule saying "no task envelopes
+    recorded under this state root", and a replacement session reading it would
+    reasonably conclude there was nothing to resume. The capsule is the one
+    surface a replacement session has; it must not be able to report emptiness
+    that is really a lookup in the wrong place.
+    """
+    roots: list[Path] = [root.resolve()]
+    if queue_root is None:
+        return tuple(roots)
+    try:
+        queue = load_queue(queue_root)
+    except Exception:
+        # An unreadable queue does not get to hide the dispatcher's own root.
+        return tuple(roots)
+    for entry in sorted(queue.entries.values(), key=lambda e: e.program_id):
+        candidate = Path(entry.state_root).resolve()
+        if candidate not in roots:
+            roots.append(candidate)
+    return tuple(roots)
+
+
 def build_capsule(
     root: Path,
     *,
@@ -199,34 +244,50 @@ def build_capsule(
     queue_root: Path | None = None,
 ) -> ContinuationCapsule:
     """Generate a capsule from durable state. Reads no conversation."""
+    scan_roots = _scan_roots(root, queue_root)
     views: list[_TaskView] = []
-    for envelope in list_envelopes(root):
-        try:
-            checkpoint = load_checkpoint(root, envelope.task_id)
-        except Exception as exc:
-            # A task whose state cannot be read must still appear in the
-            # capsule. Omitting it would make the capsule's task list a
-            # statement that the task does not exist.
+    seen: set[str] = set()
+    for scan_root in scan_roots:
+        for envelope in list_envelopes(scan_root):
+            if envelope.task_id in seen:
+                # One task, one view. A duplicate id across two roots is two
+                # different records for one unit of work; the first root in
+                # scan order wins and the situation is visible in
+                # state_roots_scanned rather than silently merged.
+                continue
+            seen.add(envelope.task_id)
+            try:
+                checkpoint = load_checkpoint(scan_root, envelope.task_id)
+            except Exception as exc:
+                # A task whose state cannot be read must still appear in the
+                # capsule. Omitting it would make the capsule's task list a
+                # statement that the task does not exist.
+                views.append(
+                    _TaskView(
+                        envelope=envelope,
+                        checkpoint=None,
+                        verdict=ReconciliationVerdict(
+                            task_id=envelope.task_id,
+                            disposition=Disposition.FAIL_CLOSED,
+                            replay_class=envelope.replay_class,
+                            reason=f"durable state is unusable: {exc}",
+                            evidence=(type(exc).__name__,),
+                        ),
+                        state_root=scan_root,
+                    )
+                )
+                continue
+            verdict = reconcile_task(
+                envelope=envelope, checkpoint=checkpoint, our_worker_id=for_worker_id
+            )
             views.append(
                 _TaskView(
                     envelope=envelope,
-                    checkpoint=None,
-                    verdict=ReconciliationVerdict(
-                        task_id=envelope.task_id,
-                        disposition=Disposition.FAIL_CLOSED,
-                        replay_class=envelope.replay_class,
-                        reason=f"durable state is unusable: {exc}",
-                        evidence=(type(exc).__name__,),
-                    ),
+                    checkpoint=checkpoint,
+                    verdict=verdict,
+                    state_root=scan_root,
                 )
             )
-            continue
-        verdict = reconcile_task(
-            envelope=envelope, checkpoint=checkpoint, our_worker_id=for_worker_id
-        )
-        views.append(
-            _TaskView(envelope=envelope, checkpoint=checkpoint, verdict=verdict)
-        )
 
     truncated = False
     if len(views) > _MAX_TASKS:
@@ -257,6 +318,7 @@ def build_capsule(
         tasks.append(
             CapsuleTask(
                 task_id=view.envelope.task_id,
+                state_root=str(view.state_root),
                 disposition=view.verdict.disposition,
                 replay_class=view.verdict.replay_class.value,
                 reason=view.verdict.reason,
@@ -281,7 +343,14 @@ def build_capsule(
             )
         )
 
-    decisions = list_decisions(root, status=DecisionStatus.OPEN)
+    # Decisions live beside the tasks they are about, so they are gathered
+    # from every scanned root for the same reason the tasks are.
+    decisions_all: list[Any] = []
+    for scan_root in scan_roots:
+        decisions_all.extend(list_decisions(scan_root, status=DecisionStatus.OPEN))
+    decisions = tuple(
+        sorted(decisions_all, key=lambda d: (d.task_id, d.decision_id))
+    )
     if len(decisions) > _MAX_DECISIONS:
         truncated = True
     open_decisions = tuple(
@@ -330,12 +399,36 @@ def build_capsule(
             },
         }
 
+    own_root = root.resolve()
+    elsewhere = sorted(
+        {t.state_root for t in tasks if Path(t.state_root) != own_root}
+    )
+    split_note = ""
+    if elsewhere:
+        split_note = (
+            "Task records for this dispatcher do not all live under its own "
+            f"state root ({own_root}). They were also read from: "
+            + ", ".join(elsewhere)
+            + ". This is normal when one dispatcher serves programs that keep "
+            "their own state; it is recorded so a reader never mistakes a "
+            "lookup in the wrong root for an absence of work."
+        )
+    elif queue_root is None and not tasks and len(scan_roots) == 1:
+        split_note = (
+            "No task records under this root, and no --queue-root was given, so "
+            "no other root was looked in. If an admitted program keeps its "
+            "state elsewhere, re-run with --queue-root before concluding there "
+            "is nothing to resume."
+        )
+
     return ContinuationCapsule(
         state_root=str(root),
         for_worker_id=for_worker_id,
         dispatcher=dispatcher,
         queue=queue_view,
         tasks=tuple(tasks),
+        state_roots_scanned=tuple(str(r) for r in scan_roots),
+        root_split_note=split_note,
         open_decisions=open_decisions,
         truncated=truncated,
         truncation_note=(
@@ -389,9 +482,24 @@ def render_capsule(capsule: ContinuationCapsule) -> str:
             "",
         ]
 
+    if len(capsule.state_roots_scanned) > 1:
+        lines += [
+            "## State roots scanned",
+            *(f"  {r}" for r in capsule.state_roots_scanned),
+            "",
+        ]
+
     lines.append("## Tasks")
     if not capsule.tasks:
-        lines.append("  no task envelopes recorded under this state root")
+        # Never a bare "nothing here". An empty task list and a lookup in the
+        # wrong root read identically to a replacement session, and that
+        # ambiguity already cost one verifier two runs.
+        lines.append(
+            f"  no task records found in {len(capsule.state_roots_scanned)} "
+            f"scanned root(s): {', '.join(capsule.state_roots_scanned)}"
+        )
+        if capsule.root_split_note:
+            lines.append(f"  NOTE: {capsule.root_split_note}")
     for task in capsule.tasks:
         lines += [
             f"  [{task.disposition.value}] {task.task_id}  "
@@ -409,6 +517,8 @@ def render_capsule(capsule: ContinuationCapsule) -> str:
             f"allowed={list(task.allowed_paths)} "
             f"forbidden={list(task.forbidden_paths)}"
         )
+        if len(capsule.state_roots_scanned) > 1:
+            lines.append(f"    records in: {task.state_root}")
         if task.forbidden_actions:
             lines.append(f"    forbidden_actions: {list(task.forbidden_actions)}")
         lines.append(f"    budget_left: {task.budget_remaining}")
@@ -433,6 +543,8 @@ def render_capsule(capsule: ContinuationCapsule) -> str:
             f"    a: {decision['requested_action']}",
         ]
     lines.append("")
+    if capsule.root_split_note and capsule.tasks:
+        lines += [f"NOTE: {capsule.root_split_note}", ""]
     if capsule.truncated:
         lines.append(f"{_TRUNCATION_MARK}: {capsule.truncation_note}")
     lines.append(f"TRUTH_BOUNDARY: {capsule.truth_boundary}")
