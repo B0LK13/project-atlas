@@ -14791,3 +14791,127 @@ beyond CI -- junctions, ACL-denied components and case-insensitive filesystems
 are untested.
 
 Evidence: `docs/evidence/AS-OBSIDIAN-CAPTURE-001-F11-MKDIR-BOUNDARY.md`.
+
+## AS-OBSIDIAN-CAPTURE-001-F12 -- the committed instruments must actually run
+
+Three evidence instruments live under `docs/scripts/`, each committed for the
+same stated reason: an instrument *described* is not an instrument *available*,
+and a seal citing measurements no clean checkout can reproduce is citing nothing.
+
+Measured on `a7adce4e`: **none of the three is referenced by any test or CI
+file.** `pyproject.toml` sets `testpaths = ["tests"]` so pytest never collects
+them, and ruff's `include` covers only `src/**/*.py` and `tests/**/*.py`, so
+`ruff check .` does not lint them either. They can be renamed, broken by a
+refactor, or silently invalidated with nothing noticing -- the same failure the
+seals were meant to close, one level up.
+
+Scope differs per instrument because their contracts differ.
+`f9_diagnostic_parity.py` has a decidable pass/fail contract and touches nothing,
+so it is **executed** and its result asserted. `f8_near_miss_controls.py`
+rewrites source files and restores them in a `finally`, so it is import- and
+interface-checked only -- rot is caught, destruction is not risked.
+`seal_retracted_claim_sweep.py` over-reports by design and needs a human to
+classify its hits, so a pass/fail on its exit code would be wrong.
+
+**This package took five revisions of one guard, and four of them were defeated
+by verification on the round after I called them complete.** That history is the
+substance, not an aside:
+
+    revision  guard keys on          what defeated it
+    1         a source substring     the needle contained a space and the
+                                     haystack had them stripped -- it could
+                                     never match. Of three execution paths, the
+                                     subprocess form -- the one that would
+                                     really run the mutating instrument --
+                                     passed UNDETECTED; the other two failed
+                                     only on an unrelated TypeError.
+    2         AST call sites         15 of 20 paths slipped past, including
+                                     `_load(_MUTATING).main()` using the
+                                     module's own constant, on the very line the
+                                     guard test writes.
+    3         a runtime fuse         the fix published its own bypass: the real
+                                     callable on `__wrapped__` (the STANDARD
+                                     unwrapping convention) and a second,
+                                     unfused loader added by the same commit.
+    4         the content hash       a same-named file with ONE BYTE edited
+                                     loaded unfused -- and a test of mine
+                                     asserted that behaviour, so the suite was
+                                     DEFENDING the gap while its control passed.
+    5         filename OR hash       -- the union, not a sixth replacement.
+
+The lesson generalises past this guard: **replacing the identity a guard keys on
+trades one hole for another.** Neither rule is a superset of the other --
+
+    candidate                      name only    hash only    union
+    other name, identical bytes    ESCAPES      blocked      blocked
+    same name, one byte edited     blocked      ESCAPES      blocked
+
+-- and each replacement felt like a strict improvement because it closed the case
+the reviewer had just named. Nobody re-measures the column that used to pass.
+
+Both halves are load-bearing: removing either fails a test. A false fuse costs
+nothing here, and the predicate has not collapsed to `True` -- unrelated code
+under a different name is still not fused, and `f9_diagnostic_parity.py`, the one
+instrument that genuinely executes, still runs to exit 0.
+
+The second layer is a static detector for primitives that bypass the loader
+entirely (`subprocess`, `runpy`, `os`, `importlib`, `asyncio`, `exec`/`eval`/
+`compile`), resolved through import aliases, module-name spellings, and any name
+EVER bound to something naming the script -- deliberately order- and scope-blind,
+erring toward flagging. It **fails closed**: an earlier revision capped the
+name-resolution fixpoint at 16 and returned whatever it had, so a long enough
+reverse-ordered chain produced an empty -- i.e. "clean" -- verdict with no error.
+
+**Two residues, both measured and neither closed.** A copy changing BOTH name and
+content matches neither half of the union and loads unfused; and the detector
+does not reach a path that both bypasses the loader and names the script through
+no resolvable constant. Nothing plausible produces either by accident, which is a
+different claim from saying they are absent. They are stated because four
+revisions of this guard were each defeated by a shape their author had not
+imagined, and because a table showing what each single rule missed reads as
+though the pair covers everything.
+
+**A stale `__pycache__` hazard, found by verification and reproduced here**: with
+a same-size, same-mtime edit the pyc header still matches and the loaded module
+executes OLD code while the file on disk says something else. Inert in CI, live
+in the local edit-test loop -- which is exactly where this lane runs its negative
+controls, and where a control has already been misled by a stale snapshot once.
+The loader drops cached bytecode first, pinned against a throwaway file with the
+hazard reproduced inside the same test so the assertion cannot pass for the wrong
+reason. `skipif` when bytecode writing is disabled, since the negative control
+cannot reproduce under `PYTHONDONTWRITEBYTECODE=1` or `python -B`.
+
+**Sixteen controls**, each mutation under an anchor assertion with the file
+restored byte-identical: baseline 19 passed; fuse removed 5 failed; fuse a no-op
+5 failed; fuse keyed on filename only 1 failed; fuse keyed on hash only 1 failed;
+`__wrapped__` republished 1 failed; detector stubbed 3 failed; detector blinded
+to the mutating script only 2 failed; name resolution removed 2 failed; fixpoint
+single-pass 2 failed; attr match in `mentions()` 1 failed; attr match in
+`names_used` 1 failed; fixpoint fails open 1 failed; alias resolution removed 1
+failed; module-name spelling removed 1 failed; detector flags everything 2
+failed; bytecode invalidation removed 1 failed; restored 19 passed. **Six of
+those rows passed at the revision before the one that added them** -- each is a
+hole that was live and green until verification found it.
+
+**Claims corrected under verification**: "one pass could not see it" was wrong (a
+single pass resolves forward chains; only reverse-ordered ones need iteration);
+"14 of 14 detected" had no derivable denominator (the corpus is 22, all 22
+detect); and the `CITED` comment claimed "only `main` appears at all" when four
+of ten attributes appear zero times and the other six appear only as prose --
+now stated WITH the method, since the prior round could not reproduce the bare
+figure and the missing method was exactly why.
+
+**What this does NOT do**: it does not verify the instruments are *correct*, only
+that they still load and, for the one with a decidable contract, still report
+what the record says. And `f9_diagnostic_parity.py` always passes
+`rendered=FRESH`, so it varies only the prior note and **cannot observe a
+rendered-side divergence at all** -- exactly the class F10 had to find with a
+two-sided sweep. Wiring it up catches rot and message-parity regressions; it does
+not make the parity claim broader than the corpus behind it.
+
+**A gap recorded rather than fixed**: `seal_retracted_claim_sweep.py` is cited by
+NO evidence record, backlog line or WORKLOG line anywhere in the repository. It
+was committed as reproducible evidence and nothing refers to it -- the same rot
+this package exists to catch, one level further out, and not in its scope.
+
+Evidence: the test module's own docstring, which carries the boundary statement.
