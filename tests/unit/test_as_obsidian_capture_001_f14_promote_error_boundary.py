@@ -42,6 +42,12 @@ import pytest
 
 from project_atlas.graph_projections import GraphProjectionError, _promote
 
+_SITE_REASONS: tuple[tuple[str, str], ...] = (
+    ("exists", "unstattable-note-target"),
+    ("read_bytes", "unreadable-note-target"),
+    ("write_bytes", "unwritable-note-stage"),
+)
+
 
 def _blocked(probe: Any) -> bool:
     """Did the fixture actually block? Measured, never assumed."""
@@ -52,28 +58,19 @@ def _blocked(probe: Any) -> bool:
     return False
 
 
-# ------------------------------------------------------- portable containment
-@pytest.mark.parametrize(
-    ("method", "reason"),
-    [
-        ("exists", "unstattable-note-target"),
-        ("read_bytes", "unreadable-note-target"),
-        ("write_bytes", "unwritable-note-stage"),
-    ],
-)
-def test_f14_an_oserror_from_each_site_is_contained(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, method: str, reason: str
-) -> None:
-    """Every site that can raise `OSError` reports the module's own type.
+def _residue(root: pathlib.Path) -> set[pathlib.Path]:
+    return {p for p in root.rglob("*") if ".atlas-stage" in p.name or ".atlas-backup" in p.name}
 
-    Forcing the error rather than provoking it keeps this runnable on every
-    platform, which is what stops the boundary from being covered only where
-    a permission trick happens to work.
+
+def _force_oserror(tmp_path: pathlib.Path, method: str) -> str:
+    """Raise a contained `GraphProjectionError` from one `_promote` site; return it.
+
+    Restores the patched ``Path`` method itself so the helper can be called
+    more than once in a test without stacking patches.
     """
     target = tmp_path / "n.md"
     if method == "read_bytes":
         target.write_bytes(b"prior")
-
     real = getattr(pathlib.Path, method)
 
     def boom(self: pathlib.Path, *a: Any, **k: Any) -> Any:
@@ -81,25 +78,95 @@ def test_f14_an_oserror_from_each_site_is_contained(
             raise PermissionError(13, "forced")
         return real(self, *a, **k)
 
-    monkeypatch.setattr(pathlib.Path, method, boom)
-    with pytest.raises(GraphProjectionError) as caught:
-        _promote({target: b"fresh"})
-    assert str(caught.value).startswith(reason), str(caught.value)
+    setattr(pathlib.Path, method, boom)
+    try:
+        with pytest.raises(GraphProjectionError) as caught:
+            _promote({target: b"fresh"})
+        return str(caught.value)
+    finally:
+        setattr(pathlib.Path, method, real)
 
 
-def test_f14_the_three_reasons_are_distinct() -> None:
-    """Collapsing them into one reason would lose actionable information.
+# ------------------------------------------------------- portable containment
+@pytest.mark.parametrize(("method", "reason"), _SITE_REASONS)
+def test_f14_an_oserror_from_each_site_is_contained(
+    tmp_path: pathlib.Path, method: str, reason: str
+) -> None:
+    """Every site that can raise `OSError` reports the module's own type.
 
-    An unstattable path, an unreadable existing note and an unwritable staging
-    file are three different things to go and fix. This module already treats
-    "the operator can act on the difference" as the rule for its diagnostics.
+    Forcing the error rather than provoking it keeps this runnable on every
+    platform, which is what stops the boundary from being covered only where
+    a permission trick happens to work.
     """
-    reasons = {
-        "unstattable-note-target",
-        "unreadable-note-target",
-        "unwritable-note-stage",
-    }
-    assert len(reasons) == 3
+    message = _force_oserror(tmp_path, method)
+    assert message.startswith(reason), message
+
+
+def test_f14_the_three_reasons_are_distinct(tmp_path: pathlib.Path) -> None:
+    """Distinctness is measured from live `_promote` errors, not a set literal.
+
+    A prior revision asserted ``len({"a","b","c"}) == 3``. That cannot fail
+    when all three sites emit the same prefix. Each site is provoked here and
+    the prefixes must be pairwise distinct.
+    """
+    prefixes: list[str] = []
+    for method, expected in _SITE_REASONS:
+        site = tmp_path / method
+        site.mkdir()
+        message = _force_oserror(site, method)
+        prefix = message.split(":", 1)[0]
+        assert prefix == expected, message
+        prefixes.append(prefix)
+    assert len(set(prefixes)) == 3, prefixes
+
+
+def test_f14_had_original_does_not_re_stat(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second ``exists()`` after staging was a fourth raw-``OSError`` leak.
+
+    Independent verification of #757 found ``had_original=path.exists()``
+    unguarded. ``had_original`` is now the ``is_file()`` result already
+    captured inside the guarded read. A second ``exists()`` that raises must
+    not be required for a successful promote of an existing file.
+    """
+    target = tmp_path / "n.md"
+    target.write_bytes(b"prior")
+    real = pathlib.Path.exists
+    calls = {"n": 0}
+
+    def once_then_boom(self: pathlib.Path, *a: Any, **k: Any) -> Any:
+        if self.name != "n.md":
+            return real(self, *a, **k)
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise PermissionError(13, "second exists")
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(pathlib.Path, "exists", once_then_boom)
+    _promote({target: b"fresh"})
+    assert target.read_bytes() == b"fresh"
+    assert calls["n"] == 1
+
+
+@pytest.mark.parametrize(("method", "reason"), _SITE_REASONS)
+def test_f14_nothing_is_left_behind_when_containment_fires(
+    tmp_path: pathlib.Path, method: str, reason: str
+) -> None:
+    """A contained staging failure leaves no ``.atlas-stage`` / ``.atlas-backup``."""
+    target = tmp_path / "n.md"
+    if method == "read_bytes":
+        target.write_bytes(b"prior")
+        before_bytes: bytes | None = target.read_bytes()
+    else:
+        before_bytes = None
+    before = {p for p in tmp_path.rglob("*")}
+    message = _force_oserror(tmp_path, method)
+    assert message.startswith(reason), message
+    assert _residue(tmp_path) == set()
+    assert {p for p in tmp_path.rglob("*")} == before
+    if before_bytes is not None:
+        assert target.read_bytes() == before_bytes
 
 
 # ------------------------------------------------ the real syscalls, probed
@@ -109,6 +176,7 @@ def test_f14_a_read_only_output_directory_is_contained(
 ) -> None:
     """The staging write, provoked rather than forced."""
     target = tmp_path / "n.md"
+    original_mode = tmp_path.stat().st_mode & 0o777
     os.chmod(tmp_path, 0o555)
     try:
         if not _blocked(lambda: (tmp_path / "probe").write_bytes(b"x")):
@@ -116,8 +184,9 @@ def test_f14_a_read_only_output_directory_is_contained(
         with pytest.raises(GraphProjectionError) as caught:
             _promote({target: b"fresh"})
     finally:
-        os.chmod(tmp_path, 0o755)
+        os.chmod(tmp_path, original_mode)
     assert str(caught.value).startswith("unwritable-note-stage")
+    assert _residue(tmp_path) == set()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
@@ -127,6 +196,7 @@ def test_f14_an_unreadable_existing_target_is_contained(
     """The comparison read against a note that became unreadable."""
     target = tmp_path / "n.md"
     target.write_bytes(b"prior")
+    original_mode = target.stat().st_mode & 0o777
     os.chmod(target, 0o000)
     try:
         if not _blocked(target.read_bytes):
@@ -134,8 +204,10 @@ def test_f14_an_unreadable_existing_target_is_contained(
         with pytest.raises(GraphProjectionError) as caught:
             _promote({target: b"fresh"})
     finally:
-        os.chmod(target, 0o644)
+        os.chmod(target, original_mode)
     assert str(caught.value).startswith("unreadable-note-target")
+    assert target.read_bytes() == b"prior"
+    assert _residue(tmp_path) == set()
 
 
 def test_f14_an_over_long_filename_is_contained(tmp_path: pathlib.Path) -> None:

@@ -14956,3 +14956,21 @@ platform, so nowhere is left with zero coverage of this boundary.
 **Not claimed**: that `_promote` is now exhaustively fail-closed. These are the
 three sites F6's register and this reproduction identified; the enumeration was
 not proved complete, and a fourth site would look exactly like these did.
+
+**Independent IV remediations (same package, not a transfer).** A read-only IV
+on `c00b4288` / tree `c7314df0` returned PASS_WITH_NOTES, VALID_P0=0,
+VALID_P1=0, and four VALID P2s. Consumed here rather than left as residue:
+
+1. `test_f14_the_three_reasons_are_distinct` asserted `len({three literals})==3`
+   -- tautological; it now provokes each site and requires pairwise-distinct
+   live prefixes.
+2. `had_original=path.exists()` after `write_bytes` was a fourth raw-`OSError`
+   site of the same class. `had_original` is now the `is_file()` result already
+   captured inside the guarded read; a second `exists()` that raises is no
+   longer required (pinned).
+3. A contained failure now has an explicit no-residue / prior-bytes-intact
+   assertion, matching F11's shape.
+4. POSIX fixtures restore the mode they measured, not a hard-coded `0o755` /
+   `0o644`.
+
+`MERGE_AUTHORIZATION` remains not granted. The backlog box stays `[ ]`.
