@@ -22,6 +22,7 @@
         "TICK_BUDGET_REACHED",
         "DEADLINE_REACHED",
         "QUEUE_DRAINED",
+        "QUEUE_UNREADABLE",
         "FATAL_ERROR"
       ],
       "title": "DispatcherStopReason",
@@ -146,6 +147,19 @@
       ],
       "default": null,
       "title": "Queue Error"
+    },
+    "queue_error_code": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Queue Error Code"
     },
     "queue_status": {
       "default": "UNKNOWN",

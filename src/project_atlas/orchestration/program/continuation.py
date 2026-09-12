@@ -57,7 +57,14 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from project_atlas.orchestration.program.models import (
     AcceptanceCheck,
@@ -186,6 +193,54 @@ def _parse_utc(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError(f"timestamp {value!r} has no timezone")
     return parsed.astimezone(UTC)
+
+
+#: How many validation errors a refusal quotes. Enough to act on, bounded so a
+#: badly wrong document cannot turn one refusal into a wall of output.
+_MAX_QUOTED_ERRORS: Final[int] = 3
+
+
+def summarise_validation_error(exc: ValidationError) -> str:
+    """One readable line per schema error: where it was and what was wrong."""
+    parts: list[str] = []
+    for item in exc.errors()[:_MAX_QUOTED_ERRORS]:
+        where = ".".join(str(piece) for piece in item.get("loc", ())) or "<root>"
+        parts.append(f"{where}: {item.get('msg', 'invalid')}")
+    total = len(exc.errors())
+    if total > _MAX_QUOTED_ERRORS:
+        parts.append(f"(+{total - _MAX_QUOTED_ERRORS} more)")
+    return "; ".join(parts)
+
+
+def read_durable[DurableT: BaseModel](
+    model: type[DurableT],
+    raw: Any,
+    *,
+    path: Path,
+    error: type[ContinuationError],
+    code: str,
+    what: str,
+) -> DurableT:
+    """Validate one durable document, or refuse it with a stable code.
+
+    Every reader in this layer funnels through here, because the alternative is
+    what an independent verifier found: a queue file that was valid JSON but
+    schema-invalid escaped as a raw ``pydantic_core.ValidationError`` traceback.
+    It failed loudly, which is better than failing silently, but a traceback is
+    not a diagnostic -- it names no stable code an operator or a script can act
+    on, and it does not say which file is at fault.
+
+    A schema-invalid document is deliberately NOT treated as a missing one.
+    "Never written" and "written wrongly" are different facts, and only the
+    first is safe to read as an absence.
+    """
+    try:
+        return model.model_validate(raw)
+    except ValidationError as exc:
+        raise error(
+            f"{what} at {path} is schema-invalid: {summarise_validation_error(exc)}",
+            code=code,
+        ) from exc
 
 
 def digest_payload(payload: Any) -> str:
@@ -660,7 +715,14 @@ def load_envelope(root: Path, task_id: str) -> TaskEnvelope | None:
             f"envelope for {task_id} at {path} is unreadable: {exc}",
             code="ENVELOPE_UNREADABLE",
         ) from exc
-    envelope = TaskEnvelope.model_validate(raw)
+    envelope = read_durable(
+        TaskEnvelope,
+        raw,
+        path=path,
+        error=EnvelopeError,
+        code="ENVELOPE_SCHEMA_INVALID",
+        what=f"envelope for {task_id}",
+    )
     if envelope.task_id != task_id:
         raise EnvelopeError(
             f"envelope file for {task_id} names task {envelope.task_id}",
@@ -681,7 +743,16 @@ def list_envelopes(root: Path) -> tuple[TaskEnvelope, ...]:
             raise EnvelopeError(
                 f"envelope at {path} is unreadable: {exc}", code="ENVELOPE_UNREADABLE"
             ) from exc
-        found.append(TaskEnvelope.model_validate(raw))
+        found.append(
+            read_durable(
+                TaskEnvelope,
+                raw,
+                path=path,
+                error=EnvelopeError,
+                code="ENVELOPE_SCHEMA_INVALID",
+                what="envelope",
+            )
+        )
     return tuple(sorted(found, key=lambda item: item.task_id))
 
 
@@ -988,7 +1059,14 @@ def list_checkpoints(
                 f"checkpoint at {path} is unreadable: {exc}",
                 code="CHECKPOINT_UNREADABLE",
             ) from exc
-        checkpoint = ContinuationCheckpoint.model_validate(raw)
+        checkpoint = read_durable(
+            ContinuationCheckpoint,
+            raw,
+            path=path,
+            error=CheckpointError,
+            code="CHECKPOINT_SCHEMA_INVALID",
+            what="checkpoint",
+        )
         found.append(verify_checkpoint(checkpoint) if verify else checkpoint)
     return tuple(sorted(found, key=lambda item: item.identity.task_id))
 

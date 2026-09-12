@@ -36,6 +36,7 @@ from project_atlas.orchestration.program.continuation import (
     PACKAGE_ID,
     ContinuationError,
     file_sha256,
+    read_durable,
     utc_now,
 )
 from project_atlas.orchestration.program.store import write_json_atomic
@@ -141,7 +142,14 @@ def load_queue(queue_root: Path) -> ApprovedWorkQueue:
             f"approved work queue at {path} is unreadable: {exc}",
             code="QUEUE_UNREADABLE",
         ) from exc
-    return ApprovedWorkQueue.model_validate(raw)
+    return read_durable(
+        ApprovedWorkQueue,
+        raw,
+        path=path,
+        error=QueueError,
+        code="QUEUE_SCHEMA_INVALID",
+        what="approved work queue",
+    )
 
 
 def persist_queue(queue_root: Path, queue: ApprovedWorkQueue) -> Path:

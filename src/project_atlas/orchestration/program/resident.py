@@ -68,6 +68,7 @@ from project_atlas.orchestration.program.continuation import (
     ContinuationError,
     load_envelope,
     new_session_id,
+    read_durable,
     utc_now,
 )
 from project_atlas.orchestration.program.continuation_projection import (
@@ -156,6 +157,15 @@ class DispatcherStopReason(StrEnum):
     #: still be configured to stay resident; this reason is only used when it
     #: was asked to exit once there is nothing left.
     QUEUE_DRAINED = "QUEUE_DRAINED"
+    #: The approved-work queue could not be read at all. Distinct from
+    #: QUEUE_DRAINED, which means it was read and held nothing runnable, and
+    #: deliberately distinct from TICK_BUDGET_REACHED: an independent verifier
+    #: observed that reporting "ran out of ticks" for an unreadable
+    #: authoritative input reads as a benign timeout, which is exactly what a
+    #: slow or busy queue also produces. A dispatcher whose only source of work
+    #: is unreadable has nothing it could ever discover by waiting, so it stops
+    #: and says why rather than burning its whole tick budget in silence.
+    QUEUE_UNREADABLE = "QUEUE_UNREADABLE"
     FATAL_ERROR = "FATAL_ERROR"
 
 
@@ -194,6 +204,7 @@ class Heartbeat(BaseModel):
     #: zero launches. An independent verifier hit exactly that.
     queue_status: str = "UNKNOWN"
     queue_error: str | None = Field(default=None, max_length=1024)
+    queue_error_code: str | None = Field(default=None, max_length=64)
     terminal_reason: DispatcherStopReason | None = None
     #: Cumulative, across this dispatcher process only.
     programs_started: int = Field(default=0, ge=0, le=1_000_000)
@@ -216,6 +227,13 @@ class TickResult:
     #: READABLE / UNREADABLE / UNKNOWN. Distinct from "nothing runnable".
     queue_status: str = "UNKNOWN"
     queue_error: str | None = None
+    #: The refusal's own code -- QUEUE_UNREADABLE for bytes that are not JSON,
+    #: QUEUE_SCHEMA_INVALID for JSON that is not this schema. Kept apart
+    #: because they mean different things to an operator: the first is a
+    #: damaged file, the second is a file written by something with a
+    #: different idea of the schema, which is a version problem and not a
+    #: corruption one.
+    queue_error_code: str | None = None
     notes: list[str] = field(default_factory=list)
     decisions_raised: list[str] = field(default_factory=list)
 
@@ -241,7 +259,14 @@ def read_heartbeat(root: Path) -> Heartbeat | None:
             f"dispatcher heartbeat at {path} is unreadable: {exc}",
             code="HEARTBEAT_UNREADABLE",
         ) from exc
-    return Heartbeat.model_validate(raw)
+    return read_durable(
+        Heartbeat,
+        raw,
+        path=path,
+        error=DispatcherError,
+        code="HEARTBEAT_SCHEMA_INVALID",
+        what="dispatcher heartbeat",
+    )
 
 
 def request_wake(root: Path, *, reason: str = "new approved work") -> Path:
@@ -394,6 +419,7 @@ class ResidentDispatcher:
         self._ticks = 0
         self._last_queue_status = "UNKNOWN"
         self._last_queue_error: str | None = None
+        self._last_queue_error_code: str | None = None
         self._last_notes: list[str] = []
         self._programs_started = 0
         self._launches = 0
@@ -421,6 +447,7 @@ class ResidentDispatcher:
         terminal: DispatcherStopReason | None = None,
         queue_status: str | None = None,
         queue_error: str | None = None,
+        queue_error_code: str | None = None,
     ) -> Heartbeat:
         """Write the heartbeat. Atomic, so a reader never sees a torn one."""
         pause = pause_requested(self.root)
@@ -436,6 +463,7 @@ class ResidentDispatcher:
         if queue_status is not None:
             beat.queue_status = queue_status
             beat.queue_error = queue_error
+            beat.queue_error_code = queue_error_code
         if last_stop is not None:
             beat.last_program_stop_reason = last_stop
         beat.terminal_reason = terminal
@@ -483,13 +511,16 @@ class ResidentDispatcher:
             queue = load_queue(self.queue_root)
         except QueueError as exc:
             result.state = DispatcherState.WAITING_ON_WORK
+            code = getattr(exc, "code", "APPROVED_QUEUE_ERROR")
             result.queue_status = "UNREADABLE"
             result.queue_error = str(exc)
-            result.notes.append(f"queue unreadable, nothing dispatched: {exc}")
+            result.queue_error_code = code
+            result.notes.append(f"{code}: nothing dispatched -- {exc}")
             self.publish(
                 state=DispatcherState.WAITING_ON_WORK,
                 queue_status="UNREADABLE",
                 queue_error=str(exc),
+                queue_error_code=code,
             )
             return result
 
@@ -855,6 +886,7 @@ class ResidentDispatcher:
         last_stop: str | None = None
         self._last_queue_status = "UNKNOWN"
         self._last_queue_error = None
+        self._last_queue_error_code = None
         self._last_notes = []
         try:
             while True:
@@ -879,8 +911,12 @@ class ResidentDispatcher:
                 if result.queue_status != "UNKNOWN":
                     self._last_queue_status = result.queue_status
                     self._last_queue_error = result.queue_error
+                    self._last_queue_error_code = result.queue_error_code
                 if result.notes:
                     self._last_notes = list(result.notes)
+                if result.queue_status == "UNREADABLE":
+                    reason = DispatcherStopReason.QUEUE_UNREADABLE
+                    break
                 if draining:
                     reason = DispatcherStopReason.OPERATOR_DRAIN
                     break
@@ -901,6 +937,7 @@ class ResidentDispatcher:
                 terminal=DispatcherStopReason.FATAL_ERROR,
                 queue_status=self._last_queue_status,
                 queue_error=self._last_queue_error,
+                queue_error_code=self._last_queue_error_code,
             )
             raise
         self.publish(
@@ -909,6 +946,7 @@ class ResidentDispatcher:
             terminal=reason,
             queue_status=self._last_queue_status,
             queue_error=self._last_queue_error,
+            queue_error_code=self._last_queue_error_code,
         )
         return reason
 
@@ -958,6 +996,7 @@ def dispatcher_status(root: Path) -> dict[str, Any]:
         "detail": detail,
         "queue_status": beat.queue_status,
         "queue_error": beat.queue_error,
+        "queue_error_code": beat.queue_error_code,
         "paused": pause_requested(root) is not None,
         "program_paused": bool(state.paused) if state is not None else None,
         "model_backed_dispatch": "DISABLED",

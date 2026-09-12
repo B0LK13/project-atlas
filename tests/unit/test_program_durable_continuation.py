@@ -59,6 +59,7 @@ from project_atlas.orchestration.program.continuation import (
     TaskBudgets,
     TaskEnvelope,
     checkpoints_dir,
+    list_checkpoints,
     list_envelopes,
     load_checkpoint,
     persist_checkpoint,
@@ -1381,7 +1382,13 @@ def test_a_corrupt_queue_is_reported_and_never_looks_like_an_empty_one(
     assert result.state is DispatcherState.WAITING_ON_WORK
     assert result.state is not DispatcherState.IDLE_EMPTY_QUEUE
     assert result.launched == 0
-    assert any("queue unreadable" in note for note in result.notes), result.notes
+    # Keyed on the CODE, not on the sentence. This assertion used to match the
+    # note's prose and broke the moment the note was reworded to lead with the
+    # code -- which is the whole argument for having a code: a caller keys on
+    # QUEUE_UNREADABLE, never on a message that may be improved.
+    assert result.queue_status == "UNREADABLE"
+    assert result.queue_error_code == "QUEUE_UNREADABLE"
+    assert any("QUEUE_UNREADABLE" in note for note in result.notes), result.notes
 
     beat = read_heartbeat(state_root)
     assert beat is not None
@@ -2276,6 +2283,148 @@ def test_an_empty_capsule_says_which_roots_it_actually_looked_in(
     rendered = render_capsule(capsule)
     assert "no task records found in 1 scanned root(s)" in rendered
     assert str(root.resolve()) in rendered
+
+
+def test_every_durable_reader_refuses_a_schema_invalid_document_with_a_code(
+    tmp_path: Path,
+) -> None:
+    """IV finding F3: valid JSON that is not our schema must not be a traceback.
+
+    Found by an independent verifier while building a control: a queue file that
+    parsed as JSON but had ``entries`` as a list escaped as a raw
+    ``pydantic_core.ValidationError``. It failed loudly, which beats failing
+    silently, but a traceback names no stable code a script can branch on and
+    does not say which file is at fault.
+
+    It was never one call site. EIGHT readers in this layer called
+    ``model_validate`` and only the checkpoint one wrapped it, so the same hole
+    existed for envelopes, decisions and the heartbeat. All of them now funnel
+    through ``read_durable``, and this test walks every one — a fix applied to
+    the reported file alone would pass a test that only checked the queue.
+
+    Schema-invalid is deliberately NOT treated as missing: "never written" and
+    "written wrongly" are different facts and only the first is safe to read as
+    an absence.
+    """
+    from project_atlas.orchestration.program.continuation import (
+        CheckpointError,
+        checkpoints_dir,
+        envelopes_dir,
+    )
+    from project_atlas.orchestration.program.decisions import decisions_dir
+    from project_atlas.orchestration.program.resident import (
+        DispatcherError,
+        dispatcher_dir,
+        heartbeat_path,
+    )
+
+    root = tmp_path / "state"
+    valid_json_wrong_shape = '{"schema_version": 1, "entries": []}'
+
+    # queue
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    approved_queue.queue_path(queue_root).write_text(
+        '{"schema_version":1,"package_id":"AS-ORCH-DURABLE-CONTINUATION-001",'
+        '"entries":[]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(approved_queue.QueueError) as q:
+        approved_queue.load_queue(queue_root)
+    assert q.value.code == "QUEUE_SCHEMA_INVALID"
+    assert "entries" in str(q.value)
+
+    # envelope
+    envelopes_dir(root).mkdir(parents=True, exist_ok=True)
+    (envelopes_dir(root) / "deadbeef.envelope.json").write_text(
+        valid_json_wrong_shape, encoding="utf-8"
+    )
+    with pytest.raises(EnvelopeError) as e:
+        list_envelopes(root)
+    assert e.value.code == "ENVELOPE_SCHEMA_INVALID"
+
+    # checkpoint
+    checkpoints_dir(root).mkdir(parents=True, exist_ok=True)
+    (checkpoints_dir(root) / "deadbeef.checkpoint.json").write_text(
+        valid_json_wrong_shape, encoding="utf-8"
+    )
+    with pytest.raises(CheckpointError) as c:
+        list_checkpoints(root)
+    assert c.value.code in {"CHECKPOINT_SCHEMA_INVALID", "CHECKPOINT_MALFORMED"}
+
+    # decision
+    decisions_dir(root).mkdir(parents=True, exist_ok=True)
+    (decisions_dir(root) / "deadbeef.decision.json").write_text(
+        valid_json_wrong_shape, encoding="utf-8"
+    )
+    with pytest.raises(decisions.DecisionError) as d:
+        decisions.list_decisions(root)
+    assert d.value.code == "DECISION_SCHEMA_INVALID"
+
+    # heartbeat
+    dispatcher_dir(root).mkdir(parents=True, exist_ok=True)
+    heartbeat_path(root).write_text(valid_json_wrong_shape, encoding="utf-8")
+    with pytest.raises(DispatcherError) as h:
+        read_heartbeat(root)
+    assert h.value.code == "HEARTBEAT_SCHEMA_INVALID"
+
+
+def test_an_unreadable_queue_stops_the_run_instead_of_burning_its_tick_budget(
+    tmp_path: Path,
+) -> None:
+    """IV finding F2, narrowed by the verifier: it must not look like a timeout.
+
+    Their correction to their own wording is the precise version and it is the
+    one worth defending: the run DID differ from an empty queue, by reporting
+    ``TICK_BUDGET_REACHED`` instead of ``QUEUE_DRAINED``. But "ran out of ticks"
+    is equally what a slow or busy queue produces, it names no file, and with
+    five ticks it burned all five in silence.
+
+    A dispatcher whose only source of work is unreadable has nothing it could
+    discover by waiting, so it now stops on the first tick with a reason of its
+    own. The two failure shapes are kept apart as well: damaged bytes and a
+    valid document of the wrong schema are different operator problems.
+    """
+    cases = {
+        "corrupt": ("{not json", "QUEUE_UNREADABLE"),
+        "schema_invalid": (
+            '{"schema_version":1,"package_id":"AS-ORCH-DURABLE-CONTINUATION-001"'
+            ',"entries":[]}',
+            "QUEUE_SCHEMA_INVALID",
+        ),
+    }
+    for name, (content, expected_code) in cases.items():
+        state_root = tmp_path / f"{name}-state"
+        queue_root = tmp_path / f"{name}-queue"
+        queue_root.mkdir()
+        queue_file = approved_queue.queue_path(queue_root)
+        queue_file.write_text(content, encoding="utf-8")
+        before = queue_file.read_bytes()
+
+        dispatcher = _dispatcher(
+            state_root, queue_root, tick_seconds=0.5, quantum=0.05
+        )
+        reason = dispatcher.run(max_ticks=5)
+
+        # 1. a reason of its own, not a timeout
+        assert reason is DispatcherStopReason.QUEUE_UNREADABLE, (name, reason)
+        assert reason is not DispatcherStopReason.TICK_BUDGET_REACHED
+        # it stopped at once rather than burning the budget in silence
+        assert dispatcher._ticks == 1, (name, dispatcher._ticks)
+        # 2. still fails closed
+        assert dispatcher._launches == 0
+        assert dispatcher._programs_started == 0
+        # 3. THE AUTHORITATIVE INPUT IS UNTOUCHED. A run that "repaired" the
+        #    queue would destroy the evidence of what was wrong with it.
+        assert queue_file.read_bytes() == before, name
+        # 4. the code, which is the assertion that fails on the predecessor;
+        #    launches == 0 already passed there and would prove nothing.
+        beat = read_heartbeat(state_root)
+        assert beat is not None
+        assert beat.queue_status == "UNREADABLE", name
+        assert beat.queue_error_code == expected_code, (name, beat.queue_error_code)
+        assert str(queue_file) in (beat.queue_error or ""), name
+        assert beat.terminal_reason is DispatcherStopReason.QUEUE_UNREADABLE
 
 
 def test_an_unreadable_queue_is_distinguishable_from_an_empty_one_AT_THE_CLI(

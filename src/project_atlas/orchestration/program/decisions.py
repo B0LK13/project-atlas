@@ -40,6 +40,7 @@ from project_atlas.orchestration.program.continuation import (
     PACKAGE_ID,
     ContinuationError,
     digest_payload,
+    read_durable,
     utc_now,
 )
 from project_atlas.orchestration.program.store import state_dir, write_json_atomic
@@ -167,7 +168,14 @@ def load_decision(root: Path, decision_id: str) -> DecisionRequest | None:
             f"decision {decision_id} at {path} is unreadable: {exc}",
             code="DECISION_UNREADABLE",
         ) from exc
-    return DecisionRequest.model_validate(raw)
+    return read_durable(
+        DecisionRequest,
+        raw,
+        path=path,
+        error=DecisionError,
+        code="DECISION_SCHEMA_INVALID",
+        what=f"decision {decision_id}",
+    )
 
 
 def raise_decision(
@@ -281,7 +289,14 @@ def list_decisions(
             raise DecisionError(
                 f"decision at {path} is unreadable: {exc}", code="DECISION_UNREADABLE"
             ) from exc
-        request = DecisionRequest.model_validate(raw)
+        request = read_durable(
+            DecisionRequest,
+            raw,
+            path=path,
+            error=DecisionError,
+            code="DECISION_SCHEMA_INVALID",
+            what="decision",
+        )
         if status is None or request.status is status:
             found.append(request)
     return tuple(sorted(found, key=lambda item: (item.task_id, item.decision_id)))

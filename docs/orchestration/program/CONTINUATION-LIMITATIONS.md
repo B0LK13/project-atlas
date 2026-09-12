@@ -87,6 +87,36 @@ reader who arrives later.
 The lesson recorded, because it recurs: a test can assert a true thing about a
 surface the operator never sees.
 
+**F3 — a schema-invalid document escaped as a traceback.** Found by the same
+verifier while building a control for F2: a queue file that parsed as JSON but
+had `entries` as a list raised a raw `pydantic_core.ValidationError`. It failed
+loudly, which beats failing silently, but a traceback names no stable code a
+script can branch on and does not say which file is at fault.
+
+It was never one call site. **Eight** readers in this layer called
+`model_validate` and only the checkpoint one wrapped it, so the same hole
+existed for envelopes, decisions and the heartbeat. All of them now funnel
+through `read_durable`, which raises the reader's own error type with a stable
+code and the offending path. A fix applied only to the reported file would have
+passed a test that only checked the queue, so the regression test walks every
+reader.
+
+**F2, as the verifier narrowed it.** They withdrew their own "an operator cannot
+tell them apart" as too strong: the run path *did* differ, by reporting
+`TICK_BUDGET_REACHED` where an empty queue reports `QUEUE_DRAINED`. The accurate
+finding is that it reported a **benign timeout for an unreadable authoritative
+input** — "ran out of ticks" is equally what a slow or busy queue produces, it
+names no file, and with five ticks it burned all five in silence. There is now a
+`QUEUE_UNREADABLE` terminal reason and the run stops on the first tick: a
+dispatcher whose only source of work is unreadable has nothing it could discover
+by waiting. Damaged bytes (`QUEUE_UNREADABLE`) and a valid document of the wrong
+schema (`QUEUE_SCHEMA_INVALID`) are kept apart, because they are different
+operator problems — one is a damaged file, the other a version mismatch.
+
+The authoritative input is never rewritten. A run that "repaired" the queue
+would destroy the evidence of what was wrong with it, and the regression test
+asserts the file is byte-identical afterwards.
+
 ## Coverage gaps closed in the release-handoff round
 
 Mapping the fourteen proofs onto the plan showed three properties tested only in
