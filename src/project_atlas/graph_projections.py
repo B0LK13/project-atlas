@@ -633,7 +633,13 @@ def _promote(plan: dict[Path, bytes]) -> None:
             if target_conflict:
                 raise GraphProjectionError(f"canonical-target-not-file:{path}")
             try:
-                unchanged = path.is_file() and path.read_bytes() == plan[path]
+                # Capture `is_file()` once so `had_original` does not re-stat.
+                # A second `path.exists()` after `write_bytes` was a fourth
+                # raw-`OSError` site of the same class as the three above --
+                # found by independent verification of those three, not by
+                # the original #757 enumeration.
+                existed_as_file = path.is_file()
+                unchanged = existed_as_file and path.read_bytes() == plan[path]
             except OSError as exc:
                 raise GraphProjectionError(
                     f"unreadable-note-target:{type(exc).__name__}:{path}"
@@ -653,7 +659,7 @@ def _promote(plan: dict[Path, bytes]) -> None:
                     path=path,
                     staged=staged,
                     backup=backup,
-                    had_original=path.exists(),
+                    had_original=existed_as_file,
                 )
             )
     except BaseException:
