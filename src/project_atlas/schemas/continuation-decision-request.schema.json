@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "DecisionKind": {
+      "description": "Categories that are always an operator's, never an agent's.\n\nClosed on purpose. A blocker that does not fit one of these is not\nautomatically an operator decision -- it is usually a bug or a missing\ncapability, and giving it a catch-all category would turn \"I could not do\nthis\" into \"a human must do this\", which is how a decision queue fills up\nwith things nobody can act on.",
+      "enum": [
+        "PERMISSION",
+        "BUDGET_INCREASE",
+        "SCOPE_EXPANSION",
+        "MERGE",
+        "PUSH",
+        "RELEASE",
+        "CREDENTIAL",
+        "ACL_OR_ACCOUNT",
+        "SERVICE_CHANGE",
+        "UNCERTAIN_EXTERNAL_EFFECT"
+      ],
+      "title": "DecisionKind",
+      "type": "string"
+    },
+    "DecisionStatus": {
+      "enum": [
+        "OPEN",
+        "ANSWERED",
+        "WITHDRAWN"
+      ],
+      "title": "DecisionStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://project-atlas.local/schemas/continuation-decision-request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-ORCH-DURABLE-CONTINUATION-001. One blocker, recorded once. A recurrence bumps seen_count; it never creates a second request. Recording an answer is an evidence act: it unblocks selection and widens nothing. Owner gates are unchanged by it.",
+  "properties": {
+    "answer": {
+      "anyOf": [
+        {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Answer"
+    },
+    "answered_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Answered At"
+    },
+    "answered_by": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Answered By"
+    },
+    "decision_id": {
+      "maxLength": 190,
+      "minLength": 1,
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "kind": {
+      "$ref": "#/$defs/DecisionKind"
+    },
+    "last_seen_at": {
+      "title": "Last Seen At",
+      "type": "string"
+    },
+    "merge_authorized": {
+      "const": false,
+      "default": false,
+      "title": "Merge Authorized",
+      "type": "boolean"
+    },
+    "package_id": {
+      "const": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "default": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "program_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Program Id",
+      "type": "string"
+    },
+    "question": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Question",
+      "type": "string"
+    },
+    "raised_at": {
+      "title": "Raised At",
+      "type": "string"
+    },
+    "raised_by_session_id": {
+      "maxLength": 190,
+      "minLength": 1,
+      "title": "Raised By Session Id",
+      "type": "string"
+    },
+    "raised_by_worker_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Raised By Worker Id",
+      "type": "string"
+    },
+    "requested_action": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Requested Action",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "seen_count": {
+      "default": 1,
+      "maximum": 1000000,
+      "minimum": 1,
+      "title": "Seen Count",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/DecisionStatus",
+      "default": "OPEN"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision_id",
+    "program_id",
+    "task_id",
+    "kind",
+    "question",
+    "requested_action",
+    "raised_by_worker_id",
+    "raised_by_session_id"
+  ],
+  "title": "Durable Operator Decision Request",
+  "type": "object"
+}

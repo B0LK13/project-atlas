@@ -1,0 +1,350 @@
+{
+  "$defs": {
+    "AcceptanceCheck": {
+      "additionalProperties": false,
+      "description": "One locally observed acceptance condition.\n\n``COMMAND`` takes an argv list, never a shell string: worker prose can\nnever become part of a command line, because acceptance commands come\nfrom the approved program file and nowhere else.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Argv",
+          "type": "array"
+        },
+        "check_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Check Id",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AcceptanceKind"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "maximum": 7200,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "check_id",
+        "kind",
+        "description"
+      ],
+      "title": "AcceptanceCheck",
+      "type": "object"
+    },
+    "AcceptanceKind": {
+      "description": "How one acceptance condition is checked, locally and by this process.\n\nEvery kind is observed by the supervisor itself. None of them consults the\nworker's own report of what it did.",
+      "enum": [
+        "COMMAND",
+        "FILE_EXISTS",
+        "FILE_MATCHES",
+        "GIT_TREE_CHANGED"
+      ],
+      "title": "AcceptanceKind",
+      "type": "string"
+    },
+    "CheckpointPolicy": {
+      "additionalProperties": false,
+      "description": "The ordered steps of a task, and when a checkpoint must be taken.\n\nThe step list is what makes \"resume at the next uncompleted step\" a\nmechanical operation rather than a judgement. A ``CHECKPOINT_RESUMABLE``\ntask with no steps is rejected: it would have nowhere to resume to.",
+      "properties": {
+        "checkpoint_after_each_step": {
+          "default": true,
+          "title": "Checkpoint After Each Step",
+          "type": "boolean"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "title": "CheckpointPolicy",
+      "type": "object"
+    },
+    "ReplayClass": {
+      "description": "How an interrupted execution of this work may be resumed, if at all.\n\nThe first four are properties of the work and may be declared in an\nenvelope. The last two are findings and are derived only -- see\n``declarable()``.",
+      "enum": [
+        "READ_ONLY_REPLAYABLE",
+        "IDEMPOTENT_MUTATION",
+        "CHECKPOINT_RESUMABLE",
+        "UNCERTAIN_EXTERNAL_EFFECT",
+        "COMPLETED",
+        "HUMAN_DECISION_REQUIRED"
+      ],
+      "title": "ReplayClass",
+      "type": "string"
+    },
+    "TaskBudgets": {
+      "additionalProperties": false,
+      "description": "What one task may consume. Every field is counted against something.\n\n``max_model_calls`` defaults to zero and is enforced by the dispatcher, not\nmerely reported: this layer is validated with model-free fixture adapters\nand ``MODEL_BACKED_DISPATCH`` is disabled, so a budget that permitted a\nmodel call by default would permit exactly the thing that is switched off.",
+      "properties": {
+        "max_attempts": {
+          "default": 3,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_estimated_cost_usd": {
+          "default": 0.0,
+          "maximum": 10000.0,
+          "minimum": 0.0,
+          "title": "Max Estimated Cost Usd",
+          "type": "number"
+        },
+        "max_launches": {
+          "default": 3,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Max Launches",
+          "type": "integer"
+        },
+        "max_model_calls": {
+          "default": 0,
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Max Model Calls",
+          "type": "integer"
+        },
+        "max_wall_seconds": {
+          "default": 1800,
+          "maximum": 86400,
+          "minimum": 1,
+          "title": "Max Wall Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "TaskBudgets",
+      "type": "object"
+    }
+  },
+  "$id": "https://project-atlas.local/schemas/continuation-task-envelope.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-ORCH-DURABLE-CONTINUATION-001. Everything one executable task is, may do and may not do, persisted before dispatch and re-read on every restart. Records approval provenance; provenance is never a credential. MERGE_AUTHORIZED is always false and MODEL_BACKED_DISPATCH is disabled.",
+  "properties": {
+    "acceptance": {
+      "items": {
+        "$ref": "#/$defs/AcceptanceCheck"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Acceptance",
+      "type": "array"
+    },
+    "allowed_actions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Allowed Actions",
+      "type": "array"
+    },
+    "allowed_paths": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Allowed Paths",
+      "type": "array"
+    },
+    "approval_reference": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Approval Reference",
+      "type": "string"
+    },
+    "approved_by": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Approved By",
+      "type": "string"
+    },
+    "budgets": {
+      "$ref": "#/$defs/TaskBudgets"
+    },
+    "candidate_head": {
+      "maxLength": 40,
+      "minLength": 40,
+      "title": "Candidate Head",
+      "type": "string"
+    },
+    "candidate_tree": {
+      "maxLength": 40,
+      "minLength": 40,
+      "title": "Candidate Tree",
+      "type": "string"
+    },
+    "capabilities_required": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Capabilities Required",
+      "type": "array"
+    },
+    "checkpoint_policy": {
+      "$ref": "#/$defs/CheckpointPolicy"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "deadline_utc": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Deadline Utc"
+    },
+    "depends_on": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Depends On",
+      "type": "array"
+    },
+    "fallback_task_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Fallback Task Ids",
+      "type": "array"
+    },
+    "forbidden_actions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Forbidden Actions",
+      "type": "array"
+    },
+    "forbidden_paths": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Forbidden Paths",
+      "type": "array"
+    },
+    "merge_authorized": {
+      "const": false,
+      "default": false,
+      "title": "Merge Authorized",
+      "type": "boolean"
+    },
+    "model_backed_dispatch": {
+      "const": false,
+      "default": false,
+      "title": "Model Backed Dispatch",
+      "type": "boolean"
+    },
+    "objective": {
+      "maxLength": 8192,
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "package_id": {
+      "const": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "default": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "profile_ref": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Profile Ref",
+      "type": "string"
+    },
+    "program_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Program Id",
+      "type": "string"
+    },
+    "replay_class": {
+      "$ref": "#/$defs/ReplayClass"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "worker_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Worker Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "objective",
+    "capabilities_required",
+    "candidate_head",
+    "candidate_tree",
+    "acceptance",
+    "replay_class",
+    "approved_by",
+    "approval_reference",
+    "profile_ref",
+    "worker_id",
+    "program_id"
+  ],
+  "title": "Durable Task Envelope",
+  "type": "object"
+}

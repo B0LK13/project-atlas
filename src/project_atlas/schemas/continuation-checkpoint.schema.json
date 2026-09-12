@@ -1,0 +1,515 @@
+{
+  "$defs": {
+    "ArtifactRecord": {
+      "additionalProperties": false,
+      "description": "One artifact this task produced, with the hash that identifies it.",
+      "properties": {
+        "bytes": {
+          "minimum": 0,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "title": "ArtifactRecord",
+      "type": "object"
+    },
+    "CommandRecord": {
+      "additionalProperties": false,
+      "description": "One command this task ran, and what was observed of it.\n\n``exit_status`` of ``None`` means the command's outcome was never observed\n-- it was still running when the process died. That is the record that\nmakes an uncertain external effect visible instead of invisible, so it is\na real value rather than a gap.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ended At"
+        },
+        "exit_status": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Status"
+        },
+        "output_tail": {
+          "default": "",
+          "maxLength": 4096,
+          "title": "Output Tail",
+          "type": "string"
+        },
+        "started_at": {
+          "title": "Started At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "argv",
+        "started_at"
+      ],
+      "title": "CommandRecord",
+      "type": "object"
+    },
+    "ConsumedBudget": {
+      "additionalProperties": false,
+      "description": "What a task has actually consumed so far. Monotonic, never decremented.",
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "title": "Estimated Cost Usd",
+          "type": "number"
+        },
+        "launches": {
+          "default": 0,
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Launches",
+          "type": "integer"
+        },
+        "model_calls": {
+          "default": 0,
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Model Calls",
+          "type": "integer"
+        },
+        "wall_seconds": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "title": "Wall Seconds",
+          "type": "number"
+        }
+      },
+      "title": "ConsumedBudget",
+      "type": "object"
+    },
+    "ExecutionIdentity": {
+      "additionalProperties": false,
+      "description": "The four identities, kept apart by construction.",
+      "properties": {
+        "attempt_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 190,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        },
+        "worker_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Worker Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "worker_id",
+        "session_id",
+        "attempt_id"
+      ],
+      "title": "ExecutionIdentity",
+      "type": "object"
+    },
+    "ExternalEffectReceipt": {
+      "additionalProperties": false,
+      "description": "A record that something may have happened outside this machine.\n\n``confirmed`` is three-valued on purpose. ``True`` means the effect was\nobserved to have landed, ``False`` that it was observed not to have, and\n``None`` that nobody knows -- which is the whole reason this record exists.\nA ``None`` receipt is what turns a restart into a reconciliation instead of\na replay.",
+      "properties": {
+        "confirmed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confirmed"
+        },
+        "description": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_digest": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Digest"
+        },
+        "kind": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 190,
+          "minLength": 1,
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "recorded_at": {
+          "title": "Recorded At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "receipt_id",
+        "kind",
+        "description",
+        "recorded_at"
+      ],
+      "title": "ExternalEffectReceipt",
+      "type": "object"
+    },
+    "LeaseSnapshot": {
+      "additionalProperties": false,
+      "description": "The lease this execution held, as it stood when the checkpoint was taken.\n\nRecorded rather than looked up, because the point of a checkpoint is to be\nreadable when the thing that held the lease is gone. ``expires_at`` is what\na successor checks before reacquiring: work is reacquired after expiry and\nan identity check, never because the previous holder stopped answering.",
+      "properties": {
+        "expires_at": {
+          "title": "Expires At",
+          "type": "string"
+        },
+        "granted_at": {
+          "title": "Granted At",
+          "type": "string"
+        },
+        "holder_session_id": {
+          "maxLength": 190,
+          "minLength": 1,
+          "title": "Holder Session Id",
+          "type": "string"
+        },
+        "holder_worker_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Holder Worker Id",
+          "type": "string"
+        },
+        "lease_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Lease Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_id",
+        "holder_worker_id",
+        "holder_session_id",
+        "granted_at",
+        "expires_at"
+      ],
+      "title": "LeaseSnapshot",
+      "type": "object"
+    },
+    "ReplayClass": {
+      "description": "How an interrupted execution of this work may be resumed, if at all.\n\nThe first four are properties of the work and may be declared in an\nenvelope. The last two are findings and are derived only -- see\n``declarable()``.",
+      "enum": [
+        "READ_ONLY_REPLAYABLE",
+        "IDEMPOTENT_MUTATION",
+        "CHECKPOINT_RESUMABLE",
+        "UNCERTAIN_EXTERNAL_EFFECT",
+        "COMPLETED",
+        "HUMAN_DECISION_REQUIRED"
+      ],
+      "title": "ReplayClass",
+      "type": "string"
+    }
+  },
+  "$id": "https://project-atlas.local/schemas/continuation-checkpoint.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-ORCH-DURABLE-CONTINUATION-001. One sealed record of where a task actually is: identities, last completed step, next concrete action, git and worktree state, commands, lease, pid PAIRED with its start identity, artifact hashes, consumed budget, blockers, uncertainty and external-effect receipts. self_digest seals it; sequence is monotonic per task. CHECKPOINT_PRESENT != WORK_COMPLETE.",
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRecord"
+      },
+      "maxItems": 256,
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "blockers": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Blockers",
+      "type": "array"
+    },
+    "changed_files": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 512,
+      "title": "Changed Files",
+      "type": "array"
+    },
+    "commands": {
+      "items": {
+        "$ref": "#/$defs/CommandRecord"
+      },
+      "maxItems": 64,
+      "title": "Commands",
+      "type": "array"
+    },
+    "consumed_budget": {
+      "$ref": "#/$defs/ConsumedBudget"
+    },
+    "deadline_utc": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Deadline Utc"
+    },
+    "envelope_digest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Envelope Digest",
+      "type": "string"
+    },
+    "external_effects": {
+      "items": {
+        "$ref": "#/$defs/ExternalEffectReceipt"
+      },
+      "maxItems": 64,
+      "title": "External Effects",
+      "type": "array"
+    },
+    "git_branch": {
+      "default": "",
+      "maxLength": 256,
+      "title": "Git Branch",
+      "type": "string"
+    },
+    "git_dirty": {
+      "default": false,
+      "title": "Git Dirty",
+      "type": "boolean"
+    },
+    "git_head": {
+      "maxLength": 40,
+      "minLength": 40,
+      "title": "Git Head",
+      "type": "string"
+    },
+    "git_tree": {
+      "maxLength": 40,
+      "minLength": 40,
+      "title": "Git Tree",
+      "type": "string"
+    },
+    "identity": {
+      "$ref": "#/$defs/ExecutionIdentity"
+    },
+    "last_completed_step": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Completed Step"
+    },
+    "lease": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LeaseSnapshot"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "next_action": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Next Action",
+      "type": "string"
+    },
+    "package_id": {
+      "const": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "default": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "process_pid": {
+      "anyOf": [
+        {
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Process Pid"
+    },
+    "process_start_identity": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Process Start Identity"
+    },
+    "program_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Program Id",
+      "type": "string"
+    },
+    "recorded_at": {
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "replay_class": {
+      "$ref": "#/$defs/ReplayClass"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "self_digest": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Self Digest"
+    },
+    "sequence": {
+      "maximum": 1000000,
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "terminal": {
+      "default": false,
+      "title": "Terminal",
+      "type": "boolean"
+    },
+    "truth_boundary": {
+      "default": "PROGRAM_APPROVAL != MERGE_AUTHORIZATION / CHECKPOINT_PRESENT != WORK_COMPLETE / CAPSULE_GENERATED != AUTHORITY_GRANTED / DECLARED_REPLAY_CLASS != OBSERVED_OUTCOME / RESUMABLE != SAFE_TO_REPEAT",
+      "title": "Truth Boundary",
+      "type": "string"
+    },
+    "uncertainty": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Uncertainty",
+      "type": "array"
+    },
+    "worktree_path": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Worktree Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "identity",
+    "envelope_digest",
+    "program_id",
+    "sequence",
+    "next_action",
+    "worktree_path",
+    "git_head",
+    "git_tree",
+    "replay_class"
+  ],
+  "title": "Atomic Continuation Checkpoint",
+  "type": "object"
+}

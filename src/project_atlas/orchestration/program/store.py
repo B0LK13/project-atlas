@@ -423,6 +423,21 @@ def _write_atomic(target: Path, text: str) -> None:
     os.replace(tmp, target)
 
 
+def write_json_atomic(target: Path, payload: dict[str, Any]) -> Path:
+    """Public atomic JSON write, for the durable continuation layer.
+
+    The continuation checkpoints, the approved-work queue manifest and the
+    human decision queue all need exactly the write this module already
+    performs for ``state.json`` -- create in place, fsync, rename -- and a
+    second implementation of it is a second chance to get the fsync wrong.
+    Exposed rather than copied.
+    """
+    _write_atomic(
+        target, json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
+    )
+    return target
+
+
 def load_state(root: Path) -> ProgramStateRecord | None:
     path = state_path(root)
     if not path.is_file():

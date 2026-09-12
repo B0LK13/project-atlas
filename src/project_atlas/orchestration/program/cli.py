@@ -28,6 +28,10 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.orchestration.program import control, service
+from project_atlas.orchestration.program.continuation_cli import (
+    CONTINUATION_HANDLERS,
+    register_continuation_commands,
+)
 from project_atlas.orchestration.program.credentials import credential_report
 from project_atlas.orchestration.program.enrollment import (
     AgentStatus,
@@ -557,6 +561,7 @@ def register_program_parser(
         ),
     )
     sub = parser.add_subparsers(dest="program_command", required=True)
+    register_continuation_commands(sub)
 
     for name, help_text in (
         ("validate", "Validate a program file and report its enforcement picture."),
@@ -803,10 +808,12 @@ def register_agent_parser(
 
 
 def dispatch_program(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
-    handler = _HANDLERS.get(getattr(args, "program_command", ""))
+    command = getattr(args, "program_command", "")
+    handler = _HANDLERS.get(command) or CONTINUATION_HANDLERS.get(command)
     if handler is None:
         return {"error": "unknown program command"}, EXIT_USAGE
-    return handler(args)
+    result: tuple[dict[str, Any], int] = handler(args)
+    return result
 
 
 def dispatch_agent(args: argparse.Namespace) -> tuple[dict[str, Any], int]:

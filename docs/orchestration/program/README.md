@@ -218,6 +218,34 @@ thread, so program state is never mutated from more than one place.
 program that permits four workers and never ran more than one has not
 demonstrated concurrency.
 
+## Surviving a restart
+
+The supervisor above is **finite by design**: one approved program, run to
+`PROGRAM_COMPLETE`, then exit. Everything that has to outlive that exit — and
+the exit of the terminal, the worker session and the host — lives in the
+durable continuation layer, `AS-ORCH-DURABLE-CONTINUATION-001`:
+
+| what | where |
+| --- | --- |
+| architecture, replay classes, the reconciliation decision order | [`DURABLE-CONTINUATION.md`](DURABLE-CONTINUATION.md) |
+| every operator command, including the two that deliberately do not act | [`CONTINUATION-OPERATOR-COMMANDS.md`](CONTINUATION-OPERATOR-COMMANDS.md) |
+| which runtimes this layer was actually validated against | [`CONTINUATION-RUNTIME-MATRIX.md`](CONTINUATION-RUNTIME-MATRIX.md) |
+| why there is no migration, and how to roll back | [`CONTINUATION-MIGRATION-AND-ROLLBACK.md`](CONTINUATION-MIGRATION-AND-ROLLBACK.md) |
+| what is not proven, and what a verifier should try to break | [`CONTINUATION-LIMITATIONS.md`](CONTINUATION-LIMITATIONS.md) |
+| the uninstalled service template and the exact install procedure | [`../../../deploy/`](../../../deploy/) |
+
+In one paragraph: an operator **admits** an approved program to a queue that
+pins its bytes; a model-free **resident dispatcher** runs the finite supervisor
+for it, waits efficiently when there is nothing admitted, and never restarts a
+completed program; each task carries a durable **envelope** whose authority is
+rechecked immediately before every dispatch; each execution writes sealed
+**checkpoints**; and a replacement session resumes from a bounded
+**continuation capsule** generated from those files rather than from any
+conversation.
+
+`SYSTEM_SERVICE = NOT_INSTALLED.` The dispatcher runs in the foreground or
+detached today; the service unit is a reviewed template nobody has installed.
+
 ## Limitations
 
 * Cursor and Copilot are inventoried but **not adapted** — their output
