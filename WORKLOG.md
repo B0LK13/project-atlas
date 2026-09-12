@@ -14915,3 +14915,37 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F17 -- redaction is a property of the field, not of the block
+
+`render_relationships_markdown` redacted `relationship_id` in its table and then
+echoed the same field verbatim two lines below, in the Source linkage block.
+That is worse than not redacting at all: a reviewer reading the table sees the
+control working, and the raw value is on the page regardless.
+
+Reproduced on current `main` `b87b4a22` before anything was changed, driving the
+renderer with `relationship_id = "token=SUPERSECRET-abc123"` and the same value
+as a `graphify_artifact_refs[].relative_path`: the secret appears VERBATIM twice
+and `redacted-sensitive` once. After the fix: verbatim 0, placeholder 3.
+
+Three legs, each measured independently load-bearing by reverting it alone:
+`relationship_id` (2 failed), `relative_path` (1 failed), `sha256` digest
+(1 failed); restored, 8 passed. The digest leg is not decorative even though the
+value is sliced to 16 characters -- `sha256` is not validated as hex at this
+site, so a secret-shaped value there leaks its first 16 characters, and slicing
+bounds how much escapes rather than making what escapes harmless.
+
+**What this does NOT claim.** It does not claim `_redact_text` is a strong
+redactor. Its needles are `=`-delimited and it misses `tokenSUPERSECRET` (no
+`=`) and `aws_secret_access_key AKIA` entirely; routing more fields through a
+weak function inherits its weakness, and the test module says so rather than
+implying a guarantee it cannot give. It also does not establish reachability:
+whether a full `discover -> ingest -> graphify` run with attacker-controlled
+sources can put a secret-shaped value in these fields is NOT established here,
+and `write_projection_outputs` still has no caller in `src/`, so this is not
+reachable from an Atlas command today. The inconsistency is the finding; the
+ceiling is upstream and unmeasured.
+
+**Pre-existing**, not introduced by F10/F11/F12 -- it reproduces on the merge
+object.
