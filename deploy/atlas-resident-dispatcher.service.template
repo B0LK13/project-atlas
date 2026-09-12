@@ -20,6 +20,11 @@ Documentation=file://<ATLAS_ROOT>/docs/orchestration/program/DURABLE-CONTINUATIO
 After=network-online.target local-fs.target
 Wants=local-fs.target
 
+# Bounded restart policy. These MUST be in [Unit]: systemd ignores them in
+# [Service] and the cap then never applies.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
 [Service]
 Type=simple
 
@@ -67,8 +72,15 @@ KillSignal=SIGTERM
 # and restarting through it would override the person who made it.
 Restart=on-failure
 RestartSec=30
-StartLimitIntervalSec=600
-StartLimitBurst=5
+# StartLimitIntervalSec / StartLimitBurst are NOT here. systemd accepts them
+# only in [Unit]; in [Service] it logs "Unknown key ... ignoring" and the rate
+# limit silently does not apply -- leaving Restart=on-failure with no cap, which
+# is an unbounded restart loop for anything that fails every time (a queue that
+# cannot be read, for instance, now correctly exits non-zero). See [Unit] above.
+#
+# Found by an independent verifier running systemd-analyze on an instantiated
+# copy, and reproduced here: the guard the template is most careful about was
+# the one that would not have fired.
 
 # --- sandbox ---------------------------------------------------------------
 NoNewPrivileges=true

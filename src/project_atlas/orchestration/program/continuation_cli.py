@@ -113,11 +113,29 @@ def cmd_queue(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             }, EXIT_USAGE
         program_path = Path(args.program).expanduser().resolve()
         loaded = load_program(program_path)
-        state_root = (
-            Path(args.state_root).expanduser().resolve()
-            if getattr(args, "state_root", None)
-            else program_path.parent
-        )
+        if not getattr(args, "state_root", None):
+            # D-2: this used to fall back to the program file's own directory.
+            # Under a hardened deployment that directory is mounted READ-ONLY
+            # (programs/ sits in ReadOnlyPaths under ProtectSystem=strict), so
+            # an admit with no --state-root produced an entry the dispatcher
+            # would accept and then be unable to write durable records for.
+            #
+            # It is the worst shape of failure available here: install succeeds,
+            # systemd-analyze sees nothing, the queue reads fine, and the first
+            # symptom is a failed write of exactly the records a replacement
+            # session needs to resume. So the flag is required rather than
+            # defaulted, because a default cannot be the right answer for a
+            # path whose writability this command cannot know.
+            return {
+                "error": (
+                    "admit requires --state-root: the state root is where "
+                    "durable records are written, and defaulting it to the "
+                    "program file's directory silently produces an entry that "
+                    "cannot be written to under a read-only deployment"
+                ),
+                "code": "ADMIT_STATE_ROOT_REQUIRED",
+            }, EXIT_USAGE
+        state_root = Path(args.state_root).expanduser().resolve()
         entry = admit(
             queue_root,
             program_path=program_path,

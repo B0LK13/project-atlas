@@ -80,8 +80,13 @@ from project_atlas.orchestration.program.decisions import (
     blocked_task_ids,
     raise_decision,
 )
-from project_atlas.orchestration.program.loader import ProgramLoadError, load_program
-from project_atlas.orchestration.program.models import ProgramStopReason
+from project_atlas.orchestration.program.enrollment import AgentStatus, load_registry
+from project_atlas.orchestration.program.loader import (
+    LoadedProgram,
+    ProgramLoadError,
+    load_program,
+)
+from project_atlas.orchestration.program.models import ProgramError, ProgramStopReason
 from project_atlas.orchestration.program.store import (
     append_event,
     load_state,
@@ -579,11 +584,23 @@ class ResidentDispatcher:
             candidate_tree=tree or loaded.program.base_pin,
         )
 
+        # D5: the resident path threaded `registry_root` but never passed
+        # `enrolled_agents`, so `_apply_enrollments` never ran, the program's
+        # profiles kept their placeholder agent ids, and EVERY task was held
+        # with "no active enrolled agent is bound" -- even with an ACTIVE,
+        # correctly assigned agent in the registry. It failed closed, which is
+        # safe, but a registry-configured deployment could never dispatch at
+        # all. The finite `program start` path bound enrolments all along; only
+        # this one did not, which is why no test caught it.
+        enrolled = self._enrolled_for(loaded)
         supervisor = (
             self._supervisor_factory(loaded, state_root)
             if self._supervisor_factory is not None
             else ProgramSupervisor(
-                loaded, state_root=state_root, registry_root=self.registry_root
+                loaded,
+                state_root=state_root,
+                enrolled_agents=enrolled,
+                registry_root=self.registry_root,
             )
         )
         update_entry(
@@ -603,7 +620,34 @@ class ResidentDispatcher:
                 "model_backed_dispatch": "DISABLED",
             },
         )
-        report = supervisor.start()
+        try:
+            report = supervisor.start()
+        except ProgramError as exc:
+            # D3: previously only ProgramLoadError was caught, so a
+            # ProgramError raised by start() -- PROGRAM_MISMATCH, for instance,
+            # when two admitted programs share one state root -- escaped
+            # tick() and run(), the CLI exited non-zero, and a service manager
+            # restarted straight back into the identical error until its start
+            # limit tripped. One misconfigured entry took down the whole
+            # resident dispatcher. An entry the supervisor refuses is a
+            # quarantine case, exactly like an unloadable one.
+            code = getattr(exc, "code", "PROGRAM_ERROR")
+            update_entry(
+                self.queue_root,
+                entry.program_id,
+                status=QueueEntryStatus.QUARANTINED,
+                last_stop_reason=code,
+                note=str(exc),
+            )
+            result.notes.append(
+                f"{entry.program_id}: quarantined on {code} -- {exc}"
+            )
+            append_event(
+                state_root,
+                "DISPATCHER_PROGRAM_REFUSED",
+                {"program_id": entry.program_id, "code": code, "detail": str(exc)},
+            )
+            return None
         self._launches += report.launches_this_run
         result.launched = report.launches_this_run
         self._project(loaded, state_root, result, head=head, tree=tree)
@@ -838,6 +882,34 @@ class ResidentDispatcher:
             )
         )
 
+    def _enrolled_for(self, loaded: LoadedProgram) -> tuple[Any, ...]:
+        """Every ACTIVE enrolled agent whose role this program declares.
+
+        Mirrors the finite path's resolution deliberately: binding is what makes
+        enrolment govern a run at all -- the agent's identity becomes the
+        principal on the lease, its narrowing applies, and its authority is
+        re-read before every dispatch.
+
+        A SUSPENDED or RETIRED agent is skipped rather than bound, because
+        binding it and then refusing every dispatch reaches the same outcome
+        noisily. An unreadable registry yields no agents, which leaves the
+        supervisor to fail closed rather than run unbound.
+        """
+        if self.registry_root is None:
+            return ()
+        try:
+            registry = load_registry(self.registry_root)
+        except Exception:
+            return ()
+        roles = set(loaded.profiles.profiles)
+        return tuple(
+            agent
+            for agent in sorted(
+                registry.agents.values(), key=lambda item: item.agent_id
+            )
+            if agent.role in roles and agent.status is AgentStatus.ACTIVE
+        )
+
     # ------------------------------------------------------------------ wait
 
     def wait(self, seconds: float) -> float:
@@ -923,12 +995,21 @@ class ResidentDispatcher:
                 if exit_when_drained and result.state is DispatcherState.IDLE_EMPTY_QUEUE:
                     reason = DispatcherStopReason.QUEUE_DRAINED
                     break
-                if result.state in (
-                    DispatcherState.IDLE_EMPTY_QUEUE,
-                    DispatcherState.PAUSED,
-                    DispatcherState.WAITING_ON_WORK,
-                ):
-                    # Nothing ran. Sleep rather than tick again immediately.
+                if result.launched == 0:
+                    # D4: this used to key on the tick STATE, sleeping only for
+                    # IDLE_EMPTY_QUEUE / PAUSED / WAITING_ON_WORK. A queue entry
+                    # that stayed runnable while its program returned
+                    # immediately -- NO_ELIGIBLE_WORK from a task stuck in
+                    # OWNER_HELD, say -- reported RUNNING_PROGRAM and so never
+                    # slept at all: measured 186 program runs in 5s against an
+                    # expected 3, at 24% of one core, with the entry's run
+                    # counter climbing into the thousands.
+                    #
+                    # The honest condition is not "what state did we report" but
+                    # "did any work actually start". Launching nothing means
+                    # there is nothing to come back for promptly, whatever the
+                    # reason, so wait. Launching something means a worker is
+                    # running and the next cycle should be timely.
                     result.slept_seconds = self.wait(self.tick_seconds)
         except Exception:
             self.publish(

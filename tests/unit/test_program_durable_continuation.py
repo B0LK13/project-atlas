@@ -2487,6 +2487,396 @@ def test_an_unreadable_queue_is_distinguishable_from_an_empty_one_AT_THE_CLI(
     assert beat.queue_error
 
 
+# ============ ATLAS-RESIDENT-INTEGRATION-CLOSURE-001: the resident path
+#
+# Everything below exercises the RESIDENT dispatcher path specifically. The
+# finite `program start` path was covered all along, and that is exactly why
+# these defects survived: D3, D4 and D5 are all reachable only through
+# `program dispatcher`, and every one of them was found by running the
+# candidate as a service rather than by a test.
+
+
+def _enrol(registry: Path, program: Path, *, agent_id: str, role: str = "impl",
+           workspace: Path | None = None) -> None:
+    """Enrol and assign through the intended enrollment interface."""
+    from project_atlas.orchestration.program.enrollment import assign, enroll
+
+    enroll(
+        registry,
+        agent_id=agent_id,
+        role=role,
+        adapter="local-command",
+        workspace_root=workspace or program.parent,
+        enrolled_by="test-operator",
+    )
+    assign(registry, agent_id=agent_id, program_path=program, assigned_by="test-operator")
+
+
+def test_D5_an_active_assigned_enrolment_dispatches_on_the_RESIDENT_path(
+    tmp_path: Path,
+) -> None:
+    """D5: the resident path never bound enrolments, so registry use froze it.
+
+    `ResidentDispatcher` threaded `registry_root` into `ProgramSupervisor` but
+    never passed `enrolled_agents`, so `_apply_enrollments` could not run. The
+    program's profiles kept their placeholder agent ids and every task was held
+    with "no active enrolled agent is bound" -- with an ACTIVE, correctly
+    assigned agent sitting in the registry.
+
+    It failed CLOSED, which is why nothing caught fire, but a
+    registry-configured deployment could never dispatch at all. The finite
+    `program start` path bound enrolments the whole time; only this one did not.
+
+    Repaired through the enrollment interface, not around it: the same ACTIVE
+    filter the finite path applies.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("d5-one")])
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    registry = tmp_path / "registry"
+    _enrol(registry, program, agent_id="agent-one", workspace=workspace)
+
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="D5",
+    )
+    dispatcher = ResidentDispatcher(
+        root=state_root, queue_root=queue_root,
+        checkout=Path(__file__).resolve().parents[2],
+        registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
+    )
+    ran = dispatcher.tick()
+
+    assert ran.report is not None
+    assert ran.launched == 1, ran.notes
+    assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert (workspace / "d5-one.txt").read_text(encoding="utf-8").count("\n") == 1
+
+
+@pytest.mark.parametrize(
+    ("scenario", "detail"),
+    [
+        ("missing", "no agent enrolled at all"),
+        ("suspended", "enrolled and assigned, then SUSPENDED"),
+        ("mismatched_role", "ACTIVE but enrolled for a role this program has not"),
+        ("unassigned", "ACTIVE and enrolled but assigned to another program"),
+    ],
+)
+def test_D5_negatives_no_usable_enrolment_dispatches_NOTHING(
+    tmp_path: Path, scenario: str, detail: str
+) -> None:
+    """Binding must not become a way to dispatch without authority.
+
+    The repair for D5 adds a path from the registry to a live dispatch, so each
+    way that path can be *wrong* is asserted separately. A fix that bound
+    whatever it found would turn a frozen dispatcher into an unbound one, which
+    is worse than the defect.
+    """
+    from project_atlas.orchestration.program.enrollment import AgentStatus, set_status
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("neg-one")])
+    other = _program_file(
+        tmp_path, workspace, tasks=[_task("other-one")],
+        program_id="other-program", name="other.json",
+    )
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    registry = tmp_path / "registry"
+
+    if scenario == "suspended":
+        _enrol(registry, program, agent_id="agent-one", workspace=workspace)
+        set_status(registry, agent_id="agent-one", status=AgentStatus.SUSPENDED)
+    elif scenario == "mismatched_role":
+        # Stronger than expected, and worth asserting where it actually
+        # happens: the enrollment interface refuses the ASSIGNMENT outright
+        # when the program declares no such role, so a mismatched agent can
+        # never reach the dispatcher at all. Asserting a zero-launch dispatch
+        # here would have tested a path the guard makes unreachable.
+        from project_atlas.orchestration.program.enrollment import EnrollmentError
+
+        with pytest.raises(EnrollmentError, match="declares no role"):
+            _enrol(registry, program, agent_id="agent-one", role="verifier",
+                   workspace=workspace)
+    elif scenario == "unassigned":
+        _enrol(registry, other, agent_id="agent-one", workspace=workspace)
+    # "missing": nothing enrolled
+
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference=scenario,
+    )
+    dispatcher = ResidentDispatcher(
+        root=state_root, queue_root=queue_root,
+        checkout=Path(__file__).resolve().parents[2],
+        registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
+    )
+    ran = dispatcher.tick()
+
+    assert ran.launched == 0, (scenario, detail, ran.notes)
+    assert not (workspace / "neg-one.txt").exists(), (scenario, detail)
+    if ran.report is not None:
+        assert ran.report.stop_reason is not ProgramStopReason.PROGRAM_COMPLETE
+
+
+def test_D5_authority_withdrawn_between_dispatches_stops_the_next_one(
+    tmp_path: Path,
+) -> None:
+    """Authority is re-read before EVERY dispatch, not cached at bind time.
+
+    Two tasks, one agent. The agent is suspended after the first task succeeds,
+    so the second must not run -- and the discriminator is that the first one
+    DID, against the same dispatcher and the same registry.
+    """
+    from project_atlas.orchestration.program.enrollment import AgentStatus, set_status
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(
+        tmp_path, workspace,
+        tasks=[_task("auth-a"), _task("auth-b", depends_on=["auth-a"])],
+    )
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    registry = tmp_path / "registry"
+    _enrol(registry, program, agent_id="agent-one", workspace=workspace)
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="authority",
+    )
+
+    dispatcher = ResidentDispatcher(
+        root=state_root, queue_root=queue_root,
+        checkout=Path(__file__).resolve().parents[2],
+        registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
+        # one worker, so the tasks are strictly sequential and the withdrawal
+        # lands between them rather than during a race
+    )
+    # Let the first task run, then withdraw authority mid-program.
+    import threading
+
+    def _suspend_after_first() -> None:
+        for _ in range(200):
+            if (workspace / "auth-a.txt").exists():
+                set_status(registry, agent_id="agent-one",
+                           status=AgentStatus.SUSPENDED)
+                return
+            time.sleep(0.05)
+
+    watcher = threading.Thread(target=_suspend_after_first, daemon=True)
+    watcher.start()
+    ran = dispatcher.tick()
+    watcher.join(timeout=15)
+
+    assert (workspace / "auth-a.txt").exists(), "the first task must have run"
+    assert not (workspace / "auth-b.txt").exists(), (
+        "authority was withdrawn before the second dispatch and it ran anyway"
+    )
+    assert ran.report is not None
+    assert ran.report.stop_reason is not ProgramStopReason.PROGRAM_COMPLETE
+
+
+def test_D3_a_program_the_supervisor_REFUSES_quarantines_instead_of_killing(
+    tmp_path: Path,
+) -> None:
+    """D3: reproduced first, then repaired. It took the resident service down.
+
+    Two admitted programs sharing one state root makes `supervisor.start()`
+    raise PROGRAM_MISMATCH. `_run_entry` caught only `ProgramLoadError`, so it
+    escaped `tick()` and `run()`, the CLI exited non-zero, and systemd restarted
+    straight back into the identical error until the start limit tripped. One
+    misconfigured entry stopped the whole dispatcher.
+
+    Observed live on the authorized user-service pilot before the repair:
+    Result=exit-code, "restart counter is at 3", start-limit-hit.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    first = _program_file(tmp_path, workspace, tasks=[_task("q-one")])
+    second = _program_file(
+        tmp_path, workspace, tasks=[_task("q-two")],
+        program_id="second-program", name="second.json",
+    )
+    shared_state = tmp_path / "shared-state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    for path, pid in ((first, "continuation-program"), (second, "second-program")):
+        approved_queue.admit(
+            queue_root, program_path=path, program_id=pid,
+            state_root=shared_state, admitted_by="op", reference="D3",
+        )
+
+    dispatcher = _dispatcher(shared_state, queue_root, tick_seconds=0.5, quantum=0.05)
+    # THE ASSERTION: run() completes. Before the repair this raised out of the
+    # loop and the process exited non-zero.
+    reason = dispatcher.run(max_ticks=4)
+    assert reason is not DispatcherStopReason.FATAL_ERROR
+
+    entries = approved_queue.load_queue(queue_root).entries
+    quarantined = [
+        e for e in entries.values()
+        if e.status is approved_queue.QueueEntryStatus.QUARANTINED
+    ]
+    assert quarantined, {k: v.status.value for k, v in entries.items()}
+    assert any("PROGRAM_MISMATCH" in (e.last_stop_reason or "") for e in quarantined), (
+        [e.last_stop_reason for e in entries.values()]
+    )
+    # And the dispatcher is still usable afterwards.
+    assert dispatcher.tick() is not None
+
+
+def test_D4_a_runnable_entry_that_cannot_progress_does_not_spin(
+    tmp_path: Path,
+) -> None:
+    """D4: reproduced by measurement, then repaired.
+
+    A queue entry that stays runnable while its program returns immediately --
+    NO_ELIGIBLE_WORK from an owner-gated task -- reported RUNNING_PROGRAM, and
+    the loop slept only for IDLE/PAUSED/WAITING. So it never slept: measured on
+    the pilot at 186 program runs in 5s against an expected 3, 24% of one core,
+    the entry's run counter reaching 5162.
+
+    The oracle is WALL TIME, not a counter: a loop that honours its tick
+    interval cannot finish N ticks faster than (N-1) intervals. A run counter
+    could be satisfied by a slower spin; elapsed time cannot.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    # The stop reason has to leave the entry RUNNABLE, which is what made the
+    # pilot spin. An owner gate does not: it routes to the decision queue and
+    # quarantines after one run. An unresolvable external precondition does --
+    # the task never becomes eligible, the program stops NO_ELIGIBLE_WORK, and
+    # the entry goes back to PENDING for the dispatcher to pick up again.
+    gated = _task("gated-one")
+    gated["external_precondition"] = {
+        "precondition_id": "never-resolves",
+        "external_id": "fixture-never",
+        "probe_argv": [sys.executable, "-c", "raise SystemExit(3)"],
+        "pass_exit_code": 0,
+        "poll_interval_seconds": 0.0,
+        "probe_timeout_seconds": 10,
+        "max_wait_seconds": 3600.0,
+    }
+    program = _program_file(tmp_path, workspace, tasks=[gated])
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="D4",
+    )
+
+    tick = 0.4
+    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=tick, quantum=0.05)
+    started = time.monotonic()
+    dispatcher.run(max_ticks=4)
+    elapsed = time.monotonic() - started
+
+    # The entry stayed runnable and nothing was ever launched -- i.e. this is
+    # genuinely the spin condition and not an idle queue.
+    entry = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    assert entry.status in approved_queue.RUNNABLE_STATUSES, entry.status
+    assert dispatcher._launches == 0
+    assert not (workspace / "gated-one.txt").exists()
+
+    assert elapsed >= tick * 3 * 0.8, (
+        f"4 ticks finished in {elapsed:.2f}s with a {tick}s interval: the loop "
+        "is not waiting between ticks"
+    )
+    assert entry.runs <= 6, f"program run {entry.runs} times in 4 ticks"
+
+
+def test_the_resident_path_leaves_no_test_owned_processes(tmp_path: Path) -> None:
+    """Cleanup on the resident path, over every scenario this module drives."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("leak-one")])
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    registry = tmp_path / "registry"
+    _enrol(registry, program, agent_id="agent-one", workspace=workspace)
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="leak",
+    )
+    before = _child_pids()
+    dispatcher = ResidentDispatcher(
+        root=state_root, queue_root=queue_root,
+        checkout=Path(__file__).resolve().parents[2],
+        registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
+    )
+    assert dispatcher.tick().launched == 1
+    assert _child_pids() - before == set(), sorted(_child_pids() - before)
+    assert launches_dir(state_root).exists() is False or not list(
+        launches_dir(state_root).glob("*.json")
+    )
+
+
+def test_the_resident_path_gives_the_capsule_ACTUAL_task_records(
+    tmp_path: Path,
+) -> None:
+    """A capsule from a registry-bound resident run is not empty."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("cap-one")])
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    registry = tmp_path / "registry"
+    _enrol(registry, program, agent_id="agent-one", workspace=workspace)
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="capsule",
+    )
+    ResidentDispatcher(
+        root=state_root, queue_root=queue_root,
+        checkout=Path(__file__).resolve().parents[2],
+        registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
+    ).tick()
+
+    capsule = build_capsule(
+        state_root, for_worker_id="agent-one", queue_root=queue_root
+    )
+    assert [t.task_id for t in capsule.tasks] == ["cap-one"]
+    assert capsule.tasks[0].disposition is Disposition.ALREADY_COMPLETE
+    assert capsule.tasks[0].launchable is False
+    assert "do not replay it" in render_capsule(capsule)
+
+
+def test_D2_admit_refuses_to_default_the_state_root(tmp_path: Path) -> None:
+    """D-2: a default cannot be right for a path whose writability is unknown.
+
+    Admitting with no --state-root used to resolve it to the program file's own
+    directory, which a hardened deployment mounts read-only. The dispatcher
+    accepted the work and could not write the durable records -- the exact ones
+    a replacement session needs. It survives install and systemd-analyze and
+    fails only on first dispatch.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("d2-one")])
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    completed = subprocess.run(
+        [sys.executable, "-m", CLI, "program", "queue",
+         "--queue-root", str(queue_root), "--action", "admit",
+         "--program", str(program), "--admitted-by", "op",
+         "--reference", "D2 no state root"],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    payload = json.loads(completed.stdout)
+    assert payload["code"] == "ADMIT_STATE_ROOT_REQUIRED", payload
+    assert completed.returncode == 2, completed.returncode
+    assert approved_queue.load_queue(queue_root).entries == {}
+
+
 # ---------------------------------------------------------------- helpers
 
 
