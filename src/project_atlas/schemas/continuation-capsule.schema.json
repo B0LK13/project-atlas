@@ -68,6 +68,11 @@
           "title": "Evidence",
           "type": "array"
         },
+        "execution_capture": {
+          "default": "NOT_CAPTURED",
+          "title": "Execution Capture",
+          "type": "string"
+        },
         "forbidden_actions": {
           "default": [],
           "items": {

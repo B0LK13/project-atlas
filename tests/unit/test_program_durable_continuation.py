@@ -3087,6 +3087,97 @@ def test_the_lost_record_override_does_NOT_fire_for_work_that_never_ran(
     assert task.launchable is True, "never-run work must stay startable"
 
 
+def test_G4_empty_execution_capture_says_nobody_looked_not_nothing_happened(
+    tmp_path: Path,
+) -> None:
+    """G4: distinguish an unobserved task from a task that did nothing.
+
+    A verifier measured a real completed run whose task demonstrably mutated
+    its workspace and found artifacts=[], changed_files=[], commands=[] --
+    a replacement session could learn THAT a task completed and nothing about
+    what it did. Worse, those empty lists were indistinguishable from a task
+    that genuinely touched nothing.
+
+    The honest fix is a marker, not manufactured data. Their acceptance bar
+    says so explicitly: an explicit capture-unavailable marker satisfies the
+    case; inventing commands or inferring history from a workspace diff does
+    not. So the projection declares NOT_CAPTURED and the capsule renders it.
+
+    THE PRECONDITION IS ASSERTED: the workspace must actually have changed, or
+    empty capture proves nothing. Empty capture beside an unchanged workspace
+    is not the defect; empty capture beside a changed workspace is.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("g4-one")])
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="G4",
+    )
+    ran = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05).tick()
+    assert ran.report is not None
+    assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+
+    # PRECONDITION: the worker really did mutate the workspace.
+    produced = workspace / "g4-one.txt"
+    assert produced.is_file(), "the fixture must actually have written something"
+    assert produced.read_text(encoding="utf-8").strip(), "and it must be non-empty"
+
+    checkpoint = load_checkpoint(state_root, "g4-one")
+    assert checkpoint is not None
+    # The boundary projection still captures nothing -- that is not the defect.
+    assert checkpoint.changed_files == ()
+    assert checkpoint.commands == ()
+    assert checkpoint.artifacts == ()
+    # The defect was that the emptiness was SILENT. It no longer is.
+    from project_atlas.orchestration.program.continuation import ExecutionCapture
+
+    assert checkpoint.execution_capture is ExecutionCapture.NOT_CAPTURED
+
+    capsule = build_capsule(
+        state_root, for_worker_id="agent-one", queue_root=queue_root
+    )
+    task = next(t for t in capsule.tasks if t.task_id == "g4-one")
+    assert task.execution_capture == "NOT_CAPTURED"
+    rendered = render_capsule(capsule)
+    assert "NOT CAPTURED" in rendered
+    assert "nobody looked" in rendered
+
+
+def test_G4_a_writer_that_DID_observe_is_not_mislabelled(tmp_path: Path) -> None:
+    """The other arm: OBSERVED must stay distinguishable from NOT_CAPTURED.
+
+    A marker that was always NOT_CAPTURED would pass the test above and carry
+    no information at all. A task writing its own checkpoints can record what
+    it observed, and that must render differently.
+    """
+    root = tmp_path / "state"
+    envelope = _envelope("observed-one", replay=ReplayClass.IDEMPOTENT_MUTATION)
+    persist_envelope(root, envelope)
+    from project_atlas.orchestration.program.continuation import (
+        ArtifactRecord,
+        ExecutionCapture,
+    )
+
+    checkpoint = _checkpoint(envelope, root=root)
+    checkpoint.execution_capture = ExecutionCapture.OBSERVED
+    checkpoint.changed_files = ("observed-one.txt",)
+    checkpoint.artifacts = (
+        ArtifactRecord(path="observed-one.txt", sha256="a" * 64, bytes=3),
+    )
+    persist_checkpoint(root, checkpoint)
+
+    capsule = build_capsule(root, for_worker_id=envelope.worker_id)
+    task = next(t for t in capsule.tasks if t.task_id == "observed-one")
+    assert task.execution_capture == "OBSERVED"
+    rendered = render_capsule(capsule)
+    assert "NOT CAPTURED" not in rendered
+    assert "observed-one.txt" in rendered
+
+
 # ---------------------------------------------------------------- helpers
 
 

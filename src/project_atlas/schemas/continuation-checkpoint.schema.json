@@ -126,6 +126,15 @@
       "title": "ConsumedBudget",
       "type": "object"
     },
+    "ExecutionCapture": {
+      "description": "Was this checkpoint's execution detail observed, or merely absent?\n\nThe distinction G4 is about. A checkpoint whose ``changed_files``,\n``commands`` and ``artifacts`` are empty is saying one of two completely\ndifferent things, and until this existed a reader could not tell which:\n\n  ``OBSERVED``      a writer watched the execution and these lists are its\n                    findings. Empty means nothing happened.\n  ``NOT_CAPTURED``  nobody watched. Empty means nobody looked, and the\n                    absence carries no information about what the worker\n                    did.\n\n``NOT_CAPTURED`` is the honest default, because the boundary projection --\nwhich writes most checkpoints -- observes nothing.",
+      "enum": [
+        "OBSERVED",
+        "NOT_CAPTURED"
+      ],
+      "title": "ExecutionCapture",
+      "type": "string"
+    },
     "ExecutionIdentity": {
       "additionalProperties": false,
       "description": "The four identities, kept apart by construction.",
@@ -338,6 +347,10 @@
       "minLength": 64,
       "title": "Envelope Digest",
       "type": "string"
+    },
+    "execution_capture": {
+      "$ref": "#/$defs/ExecutionCapture",
+      "default": "NOT_CAPTURED"
     },
     "external_effects": {
       "items": {

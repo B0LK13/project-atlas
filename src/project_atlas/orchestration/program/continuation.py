@@ -759,6 +759,27 @@ def list_envelopes(root: Path) -> tuple[TaskEnvelope, ...]:
 # ------------------------------------------------------------- checkpoints
 
 
+class ExecutionCapture(StrEnum):
+    """Was this checkpoint's execution detail observed, or merely absent?
+
+    The distinction G4 is about. A checkpoint whose ``changed_files``,
+    ``commands`` and ``artifacts`` are empty is saying one of two completely
+    different things, and until this existed a reader could not tell which:
+
+      ``OBSERVED``      a writer watched the execution and these lists are its
+                        findings. Empty means nothing happened.
+      ``NOT_CAPTURED``  nobody watched. Empty means nobody looked, and the
+                        absence carries no information about what the worker
+                        did.
+
+    ``NOT_CAPTURED`` is the honest default, because the boundary projection --
+    which writes most checkpoints -- observes nothing.
+    """
+
+    OBSERVED = "OBSERVED"
+    NOT_CAPTURED = "NOT_CAPTURED"
+
+
 class CommandRecord(BaseModel):
     """One command this task ran, and what was observed of it.
 
@@ -880,6 +901,16 @@ class ContinuationCheckpoint(BaseModel):
     git_tree: str = Field(min_length=40, max_length=40)
     git_branch: str = Field(default="", max_length=256)
     git_dirty: bool = False
+    #: Whether the execution detail below was actually observed. G4: a
+    #: BOUNDARY projection writes at program boundaries and never watches a
+    #: worker, so it cannot know what the worker changed, ran, or produced.
+    #:
+    #: Empty lists were therefore ambiguous in the worst way -- "nothing
+    #: happened" and "nobody looked" rendered identically, and a replacement
+    #: session could not tell a clean task from an unobserved one. This says
+    #: which, explicitly. It does NOT invent the missing detail: inferring
+    #: commands from a workspace diff would be manufacturing history.
+    execution_capture: ExecutionCapture = ExecutionCapture.NOT_CAPTURED
     changed_files: tuple[str, ...] = Field(default_factory=tuple, max_length=512)
     commands: tuple[CommandRecord, ...] = Field(default_factory=tuple, max_length=64)
     lease: LeaseSnapshot | None = None

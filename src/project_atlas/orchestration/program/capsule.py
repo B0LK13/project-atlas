@@ -100,6 +100,10 @@ class CapsuleTask(BaseModel):
     blockers: tuple[str, ...] = ()
     uncertainty: tuple[str, ...] = ()
     artifacts: tuple[str, ...] = ()
+    #: Whether this task's execution detail was observed at all. G4: empty
+    #: artifact/command/changed-file lists mean "nobody looked" when this is
+    #: NOT_CAPTURED, and "nothing happened" only when it is OBSERVED.
+    execution_capture: str = "NOT_CAPTURED"
     evidence: tuple[str, ...] = ()
     launchable: bool = False
     truncated: bool = False
@@ -504,6 +508,11 @@ def build_capsule(
                 blockers=checkpoint.blockers if checkpoint is not None else (),
                 uncertainty=checkpoint.uncertainty if checkpoint is not None else (),
                 artifacts=artifacts[:_MAX_ARTIFACTS],
+                execution_capture=(
+                    checkpoint.execution_capture.value
+                    if checkpoint is not None
+                    else "NOT_CAPTURED"
+                ),
                 evidence=view.verdict.evidence[:_MAX_EVIDENCE],
                 launchable=launchable,
                 truncated=item_truncated,
@@ -695,6 +704,13 @@ def render_capsule(capsule: ContinuationCapsule) -> str:
             lines.append(f"    uncertain:   {item}")
         for artifact in task.artifacts:
             lines.append(f"    artifact:    {artifact}")
+        if task.execution_capture != "OBSERVED":
+            lines.append(
+                "    execution:   NOT CAPTURED -- this checkpoint was written at "
+                "a program boundary and observed no worker. Empty changed-file, "
+                "command and artifact lists here mean nobody looked, NOT that "
+                "nothing happened."
+            )
         if task.truncated:
             lines.append(f"    {_TRUNCATION_MARK}: evidence/artifacts shortened")
     lines.append("")

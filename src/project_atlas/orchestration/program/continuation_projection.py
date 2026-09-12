@@ -44,6 +44,7 @@ from project_atlas.orchestration.program.continuation import (
     CheckpointPolicy,
     ConsumedBudget,
     ContinuationCheckpoint,
+    ExecutionCapture,
     ExecutionIdentity,
     LeaseSnapshot,
     ReplayClass,
@@ -289,6 +290,13 @@ def project_checkpoints(
                     else 0.0
                 ),
             ),
+            # G4, stated rather than left to be inferred from empty lists: this
+            # projection writes at PROGRAM BOUNDARIES and never observes a
+            # worker, so it cannot report what changed, what ran, or what was
+            # produced. Marking it NOT_CAPTURED is the whole of the honest
+            # answer -- reconstructing commands from a workspace diff would be
+            # inventing a history nobody recorded.
+            execution_capture=ExecutionCapture.NOT_CAPTURED,
             blockers=blockers,
             uncertainty=uncertainty,
             replay_class=replay,
