@@ -95,4 +95,6 @@ def test_f17_the_sweep_can_actually_fail() -> None:
     from project_atlas.graph_projections import _redact_text
 
     assert _redact_text(SECRET) == REDACTED, "the fixture value is not redactable"
-    assert _redact_text("harmless") == "harmless", "_redact_text redacts everything"
+    assert _redact_text("harmless") == "harmless", (
+        "non-secret text must pass through unredacted"
+    )
