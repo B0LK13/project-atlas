@@ -2975,6 +2975,118 @@ def test_D6_evidence_precedence_orders_terminal_over_checkpoint_over_envelope(
     assert _evidence_rank(tmp_path / "empty", "ranked") <= _evidence_rank(bare, "ranked")
 
 
+def _next_action_for_start(task_id: str) -> str:
+    """What the capsule says when it believes a task has never run."""
+    return f"Start task {task_id}."
+
+
+def test_a_LOST_record_whose_program_is_COMPLETE_fails_closed(
+    tmp_path: Path,
+) -> None:
+    """REQ-1's consequence: a lost record must not read as work never started.
+
+    The D-6 fix chooses the strongest SURVIVING record. It cannot help when the
+    strongest survivor is a bare envelope because the terminal checkpoint was
+    lost -- an interrupted write whose rename never became durable, say. An
+    independent verifier measured exactly that on the D-6 candidate and found
+    START_FRESH, launchable=True, "Start task t1." The fix had closed
+    "which record wins", not "the record is gone".
+
+    The signal was already in the capsule and unused: it printed
+    by_status={'COMPLETE': [...]} a few lines above the instruction to start
+    that program's task. A task with no durable record whose owning program is
+    recorded COMPLETE is contradictory state, and contradictory state fails
+    closed rather than resolving toward redoing finished work.
+
+    Both arms are asserted, because the override must not fire for a task that
+    genuinely never ran.
+    """
+    from project_atlas.orchestration.program.continuation import checkpoints_dir
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+
+    program = _program_file(tmp_path, workspace, tasks=[_task("lost-one")])
+    envelope = _envelope(
+        "lost-one",
+        replay=ReplayClass.IDEMPOTENT_MUTATION,
+        program_id="continuation-program",
+    )
+    persist_envelope(state_root, envelope)
+    persist_checkpoint(
+        state_root,
+        _checkpoint(
+            envelope, terminal=True, replay=ReplayClass.COMPLETED, root=state_root
+        ),
+    )
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="REQ-1",
+    )
+    approved_queue.update_entry(
+        queue_root, "continuation-program",
+        status=approved_queue.QueueEntryStatus.COMPLETE,
+    )
+
+    intact = build_capsule(
+        state_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+    ).tasks[0]
+    assert intact.disposition is Disposition.ALREADY_COMPLETE
+    assert intact.launchable is False
+
+    # Lose the terminal checkpoint, keeping everything else.
+    for path in checkpoints_dir(state_root).glob("*.checkpoint.json"):
+        path.unlink()
+
+    lost = build_capsule(
+        state_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+    ).tasks[0]
+    assert lost.disposition is Disposition.RECONCILE_REQUIRED, lost.disposition
+    assert lost.launchable is False, "a lost record must never read as launchable"
+    # Keyed on the status NAME, which is structural, not on the sentence around
+    # it. An earlier assertion in this module matched prose and broke the
+    # moment the prose improved; that is a test discouraging better messages.
+    assert "COMPLETE" in lost.reason
+    assert lost.next_action != _next_action_for_start(lost.task_id)
+
+
+def test_the_lost_record_override_does_NOT_fire_for_work_that_never_ran(
+    tmp_path: Path,
+) -> None:
+    """The other arm. A genuinely new task must still be startable.
+
+    An override that made everything unlaunchable would pass the test above and
+    break the layer, so the discriminator is a task whose program is NOT
+    complete: it must stay START_FRESH and launchable.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task("fresh-one")])
+    envelope = _envelope(
+        "fresh-one",
+        replay=ReplayClass.IDEMPOTENT_MUTATION,
+        program_id="continuation-program",
+    )
+    persist_envelope(state_root, envelope)
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="control",
+    )
+    # entry stays PENDING -- the program has not completed
+
+    task = build_capsule(
+        state_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+    ).tasks[0]
+    assert task.disposition is Disposition.START_FRESH, task.disposition
+    assert task.launchable is True, "never-run work must stay startable"
+
+
 # ---------------------------------------------------------------- helpers
 
 

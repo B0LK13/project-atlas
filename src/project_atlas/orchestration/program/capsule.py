@@ -35,7 +35,10 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from project_atlas.orchestration.program.approved_queue import load_queue
+from project_atlas.orchestration.program.approved_queue import (
+    QueueEntryStatus,
+    load_queue,
+)
 from project_atlas.orchestration.program.continuation import (
     CAPSULE_MAX_BYTES,
     CAPSULE_NAME,
@@ -51,6 +54,7 @@ from project_atlas.orchestration.program.decisions import (
     DecisionStatus,
     list_decisions,
 )
+from project_atlas.orchestration.program.loader import load_program
 from project_atlas.orchestration.program.reconciliation import (
     Disposition,
     ReconciliationVerdict,
@@ -254,6 +258,47 @@ _EVIDENCE_ENVELOPE_ONLY: Final[int] = 1
 _EVIDENCE_UNREADABLE: Final[int] = 0
 
 
+def _completed_program_tasks(queue_root: Path | None) -> frozenset[str]:
+    """Task ids whose owning program the queue records as COMPLETE.
+
+    The capsule already knew this and did not use it. It would print
+
+        by_status={'COMPLETE': ['pctl']}
+
+    four lines above
+
+        [START_FRESH] t1 ... launchable=True
+
+    -- holding, in one document, both the fact that a program finished and an
+    instruction to start one of its tasks. Found by an independent verifier
+    while measuring the boundary of the D-6 fix, and offered as an observation
+    rather than a prescription.
+
+    It is consulted only when a task's own records cannot answer, because the
+    records are the better evidence whenever they survive. When they do not,
+    this is the difference between "no record, so start it" and "no record, but
+    its program is recorded finished -- something was lost".
+    """
+    if queue_root is None:
+        return frozenset()
+    try:
+        queue = load_queue(queue_root)
+    except Exception:
+        return frozenset()
+    owned: set[str] = set()
+    for entry in queue.entries.values():
+        if entry.status is not QueueEntryStatus.COMPLETE:
+            continue
+        try:
+            loaded = load_program(Path(entry.program_path))
+        except Exception:
+            # An admitted program whose file moved cannot tell us what it owns.
+            # Silence here is correct: we lose the cross-check, not the record.
+            continue
+        owned.update(task.task_id for task in loaded.program.tasks)
+    return frozenset(owned)
+
+
 def _evidence_rank(state_root: Path, task_id: str) -> int:
     """How much this root actually knows about the task."""
     try:
@@ -387,6 +432,20 @@ def build_capsule(
         )
         views = views[:_MAX_TASKS]
 
+    # REQ-1 boundary. The D-6 fix chooses the STRONGEST surviving record; it
+    # cannot help when the strongest surviving record is a bare envelope
+    # because the terminal checkpoint was LOST -- an interrupted write whose
+    # rename never became durable, for instance. Measured by an independent
+    # verifier on this exact code: with the terminal checkpoint removed the
+    # capsule said START_FRESH, launchable=True, "Start task t1."
+    #
+    # Losing a record is not the same as never having had one, and the queue
+    # already knows the difference. A task with no durable record whose OWNING
+    # PROGRAM is recorded COMPLETE is contradictory state, and contradictory
+    # state fails closed -- it does not get resolved in the direction that
+    # redoes finished work.
+    completed_elsewhere = _completed_program_tasks(queue_root)
+
     tasks: list[CapsuleTask] = []
     for view in views:
         checkpoint = view.checkpoint
@@ -399,14 +458,38 @@ def build_capsule(
             len(view.verdict.evidence) > _MAX_EVIDENCE or len(artifacts) > _MAX_ARTIFACTS
         )
         truncated = truncated or item_truncated
+        disposition = view.verdict.disposition
+        reason = view.verdict.reason
+        next_action = _next_action(view)
+        launchable = view.verdict.launchable
+        if (
+            launchable
+            and checkpoint is None
+            and view.envelope.task_id in completed_elsewhere
+        ):
+            # Never silently: the contradiction is named, both facts are kept,
+            # and the reader is pointed at reconciliation rather than a restart.
+            disposition = Disposition.RECONCILE_REQUIRED
+            launchable = False
+            reason = (
+                "no durable record survives for this task, but the approved-work "
+                "queue records its program COMPLETE. A record was lost rather "
+                "than never written, so restarting would redo finished work."
+            )
+            next_action = (
+                f"Reconcile {view.envelope.task_id}: its program is recorded "
+                "COMPLETE but its checkpoint is missing. Establish what actually "
+                "ran before dispatching anything. Do not start it."
+            )
+
         tasks.append(
             CapsuleTask(
                 task_id=view.envelope.task_id,
                 state_root=str(view.state_root),
-                disposition=view.verdict.disposition,
+                disposition=disposition,
                 replay_class=view.verdict.replay_class.value,
-                reason=view.verdict.reason,
-                next_action=_next_action(view),
+                reason=reason,
+                next_action=next_action,
                 resume_step=view.verdict.resume_step,
                 last_completed_step=(
                     checkpoint.last_completed_step if checkpoint is not None else None
@@ -422,7 +505,7 @@ def build_capsule(
                 uncertainty=checkpoint.uncertainty if checkpoint is not None else (),
                 artifacts=artifacts[:_MAX_ARTIFACTS],
                 evidence=view.verdict.evidence[:_MAX_EVIDENCE],
-                launchable=view.verdict.launchable,
+                launchable=launchable,
                 truncated=item_truncated,
             )
         )
