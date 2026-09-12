@@ -1,0 +1,164 @@
+{
+  "checked": {
+    "base_pin": "80280bfe13c77708cada7af17215acdaff3725e4",
+    "binding_digest": "9e851f2f0135e55e523b139195d85c7f91a8dbbff4833b24f2d069b6aa3e0c5c",
+    "contract_digest": "8ce532d2f16940014d3bbcd0e7a2ab28b15d7191d25843a6906d89801815dcd3",
+    "program_path": null,
+    "project_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract",
+    "source_item_digest": "54ba22388093de15e27b3442e1859f9063680fe3a800a32b2e2588f5d961813e"
+  },
+  "contract_id": "INT-013-BOUNDED-PILOT",
+  "contract_version": 2,
+  "counts": {
+    "ERROR": 6,
+    "OK": 1,
+    "UNKNOWN": 6,
+    "WARNING": 2
+  },
+  "dimensions": {
+    "acceptance_outcome": "NOT_EVALUATED",
+    "content_complete": "FAIL",
+    "execution_authorization": "NOT_DEMONSTRATED",
+    "preconditions_checked": "FAIL",
+    "structurally_valid": "PASS"
+  },
+  "executed": "no acceptance command was executed",
+  "findings": [
+    {
+      "check": "content.requirement_presence_only",
+      "detail": {
+        "kinds": [
+          "FILE_EXISTS"
+        ],
+        "requirement_id": "INT013-R1-PILOT-PASSES"
+      },
+      "message": "requirement INT013-R1-PILOT-PASSES is judged only by FILE_EXISTS, which observes that something exists or changed, never what it does. A worker that writes an empty file passes it. Presence is supporting evidence; it is not the whole check.",
+      "severity": "ERROR"
+    },
+    {
+      "check": "content.requirement_human_review",
+      "detail": {
+        "requirement_id": "INT013-R2-NO-AUTHORITY-MERGE",
+        "review_note": "the diff of each fixture project's vault directory across the pilot run"
+      },
+      "message": "requirement INT013-R2-NO-AUTHORITY-MERGE needs human review; no check can close it and acceptance passing does not either",
+      "severity": "WARNING"
+    },
+    {
+      "check": "content.requirement_no_check_available",
+      "detail": {
+        "requirement_id": "INT013-R3-BOUNDED-SCOPE"
+      },
+      "message": "requirement INT013-R3-BOUNDED-SCOPE has no suitable check yet; it is recorded as unverified rather than covered by a weaker one",
+      "severity": "UNKNOWN"
+    },
+    {
+      "check": "content.check_orphan",
+      "detail": {
+        "check_id": "pilot-test"
+      },
+      "message": "acceptance check pilot-test is linked to no result requirement, so nothing says why it must pass",
+      "severity": "ERROR"
+    },
+    {
+      "check": "content.check_orphan",
+      "detail": {
+        "check_id": "orphan-check"
+      },
+      "message": "acceptance check orphan-check is linked to no result requirement, so nothing says why it must pass",
+      "severity": "ERROR"
+    },
+    {
+      "check": "content.budget_not_enforced",
+      "detail": {
+        "not_enforced": [
+          "account spending limit",
+          "billed spend"
+        ]
+      },
+      "message": "the contract records limits it cannot enforce: account spending limit; billed spend",
+      "severity": "UNKNOWN"
+    },
+    {
+      "check": "paths.output_outside_mutation",
+      "detail": {
+        "mutation_paths": [
+          "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+          "WORKLOG.md"
+        ],
+        "path": "docs/xproj-report.md"
+      },
+      "message": "expected output 'docs/xproj-report.md' is not under any mutation path; the supervisor would refuse to dispatch work that must write it",
+      "severity": "ERROR"
+    },
+    {
+      "check": "runtime.version_unpinned",
+      "detail": {},
+      "message": "no minimum runtime version is required, so the version the worker will actually run is not constrained by this contract",
+      "severity": "UNKNOWN"
+    },
+    {
+      "check": "runtime.constraint_unverified",
+      "detail": {
+        "constraint": "no network access during the pilot run"
+      },
+      "message": "constraint 'no network access during the pilot run' is recorded but not checkable from here",
+      "severity": "UNKNOWN"
+    },
+    {
+      "check": "acceptance.executable_bare",
+      "detail": {
+        "check_id": "pilot-test",
+        "executable": "python3",
+        "resolved_here": "/usr/bin/python3"
+      },
+      "message": "check pilot-test names the bare executable 'python3'. It resolves here (to /usr/bin/python3), which says nothing about the worker's environment. The binding pins '/usr/bin/definitely-not-here'; use it.",
+      "severity": "WARNING"
+    },
+    {
+      "check": "binding.state_inside_workspace",
+      "detail": {
+        "state_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.atlas-demo-state",
+        "workspace_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract"
+      },
+      "message": "state_root lies inside the workspace; program state the worker can edit is not state",
+      "severity": "ERROR"
+    },
+    {
+      "check": "binding.interpreter_missing",
+      "detail": {
+        "interpreter": "/usr/bin/definitely-not-here"
+      },
+      "message": "the binding's interpreter is not executable: /usr/bin/definitely-not-here",
+      "severity": "ERROR"
+    },
+    {
+      "check": "freshness.source",
+      "detail": {},
+      "message": "item INT-013 is unchanged since drafting",
+      "severity": "OK"
+    },
+    {
+      "check": "authorization.reference_manual",
+      "detail": {
+        "kind": "PROGRAM_APPROVAL",
+        "reference": "docs/origination-acceptance-contracts.yaml#INT-013"
+      },
+      "message": "PROGRAM_APPROVAL reference 'docs/origination-acceptance-contracts.yaml#INT-013' must be followed by a human; this tool cannot resolve it",
+      "severity": "UNKNOWN"
+    },
+    {
+      "check": "authorization.not_checkable",
+      "detail": {
+        "missing": [
+          "--program"
+        ]
+      },
+      "message": "no registry to ask without --program, so authorization stays NOT_DEMONSTRATED",
+      "severity": "UNKNOWN"
+    }
+  ],
+  "grants": "NOTHING. Structural validity is not execution authority, and acceptance_outcome is NOT_EVALUATED because this tool runs no check.",
+  "schema": "atlas.taskcontract.validation/1",
+  "verdict": "BLOCKED"
+}

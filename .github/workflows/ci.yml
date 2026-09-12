@@ -15,7 +15,25 @@ concurrency:
 jobs:
   quality:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # Per-entry, because the Windows entry is the only one that needs more and
+    # a single shared ceiling hid that. Measured on runs 34634842455 (009b),
+    # 34639255748 (010) and 34641206377 (010b): the Windows job needs >= 30.3,
+    # 30.3 and 36.1 minutes respectively, against a shared cap of 30. All three
+    # were killed mid-suite -- 009b and 010 at 99%, 010b at 81% -- and pytest
+    # prints a "N passed" summary on KeyboardInterrupt, so those runs read as
+    # green suites when no suite had finished. The Linux entries finish in ~15
+    # and stay at 30 deliberately: this raises the ceiling only where it was
+    # actually short.
+    #
+    # Windows is slow uniformly, not in one hot spot (top 12 of 86 progress
+    # blocks = 51% of wall, top 30 = 85%), so splitting a subset into its own
+    # job would not reliably fit either half under 30. Narrowing what Windows
+    # runs was rejected outright: the full-suite Windows job is what caught the
+    # POSIX-only BASE_ENV_NAMES defect that no Linux runner could observe.
+    #
+    # The key is timeout_minutes with an UNDERSCORE: in a GitHub expression
+    # `matrix.timeout-minutes` parses as subtraction, not as a key lookup.
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
       matrix:
@@ -23,12 +41,15 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.12"
             suite: full
+            timeout_minutes: 30
           - os: windows-latest
             python-version: "3.12"
             suite: windows
+            timeout_minutes: 60
           - os: ubuntu-latest
             python-version: "3.13"
             suite: compat
+            timeout_minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

@@ -1,0 +1,33 @@
+TASK CONTEXT PACKET  tcp-atlas-task-context-and-continuity-001-demo-093429549e48
+contract   ATLAS-TASK-CONTEXT-AND-CONTINUITY-001-DEMO  digest=9f8ad3090776…
+content    093429549e48…
+objective  Compose a compact task-bound context packet with provenance and freshness.
+
+included fragments:
+  + [policy/mandatory] policy-refs
+  + [task_requirement/mandatory] req-acceptance
+  + [task_requirement/mandatory] req-exclusions
+  + [task_requirement/mandatory] req-interfaces
+  + [task_requirement/mandatory] req-mutation
+  + [task_requirement/mandatory] req-objective
+  + [task_requirement/mandatory] req-outcome
+  + [task_requirement/mandatory] req-requirements
+  + [task_requirement/mandatory] req-scope
+  + [retrieved/evidence] src-api
+  + [retrieved/evidence] src-arch
+  + [retrieved/background] src-arch-dup
+  + [retrieved/background] src-bait
+  + [retrieved/evidence] src-cfl-a
+  + [retrieved/evidence] src-cfl-b
+  - [retrieved/evidence] src-missing
+
+budget     1665/48000 chars (overflow=False incomplete_mandatory=False)
+
+uncertainties:
+  ! open_question: docs/injection-bait.md contains instruction-shaped text; kept as RETRIEVED only
+  ! missing_source: missing source: docs/does-not-exist.md
+  ! open_question: duplicate path docs/architecture.md via sources arch, arch-dup
+  ! open_question: Should token counting bind a specific tokenizer in a follow-on package?
+
+TASK CONTEXT PACKET ≠ AUTHORITY / ≠ DISPATCH / ≠ POLICY PROMOTION; RETRIEVED ≠ INSTRUCTION; CONTINUATION ≠ RESUME AUTHORIZATION; PACKET SNAPSHOT ≠ LIVE ENVIRONMENT
+

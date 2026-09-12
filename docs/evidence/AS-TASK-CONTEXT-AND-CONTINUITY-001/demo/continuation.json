@@ -1,0 +1,80 @@
+{
+  "actions_with_evidence": [
+    {
+      "action_id": "attempt-1-compose",
+      "completion_proven": false,
+      "evidence_digest": "aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa1",
+      "evidence_ref": "ev-fail-001",
+      "outcome": "failed",
+      "summary": "First compose attempt failed schema validation."
+    },
+    {
+      "action_id": "attempt-2-repair",
+      "completion_proven": true,
+      "evidence_digest": "bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb222bbb2",
+      "evidence_ref": "ev-pass-002",
+      "outcome": "passed",
+      "summary": "Direct repair after failure; schema validation passed."
+    },
+    {
+      "action_id": "agent-closing-claim",
+      "completion_proven": false,
+      "evidence_digest": "prose-only-not-proof-0000000000000000000000000000000000000000000000000000",
+      "evidence_ref": "ev-prose-003",
+      "outcome": "unknown",
+      "summary": "Agent closing message claimed done without structured proof."
+    }
+  ],
+  "content_digest": "093429549e488898c66b464bac0f752dac903835ef35a91adab5a7d0e33a6356",
+  "contract_digest": "9f8ad3090776f80345397fffc6f932f93d4a14ef4cf69fcceda5425601f3f11b",
+  "contract_id": "ATLAS-TASK-CONTEXT-AND-CONTINUITY-001-DEMO",
+  "honesty": {
+    "agent_closing_message_is_evidence": false,
+    "continuation_authorizes_launch": false,
+    "continuation_authorizes_replay": false,
+    "continuation_authorizes_reset": false,
+    "preparation_to_continue_ne_authority_to_resume_supervisor": true
+  },
+  "next_step_within_scope": "Resolve open blockers/uncertainties within existing scope before new work",
+  "open_blockers": [
+    {
+      "kind": "missing_source",
+      "source_ids": [
+        "missing"
+      ],
+      "statement": "missing source: docs/does-not-exist.md",
+      "uncertainty_id": "missing-missing"
+    }
+  ],
+  "original_objective": "Compose a compact task-bound context packet with provenance and freshness.",
+  "packet_id": "tcp-atlas-task-context-and-continuity-001-demo-093429549e48",
+  "proven_completions": [
+    "attempt-2-repair"
+  ],
+  "truth_boundary": "CONTINUATION_VIEW != RESUME_AUTHORIZATION; AGENT_PROSE != EXECUTION_EVIDENCE",
+  "unproven_or_failed": [
+    {
+      "action_id": "attempt-1-compose",
+      "completion_proven": false,
+      "evidence_digest": "aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa111aaa1",
+      "evidence_ref": "ev-fail-001",
+      "outcome": "failed",
+      "summary": "First compose attempt failed schema validation."
+    },
+    {
+      "action_id": "agent-closing-claim",
+      "completion_proven": false,
+      "evidence_digest": "prose-only-not-proof-0000000000000000000000000000000000000000000000000000",
+      "evidence_ref": "ev-prose-003",
+      "outcome": "unknown",
+      "summary": "Agent closing message claimed done without structured proof."
+    }
+  ],
+  "view": "continuation",
+  "workspace": {
+    "claim": "last_observed_only",
+    "identity": "fixture-candidate-001",
+    "note": "Do not invent a current clean-state claim",
+    "status": "not_inspectable"
+  }
+}
