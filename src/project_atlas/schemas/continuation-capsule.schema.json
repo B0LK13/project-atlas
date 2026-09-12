@@ -45,6 +45,24 @@
           "title": "Candidate Tree",
           "type": "string"
         },
+        "capture": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Capture",
+          "type": "object"
+        },
+        "commands": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Commands",
+          "type": "array"
+        },
         "deadline_utc": {
           "anyOf": [
             {

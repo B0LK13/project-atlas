@@ -35,10 +35,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from project_atlas.orchestration.program.approved_queue import (
-    QueueEntryStatus,
-    load_queue,
-)
+from project_atlas.orchestration.program.approved_queue import load_queue
 from project_atlas.orchestration.program.continuation import (
     CAPSULE_MAX_BYTES,
     CAPSULE_NAME,
@@ -54,10 +51,11 @@ from project_atlas.orchestration.program.decisions import (
     DecisionStatus,
     list_decisions,
 )
-from project_atlas.orchestration.program.loader import load_program
 from project_atlas.orchestration.program.reconciliation import (
     Disposition,
     ReconciliationVerdict,
+    completed_program_task_ids,
+    prior_execution_evidence,
     reconcile_task,
 )
 from project_atlas.orchestration.program.resident import dispatcher_dir, read_heartbeat
@@ -100,10 +98,16 @@ class CapsuleTask(BaseModel):
     blockers: tuple[str, ...] = ()
     uncertainty: tuple[str, ...] = ()
     artifacts: tuple[str, ...] = ()
+    #: One line per observed command: argv, exit status, source record.
+    commands: tuple[str, ...] = ()
     #: Whether this task's execution detail was observed at all. G4: empty
     #: artifact/command/changed-file lists mean "nobody looked" when this is
     #: NOT_CAPTURED, and "nothing happened" only when it is OBSERVED.
     execution_capture: str = "NOT_CAPTURED"
+    #: Per-field capture statement, keyed commands/artifacts/changed_files,
+    #: each {status, reason, source}. Copied from the checkpoint, never derived
+    #: from whether the lists above happen to be empty.
+    capture: dict[str, dict[str, str]] = Field(default_factory=dict)
     evidence: tuple[str, ...] = ()
     launchable: bool = False
     truncated: bool = False
@@ -262,47 +266,6 @@ _EVIDENCE_ENVELOPE_ONLY: Final[int] = 1
 _EVIDENCE_UNREADABLE: Final[int] = 0
 
 
-def _completed_program_tasks(queue_root: Path | None) -> frozenset[str]:
-    """Task ids whose owning program the queue records as COMPLETE.
-
-    The capsule already knew this and did not use it. It would print
-
-        by_status={'COMPLETE': ['pctl']}
-
-    four lines above
-
-        [START_FRESH] t1 ... launchable=True
-
-    -- holding, in one document, both the fact that a program finished and an
-    instruction to start one of its tasks. Found by an independent verifier
-    while measuring the boundary of the D-6 fix, and offered as an observation
-    rather than a prescription.
-
-    It is consulted only when a task's own records cannot answer, because the
-    records are the better evidence whenever they survive. When they do not,
-    this is the difference between "no record, so start it" and "no record, but
-    its program is recorded finished -- something was lost".
-    """
-    if queue_root is None:
-        return frozenset()
-    try:
-        queue = load_queue(queue_root)
-    except Exception:
-        return frozenset()
-    owned: set[str] = set()
-    for entry in queue.entries.values():
-        if entry.status is not QueueEntryStatus.COMPLETE:
-            continue
-        try:
-            loaded = load_program(Path(entry.program_path))
-        except Exception:
-            # An admitted program whose file moved cannot tell us what it owns.
-            # Silence here is correct: we lose the cross-check, not the record.
-            continue
-        owned.update(task.task_id for task in loaded.program.tasks)
-    return frozenset(owned)
-
-
 def _evidence_rank(state_root: Path, task_id: str) -> int:
     """How much this root actually knows about the task."""
     try:
@@ -314,7 +277,12 @@ def _evidence_rank(state_root: Path, task_id: str) -> int:
     return _EVIDENCE_TERMINAL if checkpoint.terminal else _EVIDENCE_CHECKPOINT
 
 
-def _build_view(state_root: Path, envelope: TaskEnvelope, for_worker_id: str) -> _TaskView:
+def _build_view(
+    state_root: Path,
+    envelope: TaskEnvelope,
+    for_worker_id: str,
+    prior_execution: tuple[str, ...],
+) -> _TaskView:
     """One task's view from one root, reconciled. Never raises."""
     try:
         checkpoint = load_checkpoint(state_root, envelope.task_id)
@@ -332,7 +300,10 @@ def _build_view(state_root: Path, envelope: TaskEnvelope, for_worker_id: str) ->
             state_root=state_root,
         )
     verdict = reconcile_task(
-        envelope=envelope, checkpoint=checkpoint, our_worker_id=for_worker_id
+        envelope=envelope,
+        checkpoint=checkpoint,
+        our_worker_id=for_worker_id,
+        prior_execution=prior_execution,
     )
     return _TaskView(
         envelope=envelope,
@@ -372,6 +343,24 @@ def build_capsule(
     # confidently reports the wrong record". Evidence strength is the rule that
     # answers both: a record carrying a terminal checkpoint outranks one
     # carrying any checkpoint, which outranks a bare envelope.
+    #
+    # R1 / R2. The D-6 rule chooses the strongest SURVIVING record; it cannot
+    # help when the strongest survivor is a bare envelope because the terminal
+    # checkpoint was LOST. That case is decided by ``reconcile_task`` itself,
+    # from evidence gathered across EVERY scanned root plus the queue -- the
+    # same function and the same inputs ``atlas program continuation --action
+    # reconcile`` uses, so the capsule and the reconcile command cannot
+    # disagree about one task. The evidence is gathered once per task.
+    completed = completed_program_task_ids(queue_root)
+    evidence_cache: dict[str, tuple[str, ...]] = {}
+
+    def prior_execution_for(task_id: str) -> tuple[str, ...]:
+        if task_id not in evidence_cache:
+            evidence_cache[task_id] = prior_execution_evidence(
+                scan_roots, task_id, completed_elsewhere=completed
+            )
+        return evidence_cache[task_id]
+
     seen: dict[str, int] = {}
     for scan_root in scan_roots:
         for envelope in list_envelopes(scan_root):
@@ -385,40 +374,22 @@ def build_capsule(
                 # weaker one and say so, rather than keeping whichever root
                 # happened to be scanned first.
                 views[seen[envelope.task_id]] = _build_view(
-                    scan_root, envelope, for_worker_id
+                    scan_root,
+                    envelope,
+                    for_worker_id,
+                    prior_execution_for(envelope.task_id),
                 )
                 continue
             seen[envelope.task_id] = len(views)
-            try:
-                checkpoint = load_checkpoint(scan_root, envelope.task_id)
-            except Exception as exc:
-                # A task whose state cannot be read must still appear in the
-                # capsule. Omitting it would make the capsule's task list a
-                # statement that the task does not exist.
-                views.append(
-                    _TaskView(
-                        envelope=envelope,
-                        checkpoint=None,
-                        verdict=ReconciliationVerdict(
-                            task_id=envelope.task_id,
-                            disposition=Disposition.FAIL_CLOSED,
-                            replay_class=envelope.replay_class,
-                            reason=f"durable state is unusable: {exc}",
-                            evidence=(type(exc).__name__,),
-                        ),
-                        state_root=scan_root,
-                    )
-                )
-                continue
-            verdict = reconcile_task(
-                envelope=envelope, checkpoint=checkpoint, our_worker_id=for_worker_id
-            )
             views.append(
-                _TaskView(
-                    envelope=envelope,
-                    checkpoint=checkpoint,
-                    verdict=verdict,
-                    state_root=scan_root,
+                # A task whose state cannot be read still appears in the
+                # capsule, as FAIL_CLOSED. Omitting it would make the capsule's
+                # task list a statement that the task does not exist.
+                _build_view(
+                    scan_root,
+                    envelope,
+                    for_worker_id,
+                    prior_execution_for(envelope.task_id),
                 )
             )
 
@@ -436,20 +407,6 @@ def build_capsule(
         )
         views = views[:_MAX_TASKS]
 
-    # REQ-1 boundary. The D-6 fix chooses the STRONGEST surviving record; it
-    # cannot help when the strongest surviving record is a bare envelope
-    # because the terminal checkpoint was LOST -- an interrupted write whose
-    # rename never became durable, for instance. Measured by an independent
-    # verifier on this exact code: with the terminal checkpoint removed the
-    # capsule said START_FRESH, launchable=True, "Start task t1."
-    #
-    # Losing a record is not the same as never having had one, and the queue
-    # already knows the difference. A task with no durable record whose OWNING
-    # PROGRAM is recorded COMPLETE is contradictory state, and contradictory
-    # state fails closed -- it does not get resolved in the direction that
-    # redoes finished work.
-    completed_elsewhere = _completed_program_tasks(queue_root)
-
     tasks: list[CapsuleTask] = []
     for view in views:
         checkpoint = view.checkpoint
@@ -458,42 +415,47 @@ def build_capsule(
             if checkpoint is not None
             else ()
         )
+        commands = (
+            tuple(
+                f"{' '.join(c.argv)[:200]} exit={c.exit_status} "
+                f"started={c.started_at} ended={c.ended_at}"
+                for c in checkpoint.commands
+            )
+            if checkpoint is not None
+            else ()
+        )
+        capture: dict[str, dict[str, str]] = {}
+        if checkpoint is not None:
+            capture = {
+                name: {
+                    "status": item.status.value,
+                    "reason": item.reason,
+                    "source": item.source,
+                }
+                for name, item in (
+                    ("commands", checkpoint.capture.commands),
+                    ("artifacts", checkpoint.capture.artifacts),
+                    ("changed_files", checkpoint.capture.changed_files),
+                )
+            }
         item_truncated = (
-            len(view.verdict.evidence) > _MAX_EVIDENCE or len(artifacts) > _MAX_ARTIFACTS
+            len(view.verdict.evidence) > _MAX_EVIDENCE
+            or len(artifacts) > _MAX_ARTIFACTS
+            or len(commands) > _MAX_ARTIFACTS
         )
         truncated = truncated or item_truncated
-        disposition = view.verdict.disposition
-        reason = view.verdict.reason
-        next_action = _next_action(view)
-        launchable = view.verdict.launchable
-        if (
-            launchable
-            and checkpoint is None
-            and view.envelope.task_id in completed_elsewhere
-        ):
-            # Never silently: the contradiction is named, both facts are kept,
-            # and the reader is pointed at reconciliation rather than a restart.
-            disposition = Disposition.RECONCILE_REQUIRED
-            launchable = False
-            reason = (
-                "no durable record survives for this task, but the approved-work "
-                "queue records its program COMPLETE. A record was lost rather "
-                "than never written, so restarting would redo finished work."
-            )
-            next_action = (
-                f"Reconcile {view.envelope.task_id}: its program is recorded "
-                "COMPLETE but its checkpoint is missing. Establish what actually "
-                "ran before dispatching anything. Do not start it."
-            )
 
         tasks.append(
             CapsuleTask(
                 task_id=view.envelope.task_id,
                 state_root=str(view.state_root),
-                disposition=disposition,
+                # Disposition, reason and launchability come from ONE verdict
+                # and are not adjusted here: a capsule that overrode its own
+                # reconciliation would be a second decision nobody can audit.
+                disposition=view.verdict.disposition,
                 replay_class=view.verdict.replay_class.value,
-                reason=reason,
-                next_action=next_action,
+                reason=view.verdict.reason,
+                next_action=_next_action(view),
                 resume_step=view.verdict.resume_step,
                 last_completed_step=(
                     checkpoint.last_completed_step if checkpoint is not None else None
@@ -508,13 +470,15 @@ def build_capsule(
                 blockers=checkpoint.blockers if checkpoint is not None else (),
                 uncertainty=checkpoint.uncertainty if checkpoint is not None else (),
                 artifacts=artifacts[:_MAX_ARTIFACTS],
+                commands=commands[:_MAX_ARTIFACTS],
                 execution_capture=(
                     checkpoint.execution_capture.value
                     if checkpoint is not None
                     else "NOT_CAPTURED"
                 ),
+                capture=capture,
                 evidence=view.verdict.evidence[:_MAX_EVIDENCE],
-                launchable=launchable,
+                launchable=view.verdict.launchable,
                 truncated=item_truncated,
             )
         )
@@ -704,6 +668,20 @@ def render_capsule(capsule: ContinuationCapsule) -> str:
             lines.append(f"    uncertain:   {item}")
         for artifact in task.artifacts:
             lines.append(f"    artifact:    {artifact}")
+        for command in task.commands:
+            lines.append(f"    command:     {command}")
+        for name in ("commands", "artifacts", "changed_files"):
+            statement = task.capture.get(name)
+            if statement is None:
+                continue
+            # G4b, per field and separately: AVAILABLE says where the value
+            # came from; UNAVAILABLE says why nobody could report it. Never
+            # collapsed into one flag, because the answers differ per field.
+            source = f" [{statement['source']}]" if statement.get("source") else ""
+            lines.append(
+                f"    capture {name + ':':<14} {statement['status']} -- "
+                f"{statement['reason'][:240]}{source}"
+            )
         if task.execution_capture != "OBSERVED":
             lines.append(
                 "    execution:   NOT CAPTURED -- this checkpoint was written at "

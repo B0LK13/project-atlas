@@ -766,18 +766,78 @@ class ExecutionCapture(StrEnum):
     ``commands`` and ``artifacts`` are empty is saying one of two completely
     different things, and until this existed a reader could not tell which:
 
-      ``OBSERVED``      a writer watched the execution and these lists are its
-                        findings. Empty means nothing happened.
-      ``NOT_CAPTURED``  nobody watched. Empty means nobody looked, and the
-                        absence carries no information about what the worker
-                        did.
+      ``OBSERVED``      a writer captured at least one of the lists from a
+                        record of the execution. WHICH lists is stated per
+                        field in ``ContinuationCheckpoint.capture``; a list
+                        whose field is CAPTURE_AVAILABLE and empty means
+                        nothing was observed for it.
+      ``NOT_CAPTURED``  nobody captured anything. Empty means nobody looked,
+                        and the absence carries no information about what the
+                        worker did.
 
-    ``NOT_CAPTURED`` is the honest default, because the boundary projection --
-    which writes most checkpoints -- observes nothing.
+    ``NOT_CAPTURED`` is the honest default for a writer that made no capture
+    statement at all.
     """
 
     OBSERVED = "OBSERVED"
     NOT_CAPTURED = "NOT_CAPTURED"
+
+
+class CaptureStatus(StrEnum):
+    """Whether ONE execution-detail field was actually captured.
+
+    ``ExecutionCapture`` answers for the checkpoint as a whole; this answers per
+    field, because the fields have different sources and one can be available
+    while another is not. A supervisor that recorded the adapter's command line
+    but never watched individual file writes must be able to say exactly that.
+    """
+
+    CAPTURE_AVAILABLE = "CAPTURE_AVAILABLE"
+    CAPTURE_UNAVAILABLE = "CAPTURE_UNAVAILABLE"
+
+
+class FieldCapture(BaseModel):
+    """The capture statement for one field: available or not, and why.
+
+    ``reason`` is scoped to THIS field and THIS writer -- "the supervisor
+    records no per-file write observation" -- never a generic "not captured".
+    ``source`` names the durable record the value was read from when it was
+    available, so a reader can go and look.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: CaptureStatus = CaptureStatus.CAPTURE_UNAVAILABLE
+    reason: str = Field(
+        default="no per-field capture statement was recorded by the writer",
+        min_length=1,
+        max_length=512,
+    )
+    source: str = Field(default="", max_length=1024)
+
+
+class ExecutionCaptureReport(BaseModel):
+    """Per-field capture statements for ``commands``, ``artifacts``, ``changed_files``.
+
+    The default is UNAVAILABLE for every field with a reason that says the
+    writer made no statement -- which is what a checkpoint from a writer that
+    predates this report actually tells us. Nothing here is inferred from the
+    lists themselves: a non-empty list beside an UNAVAILABLE statement is a
+    writer that listed things without saying how it knew, and that is
+    rendered as such rather than upgraded.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    commands: FieldCapture = Field(default_factory=FieldCapture)
+    artifacts: FieldCapture = Field(default_factory=FieldCapture)
+    changed_files: FieldCapture = Field(default_factory=FieldCapture)
+
+    def any_available(self) -> bool:
+        return any(
+            item.status is CaptureStatus.CAPTURE_AVAILABLE
+            for item in (self.commands, self.artifacts, self.changed_files)
+        )
 
 
 class CommandRecord(BaseModel):
@@ -911,6 +971,12 @@ class ContinuationCheckpoint(BaseModel):
     #: which, explicitly. It does NOT invent the missing detail: inferring
     #: commands from a workspace diff would be manufacturing history.
     execution_capture: ExecutionCapture = ExecutionCapture.NOT_CAPTURED
+    #: Per-field capture statements. ``execution_capture`` says whether ANY
+    #: writer observed anything; this says, for each of the three lists, whether
+    #: it was captured and from which record -- so "commands captured from the
+    #: adapter transcript, changed files not observed at all" is expressible
+    #: instead of being flattened into one OBSERVED.
+    capture: ExecutionCaptureReport = Field(default_factory=ExecutionCaptureReport)
     changed_files: tuple[str, ...] = Field(default_factory=tuple, max_length=512)
     commands: tuple[CommandRecord, ...] = Field(default_factory=tuple, max_length=64)
     lease: LeaseSnapshot | None = None

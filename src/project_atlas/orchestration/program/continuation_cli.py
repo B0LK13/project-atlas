@@ -356,9 +356,20 @@ def cmd_checkpoint(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 def cmd_continuation(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root = _root(args)
     if args.action == "reconcile":
-        verdicts = reconcile_root(root, our_worker_id=args.worker_id or "unassigned")
+        # The queue is consulted for the same reason the capsule consults it:
+        # a task with no checkpoint whose program is recorded COMPLETE is a
+        # lost record, and the two surfaces must reach the same disposition.
+        queue_root = (
+            Path(args.queue_root).expanduser().resolve()
+            if getattr(args, "queue_root", None)
+            else None
+        )
+        verdicts = reconcile_root(
+            root, our_worker_id=args.worker_id or "unassigned", queue_root=queue_root
+        )
         return {
             "state_root": str(root),
+            "queue_root": str(queue_root) if queue_root is not None else None,
             "verdicts": [
                 {
                     "task_id": v.task_id,

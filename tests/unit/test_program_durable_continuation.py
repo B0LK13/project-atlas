@@ -22,11 +22,13 @@ the test declining to look at one.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import resource
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -77,8 +79,10 @@ from project_atlas.orchestration.program.models import (
 )
 from project_atlas.orchestration.program.reconciliation import (
     Disposition,
+    prior_execution_evidence,
     reconcile_one,
     reconcile_root,
+    reconcile_task,
 )
 from project_atlas.orchestration.program.recovery import Liveness, process_liveness
 from project_atlas.orchestration.program.resident import (
@@ -88,7 +92,7 @@ from project_atlas.orchestration.program.resident import (
     dispatcher_status,
     read_heartbeat,
 )
-from project_atlas.orchestration.program.store import launches_dir, state_dir
+from project_atlas.orchestration.program.store import evidence_dir, launches_dir, state_dir
 
 FIXTURE_WORKER = Path(__file__).with_name("_program_fixture_worker.py")
 FIXTURE_SESSION = Path(__file__).with_name("_continuation_fixture_session.py")
@@ -3098,14 +3102,17 @@ def test_G4_empty_execution_capture_says_nobody_looked_not_nothing_happened(
     what it did. Worse, those empty lists were indistinguishable from a task
     that genuinely touched nothing.
 
-    The honest fix is a marker, not manufactured data. Their acceptance bar
-    says so explicitly: an explicit capture-unavailable marker satisfies the
-    case; inventing commands or inferring history from a workspace diff does
-    not. So the projection declares NOT_CAPTURED and the capsule renders it.
+    The first fix was a marker (G4a): the projection declared NOT_CAPTURED
+    and the capsule rendered it. The verifier then split the case: the
+    declaration closed G4a, and G4b stayed open because no production writer
+    ever produced an observed capture -- while the supervisor DID observe the
+    command (adapter transcript) and the artifact (its own acceptance check).
+    This test now asserts G4b: those observations are carried, per field,
+    from their named records; changed_files, which nobody observes, stays
+    UNAVAILABLE with a scoped reason. Nothing is inferred from a diff.
 
     THE PRECONDITION IS ASSERTED: the workspace must actually have changed, or
-    empty capture proves nothing. Empty capture beside an unchanged workspace
-    is not the defect; empty capture beside a changed workspace is.
+    capture proves nothing.
     """
     workspace = tmp_path / "ws"
     workspace.mkdir()
@@ -3128,23 +3135,54 @@ def test_G4_empty_execution_capture_says_nobody_looked_not_nothing_happened(
 
     checkpoint = load_checkpoint(state_root, "g4-one")
     assert checkpoint is not None
-    # The boundary projection still captures nothing -- that is not the defect.
-    assert checkpoint.changed_files == ()
-    assert checkpoint.commands == ()
-    assert checkpoint.artifacts == ()
-    # The defect was that the emptiness was SILENT. It no longer is.
-    from project_atlas.orchestration.program.continuation import ExecutionCapture
+    from project_atlas.orchestration.program.continuation import (
+        CaptureStatus,
+        ExecutionCapture,
+    )
 
-    assert checkpoint.execution_capture is ExecutionCapture.NOT_CAPTURED
+    # G4b. The marker alone (G4a, the earlier fix) said "nobody looked" over a
+    # run the supervisor HAD looked at: its adapter wrote the child's argv and
+    # exit status, and its own acceptance check read the produced file. Those
+    # two observations are now carried, each from its named record.
+    assert checkpoint.execution_capture is ExecutionCapture.OBSERVED
+    (command,) = checkpoint.commands
+    assert command.argv == (sys.executable, str(FIXTURE_WORKER))
+    assert command.exit_status == 0
+    assert "g4-one" in command.output_tail
+    assert command.started_at and command.ended_at
+    assert checkpoint.capture.commands.status is CaptureStatus.CAPTURE_AVAILABLE
+    source = checkpoint.capture.commands.source
+    assert source.startswith("evidence/") and source.endswith(".transcript.json")
+    assert (evidence_dir(state_root) / Path(source).name).is_file()
+
+    (artifact,) = checkpoint.artifacts
+    assert artifact.path == "g4-one.txt"
+    assert artifact.sha256 == hashlib.sha256(produced.read_bytes()).hexdigest()
+    assert artifact.bytes == produced.stat().st_size
+    assert checkpoint.capture.artifacts.status is CaptureStatus.CAPTURE_AVAILABLE
+    assert "at projection time" in checkpoint.capture.artifacts.reason
+
+    # changed_files has NO observer, and the checkpoint says exactly that --
+    # scoped to the field, with the reason a diff is not used.
+    assert checkpoint.changed_files == ()
+    assert checkpoint.capture.changed_files.status is CaptureStatus.CAPTURE_UNAVAILABLE
+    assert "workspace diff" in checkpoint.capture.changed_files.reason
 
     capsule = build_capsule(
         state_root, for_worker_id="agent-one", queue_root=queue_root
     )
     task = next(t for t in capsule.tasks if t.task_id == "g4-one")
-    assert task.execution_capture == "NOT_CAPTURED"
+    assert task.execution_capture == "OBSERVED"
+    assert task.capture["commands"]["status"] == "CAPTURE_AVAILABLE"
+    assert task.capture["artifacts"]["status"] == "CAPTURE_AVAILABLE"
+    assert task.capture["changed_files"]["status"] == "CAPTURE_UNAVAILABLE"
     rendered = render_capsule(capsule)
-    assert "NOT CAPTURED" in rendered
-    assert "nobody looked" in rendered
+    assert "NOT CAPTURED" not in rendered
+    assert "capture commands:      CAPTURE_AVAILABLE" in rendered
+    assert "capture artifacts:     CAPTURE_AVAILABLE" in rendered
+    assert "capture changed_files: CAPTURE_UNAVAILABLE" in rendered
+    assert "artifact:    g4-one.txt@" in rendered
+    assert f"command:     {sys.executable}" in rendered
 
 
 def test_G4_a_writer_that_DID_observe_is_not_mislabelled(tmp_path: Path) -> None:
@@ -3229,3 +3267,373 @@ def _grant_projected_lease(root: Path, *, task_id: str, agent_id: str) -> None:
         sequence=1,
     )
     project_grant(root, lease, live_main="0" * 40)
+
+
+# ------------------------------------------------- R1 / R2 / G4b / REQ-1 repairs
+# ATLAS-R1-R2-G4-IMPLEMENTATION-CLOSURE-001. Every case below has two arms: the
+# defect arm and the positive control that proves the repair is not a blanket
+# refusal. The harness that defined R1/R2/G4 lives with the verifier; these are
+# the implementer's own, and they measure the same properties from inside.
+
+
+def _run_one_program(tmp_path: Path, task_id: str) -> tuple[Path, Path, Path, Path]:
+    """Admit and run one fixture task to completion on the real resident path.
+
+    Returns (workspace, state_root, queue_root, program_path). Asserts the
+    preconditions every R1/R2/G4 case rests on: the program completed, the
+    worker really wrote its file, and the queue records the program COMPLETE.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program_file(tmp_path, workspace, tasks=[_task(task_id)])
+    state_root = tmp_path / "state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=state_root, admitted_by="op", reference="closure-001",
+    )
+    ran = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05).tick()
+    assert ran.report is not None
+    assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert (workspace / f"{task_id}.txt").is_file(), "fixture must have written"
+    entry = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    assert entry.status is approved_queue.QueueEntryStatus.COMPLETE
+    return workspace, state_root, queue_root, program
+
+
+def test_R1_a_lost_checkpoint_with_a_recorded_attempt_is_quarantined_even_without_the_queue(
+    tmp_path: Path,
+) -> None:
+    """R1, the arm the queue witness cannot cover.
+
+    The earlier repair consulted the queue: no checkpoint + program COMPLETE
+    => reconcile. The verifier's residual was exact: lose the queue witness as
+    well and an envelope-only task read launchable again. But the supervisor's
+    own state.json still records the attempt, and an attempt is evidence of
+    prior execution whether or not the queue survived. So the decision is now
+    made from every durable record that remembers the task, not from one.
+    """
+    _, state_root, _queue_root, _ = _run_one_program(tmp_path, "r1-lost")
+    intact = build_capsule(state_root, for_worker_id="agent-one").tasks[0]
+    assert intact.disposition is Disposition.ALREADY_COMPLETE
+
+    for path in checkpoints_dir(state_root).glob("*.checkpoint.json"):
+        path.unlink()
+
+    # No --queue-root at all: the only witness left is state.json.
+    capsule = build_capsule(state_root, for_worker_id="agent-one")
+    task = capsule.tasks[0]
+    assert task.disposition is Disposition.RECONCILE_REQUIRED, task.disposition
+    assert task.launchable is False, "a lost record must never read as launchable"
+    assert "attempt" in task.reason and "state.json" in task.reason
+    assert "reconcile" in task.next_action.lower()
+    assert "Do not relaunch" in task.next_action
+    rendered = render_capsule(capsule)
+    assert "launchable=True" not in rendered
+    assert "START_FRESH" not in rendered
+    assert "Start task" not in rendered
+
+    # ONE decision: the reconcile command reaches the same disposition from
+    # the same records, so a replacement session cannot be told two things.
+    verdict = reconcile_one(state_root, "r1-lost", our_worker_id="agent-one")
+    assert verdict.disposition is task.disposition
+    assert verdict.launchable is False
+    assert verdict.reason == task.reason
+
+    # And the evidence function itself is silent about a task nobody ran.
+    assert prior_execution_evidence((state_root,), "never-dispatched") == ()
+
+
+def test_R1_positive_controls_new_work_starts_and_valid_checkpoints_continue() -> None:
+    """The other arm, pure. A blanket refusal would pass R1 and break the layer.
+
+    Three shapes, three answers: no record at all starts fresh; a valid
+    checkpoint decides on its own terms and ignores prior-execution evidence
+    entirely (it IS the prior execution); only the envelope-with-evidence
+    shape is quarantined.
+    """
+    fresh = _envelope("fresh", replay=ReplayClass.IDEMPOTENT_MUTATION)
+    verdict = reconcile_task(envelope=fresh, checkpoint=None, our_worker_id=fresh.worker_id)
+    assert verdict.disposition is Disposition.START_FRESH
+    assert verdict.launchable is True
+    assert "no other record" in verdict.reason
+
+    stepped = _envelope(
+        "stepped", replay=ReplayClass.CHECKPOINT_RESUMABLE, steps=("ONE", "TWO", "THREE")
+    )
+    checkpoint = _checkpoint(stepped, last_step="ONE")
+    with_evidence = reconcile_task(
+        envelope=stepped,
+        checkpoint=checkpoint,
+        our_worker_id=stepped.worker_id,
+        prior_execution=("attempt stepped.a1 recorded in state.json",),
+    )
+    without = reconcile_task(
+        envelope=stepped, checkpoint=checkpoint, our_worker_id=stepped.worker_id
+    )
+    assert with_evidence.disposition is Disposition.RESUME_AT_NEXT_STEP
+    assert without.disposition is Disposition.RESUME_AT_NEXT_STEP
+    assert with_evidence.resume_step == without.resume_step == "TWO"
+
+    lost = reconcile_task(
+        envelope=fresh,
+        checkpoint=None,
+        our_worker_id=fresh.worker_id,
+        prior_execution=("attempt fresh.a1 recorded in state.json under /x",),
+    )
+    assert lost.disposition is Disposition.RECONCILE_REQUIRED
+    assert lost.launchable is False
+    assert lost.replay_class is ReplayClass.UNCERTAIN_EXTERNAL_EFFECT
+    assert "attempt fresh.a1" in lost.reason
+    assert lost.evidence[0] == "no checkpoint file"
+
+
+def test_R2_the_complete_rendered_capsule_is_consistent_when_the_queue_says_COMPLETE(
+    tmp_path: Path,
+) -> None:
+    """R2: one document, one decision. Tested on the COMPLETE rendered text.
+
+    The defect was a capsule holding by_status={'COMPLETE': [...]} a few lines
+    above "[START_FRESH] ... launchable=True ... Start task". The whole
+    rendering is searched, not one task line, because the contradiction lived
+    across lines. The reconcile command and its CLI surface must say the same.
+    """
+    _, state_root, queue_root, _ = _run_one_program(tmp_path, "r2-lost")
+    for path in checkpoints_dir(state_root).glob("*.checkpoint.json"):
+        path.unlink()
+
+    capsule = build_capsule(state_root, for_worker_id="agent-one", queue_root=queue_root)
+    rendered = render_capsule(capsule)
+    assert "by_status" in rendered and "'COMPLETE'" in rendered
+    assert "START_FRESH" not in rendered
+    assert "Start task" not in rendered
+    assert "launchable=True" not in rendered
+    assert "[RECONCILE_REQUIRED] r2-lost" in rendered
+    assert "queue records the program owning r2-lost as COMPLETE" in rendered
+
+    (verdict,) = reconcile_root(state_root, our_worker_id="agent-one", queue_root=queue_root)
+    assert verdict.disposition is Disposition.RECONCILE_REQUIRED
+    assert verdict.reason == capsule.tasks[0].reason
+
+    payload = _cli(
+        "program", "continuation", "--action", "reconcile",
+        "--state-root", str(state_root), "--queue-root", str(queue_root),
+        "--worker-id", "agent-one",
+    )
+    (row,) = payload["verdicts"]
+    assert row["disposition"] == "RECONCILE_REQUIRED"
+    assert row["launchable"] is False
+    assert payload["queue_root"] == str(queue_root.resolve())
+
+
+def test_G4a_a_checkpoint_with_no_capture_statement_still_renders_NOT_CAPTURED(
+    tmp_path: Path,
+) -> None:
+    """G4a survives G4b: a writer that made no capture statement is still
+    rendered as "nobody looked", per field and as a whole. Nothing is upgraded
+    from the emptiness of its lists."""
+    root = tmp_path / "state"
+    envelope = _envelope("silent-one", replay=ReplayClass.IDEMPOTENT_MUTATION)
+    persist_envelope(root, envelope)
+    persist_checkpoint(root, _checkpoint(envelope, root=root))
+
+    capsule = build_capsule(root, for_worker_id=envelope.worker_id)
+    task = capsule.tasks[0]
+    assert task.execution_capture == "NOT_CAPTURED"
+    assert set(task.capture) == {"commands", "artifacts", "changed_files"}
+    assert all(item["status"] == "CAPTURE_UNAVAILABLE" for item in task.capture.values())
+    assert all("no per-field capture statement" in item["reason"] for item in task.capture.values())
+    rendered = render_capsule(capsule)
+    assert "NOT CAPTURED" in rendered and "nobody looked" in rendered
+    assert "capture changed_files: CAPTURE_UNAVAILABLE" in rendered
+
+
+def test_G4b_capture_is_UNAVAILABLE_with_a_scoped_reason_and_nothing_is_reconstructed(
+    tmp_path: Path,
+) -> None:
+    """The negative arm of G4b, per source. When the record a field comes from
+    is missing or unusable, the field is UNAVAILABLE and the reason names that
+    record -- and the value is NOT reconstructed from the workspace, the
+    profile, or anything else that would be inventing history."""
+    from project_atlas.orchestration.program.continuation import CaptureStatus
+    from project_atlas.orchestration.program.continuation_projection import (
+        _capture_artifacts,
+        _capture_commands,
+    )
+
+    workspace, state_root, _queue_root, program = _run_one_program(tmp_path, "g4-gone")
+    state = _load_state(state_root)
+    attempt = state.attempts[state.tasks["g4-gone"].last_attempt_id]
+    task = load_program(program).program.tasks[0]
+
+    # Control first: with the records intact both fields are available.
+    commands, statement = _capture_commands(state_root, attempt)
+    assert commands and statement.status is CaptureStatus.CAPTURE_AVAILABLE
+    artifacts, statement = _capture_artifacts(task, attempt, workspace)
+    assert artifacts and statement.status is CaptureStatus.CAPTURE_AVAILABLE
+
+    # A transcript without an argv: the profile still knows the argv, and it
+    # is deliberately NOT used -- the profile says what was configured, the
+    # transcript says what ran.
+    name = next(n for n in attempt.evidence_paths if n.endswith(".transcript.json"))
+    transcript = evidence_dir(state_root) / name
+    transcript.write_text('{"exit_status": 0}\n', encoding="utf-8")
+    commands, statement = _capture_commands(state_root, attempt)
+    assert commands == ()
+    assert statement.status is CaptureStatus.CAPTURE_UNAVAILABLE
+    assert "no usable argv" in statement.reason and name in statement.reason
+
+    transcript.unlink()
+    commands, statement = _capture_commands(state_root, attempt)
+    assert commands == () and "unreadable" in statement.reason
+
+    # The artifact vanished between acceptance and projection: named as
+    # missing, not re-derived from whatever else is in the workspace.
+    (workspace / "g4-gone.txt").unlink()
+    artifacts, statement = _capture_artifacts(task, attempt, workspace)
+    assert artifacts == ()
+    assert statement.status is CaptureStatus.CAPTURE_UNAVAILABLE
+    assert "g4-gone.txt" in statement.reason
+
+    # No attempt at all: both fields say so, scoped.
+    commands, statement = _capture_commands(state_root, None)
+    assert commands == () and "no attempt is recorded" in statement.reason
+    artifacts, statement = _capture_artifacts(task, None, workspace)
+    assert artifacts == () and "no attempt is recorded" in statement.reason
+
+
+def test_write_atomic_fsyncs_the_file_then_renames_then_fsyncs_the_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REQ-1, the sequence. The order is the property: file fsync before the
+    rename, directory fsync after it. This test establishes that the calls are
+    MADE in that order; it does not and cannot establish power-loss durability,
+    which no process-level test can."""
+    from project_atlas.orchestration.program import store as program_store
+
+    if not program_store.DIRECTORY_SYNC_SUPPORTED:
+        pytest.skip("directory fsync is not claimed on this platform")
+    calls: list[str] = []
+    real_fsync, real_replace = os.fsync, os.replace
+
+    def spy_fsync(fd: int) -> None:
+        kind = "dir" if stat.S_ISDIR(os.fstat(fd).st_mode) else "file"
+        calls.append(f"fsync:{kind}")
+        real_fsync(fd)
+
+    def spy_replace(src: Any, dst: Any) -> None:
+        calls.append("replace")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "fsync", spy_fsync)
+    monkeypatch.setattr(os, "replace", spy_replace)
+    target = tmp_path / "state.json"
+    program_store.write_json_atomic(target, {"n": 1})
+    assert calls == ["fsync:file", "replace", "fsync:dir"], calls
+    assert json.loads(target.read_text(encoding="utf-8")) == {"n": 1}
+    assert not target.with_name("state.json.tmp").exists()
+
+
+def test_a_failed_directory_sync_is_a_typed_error_and_never_a_silent_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from project_atlas.orchestration.program import store as program_store
+
+    if not program_store.DIRECTORY_SYNC_SUPPORTED:
+        pytest.skip("directory fsync is not claimed on this platform")
+    real_fsync = os.fsync
+
+    def failing_dir_fsync(fd: int) -> None:
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError(5, "injected EIO")
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", failing_dir_fsync)
+    target = tmp_path / "state.json"
+    with pytest.raises(program_store.StoreError) as caught:
+        program_store.write_json_atomic(target, {"n": 1})
+    assert caught.value.code == "DIRECTORY_SYNC_FAILED"
+    assert "after the rename" in str(caught.value)
+    # The rename itself completed; what could not be established is its
+    # durability, and that is exactly what was reported instead of assumed.
+    assert json.loads(target.read_text(encoding="utf-8")) == {"n": 1}
+
+
+def test_a_failed_write_leaves_the_previous_state_file_intact_and_no_temp_residue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ATOMIC VISIBILITY, established by injected failure. A write that fails
+    before the rename leaves the old document whole and removes its own temp
+    file; a temp path that cannot be created is refused the same way."""
+    from project_atlas.orchestration.program import store as program_store
+
+    target = tmp_path / "state.json"
+    program_store.write_json_atomic(target, {"n": 0})
+    before = target.read_bytes()
+    real_fsync = os.fsync
+
+    def failing_file_fsync(fd: int) -> None:
+        if not stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError(28, "injected ENOSPC")
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", failing_file_fsync)
+    with pytest.raises(program_store.StoreError) as caught:
+        program_store.write_json_atomic(target, {"n": 1, "pad": "x" * 1000})
+    assert caught.value.code == "STATE_WRITE_FAILED"
+    assert target.read_bytes() == before
+    assert list(tmp_path.glob("*.tmp")) == []
+    monkeypatch.undo()
+
+    # The temp path is occupied by a directory: creation fails, typed.
+    target.with_name("state.json.tmp").mkdir()
+    with pytest.raises(program_store.StoreError) as caught:
+        program_store.write_json_atomic(target, {"n": 2})
+    assert caught.value.code == "STATE_WRITE_FAILED"
+    assert target.read_bytes() == before
+
+
+def test_a_writer_killed_mid_loop_leaves_a_whole_state_file_never_a_torn_one(
+    tmp_path: Path,
+) -> None:
+    """PROCESS-INTERRUPTION RECOVERY, and only that.
+
+    A real writer process is killed while writing a 200 KB document in a tight
+    loop. Whatever survives must be a complete document or nothing; a ``.tmp``
+    sibling may remain and every loader ignores it. This is NOT a power-loss
+    test: the kernel's page cache survives a killed process, so this proves the
+    rename discipline, not the fsync discipline. That claim is not made here.
+    """
+    target = tmp_path / "state.json"
+    script = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from project_atlas.orchestration.program.store import write_json_atomic\n"
+        "target = Path(sys.argv[1]); n = 0\n"
+        "print('ready', flush=True)\n"
+        "while True:\n"
+        "    n += 1\n"
+        "    write_json_atomic(target, {'n': n, 'pad': 'x' * 200_000})\n"
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-c", script, str(target)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert proc.stdout is not None
+        assert proc.stdout.readline().strip() == "ready"
+        deadline = time.monotonic() + 5.0
+        while not target.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.2)
+    finally:
+        proc.kill()
+        proc.wait(timeout=30)
+    assert target.exists(), "the writer never produced a state file in time"
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["pad"] == "x" * 200_000
+    assert payload["n"] >= 1
+    assert {p.suffix for p in tmp_path.iterdir()} <= {".json", ".tmp"}

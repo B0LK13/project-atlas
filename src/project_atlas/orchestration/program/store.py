@@ -410,17 +410,103 @@ def clear_launch(root: Path, attempt_id: str) -> None:
             continue
 
 
-def _write_atomic(target: Path, text: str) -> None:
-    """Write, fsync, then rename. A torn state file is not a state file."""
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(target.name + ".tmp")
-    fd = os.open(str(tmp), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+#: Whether this platform lets a directory be opened and fsync'd. POSIX does;
+#: Windows has no directory handle that ``os.fsync`` accepts, so the rename's
+#: durability is left to the filesystem there and is NOT claimed by this module.
+DIRECTORY_SYNC_SUPPORTED: Final[bool] = os.name != "nt" and hasattr(os, "O_DIRECTORY")
+
+
+def _sync_directory(directory: Path) -> None:
+    """fsync the directory so a completed rename survives the next crash.
+
+    ``os.replace`` makes the new name VISIBLE atomically; it does not make it
+    DURABLE. Until the directory's own entry reaches disk the filesystem may
+    still, after power loss, come back with the old name, the new name, or --
+    on some filesystems -- the new name pointing at an empty file. Found as
+    REQ-1 by an independent verifier: the file was fsync'd, the directory was
+    not, so the rename could be lost.
+
+    Every failure here is typed and raised: a rename whose durability could
+    not be established is reported, never assumed.
+    """
     try:
-        os.write(fd, text.encode("utf-8"))
+        fd = os.open(str(directory), os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as exc:
+        raise StoreError(
+            f"cannot open {directory} to synchronise the rename: {exc}",
+            code="DIRECTORY_SYNC_FAILED",
+        ) from exc
+    try:
         os.fsync(fd)
+    except OSError as exc:
+        raise StoreError(
+            f"fsync of {directory} failed after the rename: {exc}",
+            code="DIRECTORY_SYNC_FAILED",
+        ) from exc
     finally:
         os.close(fd)
-    os.replace(tmp, target)
+
+
+def _write_atomic(target: Path, text: str) -> None:
+    """Write, fsync, rename, fsync the directory. A torn state file is not a state file.
+
+    Three claims, kept separate because they are established separately:
+
+    * ATOMIC VISIBILITY -- a reader sees the old content or the new content,
+      never a mix. Given by writing to a sibling temp file and ``os.replace``.
+      Tested with an injected failure between write and rename.
+    * PROCESS-INTERRUPTION RECOVERY -- a writer killed at any point leaves the
+      target readable (old or new) and at most a ``.tmp`` sibling, which every
+      loader ignores. Tested by killing a real writer mid-loop.
+    * POWER-LOSS DURABILITY -- the sequence file-fsync, rename, directory-fsync
+      is the documented POSIX recipe for it. This module performs the recipe
+      and raises when it cannot; it has NOT been verified against actual power
+      loss, and a test that kills a process or mocks ``os.fsync`` does not
+      verify it either. Where ``DIRECTORY_SYNC_SUPPORTED`` is false the
+      directory step is skipped and the claim is not made at all.
+
+    Every OS failure is re-raised as a ``StoreError`` with a code, so a caller
+    that catches ``ProgramError`` sees a state write fail the same way it sees
+    every other refusal in this package. The temp file is removed on a failed
+    write; the target is never touched until the temp file is complete.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".tmp")
+    data = text.encode("utf-8")
+    try:
+        fd = os.open(str(tmp), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    except OSError as exc:
+        raise StoreError(
+            f"cannot create {tmp.name} beside {target.name}: {exc}",
+            code="STATE_WRITE_FAILED",
+        ) from exc
+    try:
+        view = memoryview(data)
+        while view:
+            # ``os.write`` may write less than it was given; a short write that
+            # went unnoticed would be exactly the torn file this exists to
+            # prevent.
+            written = os.write(fd, view)
+            view = view[written:]
+        os.fsync(fd)
+    except OSError as exc:
+        os.close(fd)
+        tmp.unlink(missing_ok=True)
+        raise StoreError(
+            f"writing {tmp.name} failed before it replaced {target.name}: {exc}",
+            code="STATE_WRITE_FAILED",
+        ) from exc
+    os.close(fd)
+    try:
+        os.replace(tmp, target)
+    except OSError as exc:
+        tmp.unlink(missing_ok=True)
+        raise StoreError(
+            f"renaming {tmp.name} over {target.name} failed: {exc}",
+            code="STATE_WRITE_FAILED",
+        ) from exc
+    if DIRECTORY_SYNC_SUPPORTED:
+        _sync_directory(target.parent)
 
 
 def write_json_atomic(target: Path, payload: dict[str, Any]) -> Path:

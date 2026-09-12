@@ -30,6 +30,15 @@
       "title": "ArtifactRecord",
       "type": "object"
     },
+    "CaptureStatus": {
+      "description": "Whether ONE execution-detail field was actually captured.\n\n``ExecutionCapture`` answers for the checkpoint as a whole; this answers per\nfield, because the fields have different sources and one can be available\nwhile another is not. A supervisor that recorded the adapter's command line\nbut never watched individual file writes must be able to say exactly that.",
+      "enum": [
+        "CAPTURE_AVAILABLE",
+        "CAPTURE_UNAVAILABLE"
+      ],
+      "title": "CaptureStatus",
+      "type": "string"
+    },
     "CommandRecord": {
       "additionalProperties": false,
       "description": "One command this task ran, and what was observed of it.\n\n``exit_status`` of ``None`` means the command's outcome was never observed\n-- it was still running when the process died. That is the record that\nmakes an uncertain external effect visible instead of invisible, so it is\na real value rather than a gap.",
@@ -127,13 +136,30 @@
       "type": "object"
     },
     "ExecutionCapture": {
-      "description": "Was this checkpoint's execution detail observed, or merely absent?\n\nThe distinction G4 is about. A checkpoint whose ``changed_files``,\n``commands`` and ``artifacts`` are empty is saying one of two completely\ndifferent things, and until this existed a reader could not tell which:\n\n  ``OBSERVED``      a writer watched the execution and these lists are its\n                    findings. Empty means nothing happened.\n  ``NOT_CAPTURED``  nobody watched. Empty means nobody looked, and the\n                    absence carries no information about what the worker\n                    did.\n\n``NOT_CAPTURED`` is the honest default, because the boundary projection --\nwhich writes most checkpoints -- observes nothing.",
+      "description": "Was this checkpoint's execution detail observed, or merely absent?\n\nThe distinction G4 is about. A checkpoint whose ``changed_files``,\n``commands`` and ``artifacts`` are empty is saying one of two completely\ndifferent things, and until this existed a reader could not tell which:\n\n  ``OBSERVED``      a writer captured at least one of the lists from a\n                    record of the execution. WHICH lists is stated per\n                    field in ``ContinuationCheckpoint.capture``; a list\n                    whose field is CAPTURE_AVAILABLE and empty means\n                    nothing was observed for it.\n  ``NOT_CAPTURED``  nobody captured anything. Empty means nobody looked,\n                    and the absence carries no information about what the\n                    worker did.\n\n``NOT_CAPTURED`` is the honest default for a writer that made no capture\nstatement at all.",
       "enum": [
         "OBSERVED",
         "NOT_CAPTURED"
       ],
       "title": "ExecutionCapture",
       "type": "string"
+    },
+    "ExecutionCaptureReport": {
+      "additionalProperties": false,
+      "description": "Per-field capture statements for ``commands``, ``artifacts``, ``changed_files``.\n\nThe default is UNAVAILABLE for every field with a reason that says the\nwriter made no statement -- which is what a checkpoint from a writer that\npredates this report actually tells us. Nothing here is inferred from the\nlists themselves: a non-empty list beside an UNAVAILABLE statement is a\nwriter that listed things without saying how it knew, and that is\nrendered as such rather than upgraded.",
+      "properties": {
+        "artifacts": {
+          "$ref": "#/$defs/FieldCapture"
+        },
+        "changed_files": {
+          "$ref": "#/$defs/FieldCapture"
+        },
+        "commands": {
+          "$ref": "#/$defs/FieldCapture"
+        }
+      },
+      "title": "ExecutionCaptureReport",
+      "type": "object"
     },
     "ExecutionIdentity": {
       "additionalProperties": false,
@@ -235,6 +261,31 @@
       "title": "ExternalEffectReceipt",
       "type": "object"
     },
+    "FieldCapture": {
+      "additionalProperties": false,
+      "description": "The capture statement for one field: available or not, and why.\n\n``reason`` is scoped to THIS field and THIS writer -- \"the supervisor\nrecords no per-file write observation\" -- never a generic \"not captured\".\n``source`` names the durable record the value was read from when it was\navailable, so a reader can go and look.",
+      "properties": {
+        "reason": {
+          "default": "no per-field capture statement was recorded by the writer",
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "source": {
+          "default": "",
+          "maxLength": 1024,
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CaptureStatus",
+          "default": "CAPTURE_UNAVAILABLE"
+        }
+      },
+      "title": "FieldCapture",
+      "type": "object"
+    },
     "LeaseSnapshot": {
       "additionalProperties": false,
       "description": "The lease this execution held, as it stood when the checkpoint was taken.\n\nRecorded rather than looked up, because the point of a checkpoint is to be\nreadable when the thing that held the lease is gone. ``expires_at`` is what\na successor checks before reacquiring: work is reacquired after expiry and\nan identity check, never because the previous holder stopped answering.",
@@ -310,6 +361,9 @@
       "maxItems": 32,
       "title": "Blockers",
       "type": "array"
+    },
+    "capture": {
+      "$ref": "#/$defs/ExecutionCaptureReport"
     },
     "changed_files": {
       "items": {

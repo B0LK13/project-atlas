@@ -31,7 +31,10 @@ repeat", and silence is exactly what an unannotated task is.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
+from typing import Final
 
 from project_atlas.orchestration.autonomy.lease_projection import (
     ProjectionError,
@@ -40,12 +43,17 @@ from project_atlas.orchestration.autonomy.lease_projection import (
 )
 from project_atlas.orchestration.autonomy.models import NodeState
 from project_atlas.orchestration.program.continuation import (
+    ArtifactRecord,
+    CaptureStatus,
     CheckpointError,
     CheckpointPolicy,
+    CommandRecord,
     ConsumedBudget,
     ContinuationCheckpoint,
     ExecutionCapture,
+    ExecutionCaptureReport,
     ExecutionIdentity,
+    FieldCapture,
     LeaseSnapshot,
     ReplayClass,
     TaskBudgets,
@@ -58,13 +66,205 @@ from project_atlas.orchestration.program.continuation import (
     utc_now,
 )
 from project_atlas.orchestration.program.loader import LoadedProgram
-from project_atlas.orchestration.program.models import ExecutionConfidence, ProgramTask
-from project_atlas.orchestration.program.store import AttemptRecord, ProgramStateRecord
+from project_atlas.orchestration.program.models import (
+    AcceptanceKind,
+    ExecutionConfidence,
+    ProgramTask,
+)
+from project_atlas.orchestration.program.store import (
+    AttemptRecord,
+    ProgramStateRecord,
+    evidence_dir,
+)
 
 #: Task states that mean the work is finished and sealed.
 _DONE: frozenset[NodeState] = frozenset({NodeState.CERTIFIED, NodeState.CLOSED})
 #: Task states that mean a person has to decide before anything else happens.
 _STUCK: frozenset[NodeState] = frozenset({NodeState.BLOCKED, NodeState.OWNER_HELD})
+#: The adapter transcript an attempt names in its evidence paths. Written by
+#: the adapter from what it observed of the child: argv, exit status, output.
+_TRANSCRIPT_SUFFIX: Final[str] = ".transcript.json"
+#: Acceptance kinds that name a workspace path the supervisor itself observed.
+_ARTIFACT_CHECK_KINDS: Final[frozenset[AcceptanceKind]] = frozenset(
+    {AcceptanceKind.FILE_EXISTS, AcceptanceKind.FILE_MATCHES}
+)
+_OUTPUT_TAIL_BYTES: Final[int] = 4096
+_HASH_CHUNK: Final[int] = 1 << 16
+
+
+def _unavailable(reason: str) -> FieldCapture:
+    return FieldCapture(status=CaptureStatus.CAPTURE_UNAVAILABLE, reason=reason[:512])
+
+
+def _capture_commands(
+    root: Path, attempt: AttemptRecord | None
+) -> tuple[tuple[CommandRecord, ...], FieldCapture]:
+    """The command the supervisor actually observed for this task's attempt.
+
+    G4b. The source is the adapter transcript the attempt names in its own
+    evidence paths -- a record the adapter wrote from the child it launched,
+    with the argv it launched, the exit status it collected and the output it
+    read. Nothing here is reconstructed: an attempt without a transcript, an
+    unreadable transcript or a transcript without an argv all yield
+    CAPTURE_UNAVAILABLE with the reason scoped to that attempt.
+    """
+    if attempt is None:
+        return (), _unavailable(
+            "no attempt is recorded for this task, so nothing was dispatched and "
+            "there is no command to report"
+        )
+    names = [
+        name
+        for name in attempt.evidence_paths
+        if name.endswith(_TRANSCRIPT_SUFFIX) and "/" not in name and "\\" not in name
+    ]
+    if not names:
+        return (), _unavailable(
+            f"adapter {attempt.adapter} recorded no transcript for attempt "
+            f"{attempt.attempt_id}; the supervisor did not observe its command line"
+        )
+    name = names[0]
+    try:
+        payload = json.loads((evidence_dir(root) / name).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return (), _unavailable(
+            f"transcript {name} for attempt {attempt.attempt_id} is unreadable "
+            f"({type(exc).__name__}); the observed command line cannot be reported"
+        )
+    argv = payload.get("argv") if isinstance(payload, dict) else None
+    if (
+        not isinstance(argv, list)
+        or not argv
+        or len(argv) > 64
+        or not all(isinstance(item, str) and item for item in argv)
+    ):
+        return (), _unavailable(
+            f"transcript {name} records no usable argv; the observed command line "
+            "cannot be reported"
+        )
+    exit_status = payload.get("exit_status")
+    if isinstance(exit_status, bool) or not isinstance(exit_status, int):
+        exit_status = None
+    stdout = payload.get("stdout")
+    stderr = payload.get("stderr")
+    tail = (stdout if isinstance(stdout, str) else "") + (
+        stderr if isinstance(stderr, str) else ""
+    )
+    record = CommandRecord(
+        argv=tuple(argv),
+        started_at=attempt.started_at,
+        ended_at=attempt.ended_at,
+        exit_status=exit_status,
+        output_tail=tail[-_OUTPUT_TAIL_BYTES:],
+    )
+    return (record,), FieldCapture(
+        status=CaptureStatus.CAPTURE_AVAILABLE,
+        reason=(
+            "argv, exit status and output tail read from the adapter transcript "
+            f"written for attempt {attempt.attempt_id}; start and end times from "
+            "the attempt record"
+        ),
+        source=f"evidence/{name}",
+    )
+
+
+def _sha256_of(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(_HASH_CHUNK)
+            if not chunk:
+                break
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
+
+
+def _capture_artifacts(
+    task: ProgramTask, attempt: AttemptRecord | None, workspace: Path
+) -> tuple[tuple[ArtifactRecord, ...], FieldCapture]:
+    """Artifacts the supervisor observed through its own acceptance checks.
+
+    G4b. A FILE_EXISTS or FILE_MATCHES check that PASSED is the supervisor
+    having looked at that path itself; those paths, and only those, are
+    reported. Each is hashed inside the workspace at projection time, which is
+    after acceptance and is said so in the reason. A path the acceptance saw
+    that is gone or is not a regular file by now is named as missing rather
+    than dropped.
+    """
+    if attempt is None:
+        return (), _unavailable(
+            "no attempt is recorded for this task, so no acceptance check ran and "
+            "no artifact path was observed"
+        )
+    if not attempt.acceptance_detail:
+        return (), _unavailable(
+            f"attempt {attempt.attempt_id} reached phase {attempt.phase.value} "
+            "without an acceptance evaluation; no artifact path was observed"
+        )
+    passed = {
+        detail.get("check_id")
+        for detail in attempt.acceptance_detail
+        if detail.get("passed") is True
+    }
+    candidates = [
+        check
+        for check in task.acceptance
+        if check.kind in _ARTIFACT_CHECK_KINDS and check.path and check.check_id in passed
+    ]
+    if not candidates:
+        return (), _unavailable(
+            "no passed FILE_EXISTS or FILE_MATCHES acceptance check names a path; "
+            "the supervisor observed no artifact path for this task"
+        )
+    base = workspace.resolve()
+    records: list[ArtifactRecord] = []
+    missing: list[str] = []
+    for check in candidates:
+        relative = check.path or ""
+        target = (base / relative).resolve()
+        if not target.is_relative_to(base) or not target.is_file():
+            missing.append(relative)
+            continue
+        try:
+            sha, size = _sha256_of(target)
+        except OSError:
+            missing.append(relative)
+            continue
+        records.append(ArtifactRecord(path=relative, sha256=sha, bytes=size))
+    if not records:
+        return (), _unavailable(
+            "acceptance observed "
+            + ", ".join(missing)
+            + " but none is a regular file inside the workspace at projection time"
+        )
+    reason = (
+        "paths taken from acceptance checks the supervisor observed to pass; each "
+        "hashed inside the workspace at projection time, which is after acceptance, "
+        "not at it"
+    )
+    if missing:
+        reason += "; not found at projection: " + ", ".join(missing)
+    return tuple(records), FieldCapture(
+        status=CaptureStatus.CAPTURE_AVAILABLE,
+        reason=reason[:512],
+        source=f"attempt {attempt.attempt_id} acceptance_detail",
+    )
+
+
+#: changed_files has no observing writer in this projection, and the reason is
+#: fixed rather than computed: the supervisor watches no individual file write
+#: for any adapter, and the one thing that COULD fill the list -- a workspace
+#: diff -- would be reconstructing history, not observing it.
+_CHANGED_FILES_UNAVAILABLE: Final[FieldCapture] = FieldCapture(
+    status=CaptureStatus.CAPTURE_UNAVAILABLE,
+    reason=(
+        "the supervisor records no per-file write observation for any adapter; a "
+        "workspace diff would reconstruct history rather than observe it and is "
+        "deliberately not used"
+    ),
+)
 
 
 def replay_class_for(task: ProgramTask) -> ReplayClass:
@@ -256,6 +456,20 @@ def project_checkpoints(
                 f"{attempt.phase.value} with an uncertain outcome",
             )
 
+        # G4b. What the supervisor genuinely observed, per field, from records
+        # it or its adapter wrote: the command from the attempt's transcript,
+        # the artifacts from acceptance checks that passed. changed_files has
+        # no observer and says so. Each field carries its own statement, so a
+        # reader sees "commands captured, changed files not" rather than one
+        # flag flattened over three lists. Nothing is inferred from a diff.
+        commands, commands_capture = _capture_commands(root, attempt)
+        artifacts, artifacts_capture = _capture_artifacts(task, attempt, worktree)
+        capture = ExecutionCaptureReport(
+            commands=commands_capture,
+            artifacts=artifacts_capture,
+            changed_files=_CHANGED_FILES_UNAVAILABLE,
+        )
+
         checkpoint = ContinuationCheckpoint(
             identity=ExecutionIdentity(
                 task_id=task.task_id,
@@ -290,13 +504,17 @@ def project_checkpoints(
                     else 0.0
                 ),
             ),
-            # G4, stated rather than left to be inferred from empty lists: this
-            # projection writes at PROGRAM BOUNDARIES and never observes a
-            # worker, so it cannot report what changed, what ran, or what was
-            # produced. Marking it NOT_CAPTURED is the whole of the honest
-            # answer -- reconstructing commands from a workspace diff would be
-            # inventing a history nobody recorded.
-            execution_capture=ExecutionCapture.NOT_CAPTURED,
+            # G4a: OBSERVED means at least one field below was captured from a
+            # record; NOT_CAPTURED means none was. The per-field report says
+            # which. Neither value is ever set from the emptiness of a list.
+            execution_capture=(
+                ExecutionCapture.OBSERVED
+                if capture.any_available()
+                else ExecutionCapture.NOT_CAPTURED
+            ),
+            capture=capture,
+            commands=commands,
+            artifacts=artifacts,
             blockers=blockers,
             uncertainty=uncertainty,
             replay_class=replay,

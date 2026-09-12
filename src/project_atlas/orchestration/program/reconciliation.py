@@ -165,32 +165,186 @@ def _unconfirmed_effects(checkpoint: ContinuationCheckpoint) -> tuple[str, ...]:
     )
 
 
+#: Upper bound on the evidence strings gathered for one task, so a task with
+#: hundreds of attempts still yields a readable verdict.
+_MAX_PRIOR_EXECUTION_EVIDENCE: Final[int] = 8
+
+
+def completed_program_task_ids(queue_root: Path | None) -> frozenset[str]:
+    """Task ids whose owning program the approved-work queue records COMPLETE.
+
+    Consulted only when a task's own records cannot answer, because the records
+    are the better evidence whenever they survive. When they do not, this is
+    the difference between "no record, so start it" and "no record, but its
+    program is recorded finished -- something was lost". First used by the
+    capsule alone; moved here so the capsule and ``atlas program continuation
+    --action reconcile`` reach ONE decision from the same inputs.
+    """
+    if queue_root is None:
+        return frozenset()
+    from project_atlas.orchestration.program.approved_queue import (
+        QueueEntryStatus,
+        load_queue,
+    )
+    from project_atlas.orchestration.program.loader import load_program
+
+    try:
+        queue = load_queue(queue_root)
+    except Exception:
+        return frozenset()
+    owned: set[str] = set()
+    for entry in queue.entries.values():
+        if entry.status is not QueueEntryStatus.COMPLETE:
+            continue
+        try:
+            loaded = load_program(Path(entry.program_path))
+        except Exception:
+            # An admitted program whose file moved cannot tell us what it owns.
+            # Silence here is correct: we lose the cross-check, not the record.
+            continue
+        owned.update(task.task_id for task in loaded.program.tasks)
+    return frozenset(owned)
+
+
+def prior_execution_evidence(
+    roots: tuple[Path, ...],
+    task_id: str,
+    *,
+    queue_root: Path | None = None,
+    completed_elsewhere: frozenset[str] | None = None,
+) -> tuple[str, ...]:
+    """Every durable trace that this task was executed before, from any root.
+
+    R1. A missing checkpoint on its own says nothing about whether the task
+    ran: an interrupted write, a lost rename or a deleted file all leave a bare
+    envelope behind, and a bare envelope also is what a task that has never
+    been dispatched looks like. The two must be told apart from OTHER records
+    -- ones written by the supervisor, not by this layer -- and this gathers
+    them:
+
+      * ``state.json`` under any root: the task's own record (attempts,
+        launches, a last attempt id, or any state past DISCOVERED) and every
+        attempt recorded for it;
+      * the evidence files those attempts name, when still on disk;
+      * the approved-work queue: the owning program recorded COMPLETE.
+
+    Every string names its source. Returns empty ONLY when none of these exist,
+    which is the one case in which "start fresh" is a statement about the
+    past rather than a guess. Never raises: an unreadable record is reported as
+    evidence of its own ("state.json under ... is unreadable"), because an
+    unreadable record is still a record.
+    """
+    from project_atlas.orchestration.autonomy.models import NodeState
+    from project_atlas.orchestration.program.store import evidence_dir, load_state
+
+    found: list[str] = []
+    for root in roots:
+        try:
+            state = load_state(root)
+        except Exception as exc:
+            found.append(f"state.json under {root} is unreadable ({type(exc).__name__})")
+            continue
+        if state is None:
+            continue
+        record = state.tasks.get(task_id)
+        if record is not None and (
+            record.attempts > 0
+            or record.launches > 0
+            or record.last_attempt_id is not None
+            or record.state is not NodeState.DISCOVERED
+        ):
+            found.append(
+                f"state.json under {root} records task {task_id} in state "
+                f"{record.state.value} with {record.attempts} attempt(s) and "
+                f"{record.launches} launch(es)"
+            )
+        for attempt in sorted(state.attempts.values(), key=lambda a: a.started_at):
+            if attempt.task_id != task_id:
+                continue
+            found.append(
+                f"attempt {attempt.attempt_id} recorded in state.json under {root} "
+                f"(phase {attempt.phase.value}, started {attempt.started_at})"
+            )
+            for name in attempt.evidence_paths:
+                if (evidence_dir(root) / name).is_file():
+                    found.append(f"evidence file {name} present under {root}")
+    completed = (
+        completed_elsewhere
+        if completed_elsewhere is not None
+        else completed_program_task_ids(queue_root)
+    )
+    if task_id in completed:
+        found.append(
+            "the approved-work queue records the program owning "
+            f"{task_id} as COMPLETE"
+        )
+    if len(found) > _MAX_PRIOR_EXECUTION_EVIDENCE:
+        found = [
+            *found[: _MAX_PRIOR_EXECUTION_EVIDENCE - 1],
+            f"... and {len(found) - (_MAX_PRIOR_EXECUTION_EVIDENCE - 1)} more record(s)",
+        ]
+    return tuple(found)
+
+
 def reconcile_task(
     *,
     envelope: TaskEnvelope,
     checkpoint: ContinuationCheckpoint | None,
     our_worker_id: str,
     now: datetime | None = None,
+    prior_execution: tuple[str, ...] = (),
 ) -> ReconciliationVerdict:
     """Decide what may happen next for one task. Pure, given its inputs.
 
     Kept free of I/O so the whole decision table is testable without a
     filesystem, and so the ordering of the invariants is visible in one place
     rather than spread across the callers that happen to hit them.
+
+    ``prior_execution`` is the gathered output of ``prior_execution_evidence``:
+    durable traces, from records OTHER than the checkpoint, that the task ran
+    before. It only matters when the checkpoint is missing, and then it is
+    decisive -- see R1 below.
     """
     moment = now or datetime.now(UTC)
     evidence: list[str] = []
 
+    if checkpoint is None and prior_execution:
+        # R1. The checkpoint is gone but something else remembers the task
+        # running: an attempt in state.json, an evidence file, a program
+        # recorded COMPLETE. A record was LOST rather than never written, and
+        # a lost record is not authority to start over -- the work may have
+        # finished, may have half-finished, may have had an effect nobody can
+        # see. The only safe disposition is the quarantine every other
+        # unresolved execution gets. Found by an independent verifier: with the
+        # terminal checkpoint removed the capsule said START_FRESH,
+        # launchable=True, "Start task t1." for completed work.
+        return ReconciliationVerdict(
+            task_id=envelope.task_id,
+            disposition=Disposition.RECONCILE_REQUIRED,
+            replay_class=ReplayClass.UNCERTAIN_EXTERNAL_EFFECT,
+            reason=(
+                "no durable checkpoint survives for this task, but other records "
+                "show it was executed before: " + "; ".join(prior_execution) + ". "
+                "A record was lost rather than never written, so restarting could "
+                "redo finished work. Reconcile before any dispatch."
+            ),
+            evidence=("no checkpoint file", *prior_execution),
+        )
+
     if checkpoint is None:
         # Never run. Not "probably never run": the absence of a checkpoint is
         # only ever reached through `load_checkpoint`, which raises rather than
-        # returning None for anything present-but-unusable.
+        # returning None for anything present-but-unusable, AND the caller
+        # gathered no other record of an execution (see above).
         return ReconciliationVerdict(
             task_id=envelope.task_id,
             disposition=Disposition.START_FRESH,
             replay_class=envelope.replay_class,
-            reason="no durable checkpoint exists for this task",
-            evidence=("no checkpoint file",),
+            reason=(
+                "no durable checkpoint exists for this task and no other record "
+                "shows it was ever executed"
+            ),
+            evidence=("no checkpoint file", "no attempt, evidence or completion record"),
         )
 
     if checkpoint.envelope_digest != envelope.digest():
@@ -421,7 +575,11 @@ def reconcile_task(
 
 
 def reconcile_root(
-    root: Path, *, our_worker_id: str, now: datetime | None = None
+    root: Path,
+    *,
+    our_worker_id: str,
+    now: datetime | None = None,
+    queue_root: Path | None = None,
 ) -> tuple[ReconciliationVerdict, ...]:
     """Reconcile every task that has an envelope under one state root.
 
@@ -432,6 +590,7 @@ def reconcile_root(
     """
     from project_atlas.orchestration.program.continuation import list_envelopes
 
+    completed = completed_program_task_ids(queue_root)
     verdicts: list[ReconciliationVerdict] = []
     for envelope in list_envelopes(root):
         try:
@@ -453,13 +612,21 @@ def reconcile_root(
                 checkpoint=checkpoint,
                 our_worker_id=our_worker_id,
                 now=now,
+                prior_execution=prior_execution_evidence(
+                    (root,), envelope.task_id, completed_elsewhere=completed
+                ),
             )
         )
     return tuple(verdicts)
 
 
 def reconcile_one(
-    root: Path, task_id: str, *, our_worker_id: str, now: datetime | None = None
+    root: Path,
+    task_id: str,
+    *,
+    our_worker_id: str,
+    now: datetime | None = None,
+    queue_root: Path | None = None,
 ) -> ReconciliationVerdict:
     """Reconcile a single task, by id."""
     envelope = load_envelope(root, task_id)
@@ -484,4 +651,5 @@ def reconcile_one(
         checkpoint=checkpoint,
         our_worker_id=our_worker_id,
         now=now,
+        prior_execution=prior_execution_evidence((root,), task_id, queue_root=queue_root),
     )
