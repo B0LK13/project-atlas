@@ -13582,10 +13582,25 @@ longer reproduced -- the same stale-evidence defect this lane exists to catch,
 found by verification round 2.
 
 Suites (file set enumerated, because the figure was previously not
-reproducible as stated): test_as_obsidian_capture_001, _f3,
-test_as_graph_005_projections, _adversarial, _f4_canonical_semantics,
-test_as_coder_alpha_obsidian_001, _r1_001, and this package's own file =
-264 passed, 4 xfailed. Full suite: 5,643 passed, 8 skipped, 4 xfailed,
+reproducible as stated): **F13 CORRECTION (issue #755) -- this sealed
+paragraph is the one record this package is allowed to edit.** The
+original abbreviation was not runnable as written. Expanding
+`test_as_graph_005_projections, _adversarial` produced the stem
+`test_as_graph_005_projections_adversarial` (no such file; the real
+stem is `test_as_graph_005_adversarial`) and expanding
+`test_as_coder_alpha_obsidian_001, _r1_001` produced the stem
+`test_as_coder_alpha_obsidian_001_r1_001` (no such file; the real
+stem is `test_as_coder_alpha_obsidian_r1_001`). The eight paths the
+abbreviation named, written out, each exist on this object:
+`tests/unit/test_as_obsidian_capture_001.py`
+`tests/unit/test_as_obsidian_capture_001_f3.py`
+`tests/unit/test_as_obsidian_capture_001_f5_newline_fidelity.py`
+`tests/unit/test_as_graph_005_projections.py`
+`tests/unit/test_as_graph_005_adversarial.py`
+`tests/unit/test_as_graph_005_f4_canonical_semantics.py`
+`tests/unit/test_as_coder_alpha_obsidian_001.py`
+`tests/unit/test_as_coder_alpha_obsidian_r1_001.py`
+= 264 passed, 4 xfailed. Full suite: 5,643 passed, 8 skipped, 4 xfailed,
 EXIT=0 -- recorded here because it is the strongest single gate and was
 previously only in the PR body. The seven F1-F4 files are byte-identical to
 base, so 237/237 there is a clean no-regression result against the sealed
@@ -14915,3 +14930,32 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+
+## AS-OBSIDIAN-CAPTURE-001 F13 -- F5's sealed suite list was not runnable
+
+F5's sealed WORKLOG entry abbreviated a suite list. Two abbreviations
+expand to filenames that do not exist. The same class was corrected in
+F6, F8 and F9; F5's copy was left because it sits in the byte-identical
+prefix later seals rely on. This package is the allowed edit of that
+one paragraph.
+
+**This PR's WORKLOG diff is not insertion-only.** That is disclosed
+here rather than left for a reviewer to discover. Every other sealed
+entry is unchanged.
+
+The original abbreviation named eight files plus "this package's own
+file". Issue #755 listed nine paths including
+`tests/unit/test_as_obsidian_capture_001_f6_error_boundary.py`. F6 is a
+later package and was not in the abbreviation, so it is not inserted
+into the sealed F5 paragraph.
+
+A sweep now asserts every `tests/unit/*.py` path written in
+`WORKLOG.md` and `docs/evidence/*.md` exists, minus one recorded
+historical residual: `test_dogfood_001_source_marker_identity_write.py`
+was moved to `tests/integration/` and earlier WORKLOG lines still cite
+the unit path. That record is outside this package's allowed edit.
+The two false F5 stems are documented without the path form so they
+are not a second exception.
+
+`MERGE_AUTHORIZATION` is not granted. The backlog box stays `[ ]`.
