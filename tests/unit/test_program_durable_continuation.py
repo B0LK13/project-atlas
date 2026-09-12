@@ -2877,6 +2877,104 @@ def test_D2_admit_refuses_to_default_the_state_root(tmp_path: Path) -> None:
     assert approved_queue.load_queue(queue_root).entries == {}
 
 
+def test_D6_a_stale_envelope_must_not_shadow_a_COMPLETED_record(
+    tmp_path: Path,
+) -> None:
+    """D-6: which record wins is decided by evidence, not by scan order.
+
+    `_scan_roots` puts the dispatcher's own root first, and that root is where
+    debris lands: `materialise_envelopes` writes envelopes BEFORE a program
+    runs, so a run that aborts before any checkpoint leaves an envelope with no
+    checkpoint. Under first-root-wins that stale envelope shadowed the
+    authoritative terminal record in the program's own root, and the capsule
+    reported START_FRESH / launchable=True for completed work.
+
+    Not a replay -- the queue entry is terminal so nothing re-dispatches. The
+    damage is to the capsule, which is the only surface a replacement session
+    has: it pointed that session at finished work.
+
+    Found by the state-compatibility check on a real deployment, where the
+    debris had been left by an earlier defect (D-3) in the same lane. One
+    defect manufactured the precondition for another.
+
+    The precondition is asserted, not assumed: the dispatcher root really must
+    hold an envelope with no checkpoint, or this test proves nothing.
+    """
+    dispatcher_root = tmp_path / "dispatcher-root"
+    program_root = tmp_path / "program-state"
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir()
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    envelope = _envelope("shadowed", replay=ReplayClass.IDEMPOTENT_MUTATION)
+    # debris in the root that is scanned FIRST
+    persist_envelope(dispatcher_root, envelope)
+    # the authoritative, completed record in the program's own root
+    persist_envelope(program_root, envelope)
+    persist_checkpoint(
+        program_root,
+        _checkpoint(
+            envelope, terminal=True, replay=ReplayClass.COMPLETED, root=program_root
+        ),
+    )
+    program = _program_file(tmp_path, workspace, tasks=[_task("shadowed")])
+    approved_queue.admit(
+        queue_root, program_path=program, program_id="continuation-program",
+        state_root=program_root, admitted_by="op", reference="D6",
+    )
+
+    # THE PRECONDITION, asserted.
+    assert [e.task_id for e in list_envelopes(dispatcher_root)] == ["shadowed"]
+    assert load_checkpoint(dispatcher_root, "shadowed") is None, (
+        "the debris must be an envelope WITHOUT a checkpoint"
+    )
+    assert load_checkpoint(program_root, "shadowed") is not None
+
+    capsule = build_capsule(
+        dispatcher_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+    )
+    task = next(t for t in capsule.tasks if t.task_id == "shadowed")
+
+    assert task.disposition is Disposition.ALREADY_COMPLETE, task.disposition
+    assert task.launchable is False
+    assert task.state_root == str(program_root.resolve()), (
+        "the capsule must read the root holding the stronger evidence"
+    )
+    assert "do not replay it" in task.next_action
+    # and both roots are still reported, so the situation stays visible
+    assert len(capsule.state_roots_scanned) == 2
+
+
+def test_D6_evidence_precedence_orders_terminal_over_checkpoint_over_envelope(
+    tmp_path: Path,
+) -> None:
+    """The ordering IS the fix, so it is asserted directly rather than inferred."""
+    from project_atlas.orchestration.program.capsule import _evidence_rank
+
+    envelope = _envelope("ranked", replay=ReplayClass.IDEMPOTENT_MUTATION)
+
+    bare = tmp_path / "bare"
+    persist_envelope(bare, envelope)
+
+    running = tmp_path / "running"
+    persist_envelope(running, envelope)
+    persist_checkpoint(running, _checkpoint(envelope, terminal=False, root=running))
+
+    done = tmp_path / "done"
+    persist_envelope(done, envelope)
+    persist_checkpoint(
+        done,
+        _checkpoint(envelope, terminal=True, replay=ReplayClass.COMPLETED, root=done),
+    )
+
+    assert _evidence_rank(done, "ranked") > _evidence_rank(running, "ranked")
+    assert _evidence_rank(running, "ranked") > _evidence_rank(bare, "ranked")
+    # a root that has never heard of the task ranks as envelope-only, which is
+    # the floor for "present"; it is never allowed to outrank a real record.
+    assert _evidence_rank(tmp_path / "empty", "ranked") <= _evidence_rank(bare, "ranked")
+
+
 # ---------------------------------------------------------------- helpers
 
 

@@ -237,6 +237,62 @@ def _scan_roots(root: Path, queue_root: Path | None) -> tuple[Path, ...]:
     return tuple(roots)
 
 
+#: How strong a task's record is in one state root. Higher wins a tie between
+#: roots. The ordering is the whole of the D-6 fix, so it is stated once here
+#: rather than implied by control flow:
+#:
+#:   3  a TERMINAL checkpoint -- the work reached a sealed outcome
+#:   2  a checkpoint that is not terminal -- the work demonstrably started
+#:   1  an envelope only -- authority was recorded and nothing else happened
+#:   0  unreadable -- present but unusable
+#:
+#: A bare envelope is the WEAKEST evidence and is what an aborted run leaves
+#: behind, which is why scan order was the wrong tie-break.
+_EVIDENCE_TERMINAL: Final[int] = 3
+_EVIDENCE_CHECKPOINT: Final[int] = 2
+_EVIDENCE_ENVELOPE_ONLY: Final[int] = 1
+_EVIDENCE_UNREADABLE: Final[int] = 0
+
+
+def _evidence_rank(state_root: Path, task_id: str) -> int:
+    """How much this root actually knows about the task."""
+    try:
+        checkpoint = load_checkpoint(state_root, task_id)
+    except Exception:
+        return _EVIDENCE_UNREADABLE
+    if checkpoint is None:
+        return _EVIDENCE_ENVELOPE_ONLY
+    return _EVIDENCE_TERMINAL if checkpoint.terminal else _EVIDENCE_CHECKPOINT
+
+
+def _build_view(state_root: Path, envelope: TaskEnvelope, for_worker_id: str) -> _TaskView:
+    """One task's view from one root, reconciled. Never raises."""
+    try:
+        checkpoint = load_checkpoint(state_root, envelope.task_id)
+    except Exception as exc:
+        return _TaskView(
+            envelope=envelope,
+            checkpoint=None,
+            verdict=ReconciliationVerdict(
+                task_id=envelope.task_id,
+                disposition=Disposition.FAIL_CLOSED,
+                replay_class=envelope.replay_class,
+                reason=f"durable state is unusable: {exc}",
+                evidence=(type(exc).__name__,),
+            ),
+            state_root=state_root,
+        )
+    verdict = reconcile_task(
+        envelope=envelope, checkpoint=checkpoint, our_worker_id=for_worker_id
+    )
+    return _TaskView(
+        envelope=envelope,
+        checkpoint=checkpoint,
+        verdict=verdict,
+        state_root=state_root,
+    )
+
+
 def build_capsule(
     root: Path,
     *,
@@ -246,16 +302,44 @@ def build_capsule(
     """Generate a capsule from durable state. Reads no conversation."""
     scan_roots = _scan_roots(root, queue_root)
     views: list[_TaskView] = []
-    seen: set[str] = set()
+    # D-6. One task, one view -- but WHICH record wins is decided by evidence,
+    # not by scan order.
+    #
+    # The previous rule was first-root-wins, and the dispatcher's own root is
+    # scanned first. That root is exactly where debris lands: envelopes are
+    # written BEFORE a program runs, so a run that aborts before any checkpoint
+    # leaves an envelope with no checkpoint behind. An envelope without a
+    # checkpoint reconciles to START_FRESH, launchable -- so a stale one
+    # shadowed the authoritative terminal record in the program's own root and
+    # the capsule told a replacement session to redo completed work.
+    #
+    # Not a replay: the queue entry is terminal, so the dispatcher never
+    # re-runs it. The damage is to the capsule, which is the ONLY surface a
+    # replacement session has.
+    #
+    # This defect was introduced by the fix for its own opposite. F1 was "the
+    # capsule silently reports nothing because it read one root"; the repair
+    # added multi-root scanning, and its tie-break became "the capsule
+    # confidently reports the wrong record". Evidence strength is the rule that
+    # answers both: a record carrying a terminal checkpoint outranks one
+    # carrying any checkpoint, which outranks a bare envelope.
+    seen: dict[str, int] = {}
     for scan_root in scan_roots:
         for envelope in list_envelopes(scan_root):
             if envelope.task_id in seen:
-                # One task, one view. A duplicate id across two roots is two
-                # different records for one unit of work; the first root in
-                # scan order wins and the situation is visible in
-                # state_roots_scanned rather than silently merged.
+                existing = views[seen[envelope.task_id]]
+                if _evidence_rank(scan_root, envelope.task_id) <= _evidence_rank(
+                    existing.state_root, existing.envelope.task_id
+                ):
+                    continue
+                # A stronger record was found in a later root. Replace the
+                # weaker one and say so, rather than keeping whichever root
+                # happened to be scanned first.
+                views[seen[envelope.task_id]] = _build_view(
+                    scan_root, envelope, for_worker_id
+                )
                 continue
-            seen.add(envelope.task_id)
+            seen[envelope.task_id] = len(views)
             try:
                 checkpoint = load_checkpoint(scan_root, envelope.task_id)
             except Exception as exc:
