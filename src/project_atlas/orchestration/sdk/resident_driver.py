@@ -26,7 +26,7 @@ from project_atlas.orchestration.sdk.external_observers import (
     load_observer_registry,
     pending_external_count,
 )
-from project_atlas.orchestration.sdk.host import pid_is_alive
+from project_atlas.orchestration.sdk.host import no_window_creationflags, pid_is_alive
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
 from project_atlas.orchestration.sdk.nonblocking_scheduler import (
     bounded_sleep_seconds,
@@ -155,6 +155,7 @@ def poll_github_ci(run_id: str) -> tuple[str, str | None, str | None]:
         text=True,
         check=False,
         timeout=60,
+        creationflags=no_window_creationflags(),
     )
     if proc.returncode != 0:
         return "in_progress", None, None

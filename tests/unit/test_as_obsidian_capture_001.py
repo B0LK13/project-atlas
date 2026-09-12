@@ -1213,7 +1213,6 @@ def test_retry_with_malformed_human_markers_fails_closed(vault: Path) -> None:
         ("identical-content", "{a}{a}"),
         ("unicode-name", "{ua}{ub}"),
         ("marker-whitespace", "{ws}{b}"),
-        ("nested-same-name", "{ns}"),
     ],
 )
 def test_duplicate_human_region_names_fail_closed(case: str, blocks: str) -> None:
@@ -1243,7 +1242,6 @@ def test_duplicate_human_region_names_fail_closed(case: str, blocks: str) -> Non
         ua=human(name="\u5099\u8003", body="FIRST"),
         ub=human(name="\u5099\u8003", body="SECOND"),
         ws="<!--  BEGIN HUMAN: notes  -->\nFIRST\n<!-- END HUMAN: notes -->",
-        ns=human(name="notes", body=human(name="notes", body="INNER")),
     )
     rendered = (
         f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
@@ -1373,7 +1371,11 @@ def test_nested_same_name_is_an_identity_failure_not_a_nesting_ruling() -> None:
     nested_same = GENERATED_START + GENERATED_END + human(
         name="notes", body=human(name="notes", body="INNER")
     )
-    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+    # Structural pairing catches this before identity does: nothing in the
+    # marker text says which END closes which BEGIN, so the document has no
+    # single valid reading. Either way it fails closed and the note is
+    # untouched -- the code is more precise, the verdict is unchanged.
+    with pytest.raises(ProtectedRegionError, match="ambiguous-protected-region-nesting"):
         merge_protected_regions(
             existing=nested_same, rendered=rendered, path="nested-same.md"
         )
@@ -1428,43 +1430,196 @@ def test_same_name_siblings_are_ambiguous_at_every_depth(
         extract_human_regions(existing)
 
 
-def test_the_same_name_in_two_different_scopes_is_not_an_f1_refusal() -> None:
-    """Scoping must not overshoot: distinct containers may reuse a name.
+def test_the_same_name_in_two_different_scopes_is_preserved_independently() -> None:
+    """F2-01: scope is part of identity, so `a/x` and `b/x` are two regions.
 
-    `a{x}` beside `b{x}` is two regions that share a name in *different*
-    scopes, and a merged nested document routinely takes that shape -- after
-    one merge a nested `outer{inner}` document carries `inner` both at the top
-    level and inside `outer`. Refusing it would break re-rendering a document
-    the merge itself produced, which is how an earlier revision of this check
-    decided the open nesting question by side effect.
+    This test previously pinned the opposite: it asserted `ONE` was *lost*,
+    because name-keyed resolution collapsed both blocks into one dictionary
+    slot, the last one parsed won, and the merge then spliced the survivor
+    into the earlier container. That was a real human-content loss recorded as
+    the open F2 question; the owner decision resolves it in favour of
+    structural identity, so the assertion is inverted here deliberately.
 
-    Recorded honestly: this shape *does* lose content today. `x` resolves to
-    the last block, and the merge then substitutes it into the earlier
-    container, so `ONE` does not survive. That is pre-existing nesting
-    behaviour -- the pre-F1 implementation does exactly the same thing, as this
-    test pins -- and belongs to the separately-tracked nesting question, not to
-    duplicate-identity. F1's obligation here is to change nothing.
+    Both payloads must survive, and each must stay in its own container --
+    preservation alone is not enough if the bytes land in the wrong scope.
     """
     human = (
         "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->"
     ).format
     existing = (
-        GENERATED_START + GENERATED_END
+        f"{GENERATED_START}\nold\n{GENERATED_END}\n"
         + human(name="a", body=human(name="x", body="ONE"))
         + human(name="b", body=human(name="x", body="TWO"))
     )
     rendered = (
         f"{GENERATED_START}\nfresh\n{GENERATED_END}\n"
-        "<!-- BEGIN HUMAN: notes -->\n<!-- END HUMAN: notes -->"
+        + human(name="a", body=human(name="x", body=""))
+        + human(name="b", body=human(name="x", body=""))
     )
 
-    # Accepted, not refused -- the F1 boundary.
     merged = merge_protected_regions(existing=existing, rendered=rendered, path="ok.md")
-    assert "<!-- BEGIN HUMAN: a -->" in merged
-    assert "<!-- BEGIN HUMAN: b -->" in merged
-    # And the pre-existing loss is pinned rather than quietly claimed fixed.
-    assert "ONE" not in merged, "F1 must not change nested-name resolution"
-    assert "TWO" in merged
+
+    assert "fresh" in merged
+    assert merged.count("ONE") == 1
+    assert merged.count("TWO") == 1
+    inside_a = merged.split("<!-- BEGIN HUMAN: a -->")[1].split("<!-- END HUMAN: a -->")[0]
+    inside_b = merged.split("<!-- BEGIN HUMAN: b -->")[1].split("<!-- END HUMAN: b -->")[0]
+    assert "ONE" in inside_a and "TWO" not in inside_a
+    assert "TWO" in inside_b and "ONE" not in inside_b
+
+
+# ---------------------------------------------------------------------------
+# F2 acceptance matrix. Region identity is ancestry scope + name, so `a/x` and
+# `b/x` are independent regions; same-scope repeats and structurally unpairable
+# nesting fail closed, and nothing is written until the whole plan resolves.
+# ---------------------------------------------------------------------------
+
+_H = "<!-- BEGIN HUMAN: {name} -->\n{body}\n<!-- END HUMAN: {name} -->".format
+
+
+def _doc(body: str, generated: str = "generated") -> str:
+    return f"{GENERATED_START}\n{generated}\n{GENERATED_END}\n" + body
+
+
+def _scope(text: str, name: str) -> str:
+    """The bytes between a container's own markers."""
+    return text.split(f"<!-- BEGIN HUMAN: {name} -->")[1].split(
+        f"<!-- END HUMAN: {name} -->"
+    )[0]
+
+
+def test_f2_04_same_leaf_name_at_different_scopes_are_distinct_identities() -> None:
+    """F2-04: ancestry is part of the key, so `x` and `a/x` never share a slot."""
+    existing = _doc(_H(name="x", body="TOP") + _H(name="a", body=_H(name="x", body="NESTED")))
+
+    regions = extract_human_regions(existing)
+
+    assert set(regions) == {("x",), ("a",), ("a", "x")}
+    assert "TOP" in regions[("x",)]
+    assert "NESTED" in regions[("a", "x")]
+
+
+def test_f2_07_a_human_edit_lands_only_in_the_scope_it_was_made_in() -> None:
+    """F2-07: editing `a/x` must not touch `b/x`."""
+    rendered = _doc(
+        _H(name="a", body=_H(name="x", body="")) + _H(name="b", body=_H(name="x", body="")),
+        generated="fresh",
+    )
+    edited = _doc(
+        _H(name="a", body=_H(name="x", body="ONE, edited by a human"))
+        + _H(name="b", body=_H(name="x", body="TWO"))
+    )
+
+    merged = merge_protected_regions(existing=edited, rendered=rendered, path="edit.md")
+
+    assert "ONE, edited by a human" in _scope(merged, "a")
+    assert "edited by a human" not in _scope(merged, "b")
+    assert "TWO" in _scope(merged, "b")
+
+
+def test_f2_08_generated_changes_leave_both_scopes_byte_preserved() -> None:
+    """F2-08: rewriting the generated span must not disturb either region."""
+    existing = _doc(
+        _H(name="a", body=_H(name="x", body="ONE")) + _H(name="b", body=_H(name="x", body="TWO"))
+    )
+    rendered = _doc(
+        _H(name="a", body=_H(name="x", body="")) + _H(name="b", body=_H(name="x", body="")),
+        generated="COMPLETELY DIFFERENT GENERATED BODY",
+    )
+
+    merged = merge_protected_regions(existing=existing, rendered=rendered, path="gen.md")
+
+    assert "COMPLETELY DIFFERENT GENERATED BODY" in merged
+    assert _H(name="x", body="ONE") in merged
+    assert _H(name="x", body="TWO") in merged
+
+
+def test_f2_09_one_ambiguity_aborts_the_whole_merge() -> None:
+    """F2-09: a resolvable region alongside an ambiguous one changes nothing.
+
+    The plan is resolved and validated before any byte is written, so the
+    caller cannot be handed a note where `solo` was updated and the ambiguous
+    container was left behind.
+    """
+    existing = _doc(
+        _H(name="solo", body="KEEP ME")
+        + _H(name="a", body=_H(name="x", body="1") + _H(name="x", body="2"))
+    )
+    rendered = _doc(_H(name="solo", body=""), generated="fresh")
+    before = existing
+
+    with pytest.raises(ProtectedRegionError, match="duplicate-protected-region-names"):
+        merge_protected_regions(existing=existing, rendered=rendered, path="abort.md")
+
+    assert existing == before
+
+
+def test_f2_10_reordering_sibling_containers_moves_nothing_between_them() -> None:
+    """F2-10: position locates a span; it is never the identity."""
+    existing = _doc(
+        _H(name="a", body=_H(name="x", body="ONE")) + _H(name="b", body=_H(name="x", body="TWO"))
+    )
+    reordered = _doc(
+        _H(name="b", body=_H(name="x", body="")) + _H(name="a", body=_H(name="x", body="")),
+        generated="fresh",
+    )
+
+    merged = merge_protected_regions(existing=existing, rendered=reordered, path="order.md")
+
+    assert "ONE" in _scope(merged, "a") and "TWO" not in _scope(merged, "a")
+    assert "TWO" in _scope(merged, "b") and "ONE" not in _scope(merged, "b")
+
+
+@pytest.mark.parametrize(
+    ("case", "existing_body"),
+    [
+        ("same-scope-siblings", '{dup}'),
+        ("same-scope-inside-a-container", '{outer_dup}'),
+        ("crossed-markers", '{crossed}'),
+    ],
+)
+def test_f2_structurally_ambiguous_documents_fail_closed(
+    case: str, existing_body: str
+) -> None:
+    """F2-02/F2-05/section 3: no unique identity means no write."""
+    existing = _doc(
+        existing_body.format(
+            dup=_H(name="x", body="1") + _H(name="x", body="2"),
+            outer_dup=_H(name="a", body=_H(name="x", body="1") + _H(name="x", body="2")),
+            crossed=(
+                "<!-- BEGIN HUMAN: a -->\n<!-- BEGIN HUMAN: b -->\n"
+                "<!-- END HUMAN: a -->\n<!-- END HUMAN: b -->"
+            ),
+        )
+    )
+    rendered = _doc(_H(name="notes", body=""), generated="fresh")
+
+    with pytest.raises(ProtectedRegionError):
+        merge_protected_regions(existing=existing, rendered=rendered, path=f"{case}.md")
+
+
+def test_f2_06_identities_stay_stable_across_repeated_renders() -> None:
+    """F2-06: six generations, both scopes byte-preserved and shape settled."""
+    document = _doc(
+        _H(name="a", body=_H(name="x", body="ONE")) + _H(name="b", body=_H(name="x", body="TWO"))
+    )
+    rendered = _doc(
+        _H(name="a", body=_H(name="x", body="")) + _H(name="b", body=_H(name="x", body="")),
+        generated="fresh",
+    )
+
+    seen = []
+    for generation in range(6):
+        document = merge_protected_regions(
+            existing=document, rendered=rendered, path=f"gen{generation}.md"
+        )
+        seen.append(document)
+        assert document.count("ONE") == 1, f"ONE duplicated or lost at R{generation}"
+        assert document.count("TWO") == 1, f"TWO duplicated or lost at R{generation}"
+        assert "ONE" in _scope(document, "a")
+        assert "TWO" in _scope(document, "b")
+
+    assert len(set(seen)) == 1, "merge is not idempotent across generations"
 
 
 def test_retry_leaves_a_duplicate_region_note_byte_identical(vault: Path) -> None:
@@ -1712,11 +1867,17 @@ def test_nested_distinct_names_survive_repeated_renders_like_pre_f1() -> None:
         # Human payload is never lost, at any generation.
         assert "INNER" in document, f"inner content lost at R{generation}"
         assert "outer text" in document, f"outer content lost at R{generation}"
-        # The pre-F1 shape: the inner block appears twice and stays stable.
+        # Under structural identity the inner block is carried by its parent
+        # rather than appended alongside it, so it appears once. Pre-F2 it
+        # appeared twice: name-keyed resolution treated `inner` as a separate
+        # top-level region and re-emitted it next to the `outer` block that
+        # already contained it. Duplication was not loss, but it was spurious
+        # content the human never wrote.
         assert document.count("<!-- BEGIN HUMAN: outer -->") == 1
-        assert document.count("<!-- BEGIN HUMAN: inner -->") == 2, (
+        assert document.count("<!-- BEGIN HUMAN: inner -->") == 1, (
             f"nested-distinct shape changed at R{generation}"
         )
+        assert document.count("INNER") == 1
 
 
 def test_nested_distinct_document_is_stable_after_the_first_merge() -> None:

@@ -10,6 +10,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
+from project_atlas.orchestration.sdk.host import no_window_creationflags
 
 CANONICAL_PR = 429
 CANONICAL_REPO = "B0LK13/project-atlas"
@@ -234,6 +235,7 @@ def _fetch_jobs(
             capture_output=True,
             text=True,
             timeout=45,
+            creationflags=no_window_creationflags(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return ()
@@ -294,6 +296,7 @@ def observe_exact_head_ci(
             capture_output=True,
             text=True,
             timeout=30,
+            creationflags=no_window_creationflags(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return CiObservation(head_sha=head_sha, status="UNKNOWN")
@@ -353,6 +356,7 @@ def refresh_pr_head(
             capture_output=True,
             text=True,
             timeout=30,
+            creationflags=no_window_creationflags(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -381,6 +385,7 @@ def refresh_pr_head(
             capture_output=True,
             text=True,
             timeout=30,
+            creationflags=no_window_creationflags(),
         )
         candidate = (tree_proc.stdout or "").strip()
         if tree_proc.returncode == 0 and len(candidate) == 40:

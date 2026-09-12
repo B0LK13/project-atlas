@@ -22,6 +22,34 @@ _HELD_LOCKS_GUARD = threading.Lock()
 _HELD_INSTANCE_IDS: dict[str, str] = {}
 
 
+def no_window_creationflags() -> int:
+    """Windows-only ``creationflags`` for a subprocess call that must
+    never show a console window, no-op (``0``) everywhere else.
+
+    Real, user-reported incident (recurring across this session): a
+    resident/detached driver process spawned with no console of its own
+    (``DETACHED_PROCESS``, see ``resident_windows.py``) still shells out
+    to console-subsystem executables (``gh``, ``tasklist``,
+    ``powershell``) via plain ``subprocess.run()``/``Popen()``. Windows'
+    default behavior for a console-subsystem child whose parent has no
+    console of its own is to allocate a BRAND NEW, visible console
+    window for it -- so every one of those calls popped a real terminal
+    window in front of the user, each one showing that one command's own
+    output (e.g. a ``gh run view``/``gh api`` failure against whatever
+    git remote happened to resolve in a throwaway ``tmp_path`` test
+    fixture, unrelated to any repository the user actually has open).
+    PR #669 already fixed the SEPARATE, more severe problem of that
+    detached process never being cleaned up (a real PID-scoped leak);
+    this closes the narrower-but-still-real problem of the window itself
+    ever appearing in the first place, for calls that run and exit
+    quickly. ``subprocess.CREATE_NO_WINDOW`` tells Windows never to
+    allocate one, regardless of the parent's own console state.
+    """
+    if os.name != "nt":
+        return 0
+    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
 def host_state_dir(root: Path) -> Path:
     return root / STATE_DIR_RELATIVE
 
@@ -60,6 +88,7 @@ def pid_is_alive(pid: int) -> bool:
             capture_output=True,
             text=True,
             check=False,
+            creationflags=no_window_creationflags(),
         )
         return str(pid) in (proc.stdout or "")
     try:
@@ -159,6 +188,7 @@ def process_start_identity(pid: int) -> str:
                 capture_output=True,
                 text=True,
                 check=False,
+                creationflags=no_window_creationflags(),
             )
             ticks = (proc.stdout or "").strip()
             if proc.returncode == 0 and ticks.isdigit():
