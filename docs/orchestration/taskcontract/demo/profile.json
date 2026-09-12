@@ -1,0 +1,11 @@
+{
+  "profile_id": "implementer",
+  "description": "DEMONSTRATION profile. A real one is an operator decision.",
+  "agent_id": "demo-implementer",
+  "adapter": "local-command",
+  "credential": "NOT_APPLICABLE",
+  "capabilities": ["IMPLEMENT"],
+  "allowed_mutation_prefixes": ["tests", "WORKLOG.md"],
+  "limits": {"max_seconds": 2400, "max_attempts": 2},
+  "adapter_options": {"argv": ["/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.venv/bin/python", "-c", "pass"]}
+}
