@@ -12,6 +12,11 @@ or Control Plane ``relationships/``.
 Truth boundary: GRAPH PROJECTION ≠ AUTOMATIC AUTHORITY.
 Projections are derived intelligence / operational views — never Layer A
 evidence and never domain-authoritative claims.
+
+HUMAN-region preservation on regeneration is delegated to the canonical
+protected-region core (``project_atlas.protected_regions``) through a narrow
+adapter (AS-OBSIDIAN-CAPTURE-001-F4); see ``_merge_protected_regions`` for the
+one retained graph-specific contract.
 """
 
 from __future__ import annotations
@@ -28,6 +33,15 @@ from uuid import uuid4
 
 from project_atlas.graph_quarantine import GraphHealthSnapshot, HealthState
 from project_atlas.graph_relationships import LinkQuality, RelationshipRecord
+from project_atlas.protected_regions import (
+    ProtectedRegionError,
+    generated_marker_diagnosis,
+    read_note_text,
+    reject_ambiguous_region_identity,
+)
+from project_atlas.protected_regions import (
+    merge_protected_regions as _canonical_merge_protected_regions,
+)
 
 PACKAGE_ID = "AS-GRAPH-005"
 SOURCE_RELATIONSHIP_PACKAGE = "AS-GRAPH-003"
@@ -139,74 +153,113 @@ def _validate_protected_markers(text: str, *, path: str) -> None:
         raise GraphProjectionError(f"malformed-protected-markers:{path}")
     start_count = text.count(_GENERATED_START)
     end_count = text.count(_GENERATED_END)
-    if start_count != end_count:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
-    if start_count > 1:
-        raise GraphProjectionError(f"malformed-generated-markers:{path}")
+    if start_count != end_count or start_count > 1:
+        raise GraphProjectionError(
+            f"malformed-generated-markers:"
+            f"{generated_marker_diagnosis(text, reason='count')}:{path}"
+        )
     if start_count == 1:
         start_index = text.index(_GENERATED_START)
         end_index = text.index(_GENERATED_END)
         if end_index < start_index:
-            raise GraphProjectionError(f"malformed-generated-markers:{path}")
+            raise GraphProjectionError(
+                f"malformed-generated-markers:"
+                f"{generated_marker_diagnosis(text, reason='end-before-begin')}:{path}"
+            )
 
 
-def _extract_human_regions(text: str) -> dict[str, str]:
-    """Return name → full HUMAN block (including markers) for preservation."""
-    regions: dict[str, str] = {}
-    for match in _HUMAN_BEGIN.finditer(text):
-        name = match.group(1)
-        end_match = re.search(
-            rf"<!--\s*END HUMAN:\s*{re.escape(name)}\s*-->",
-            text[match.end() :],
+def _generated_span(text: str, *, path: str) -> tuple[int, int] | None:
+    """Bounds of the single generated span, or ``None`` when there is none.
+
+    :func:`_validate_protected_markers` treats a document carrying *no*
+    generated markers as balanced (zero begins, zero ends), so the retained
+    graph-specific splice below cannot assume they are present. Locating them
+    with ``str.index`` raised a bare :class:`ValueError` that escaped this
+    module's ``GraphProjectionError`` boundary. Fails closed instead when the
+    markers are present but unusable -- only one side, or END before BEGIN.
+    """
+    start = text.find(_GENERATED_START)
+    end = text.find(_GENERATED_END)
+    if start < 0 and end < 0:
+        return None
+    if start < 0 or end < 0 or end < start:
+        # `end < start` is a distinct condition from a missing marker, and the
+        # operator can act on the difference, so report which one it was.
+        reason = "end-before-begin" if (start >= 0 and end >= 0) else "count"
+        raise GraphProjectionError(
+            f"malformed-generated-markers:"
+            f"{generated_marker_diagnosis(text, reason=reason)}:{path}"
         )
-        if end_match is None:
-            raise GraphProjectionError(f"malformed-protected-markers:missing-end:{name}")
-        end_abs_finish = match.end() + end_match.end()
-        regions[name] = text[match.start() : end_abs_finish]
-    return regions
+    return start, end + len(_GENERATED_END)
 
 
 def _merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:
-    """Preserve HUMAN regions byte-for-byte; replace generated body only."""
+    """Preserve HUMAN regions via the canonical protected-region core (F4).
+
+    AS-OBSIDIAN-CAPTURE-001-F4: HUMAN region identity, ambiguity handling,
+    and preservation semantics are delegated to
+    :func:`project_atlas.protected_regions.merge_protected_regions` so this
+    derived-view surface cannot drift from the canonical implementation
+    again. Canonical refusals are translated to
+    :class:`GraphProjectionError`; the fail-closed guarantee is unchanged.
+
+    One graph-specific contract is retained deliberately and disclosed: when
+    the prior note carries no HUMAN regions, text outside the generated span
+    is preserved and only the generated span is replaced, where the canonical
+    core returns the fresh render (discarding that outside text).
+    """
     if existing is None:
+        try:
+            return _canonical_merge_protected_regions(existing=None, rendered=rendered, path=path)
+        except ProtectedRegionError as exc:
+            raise GraphProjectionError(str(exc)) from exc
+
+    if not _HUMAN_BEGIN.search(existing):
+        # No HUMAN regions: keep the historical graph contract (preserve text
+        # outside the generated span). The canonical core returns the fresh
+        # render in this case, which would discard that text.
+        _validate_protected_markers(existing, path=path)
         _validate_protected_markers(rendered, path=path)
-        return rendered
-
-    _validate_protected_markers(existing, path=path)
-    _validate_protected_markers(rendered, path=path)
-
-    prior_humans = _extract_human_regions(existing)
-    if not prior_humans:
-        # No human regions — still fail closed on malformed generated markers
-        # and replace only the generated span when present.
-        if _GENERATED_START in existing and _GENERATED_END in existing:
-            start_index = existing.index(_GENERATED_START)
-            end_index = existing.index(_GENERATED_END) + len(_GENERATED_END)
-            gen_start = rendered.index(_GENERATED_START)
-            gen_end = rendered.index(_GENERATED_END) + len(_GENERATED_END)
-            return existing[:start_index] + rendered[gen_start:gen_end] + existing[end_index:]
-        return rendered
-
-    merged = rendered
-    for name, block in sorted(prior_humans.items()):
-        pattern = re.compile(
-            rf"<!--\s*BEGIN HUMAN:\s*{re.escape(name)}\s*-->.*?<!--\s*END HUMAN:\s*"
-            rf"{re.escape(name)}\s*-->",
-            re.DOTALL,
+        # This branch splices by hand instead of delegating to the canonical
+        # core, so it never reaches the core's structural parse -- and the
+        # marker validation above compares counts and names, never ORDER. A
+        # rendered document whose HUMAN markers are reversed or crossed
+        # therefore passed here and was WRITTEN, while the canonical core
+        # refuses it as `unpaired`. Graph accepted what canonical rejected.
+        try:
+            reject_ambiguous_region_identity(rendered, path=path)
+        except ProtectedRegionError as exc:
+            raise GraphProjectionError(str(exc)) from exc
+        existing_span = _generated_span(existing, path=path)
+        if existing_span is None:
+            return rendered
+        rendered_span = _generated_span(rendered, path=path)
+        if rendered_span is None:
+            # The prior note has a generated span to replace but the fresh
+            # render offers none. Refuse rather than fall back to overwriting
+            # the whole document, which would discard the outside text this
+            # branch exists to preserve.
+            # The counts must name the artifact they describe. Borrowing the
+            # note-shaped vocabulary here reported `begin=0,end=0` against the
+            # OPERATOR'S path, telling them their note had no markers when it
+            # has one of each -- the render is what lacks a span. Found by
+            # verification.
+            raise GraphProjectionError(
+                f"malformed-generated-markers:rendered-has-no-generated-span,"
+                f"rendered-begin={rendered.count(_GENERATED_START)},"
+                f"rendered-end={rendered.count(_GENERATED_END)},"
+                f"expected=1,no-write:{path}"
+            )
+        return (
+            existing[: existing_span[0]]
+            + rendered[rendered_span[0] : rendered_span[1]]
+            + existing[existing_span[1] :]
         )
-        if not pattern.search(merged):
-            # Append preserved human block after generated section when template
-            # omitted the named region (still preserve bytes).
-            merged = merged.rstrip() + "\n\n" + block + "\n"
-        else:
-            preserved = block
 
-            def _replacer(_match: re.Match[str], *, _block: str = preserved) -> str:
-                return _block
-
-            merged = pattern.sub(_replacer, merged, count=1)
-    _validate_protected_markers(merged, path=path)
-    return merged
+    try:
+        return _canonical_merge_protected_regions(existing=existing, rendered=rendered, path=path)
+    except ProtectedRegionError as exc:
+        raise GraphProjectionError(str(exc)) from exc
 
 
 def _frontmatter(*, project_id: str, projection: ProjectionName, source_state: str) -> str:
@@ -548,7 +601,16 @@ def _promote(plan: dict[Path, bytes]) -> None:
     entries: list[_PromotionEntry] = []
     try:
         for path in sorted(plan):
-            path.parent.mkdir(parents=True, exist_ok=True)
+            # Same third failure site as `obsidian_projection._write_atomic`:
+            # a blocked or unwritable parent escaped as a raw OSError, outside
+            # `GraphProjectionError`, so a caller catching the domain error did
+            # not catch this at all.
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise GraphProjectionError(
+                    f"unwritable-note-directory:{type(exc).__name__}:{path.parent}"
+                ) from exc
             if path.exists() and not path.is_file():
                 raise GraphProjectionError(f"canonical-target-not-file:{path}")
             if path.is_file() and path.read_bytes() == plan[path]:
@@ -621,7 +683,16 @@ def write_projection_outputs(
     plan: dict[Path, bytes] = {}
     for relative, rendered in sorted(mapping.items()):
         path = _safe_vault_relative(vault, relative)
-        existing = path.read_text(encoding="utf-8") if path.is_file() else None
+        try:
+            existing = read_note_text(path) if path.is_file() else None
+        except (OSError, UnicodeError) as exc:
+            # Same boundary as above: the read happens while building `plan`,
+            # before `_promote`, so nothing has been written yet -- but a raw
+            # exception here escaped `GraphProjectionError`, so a caller
+            # catching that did not catch this at all.
+            raise GraphProjectionError(
+                f"unreadable-existing-note:{type(exc).__name__}:{relative}"
+            ) from exc
         merged = _merge_protected_regions(existing=existing, rendered=rendered, path=relative)
         plan[path] = merged.encode("utf-8")
 

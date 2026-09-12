@@ -36,6 +36,7 @@ from project_atlas.protected_regions import (
     GENERATED_START,
     ProtectedRegionError,
     extract_human_regions,
+    read_note_text,
 )
 from project_atlas.protected_regions import merge_protected_regions as _merge_protected_regions
 from project_atlas.secrets import redact_text, scan_text
@@ -258,14 +259,38 @@ def render_note(
 
 
 def _existing_capture_id(text: str) -> str | None:
-    """Read the ``atlas.capture_id`` of an existing note, if it has one."""
-    if not text.startswith("---\n"):
+    """Read the ``atlas.capture_id`` of an existing note, if it has one.
+
+    Line endings are normalised **for parsing only**. The note's own bytes are
+    never touched -- this is the same split ``canonical_content`` draws for
+    identity: interpret a normalised copy, persist the original.
+
+    It matters here because this function decides *ownership*. A note whose
+    frontmatter delimiter ends ``\r\n`` -- what a Windows editor or a
+    ``core.autocrlf=true`` checkout produces -- would otherwise fail
+    ``startswith("---\n")``, be judged unmanaged, and be refused on every
+    refresh with ``OBSIDIAN_NOTE_CONFLICT``. That fails closed and loses no
+    bytes, but it misdiagnoses the cause and the note never refreshes again.
+
+    A leading UTF-8 BOM is stripped from the probe for exactly the same reason.
+    Windows Notepad writes UTF-8 **with** BOM by default, so an operator who
+    opens an Atlas-managed note there and saves it gets a note Atlas no longer
+    recognises as its own -- correct ``capture_id``, correct frontmatter, just a
+    ``U+FEFF`` prefix -- and it stops refreshing permanently.
+
+    This widens what Atlas *recognises*, never what it *accepts*. Ownership
+    still requires ``atlas.managed is True`` and a matching ``capture_id`` from
+    genuine YAML frontmatter; a note Atlas does not own is refused exactly as
+    before, BOM or not. The hostile-shape refusal set is pinned by test.
+    """
+    probe = text.replace("\r\n", "\n").replace("\r", "\n").removeprefix("\ufeff")
+    if not probe.startswith("---\n"):
         return None
-    end = text.find("\n---", 4)
+    end = probe.find("\n---", 4)
     if end == -1:
         return None
     try:
-        loaded = yaml.safe_load(text[4:end])
+        loaded = yaml.safe_load(probe[4:end])
     except yaml.YAMLError:
         return None
     if not isinstance(loaded, dict):
@@ -375,7 +400,7 @@ def write_note(
     existing: str | None = None
     if target.is_file():
         try:
-            existing = target.read_text(encoding="utf-8")
+            existing = read_note_text(target)
         except (OSError, UnicodeError) as exc:
             raise ObsidianNoteError(
                 "OBSIDIAN_NOTE_CONFLICT",
