@@ -16,6 +16,10 @@ from project_atlas.chatgpt_capture import (
     ChatgptCaptureError,
     build_chatgpt_capture_receipt,
 )
+from project_atlas.conversation_capture import (
+    ConversationCaptureError,
+    _write_atomic,
+)
 from project_atlas.knowledge_inbox import (
     KnowledgeInboxError,
     build_knowledge_inbox_receipt,
@@ -47,6 +51,16 @@ def test_chatgpt_capture_happy_path_still_writes(tmp_path: Path) -> None:
     report = build_chatgpt_capture_receipt(vault, record_id="cap-1", turn_count=2)
     assert report["live_api"] is False
     assert (vault / "generated" / "ops" / "chatgpt" / "cap-1.json").is_file()
+
+
+def test_conversation_capture_write_atomic_blocked_parent_is_domain_error(
+    tmp_path: Path,
+) -> None:
+    """Inbox is now contained; this pins the sibling capture writer."""
+    vault = _blocked_vault(tmp_path)
+    target = vault / "generated" / "ops" / "conversation-captures" / "x.json"
+    with pytest.raises(ConversationCaptureError, match="unwritable-conversation-capture:"):
+        _write_atomic(target, b"{}\n")
 
 
 def test_knowledge_inbox_happy_path_still_writes(tmp_path: Path) -> None:
