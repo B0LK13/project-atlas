@@ -57,7 +57,12 @@ def _read_marker(root: Path) -> dict[str, Any] | None:
     for name in (".atlas-project.yaml", ".atlas-project.yml"):
         marker = root / name
         if marker.is_file():
-            raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
+            try:
+                raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, yaml.YAMLError, KeyError):
+                # Constructor tags such as ``!!bool nope`` raise KeyError.
+                # Treat as present-but-unusable; do not invent a project UUID.
+                return {}
             return raw if isinstance(raw, dict) else {}
     return None
 
