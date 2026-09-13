@@ -204,7 +204,8 @@ def load_acceptance_contracts(project_root: Path) -> tuple[AcceptanceContract, .
         return ()
     try:
         raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+        # PyYAML constructor tags such as ``!!bool nope`` raise KeyError.
         raise AcceptanceContractConfigError(f"unreadable project marker: {marker}") from exc
     if raw is None:
         # An entirely empty marker file -- genuinely no configuration at
@@ -236,7 +237,8 @@ def load_acceptance_contracts(project_root: Path) -> tuple[AcceptanceContract, .
     _, contracts_path = resolved
     try:
         contracts_raw = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+        # PyYAML constructor tags such as ``!!bool nope`` raise KeyError.
         raise AcceptanceContractConfigError(
             f"unreadable acceptance-contracts file: {contracts_path}"
         ) from exc

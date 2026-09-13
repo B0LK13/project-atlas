@@ -74,8 +74,10 @@ def _project_context(path: Path, root: Path) -> tuple[str | None, str | None]:
             if marker.is_file():
                 try:
                     data = yaml.safe_load(marker.read_text(encoding="utf-8"))
-                except (OSError, UnicodeError, yaml.YAMLError) as exc:
+                except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
                     # D-057: controlled fail-closed — no raw YAML traceback.
+                    # PyYAML ``!!bool nope`` (and similar constructor tags)
+                    # raise KeyError, not YAMLError.
                     raise ValueError(
                         f"INVALID_PROJECT_MARKER: invalid project marker YAML: "
                         f"{marker.relative_to(root)}"

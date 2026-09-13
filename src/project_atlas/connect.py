@@ -305,7 +305,9 @@ def _read_project_marker(project_root: Path) -> tuple[Path, dict[str, Any]]:
             continue
         try:
             raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+            # PyYAML ``!!bool nope`` raises KeyError, not YAMLError.
+            # D-057: controlled INVALID_PROJECT_MARKER, no constructor leak.
             raise ConnectError(
                 f"INVALID_PROJECT_MARKER: invalid project marker YAML: {marker.name}"
             ) from exc
