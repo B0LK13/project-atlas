@@ -755,6 +755,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-040 Isolated conversation extractor (landed ITEM_TYPES; forged owner stays proposed; no Truth Core)
 - [x] AT3-041 Isolated cross-LLM dedup (provenance retained; no state/intent/history collapse)
 - [x] AT3-042 Isolated cross-LLM conflict detection (no winner; no layer collapse)
+- [x] AT3-042-F1 Present-tense after is not intent (conflicted_history must not hide 15-vs-16)
 - [x] AT3-044 Isolated memory freshness (STALE != CURRENT; UNKNOWN stays UNKNOWN)
 - [x] AT3-047 Isolated privacy/secret gate (fail-closed scan; raw transcript minimized)
 - [x] AT3-048 Isolated unified memory search (extracted items only; not a transcript dump)

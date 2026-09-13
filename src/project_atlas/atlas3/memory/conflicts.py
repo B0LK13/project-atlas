@@ -9,7 +9,7 @@ from project_atlas.atlas3.contracts import Atlas3Error
 
 PACKAGE_ID: Final[str] = "AT3-042"
 _PG = re.compile(r"postgresql?\s*(\d+)", re.I)
-_INTENT = re.compile(r"\b(planned|later|after|migrate|migration)\b", re.I)
+_INTENT = re.compile(r"\b(planned|later|migrate|migration)\b", re.I)
 
 
 def conflict_capability() -> dict[str, Any]:

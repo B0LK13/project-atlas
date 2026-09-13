@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-042-F1 — present-tense after is not intent
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3042-after-not-intent-conflict`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+`detect_conflicts` hid a PostgreSQL 16 current-state claim as intent because the text contained `after`, so `conflicted_history` stayed False against 15. Bare `after` is no longer intent language.
+
+Evidence: `docs/evidence/AT3-042-F1-AFTER-NOT-INTENT.md`
