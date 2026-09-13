@@ -101,7 +101,12 @@ def revoke_grant(*, store: Path, grant_id: str, issuer_key: str | None = None) -
     path = store / "grants" / f"{grant_id}.json"
     if not path.is_file():
         raise ValueError(f"authority grant not found: {grant_id}")
-    grant = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        grant = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("authority grant is malformed") from exc
+    if not isinstance(grant, dict):
+        raise ValueError("authority grant is malformed")
     expected = mac_for(grant, key)
     if not hmac.compare_digest(str(grant.get("mac", "")), expected):
         raise ValueError("authority grant integrity check failed")
@@ -120,7 +125,10 @@ def revoke_grant(*, store: Path, grant_id: str, issuer_key: str | None = None) -
 def load_grant(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise ValueError("authority grant is missing")
-    grant = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        grant = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("authority grant is malformed") from exc
     if not isinstance(grant, dict):
         raise ValueError("authority grant is malformed")
     return grant

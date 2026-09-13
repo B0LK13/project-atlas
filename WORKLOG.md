@@ -14915,3 +14915,21 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## CTRL-JSON-DECODE-FAIL-CLOSED
+
+**Date:** 2026-09-13
+**Branch:** `fix/ctrl-json-decode-fail-closed`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Mode:** Night-cycle autonomous remediation. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+Malformed JSON leaked ``JSONDecodeError`` from vault identity, authority
+grants, sessions, and repository-gate receipts. Those readers now raise
+or collect structured refusals. Does not touch Core `ingestion.py`.
+
+IV of ``3427d76c`` (``bc-f2e204c2-3942-5f97-b8b9-fac6e0f41a0a``) found
+a VALID P1: JSON ``null`` fail-opened ``repository_gate.validate``
+(``ok=True``). Remediation maps successful non-object parses to
+``receipt is malformed`` and never calls ``.get`` on a non-dict.

@@ -22,4 +22,7 @@ def load(root: Path, session_id: str) -> dict[str, Any]:
     target = path(root, session_id)
     if not target.is_file():
         raise ValueError(f"session not found: {session_id}")
-    return cast(dict[str, Any], json.loads(target.read_text(encoding="utf-8")))
+    try:
+        return cast(dict[str, Any], json.loads(target.read_text(encoding="utf-8")))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"session is unreadable: {session_id}") from exc
