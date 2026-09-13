@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-048-F4 — forged Truth Core authority is not a search hit
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3048-search-authority-fail-closed`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+`search_memory` echoed `item.authority` and `persist_search` wrote `TRUTH_CORE`. Search and persist now allow only `NON_CANONICAL` and fail closed on forged Truth Core / owner / merge labels. `ingestion.py` untouched.
+
+Evidence: `docs/evidence/AT3-048-F4-SEARCH-AUTHORITY-FAIL-CLOSED.md`
