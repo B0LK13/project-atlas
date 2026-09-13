@@ -17,6 +17,7 @@ from project_atlas.atlas3.contracts import (
     Atlas3Error,
     honesty_block,
 )
+from project_atlas.atlas3.memory.envelope import verify_envelope
 from project_atlas.atlas3.memory.routing import assert_turns_project_scope
 
 PACKAGE_ID: Final[str] = "AT3-046"
@@ -110,6 +111,7 @@ def _require_envelope_list(raw: object, *, label: str) -> list[dict[str, Any]]:
                 f"{label}[{index}] must be an object",
             )
         _reject_live_or_secret(item, label=f"{label}[{index}]")
+        verify_envelope(item)
         rows.append(item)
     return rows
 

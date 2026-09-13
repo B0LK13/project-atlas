@@ -246,6 +246,55 @@ def test_cli_help_is_ascii(capsys: pytest.CaptureFixture[str]) -> None:
     assert all(ord(char) < 128 for char in help_text)
 
 
+def test_stolen_envelope_id_with_altered_payload_fails_closed() -> None:
+    """AT3-046-F1 — stolen a3ce-* id + forged hash/schema/body must not apply."""
+    real = _env(message_id="m2", text="authentic delta: keep PostgreSQL 15")
+    poison = dict(real)
+    poison["content_reference"] = "FOREIGN PII / PostgreSQL 16 is production"
+    poison["content_hash"] = "sha256:" + "deadbeef" * 8
+    poison["schema"] = "attacker.schema.v9"
+    with pytest.raises(Atlas3Error) as exc:
+        apply_local_incremental(
+            [],
+            [poison],
+            cursor="",
+            conversation_id="c-inc",
+            project_id="harbor-api",
+        )
+    assert exc.value.code == "ENVELOPE_SCHEMA_INVALID"
+
+
+def test_stolen_envelope_id_keeps_schema_fails_closed() -> None:
+    """AT3-046-F1 — keeping schema but forging hash still fails identity bind."""
+    real = _env(message_id="m2", text="authentic delta: keep PostgreSQL 15")
+    poison = dict(real)
+    poison["content_reference"] = "FOREIGN PII / PostgreSQL 16 is production"
+    poison["content_hash"] = "sha256:" + "deadbeef" * 8
+    with pytest.raises(Atlas3Error) as exc:
+        apply_local_incremental(
+            [],
+            [poison],
+            cursor="",
+            conversation_id="c-inc",
+            project_id="harbor-api",
+        )
+    assert exc.value.code in {"ENVELOPE_IDENTITY_MISMATCH", "ENVELOPE_HASH_MISMATCH"}
+
+
+def test_honest_envelope_still_applies() -> None:
+    """AT3-046-F1 — build_envelope output still applies after consume verify."""
+    incoming = _env(message_id="m1", text="first export")
+    report = apply_local_incremental(
+        [],
+        [incoming],
+        cursor="",
+        conversation_id="c-inc",
+        project_id="harbor-api",
+    )
+    assert report["applied_count"] == 1
+    assert report["applied"][0]["envelope_id"] == incoming["envelope_id"]
+
+
 def test_module_does_not_touch_2x_bridges() -> None:
     root = Path(__file__).resolve().parents[2]
     source = (root / "src/project_atlas/atlas3/memory/incremental.py").read_text(

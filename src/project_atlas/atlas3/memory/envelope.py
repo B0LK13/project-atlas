@@ -24,6 +24,63 @@ def content_hash(text: str) -> str:
     return f"sha256:{digest}"
 
 
+def envelope_id_for(
+    *,
+    provider: str,
+    conversation_id: str,
+    message_id: str,
+    content_hash: str,
+) -> str:
+    """Deterministic envelope identity bound to provider/ids/hash."""
+    return "a3ce-" + hashlib.sha256(
+        json.dumps(
+            {
+                "provider": provider,
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "content_hash": content_hash,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()[:16]
+
+
+def verify_envelope(row: dict[str, Any]) -> None:
+    """Fail-closed consume-time envelope integrity. AT3-046-F1.
+
+    Stolen envelope_id + altered schema/hash/body must not apply.
+    """
+    if not isinstance(row, dict):
+        raise Atlas3Error("ENVELOPE_INVALID", "envelope must be an object")
+    if row.get("schema") != SCHEMA_NAME:
+        raise Atlas3Error(
+            "ENVELOPE_SCHEMA_INVALID",
+            "conversation envelope schema mismatch",
+        )
+    digest = str(row.get("content_hash") or "")
+    if not digest.startswith("sha256:") or len(digest) != 71:
+        raise Atlas3Error("ENVELOPE_HASH_MISMATCH", "content_hash is required")
+    ref = str(row.get("content_reference") or "")
+    # Short references are the full hashed body (build_envelope truncates at 240).
+    if 0 < len(ref) < 240 and content_hash(ref) != digest:
+        raise Atlas3Error(
+            "ENVELOPE_HASH_MISMATCH",
+            "content_hash does not match content_reference",
+        )
+    expected_id = envelope_id_for(
+        provider=str(row.get("provider") or ""),
+        conversation_id=str(row.get("conversation_id") or ""),
+        message_id=str(row.get("message_id") or ""),
+        content_hash=digest,
+    )
+    if str(row.get("envelope_id") or "") != expected_id:
+        raise Atlas3Error(
+            "ENVELOPE_IDENTITY_MISMATCH",
+            "envelope_id is not bound to provider/ids/content_hash",
+        )
+
+
 def build_envelope(
     *,
     provider: str,
@@ -85,16 +142,10 @@ def build_envelope(
         "retention_class": retention_class,
         "raw_transcript_persisted": False,
     }
-    envelope["envelope_id"] = "a3ce-" + hashlib.sha256(
-        json.dumps(
-            {
-                "provider": prov,
-                "conversation_id": conversation_id.strip(),
-                "message_id": message_id.strip(),
-                "content_hash": hashed,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()[:16]
+    envelope["envelope_id"] = envelope_id_for(
+        provider=prov,
+        conversation_id=conversation_id.strip(),
+        message_id=message_id.strip(),
+        content_hash=hashed,
+    )
     return envelope
