@@ -14915,3 +14915,32 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-050-F1 — proof evidence must be an object
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3050-proof-evidence-must-be-object`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: `evaluate_proof()` did
+`supplied = evidence or {}` then `supplied.get(name)`. A JSON string
+(`evidence="x"`, CLI `atlas proof --evidence '"x"'`) raised raw
+`AttributeError` instead of `Atlas3Error`. `None` already degraded to `{}`.
+
+Fix: if `evidence` is not `None` and not a `dict`, raise
+`Atlas3Error("PROOF_EVIDENCE_INVALID", "evidence must be an object")`.
+`None` remains `{}` (UNKNOWN chain). String/list/bool are not treated as
+evidence. CLI `json.loads` of `--evidence` is unchanged; the dispatcher
+already contains `JSONDecodeError`.
+
+Does not touch `ingestion.py`. Does not write Truth Core. Does not authorize
+merge.
+
+**Validation** (worktree `/tmp/atlas-proof-json`, `PYTHONPATH=src`):
+
+- `python -m pytest tests/unit/test_atlas3_proof_001.py -q` → 5 passed
+- `ruff check src/project_atlas/atlas3/proof.py tests/unit/test_atlas3_proof_001.py` → clean
+- `mypy src/project_atlas/atlas3/proof.py tests/unit/test_atlas3_proof_001.py` → clean
+
+Evidence: `docs/evidence/AT3-050-F1-PROOF-EVIDENCE-OBJECT.md`

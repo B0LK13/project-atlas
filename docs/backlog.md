@@ -749,6 +749,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-015 Isolated Atlas Pulse (eight questions)
 - [x] AT3-030 Isolated Atlas Start (budget + freshness)
 - [x] AT3-050 Isolated AGENT_PROOF
+- [x] AT3-050-F1 evaluate_proof rejects non-object evidence (string/list/bool fail closed as PROOF_EVIDENCE_INVALID; None stays {}; MODEL CLAIM OF COMPLETION != PROOF)
 - [x] AT3-035/036/039/040/041/042/044/047/048/049 Isolated ChatGPT-first memory vertical
 - [x] AT3-036 Isolated ChatGPT export ingest (parse_chat_export compose; live history claim fails closed; does not replace chatgpt_bridge)
 - [x] AT3-039 Isolated conversation normalization (canonical envelope; mixed corrupt fail-closed; no new CLI)
