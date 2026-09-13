@@ -223,8 +223,11 @@
       "type": "boolean"
     },
     "model_backed_dispatch": {
-      "const": "DISABLED",
       "default": "DISABLED",
+      "enum": [
+        "DISABLED",
+        "ENABLED"
+      ],
       "title": "Model Backed Dispatch",
       "type": "string"
     },

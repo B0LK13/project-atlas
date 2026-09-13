@@ -439,7 +439,7 @@ class TaskEnvelope(BaseModel):
     program_id: str = Field(min_length=1, max_length=128)
     created_at: str = Field(default_factory=utc_now)
     merge_authorized: Literal[False] = False
-    model_backed_dispatch: Literal[False] = False
+    model_backed_dispatch: bool = False
 
     @field_validator("task_id", "profile_ref", "worker_id", "program_id")
     @classmethod
@@ -532,7 +532,7 @@ class TaskEnvelope(BaseModel):
                     code="ENVELOPE_NO_CHECKPOINTS",
                 )
         if self.replay_class is ReplayClass.UNCERTAIN_EXTERNAL_EFFECT and (
-            self.budgets.max_model_calls > 0
+            self.budgets.max_model_calls > 0 and not self.model_backed_dispatch
         ):
             # Not a moral objection: a task that may make a paid external call
             # and is also declared non-repeatable is precisely the combination
@@ -590,6 +590,7 @@ def envelope_from_task(
     allowed_actions: tuple[str, ...] = (),
     forbidden_actions: tuple[str, ...] = (),
     deadline_utc: str | None = None,
+    model_backed_dispatch: bool = False,
 ) -> TaskEnvelope:
     """Derive an envelope from an already-approved program task.
 
@@ -621,6 +622,7 @@ def envelope_from_task(
         profile_ref=task.profile_ref,
         worker_id=worker_id,
         program_id=program.program_id,
+        model_backed_dispatch=model_backed_dispatch,
     )
 
 

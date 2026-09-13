@@ -2,6 +2,10 @@
 
 `SUPPORTED != INSTALLED != AUTHENTICATED`. Three different facts.
 
+`RESIDENT_ROUTED != PROVIDER_ACCEPTED`. The resident dispatcher routes only
+profiles admitted by the approved queue and the normal supervisor gates; this
+does not authorise a model call.
+
 Generated live by `program runtimes` (a committed snapshot is in
 `evidence/runtime-support-matrix.json`); this page is the prose behind it.
 

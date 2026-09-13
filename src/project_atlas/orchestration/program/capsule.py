@@ -148,7 +148,7 @@ class ContinuationCapsule(BaseModel):
     #: Set when any list was shortened to fit. Never silent.
     truncated: bool = False
     truncation_note: str = ""
-    model_backed_dispatch: Literal["DISABLED"] = "DISABLED"
+    model_backed_dispatch: Literal["DISABLED", "ENABLED"] = "DISABLED"
     merge_authorized: Literal[False] = False
     truth_boundary: str = TRUTH_BOUNDARY
 
@@ -594,6 +594,9 @@ def build_capsule(
             "state under state_root is complete and authoritative."
             if truncated
             else ""
+        ),
+        model_backed_dispatch=(
+            "ENABLED" if dispatcher.get("model_backed_dispatch") == "ENABLED" else "DISABLED"
         ),
     )
 

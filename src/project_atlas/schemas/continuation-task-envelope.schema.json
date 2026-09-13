@@ -280,7 +280,6 @@
       "type": "boolean"
     },
     "model_backed_dispatch": {
-      "const": false,
       "default": false,
       "title": "Model Backed Dispatch",
       "type": "boolean"

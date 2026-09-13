@@ -82,14 +82,18 @@
       "type": "integer"
     },
     "model_backed_dispatch": {
-      "const": "DISABLED",
       "default": "DISABLED",
+      "enum": [
+        "DISABLED",
+        "ENABLED"
+      ],
       "title": "Model Backed Dispatch",
       "type": "string"
     },
     "model_calls": {
-      "const": 0,
       "default": 0,
+      "maximum": 1000000,
+      "minimum": 0,
       "title": "Model Calls",
       "type": "integer"
     },

@@ -8,7 +8,7 @@ through it.
 | runtime | adapter exists | used to validate THIS layer | status here |
 | --- | --- | --- | --- |
 | `local-command` (labelled FIXTURE) | yes | **yes — all 43 tests** | `VALIDATED_FIXTURE_ONLY` |
-| `claude-code` | yes (`adapters/claude_code.py`) | **no** | `PRESERVED_NOT_EXERCISED` |
+| `claude-code` | yes (`adapters/claude_code.py`) | **resident route reaches shipped adapter; no provider call** | `ROUTED_NOT_PROVIDER_ACCEPTED` |
 | `codex` | yes (`adapters/codex.py`) | **no** | `PRESERVED_NOT_EXERCISED` |
 | Cursor | no execution adapter | no | `NOT_SUPPORTED` |
 | GitHub Copilot | no execution adapter | no | `NOT_SUPPORTED` |
@@ -32,18 +32,18 @@ result in ways no fixture reproduces.
 
 ## Why the real profiles are preserved but not launched
 
-`MODEL_BACKED_DISPATCH = DISABLED_PENDING_R12_AND_IV.` The Claude Code and
-Codex profiles are untouched and still load, resolve and validate. They are not
-launched here because:
+`MODEL_BACKED_DISPATCH = ENABLED_FOR_ADMITTED_SUPPORTED_PROFILES; PROVIDER_ACCEPTANCE_PENDING.`
+The resident path now routes Claude Code and Codex profiles through the normal
+`ProgramSupervisor` adapter factory. They are not launched here because:
 
 * launching them costs a paid model call, which is not authorized;
 * R-12 (cleanup by process identity in a shared session) is open;
-* this layer has not had independent verification.
+* this candidate has no independent provider acceptance yet.
 
-Envelope budgets default `max_model_calls` to **0**, and an
-`UNCERTAIN_EXTERNAL_EFFECT` task may not budget a model call at all
-(`ENVELOPE_MODEL_CALLS_FORBIDDEN`) — so the switch cannot be routed around by
-an envelope that simply asks for one.
+The envelope records whether the selected profile is model-backed. An
+`UNCERTAIN_EXTERNAL_EFFECT` task may budget model calls only when that flag is
+true (`ENVELOPE_MODEL_CALLS_FORBIDDEN` otherwise); queue admission and the
+supervisor still remain the execution-authority gates.
 
 ## Every worker's explicit limits
 

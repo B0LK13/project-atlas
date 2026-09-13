@@ -1,4 +1,4 @@
-"""The resident dispatcher: a model-free process that outlives every program.
+"""The resident dispatcher: a process that outlives every program.
 
 ``ProgramSupervisor`` is finite by design and that is correct -- it executes one
 approved program until ``PROGRAM_COMPLETE`` and exits. What has been missing is
@@ -32,9 +32,11 @@ It publishes what an operator or a replacement session needs to know without
 asking it anything: health, heartbeat, the revision it is running, its process
 start identity, pause state and terminal reason.
 
-MODEL_BACKED_DISPATCH is disabled: this module launches adapters, and every
-adapter it is validated with is a zero-model fixture. Nothing here makes a
-paid call, and the envelope budgets default ``max_model_calls`` to zero.
+The resident path does not decide whether provider execution is authorised:
+queue admission, enrollment, the persisted envelope and the supervisor gates
+do that. It only routes an admitted profile to the adapter already selected by
+``ProgramSupervisor``. A provider profile therefore reaches the same normal
+path, while an unsupported adapter still fails before launch.
 """
 
 from __future__ import annotations
@@ -222,8 +224,8 @@ class Heartbeat(BaseModel):
     #: Cumulative, across this dispatcher process only.
     programs_started: int = Field(default=0, ge=0, le=1_000_000)
     launches: int = Field(default=0, ge=0, le=1_000_000)
-    model_calls: Literal[0] = 0
-    model_backed_dispatch: Literal["DISABLED"] = "DISABLED"
+    model_calls: int = Field(default=0, ge=0, le=1_000_000)
+    model_backed_dispatch: Literal["DISABLED", "ENABLED"] = "DISABLED"
     truth_boundary: str = TRUTH_BOUNDARY
 
 
@@ -394,7 +396,7 @@ def _git_revision(checkout: Path) -> tuple[str, str]:
 
 
 class ResidentDispatcher:
-    """A model-free resident process above the finite program runner."""
+    """A resident process above the finite program runner."""
 
     def __init__(
         self,
@@ -568,20 +570,13 @@ class ResidentDispatcher:
             loaded = load_program(Path(entry.program_path), governed_root=self.governed_root)
             if loaded.program.program_id != entry.program_id:
                 raise QueueError("queue program id mismatch", code="QUEUE_PROGRAM_MISMATCH")
-            # A zero-model declaration is an enforced boundary, not a report
-            # label. Reject before factory construction or runtime discovery.
             profiles = (*loaded.effective.values(), *loaded.verifiers.values())
-            if any(profile.adapter is not AdapterKind.LOCAL_COMMAND for profile in profiles):
-                raise DispatcherError(
-                    "resident dispatch supports only the zero-model local-command fixture",
-                    code="MODEL_DISPATCH_DISABLED",
-                )
+            self._heartbeat.model_backed_dispatch = (
+                "ENABLED"
+                if any(profile.adapter is not AdapterKind.LOCAL_COMMAND for profile in profiles)
+                else "DISABLED"
+            )
             enrolled = self._enrolled_for(loaded)
-            if any(agent.adapter is not AdapterKind.LOCAL_COMMAND for agent in enrolled):
-                raise DispatcherError(
-                    "resident enrollment cannot substitute a non-fixture runtime",
-                    code="MODEL_DISPATCH_DISABLED",
-                )
         except ProgramError as exc:
             result.state = DispatcherState.WAITING_ON_WORK
             result.queue_error = str(exc)
@@ -665,7 +660,7 @@ class ResidentDispatcher:
                 "program_id": entry.program_id,
                 "dispatcher_session_id": self.session_id,
                 "tick": self._ticks,
-                "model_backed_dispatch": "DISABLED",
+                "model_backed_dispatch": self._heartbeat.model_backed_dispatch,
             },
         )
         try:
@@ -1175,7 +1170,7 @@ def dispatcher_status(root: Path) -> dict[str, Any]:
         "queue_error_code": beat.queue_error_code,
         "paused": pause_requested(root) is not None,
         "program_paused": bool(state.paused) if state is not None else None,
-        "model_backed_dispatch": "DISABLED",
+        "model_backed_dispatch": beat.model_backed_dispatch,
         "truth_boundary": TRUTH_BOUNDARY,
     }
 
@@ -1261,7 +1256,7 @@ class RestartWitness(BaseModel):
     )
     queue_root: str | None = None
     witnessed_at: str = Field(default_factory=utc_now)
-    model_backed_dispatch: Literal["DISABLED"] = "DISABLED"
+    model_backed_dispatch: Literal["DISABLED", "ENABLED"] = "DISABLED"
 
 
 def _restart_witness_path(root: Path) -> Path:
@@ -1441,6 +1436,7 @@ def _take_restart_witness(
         task_launches_before=task_launches,
         in_flight_checkpoints=in_flight,
         queue_root=str(queue_root) if queue_root is not None else None,
+        model_backed_dispatch=beat.model_backed_dispatch,
     )
 
 

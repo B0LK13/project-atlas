@@ -72,6 +72,7 @@ from project_atlas.orchestration.program.models import (
     ProgramTask,
 )
 from project_atlas.orchestration.program.path_safety import checked_path, child_path, trusted_root
+from project_atlas.orchestration.program.profiles import AdapterKind
 from project_atlas.orchestration.program.store import (
     AttemptRecord,
     ProgramStateRecord,
@@ -342,6 +343,7 @@ def materialise_envelopes(
             # these are the acts this package never performs, and an envelope
             # that listed none would leave that to be inferred.
             forbidden_actions=("MERGE", "PUSH", "RELEASE", "CREDENTIAL_CHANGE"),
+            model_backed_dispatch=profile.adapter is not AdapterKind.LOCAL_COMMAND,
         )
         persist_envelope(root, envelope)
         written.append(envelope)

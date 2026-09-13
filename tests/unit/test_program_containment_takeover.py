@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 
 from project_atlas.orchestration.program import approved_queue, continuation, store
+from project_atlas.orchestration.program import resident as resident_module
+from project_atlas.orchestration.program.adapters.claude_code import ClaudeCodeAdapter
 from project_atlas.orchestration.program.capsule import build_capsule
 from project_atlas.orchestration.program.loader import load_program
 from project_atlas.orchestration.program.models import ProgramError
@@ -16,7 +18,10 @@ from project_atlas.orchestration.program.path_safety import ContainmentError, ch
 from project_atlas.orchestration.program.reconciliation import reconcile_root
 from project_atlas.orchestration.program.resident import ResidentDispatcher
 from project_atlas.orchestration.program.store import write_evidence
-from project_atlas.orchestration.program.supervisor import ProgramSupervisor
+from project_atlas.orchestration.program.supervisor import (
+    ProgramSupervisor,
+    build_default_adapters,
+)
 
 
 def _program(root: Path, workspace: Path) -> Path:
@@ -641,28 +646,54 @@ def test_planted_hardlink_never_modifies_outside_inode(tmp_path: Path, sink: str
     assert outside.read_text() == "immutable fixture"
 
 
-@pytest.mark.parametrize("kind", ["codex", "claude-code"])
-def test_resident_nonfixture_profile_refuses_before_supervisor_construction(
-    tmp_path: Path, kind: str
+def test_resident_supported_provider_profile_reaches_supervisor_factory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The resident route must not reject an adapter it already implements."""
     program = _program(tmp_path, tmp_path)
     payload = json.loads(program.read_text())
     payload["profiles"]["fixture"].update(
-        adapter=kind, credential="SUBSCRIPTION_OAUTH", adapter_options={}
+        adapter="claude-code", credential="ANTHROPIC_API_KEY_ENV", adapter_options={}
     )
-    # This negative targets the model-dispatch gate, not the separate fixture-only grant.
     payload["program"]["allow_unversioned_fixture"] = False
     program.write_text(json.dumps(payload))
     queue = tmp_path / "queue"
     _raw_queue(queue, program, tmp_path / "state")
+    monkeypatch.setattr(
+        resident_module,
+        "_git_revision",
+        lambda checkout: (
+            "7b9ace01f0bc06931f1191f8912abda1f7935953",
+            "2214d53a79094c16d96dd07a41341d3f701f1b69",
+        ),
+    )
+    reached = False
 
-    def forbidden_factory(*args: object, **kwargs: object) -> None:
-        pytest.fail("unsupported profile reached supervisor/runtime construction")
+    def provider_factory(*args: object, **kwargs: object) -> None:
+        nonlocal reached
+        reached = True
+        raise RuntimeError("provider factory reached")
 
     dispatcher = ResidentDispatcher(
-        root=tmp_path, queue_root=queue, checkout=tmp_path,
-        supervisor_factory=forbidden_factory,
+        root=tmp_path,
+        queue_root=queue,
+        checkout=tmp_path,
+        supervisor_factory=provider_factory,
     )
-    result = dispatcher.tick()
-    assert result.launched == 0
-    assert result.queue_error_code == "MODEL_DISPATCH_DISABLED"
+    with pytest.raises(RuntimeError, match="provider factory reached"):
+        dispatcher.tick()
+    assert reached
+
+
+def test_provider_profile_uses_shipped_claude_adapter_factory(tmp_path: Path) -> None:
+    """The resident handoff targets the shipped adapter, not a shell fallback."""
+    program = _program(tmp_path, tmp_path)
+    payload = json.loads(program.read_text())
+    payload["profiles"]["fixture"].update(
+        adapter="claude-code", credential="ANTHROPIC_API_KEY_ENV", adapter_options={}
+    )
+    payload["program"]["allow_unversioned_fixture"] = False
+    program.write_text(json.dumps(payload))
+    loaded = load_program(program)
+    adapters = build_default_adapters(loaded)
+    assert isinstance(adapters["fixture"], ClaudeCodeAdapter)

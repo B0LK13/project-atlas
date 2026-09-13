@@ -7,6 +7,15 @@
 > claims. A matrix that prints one word for both invites the reader to assume
 > the stronger one.
 
+## Resident routing status
+
+On candidate `7b9ace01f0bc06931f1191f8912abda1f7935953` /
+`2214d53a79094c16d96dd07a41341d3f701f1b69`, admitted supported provider
+profiles reach the existing `ProgramSupervisor` adapter factory from the
+resident dispatcher. This is **adapter reachability**, not a provider launch
+or provider acceptance. The real Claude Code probe remains separately
+authorised and is not implied by this entry.
+
 ## IMPLEMENTED_AND_RUNTIME_TESTED
 
 An adapter exists **and** has been exercised end to end against the real
