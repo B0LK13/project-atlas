@@ -39,6 +39,11 @@ def bind_independent_verification(
     pkg = package_id.strip()
     if not pkg:
         raise Atlas3Error("PACKAGE_REQUIRED", "package_id is required")
+    if any(ord(char) < 32 for char in verifier_id):
+        raise Atlas3Error(
+            "VERIFIER_ID_INVALID",
+            "verifier_id must not contain control characters",
+        )
     verifier = verifier_id.strip()
     if not verifier:
         raise Atlas3Error("VERIFIER_REQUIRED", "verifier_id is required")

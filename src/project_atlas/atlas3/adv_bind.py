@@ -39,6 +39,11 @@ def bind_adversarial_result(
     pkg = package_id.strip()
     if not pkg:
         raise Atlas3Error("PACKAGE_REQUIRED", "package_id is required")
+    if any(ord(char) < 32 for char in adv_id):
+        raise Atlas3Error(
+            "ADV_ID_INVALID",
+            "adv_id must not contain control characters",
+        )
     actor = adv_id.strip()
     if not actor:
         raise Atlas3Error("ADV_ID_REQUIRED", "adv_id is required")
