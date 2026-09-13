@@ -2,12 +2,21 @@
 
 Every command here is read-only or writes only durable bookkeeping the operator
 explicitly asked for. None of them merges, pushes, installs a service, changes
-an account, or enables model-backed dispatch. Two of them deliberately *print a
-command instead of running it* -- ``dispatcher --action restart`` and
-``continuation --action rollback`` -- because restarting a service and rolling
-back a deployment are acts on a system this process was not authorized to
-change, and emitting the exact command an operator can check is the honest
-version of "support that operation".
+an account, or enables model-backed dispatch.
+
+``continuation --action rollback`` deliberately *prints a procedure instead of
+running it*: rolling back moves a pinned revision, an operator decision with a
+blast radius this process has no authority over.
+
+``dispatcher --action restart`` (ATLAS-OPERATOR-RECOVERY-FOLLOWUP-001) takes a
+witness before anything stops, then either prints the operator commands
+(``--mode delegate``, the default) or -- only when the operator has declared a
+``restart_command`` under the state root -- drains the dispatcher through the
+existing ``request_drain`` and starts exactly that command (``--mode
+supervised``). ``--action restart-verify`` judges a restart against the witness
+with four independent PASS/FAIL/UNVERIFIABLE codes. It never sends a signal,
+never synthesizes a service-manager command, and writes only under the
+dispatcher directory of the state root.
 
 Output is one JSON object per invocation, through the same ``emit`` contract the
 rest of this CLI uses, so a script never has to parse prose.
@@ -16,9 +25,14 @@ rest of this CLI uses, so a script never has to parse prose.
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
+import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
+from project_atlas.orchestration.program.adapters.base import process_start_identity
 from project_atlas.orchestration.program.approved_queue import (
     admit,
     load_queue,
@@ -33,10 +47,12 @@ from project_atlas.orchestration.program.capsule import (
 from project_atlas.orchestration.program.continuation import (
     TRUTH_BOUNDARY,
     ContinuationError,
+    digest_payload,
     list_checkpoints,
     list_envelopes,
     load_checkpoint,
     load_envelope,
+    utc_now,
 )
 from project_atlas.orchestration.program.decisions import (
     DecisionStatus,
@@ -47,15 +63,31 @@ from project_atlas.orchestration.program.decisions import (
 from project_atlas.orchestration.program.loader import load_program
 from project_atlas.orchestration.program.reconciliation import reconcile_root
 from project_atlas.orchestration.program.resident import (
+    _RESTART_CRITERIA,
+    _RESTART_PASS,
+    DispatcherError,
     DispatcherState,
     ResidentDispatcher,
+    RestartWitness,
+    _evaluate_restart,
+    _process_has_exited,
+    _read_restart_command,
+    _restart_command_path,
+    _restart_verdict_path,
+    _restart_witness_path,
+    _take_restart_witness,
+    _unverifiable_restart_verdict,
     clear_pause,
     dispatcher_status,
+    read_heartbeat,
+    read_restart_witness,
     request_drain,
     request_pause,
     request_stop,
     request_wake,
+    write_restart_witness,
 )
+from project_atlas.orchestration.program.store import write_json_atomic
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -206,25 +238,9 @@ def cmd_dispatcher(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         request_wake(root, reason=args.requested_by or "operator")
         return {"wake_requested": True}, EXIT_OK
     if action == "restart":
-        # Deliberately not performed. Restarting a resident process is an act on
-        # a system this command was not authorized to change, and a command
-        # that printed "restarted" without having the privileges to do it would
-        # be the kind of claim this package exists to refuse.
-        return {
-            "performed": False,
-            "reason": "NOT_AUTHORIZED_FROM_HERE",
-            "operator_commands": [
-                f"atlas program dispatcher --state-root {root} --action drain",
-                "# wait for terminal_reason=OPERATOR_DRAIN in the heartbeat, then:",
-                f"atlas program dispatcher --state-root {root} "
-                f"--queue-root <QUEUE_ROOT> --action run",
-            ],
-            "note": (
-                "No service is installed by this package. If one is installed "
-                "later, the operator restarts it through the service manager, "
-                "not through this command."
-            ),
-        }, EXIT_OK
+        return _cmd_restart(args, root)
+    if action == "restart-verify":
+        return _cmd_restart_verify(args, root)
     if action == "run":
         queue_root = _queue_root(args)
         dispatcher = ResidentDispatcher(
@@ -273,6 +289,301 @@ def cmd_dispatcher(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             return payload, EXIT_ERROR
         return payload, EXIT_OK
     return {"error": f"unknown dispatcher action {action}"}, EXIT_USAGE
+
+
+# ----------------------------------------------------------------- restart
+#
+# ATLAS-OPERATOR-RECOVERY-FOLLOWUP-001. Three phases, failing closed on
+# anything that cannot be verified, and never acquiring a privilege:
+#
+#   PRE   refuse unless the outgoing dispatcher's identity is established
+#         (alive True or False; None refuses), then write a witness.
+#   ACT   delegate (default): print the operator commands, as before.
+#         supervised: only with an operator-written restart_command; stop is
+#         the existing request_drain() plus a bounded wait for the recorded pid
+#         to leave under its recorded start identity; start is exactly the
+#         recorded argv, without a shell.
+#   POST  four independent codes against the witness; exit 0 only when all four
+#         are PASS. `restart-verify` runs POST on its own, for a hand restart.
+#
+# Writes: <state_root>'s dispatcher directory only. No signal is ever sent.
+
+_RESTART_DEFAULT_WAIT_SECONDS = 30.0
+_RESTART_MAX_WAIT_SECONDS = 600.0
+_RESTART_POLL_SECONDS = 0.1
+
+
+def _restart_refusal(
+    code: str, error: str, **extra: Any
+) -> tuple[dict[str, Any], int]:
+    return {
+        "performed": False,
+        "code": code,
+        "error": error,
+        "model_backed_dispatch": "DISABLED",
+        **extra,
+    }, EXIT_ERROR
+
+
+def _wait_until(predicate: Callable[[], bool], seconds: float) -> bool:
+    """Poll ``predicate`` until it holds or ``seconds`` pass. Bounded, never spins."""
+    deadline = time.monotonic() + seconds
+    while True:
+        if predicate():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(_RESTART_POLL_SECONDS)
+
+
+def _write_restart_verdict(
+    root: Path,
+    witness: RestartWitness | None,
+    verdict: dict[str, str],
+    evidence: dict[str, list[str]],
+) -> Path:
+    return write_json_atomic(
+        _restart_verdict_path(root),
+        {
+            "restart_verdict": verdict,
+            "evidence": evidence,
+            "witness_session_id": (
+                witness.dispatcher_session_id if witness is not None else None
+            ),
+            "witness_digest": (
+                digest_payload(witness.model_dump(mode="json"))
+                if witness is not None
+                else None
+            ),
+            "verified_at": utc_now(),
+            "model_backed_dispatch": "DISABLED",
+        },
+    )
+
+
+def _all_pass(verdict: dict[str, str]) -> bool:
+    return all(verdict.get(name) == _RESTART_PASS for name in _RESTART_CRITERIA)
+
+
+def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
+    requested_mode = getattr(args, "mode", None) or "delegate"
+    mode: Literal["delegate", "supervised"]
+    if requested_mode == "delegate":
+        mode = "delegate"
+    elif requested_mode == "supervised":
+        mode = "supervised"
+    else:
+        return {
+            "error": f"unknown restart mode {requested_mode}",
+            "code": "RESTART_MODE_UNKNOWN",
+        }, EXIT_USAGE
+    raw_wait = getattr(args, "wait_seconds", None)
+    # `is None`, not truthiness: an explicit 0 is out of bounds, not "use the default".
+    wait_seconds = float(_RESTART_DEFAULT_WAIT_SECONDS if raw_wait is None else raw_wait)
+    if not 0 < wait_seconds <= _RESTART_MAX_WAIT_SECONDS:
+        return {
+            "error": (
+                f"--wait-seconds must be in (0, {_RESTART_MAX_WAIT_SECONDS:g}]; "
+                f"got {wait_seconds:g}"
+            ),
+            "code": "RESTART_WAIT_SECONDS_OUT_OF_BOUNDS",
+        }, EXIT_USAGE
+    queue_root = (
+        Path(args.queue_root).expanduser().resolve()
+        if getattr(args, "queue_root", None)
+        else None
+    )
+
+    command: tuple[str, ...] | None = None
+    if mode == "supervised":
+        # Checked first, and without looking at any process: supervised mode
+        # without a declaration has nothing it could run, and it never guesses.
+        command = _read_restart_command(root)
+        if command is None:
+            return _restart_refusal(
+                "RESTART_COMMAND_NOT_DECLARED",
+                "--mode supervised requires an operator-written restart_command "
+                f"at {_restart_command_path(root)}; none is declared, and no "
+                "command is synthesized or guessed in its place. Nothing was "
+                "stopped.",
+                stopped=False,
+                started=False,
+            )
+
+    # ---- PRE
+    try:
+        witness = _take_restart_witness(root, mode=mode, queue_root=queue_root)
+    except DispatcherError as exc:
+        if exc.code != "RESTART_IDENTITY_UNVERIFIABLE":
+            raise
+        return _restart_refusal(exc.code, str(exc), stopped=False, started=False)
+    witness_path = _restart_witness_path(root)
+    # A stale witness must not survive a failed write and be judged against.
+    witness_path.unlink(missing_ok=True)
+    write_restart_witness(root, witness)
+
+    verify_command = f"atlas program dispatcher --state-root {root} --action restart-verify"
+    if queue_root is not None:
+        verify_command += f" --queue-root {queue_root}"
+
+    if mode == "delegate":
+        return {
+            "performed": False,
+            "reason": "NOT_AUTHORIZED_FROM_HERE",
+            "mode": "delegate",
+            "witness_path": str(witness_path),
+            "witness": witness.model_dump(mode="json"),
+            "operator_commands": [
+                f"atlas program dispatcher --state-root {root} --action drain",
+                "# wait for terminal_reason=OPERATOR_DRAIN in the heartbeat, then:",
+                f"atlas program dispatcher --state-root {root} "
+                f"--queue-root <QUEUE_ROOT> --action run",
+                "# then judge the restart against the witness taken just now:",
+                verify_command,
+            ],
+            "note": (
+                "Delegate mode stops and starts nothing. The witness is taken so "
+                "a hand restart can still be verified per criterion. No service "
+                "is installed by this package; if one is installed later, the "
+                "operator restarts it through the service manager."
+            ),
+            "model_backed_dispatch": "DISABLED",
+        }, EXIT_OK
+
+    # ---- ACT (supervised)
+    assert command is not None
+    stop: dict[str, Any] = {
+        "outgoing_pid": witness.pid,
+        "outgoing_process_start_identity": witness.process_start_identity,
+        "alive_at_witness": witness.alive_at_witness,
+        "signal_sent": False,
+    }
+    if witness.alive_at_witness:
+        request_drain(root, requested_by=args.requested_by or "operator:restart")
+        request_wake(root, reason="restart: drain requested")
+        stop["drain_requested"] = True
+        exited = _wait_until(
+            lambda: _process_has_exited(witness.pid, witness.process_start_identity),
+            wait_seconds,
+        )
+        stop["exited"] = exited
+        if not exited:
+            return _restart_refusal(
+                "RESTART_STOP_NOT_OBSERVED",
+                f"drain was requested but pid {witness.pid} was still running "
+                f"under its recorded start identity after {wait_seconds:g}s. "
+                "Nothing was started, so two dispatchers never run at once. The "
+                "drain request is left in place.",
+                stopped=False,
+                started=False,
+                witness_path=str(witness_path),
+                stop=stop,
+            )
+    else:
+        stop["drain_requested"] = False
+        stop["exited"] = True
+
+    flags = 0
+    if os.name == "nt":
+        flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)) | int(
+            getattr(subprocess, "DETACHED_PROCESS", 0)
+        )
+    try:
+        proc = subprocess.Popen(
+            list(command),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=os.name != "nt",
+            creationflags=flags,
+        )
+    except OSError as exc:
+        return _restart_refusal(
+            "RESTART_START_FAILED",
+            f"the declared restart_command could not be started: {exc}",
+            stopped=True,
+            started=False,
+            witness_path=str(witness_path),
+            stop=stop,
+        )
+    start = {
+        "argv": list(command),
+        "pid": proc.pid,
+        "process_start_identity": process_start_identity(proc.pid) or "unknown",
+        "shell": False,
+    }
+
+    def _published() -> bool:
+        code = proc.poll()
+        if code is not None and code != 0:
+            return True
+        try:
+            beat = read_heartbeat(root)
+        except DispatcherError:
+            return False
+        return (
+            beat is not None
+            and beat.dispatcher_session_id != witness.dispatcher_session_id
+            and beat.ticks >= 1
+        )
+
+    start["new_heartbeat_observed"] = _wait_until(_published, wait_seconds)
+    start["exit_status_so_far"] = proc.poll()
+
+    # ---- POST
+    verdict, evidence = _evaluate_restart(root, witness, queue_root=queue_root)
+    verdict_path = _write_restart_verdict(root, witness, verdict, evidence)
+    return {
+        "performed": True,
+        "mode": "supervised",
+        "stopped": True,
+        "started": True,
+        "witness_path": str(witness_path),
+        "verdict_path": str(verdict_path),
+        "stop": stop,
+        "start": start,
+        "restart_verdict": verdict,
+        "evidence": evidence,
+        "note": (
+            "The verdict is a point-in-time judgement against the witness. "
+            f"Re-run `{verify_command}` to judge again later."
+        ),
+        "model_backed_dispatch": "DISABLED",
+    }, (EXIT_OK if _all_pass(verdict) else EXIT_ERROR)
+
+
+def _cmd_restart_verify(
+    args: argparse.Namespace, root: Path
+) -> tuple[dict[str, Any], int]:
+    queue_root = (
+        Path(args.queue_root).expanduser().resolve()
+        if getattr(args, "queue_root", None)
+        else None
+    )
+    witness: RestartWitness | None
+    try:
+        witness = read_restart_witness(root)
+        why = (
+            "no restart witness has been written under this state root; a "
+            "restart that was not witnessed cannot be verified"
+        )
+    except DispatcherError as exc:
+        witness = None
+        why = f"{exc.code}: {exc}"
+    if witness is None:
+        verdict, evidence = _unverifiable_restart_verdict(why)
+    else:
+        verdict, evidence = _evaluate_restart(root, witness, queue_root=queue_root)
+    verdict_path = _write_restart_verdict(root, witness, verdict, evidence)
+    return {
+        "restart_verdict": verdict,
+        "evidence": evidence,
+        "witness_path": str(_restart_witness_path(root)),
+        "verdict_path": str(verdict_path),
+        "witness": witness.model_dump(mode="json") if witness is not None else None,
+        "model_backed_dispatch": "DISABLED",
+    }, (EXIT_OK if _all_pass(verdict) else EXIT_ERROR)
 
 
 # ----------------------------------------------------------------- capsule
@@ -496,7 +807,17 @@ def register_continuation_commands(
         (
             "dispatcher",
             "Run or control the resident model-free dispatcher.",
-            ("status", "run", "pause", "resume", "stop", "drain", "wake", "restart"),
+            (
+                "status",
+                "run",
+                "pause",
+                "resume",
+                "stop",
+                "drain",
+                "wake",
+                "restart",
+                "restart-verify",
+            ),
         ),
         (
             "capsule",
@@ -554,6 +875,27 @@ def register_continuation_commands(
         child.add_argument("--max-ticks", type=int, default=None)
         child.add_argument("--max-seconds", type=float, default=None)
         child.add_argument("--exit-when-drained", action="store_true")
+        if name == "dispatcher":
+            child.add_argument(
+                "--mode",
+                choices=("delegate", "supervised"),
+                default="delegate",
+                help=(
+                    "restart only. delegate (default): witness, then print the "
+                    "operator commands. supervised: witness, drain, then run the "
+                    "operator-declared restart_command, then verify."
+                ),
+            )
+            child.add_argument(
+                "--wait-seconds",
+                type=float,
+                default=_RESTART_DEFAULT_WAIT_SECONDS,
+                help=(
+                    "restart --mode supervised only: bound on waiting for the old "
+                    f"dispatcher to exit and the new one to publish (max "
+                    f"{_RESTART_MAX_WAIT_SECONDS:g})."
+                ),
+            )
 
 
 __all__ = [

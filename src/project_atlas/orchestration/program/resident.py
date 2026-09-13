@@ -1083,3 +1083,586 @@ def dispatcher_status(root: Path) -> dict[str, Any]:
         "model_backed_dispatch": "DISABLED",
         "truth_boundary": TRUTH_BOUNDARY,
     }
+
+
+# ------------------------------------------------------------------ restart
+#
+# ATLAS-OPERATOR-RECOVERY-FOLLOWUP-001. `restart` takes a witness before
+# anything stops, and `restart-verify` judges the restart against it, per
+# criterion. Every write below lands in `dispatcher_dir(root)` and nowhere else:
+# never the approved-work queue, a checkpoint, an envelope or program state. The
+# restart path must not be able to launder a state edit.
+
+#: What recovery is judged against. Written before anything is stopped.
+_RESTART_WITNESS_NAME: Final[str] = "restart-witness.json"
+#: The last verdict, for the record. Evidence, never authority.
+_RESTART_VERDICT_NAME: Final[str] = "restart-verdict.json"
+#: Operator-written. The ONLY source of a start command for `--mode supervised`.
+#: This package never writes it, never synthesizes one, and never guesses a
+#: service-manager line in its absence.
+_RESTART_COMMAND_NAME: Final[str] = "restart-command.json"
+
+_RESTART_CRITERIA: Final[tuple[str, ...]] = (
+    "service_and_candidate",
+    "state_recovery",
+    "pause_and_uncertain",
+    "no_double_execution",
+)
+_RESTART_PASS: Final[str] = "PASS"
+_RESTART_FAIL: Final[str] = "FAIL"
+_RESTART_UNVERIFIABLE: Final[str] = "UNVERIFIABLE"
+#: The worker id reconciliation is asked on behalf of. It only decides between
+#: WORKER_STILL_RUNNING and LEASE_HELD_ELSEWHERE, neither of which is launchable.
+_RESTART_WORKER_ID: Final[str] = "restart-verify"
+
+
+class RestartInFlightCheckpoint(BaseModel):
+    """One non-terminal checkpoint as it stood at the witness."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    program_id: str = Field(min_length=1, max_length=128)
+    sequence: int = Field(ge=1, le=1_000_000)
+    last_completed_step: str | None = None
+    self_digest: str | None = Field(default=None, max_length=64)
+
+
+class RestartWitness(BaseModel):
+    """What a restart will be judged against, captured before anything stops.
+
+    Proposal §2 PRE fields, plus three the checks need to be COUNTED rather
+    than read back: ``task_launches_before`` (per-task launch counts from
+    ``state.json``, so C4 is a subtraction), ``in_flight_checkpoints`` (so C2
+    can tell a recovered checkpoint from a re-derived one), and
+    ``programs_started_before``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    package_id: Literal["AS-ORCH-DURABLE-CONTINUATION-001"] = PACKAGE_ID
+    mode: Literal["delegate", "supervised"]
+    dispatcher_session_id: str = Field(min_length=1, max_length=190)
+    pid: int = Field(ge=0, le=2**31 - 1)
+    process_start_identity: str = Field(min_length=1, max_length=256)
+    #: ``True`` or ``False``. ``None`` never reaches a witness: PRE refuses it.
+    alive_at_witness: bool
+    revision_head: str = Field(default="", max_length=64)
+    revision_tree: str = Field(default="", max_length=64)
+    #: The dispatcher pause signal file. Distinct from ``program_paused``.
+    paused: bool
+    #: ``state.json``'s own pause flag, or None when no state was recorded.
+    program_paused: bool | None = None
+    current_program_id: str | None = None
+    queue_status: str = "UNKNOWN"
+    queue_error_code: str | None = Field(default=None, max_length=64)
+    terminal_task_ids: tuple[str, ...] = ()
+    reconcile_required_task_ids: tuple[str, ...] = ()
+    launches_before: int = Field(ge=0, le=1_000_000)
+    programs_started_before: int = Field(default=0, ge=0, le=1_000_000)
+    task_launches_before: dict[str, int] = Field(default_factory=dict)
+    in_flight_checkpoints: dict[str, RestartInFlightCheckpoint] = Field(
+        default_factory=dict
+    )
+    queue_root: str | None = None
+    witnessed_at: str = Field(default_factory=utc_now)
+    model_backed_dispatch: Literal["DISABLED"] = "DISABLED"
+
+
+def _restart_witness_path(root: Path) -> Path:
+    return dispatcher_dir(root) / _RESTART_WITNESS_NAME
+
+
+def _restart_verdict_path(root: Path) -> Path:
+    return dispatcher_dir(root) / _RESTART_VERDICT_NAME
+
+
+def _restart_command_path(root: Path) -> Path:
+    return dispatcher_dir(root) / _RESTART_COMMAND_NAME
+
+
+def write_restart_witness(root: Path, witness: RestartWitness) -> Path:
+    """Persist the witness atomically, through the one ``_write_atomic`` boundary."""
+    return write_json_atomic(_restart_witness_path(root), witness.model_dump(mode="json"))
+
+
+def read_restart_witness(root: Path) -> RestartWitness | None:
+    """The witness, or ``None`` when none was written. Torn or invalid raises."""
+    path = _restart_witness_path(root)
+    if not path.is_file():
+        return None
+    import json
+
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DispatcherError(
+            f"restart witness at {path} is unreadable: {exc}",
+            code="RESTART_WITNESS_UNREADABLE",
+        ) from exc
+    return read_durable(
+        RestartWitness,
+        raw,
+        path=path,
+        error=DispatcherError,
+        code="RESTART_WITNESS_SCHEMA_INVALID",
+        what="restart witness",
+    )
+
+
+def _read_restart_command(root: Path) -> tuple[str, ...] | None:
+    """The operator-declared start command, as argv, or ``None`` if undeclared.
+
+    The file holds ``{"restart_command": [...argv...]}`` or
+    ``{"restart_command": "one command line"}``. A string is split with
+    ``shlex`` and run WITHOUT a shell: no expansion, no substitution, exactly the
+    words the operator wrote. A present file that does not declare a usable
+    command raises ``RESTART_COMMAND_INVALID`` rather than reading as absent --
+    a broken declaration is not the same fact as no declaration.
+    """
+    path = _restart_command_path(root)
+    if not path.is_file():
+        return None
+    import json
+    import shlex
+
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DispatcherError(
+            f"restart command declaration at {path} is unreadable: {exc}",
+            code="RESTART_COMMAND_INVALID",
+        ) from exc
+    value = raw.get("restart_command") if isinstance(raw, dict) else None
+    argv: list[str]
+    if isinstance(value, str):
+        try:
+            argv = shlex.split(value)
+        except ValueError as exc:
+            raise DispatcherError(
+                f"restart_command at {path} cannot be split into words: {exc}",
+                code="RESTART_COMMAND_INVALID",
+            ) from exc
+    elif isinstance(value, list) and all(isinstance(item, str) for item in value):
+        argv = list(value)
+    else:
+        raise DispatcherError(
+            f"{path} does not declare restart_command as a string or a list of "
+            "strings",
+            code="RESTART_COMMAND_INVALID",
+        )
+    if not argv or not argv[0]:
+        raise DispatcherError(
+            f"restart_command at {path} is empty", code="RESTART_COMMAND_INVALID"
+        )
+    return tuple(argv)
+
+
+def _take_restart_witness(
+    root: Path,
+    *,
+    mode: Literal["delegate", "supervised"],
+    queue_root: Path | None,
+) -> RestartWitness:
+    """Build the witness from durable state. Read-only; raises on anything unusable.
+
+    Refuses ``alive is None`` with ``RESTART_IDENTITY_UNVERIFIABLE``. Any durable
+    record it cannot read -- a corrupt or version-skewed checkpoint, an
+    unreadable ``state.json`` -- propagates as that record's own refusal: a
+    witness with a hole in it is not something a restart can be judged against.
+    """
+    from project_atlas.orchestration.program.continuation import list_checkpoints
+    from project_atlas.orchestration.program.reconciliation import (
+        Disposition,
+        reconcile_root,
+    )
+
+    status = dispatcher_status(root)
+    alive = status.get("alive")
+    beat = read_heartbeat(root)
+    if alive is None or beat is None:
+        raise DispatcherError(
+            "the outgoing dispatcher's identity cannot be established "
+            f"(alive={alive!r}: {status.get('detail')}); nothing was stopped, "
+            "and alive=None is not a yes",
+            code="RESTART_IDENTITY_UNVERIFIABLE",
+        )
+    checkpoints = list_checkpoints(root)
+    current = beat.current_program_id
+    terminal = tuple(
+        sorted(item.identity.task_id for item in checkpoints if item.terminal)
+    )
+    in_flight = {
+        item.identity.task_id: RestartInFlightCheckpoint(
+            program_id=item.program_id,
+            sequence=item.sequence,
+            last_completed_step=item.last_completed_step,
+            self_digest=item.self_digest,
+        )
+        for item in checkpoints
+        if not item.terminal and (current is None or item.program_id == current)
+    }
+    verdicts = reconcile_root(
+        root, our_worker_id=_RESTART_WORKER_ID, queue_root=queue_root
+    )
+    reconcile_required = tuple(
+        sorted(
+            item.task_id
+            for item in verdicts
+            if item.disposition is Disposition.RECONCILE_REQUIRED
+        )
+    )
+    state = load_state(root)
+    task_launches = {
+        task_id: (
+            state.tasks[task_id].launches
+            if state is not None and task_id in state.tasks
+            else 0
+        )
+        for task_id in terminal
+    }
+    return RestartWitness(
+        mode=mode,
+        dispatcher_session_id=beat.dispatcher_session_id,
+        pid=beat.pid,
+        process_start_identity=beat.process_start_identity,
+        alive_at_witness=bool(alive),
+        revision_head=beat.revision_head,
+        revision_tree=beat.revision_tree,
+        paused=pause_requested(root) is not None,
+        program_paused=bool(state.paused) if state is not None else None,
+        current_program_id=current,
+        queue_status=beat.queue_status,
+        queue_error_code=beat.queue_error_code,
+        terminal_task_ids=terminal,
+        reconcile_required_task_ids=reconcile_required,
+        launches_before=beat.launches,
+        programs_started_before=beat.programs_started,
+        task_launches_before=task_launches,
+        in_flight_checkpoints=in_flight,
+        queue_root=str(queue_root) if queue_root is not None else None,
+    )
+
+
+def _step_index(steps: tuple[str, ...], step: str | None) -> int:
+    """-1 for no step yet, -2 for a step the envelope does not know."""
+    if step is None:
+        return -1
+    return steps.index(step) if step in steps else -2
+
+
+def _criterion(failures: list[str], unknowns: list[str]) -> str:
+    """FAIL outranks UNVERIFIABLE outranks PASS. Nothing is averaged."""
+    if failures:
+        return _RESTART_FAIL
+    if unknowns:
+        return _RESTART_UNVERIFIABLE
+    return _RESTART_PASS
+
+
+def _unverifiable_restart_verdict(reason: str) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """All four UNVERIFIABLE, each saying why. Used when there is no witness."""
+    return (
+        {name: _RESTART_UNVERIFIABLE for name in _RESTART_CRITERIA},
+        {name: [reason] for name in _RESTART_CRITERIA},
+    )
+
+
+def _evaluate_restart(
+    root: Path,
+    witness: RestartWitness,
+    *,
+    queue_root: Path | None = None,
+) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Judge the current state against the witness: four independent codes.
+
+    Read-only. Every criterion is computed on its own and a read that fails
+    makes only the criteria that needed it UNVERIFIABLE -- never PASS. There is
+    no aggregate: a caller exits zero only when all four are PASS.
+    """
+    from project_atlas.orchestration.program.continuation import (
+        CheckpointError,
+        load_checkpoint,
+    )
+    from project_atlas.orchestration.program.reconciliation import (
+        Disposition,
+        ReconciliationVerdict,
+        reconcile_root,
+    )
+
+    evidence: dict[str, list[str]] = {name: [] for name in _RESTART_CRITERIA}
+    effective_queue = queue_root or (
+        Path(witness.queue_root) if witness.queue_root else None
+    )
+
+    # ---- shared reads, each failure recorded rather than raised
+    status: dict[str, Any] | None
+    beat: Heartbeat | None
+    try:
+        status = dispatcher_status(root)
+        beat = read_heartbeat(root)
+    except ContinuationError as exc:
+        status, beat = None, None
+        status_error = f"{getattr(exc, 'code', 'DISPATCHER_ERROR')}: {exc}"
+    else:
+        status_error = ""
+    verdicts: dict[str, ReconciliationVerdict] | None
+    try:
+        verdicts = {
+            item.task_id: item
+            for item in reconcile_root(
+                root, our_worker_id=_RESTART_WORKER_ID, queue_root=effective_queue
+            )
+        }
+        verdict_error = ""
+    except ProgramError as exc:
+        verdicts = None
+        verdict_error = f"{getattr(exc, 'code', 'RECONCILIATION_ERROR')}: {exc}"
+    state: Any
+    try:
+        state = load_state(root)
+        state_error = ""
+    except ProgramError as exc:
+        state = None
+        state_error = f"{getattr(exc, 'code', 'STATE_ERROR')}: {exc}"
+    new_process = (
+        beat is not None
+        and beat.dispatcher_session_id != witness.dispatcher_session_id
+        and (beat.pid, beat.process_start_identity)
+        != (witness.pid, witness.process_start_identity)
+    )
+
+    # ---- C1: right service, right candidate
+    fails: list[str] = []
+    unknown: list[str] = []
+    if status is None or beat is None:
+        unknown.append(status_error or "no dispatcher heartbeat after the restart")
+    else:
+        if beat.dispatcher_session_id == witness.dispatcher_session_id:
+            fails.append(
+                "the heartbeat still carries the witnessed dispatcher_session_id; "
+                "no new dispatcher has published"
+            )
+        elif (beat.pid, beat.process_start_identity) == (
+            witness.pid,
+            witness.process_start_identity,
+        ):
+            fails.append(
+                "the heartbeat's pid and start identity are the witnessed "
+                "process's; a new session id alone is not a new process"
+            )
+        if not (witness.revision_head and witness.revision_tree):
+            unknown.append("the witness recorded no revision to compare against")
+        elif not (beat.revision_head and beat.revision_tree):
+            unknown.append("the new heartbeat publishes no revision")
+        elif (beat.revision_head, beat.revision_tree) != (
+            witness.revision_head,
+            witness.revision_tree,
+        ):
+            fails.append(
+                f"revision moved: witness {witness.revision_head}/"
+                f"{witness.revision_tree}, now {beat.revision_head}/"
+                f"{beat.revision_tree}"
+            )
+        alive = status.get("alive")
+        if alive is True:
+            evidence["service_and_candidate"].append(
+                f"alive=True for pid {beat.pid}"
+            )
+        elif alive is False:
+            fails.append(f"alive=False: {status.get('detail')}")
+        else:
+            unknown.append(f"alive={alive!r}: {status.get('detail')}")
+    evidence["service_and_candidate"].extend([*fails, *unknown])
+    c1 = _criterion(fails, unknown)
+
+    # ---- C2: in-flight work recovered from its checkpoint, not re-derived
+    fails, unknown = [], []
+    if witness.current_program_id is not None and not witness.in_flight_checkpoints:
+        unknown.append(
+            f"program {witness.current_program_id} was in flight at the witness "
+            "but no checkpoint recorded it, so recovery from a checkpoint cannot "
+            "be shown"
+        )
+    for task_id, before in sorted(witness.in_flight_checkpoints.items()):
+        try:
+            after = load_checkpoint(root, task_id)
+        except CheckpointError as exc:
+            fails.append(
+                f"{task_id}: checkpoint is now unusable "
+                f"({getattr(exc, 'code', 'CHECKPOINT_INVALID')})"
+            )
+            continue
+        if after is None:
+            fails.append(f"{task_id}: the witnessed checkpoint no longer exists")
+            continue
+        if after.sequence < before.sequence:
+            fails.append(
+                f"{task_id}: checkpoint sequence went from {before.sequence} "
+                f"back to {after.sequence}"
+            )
+        elif after.sequence == before.sequence and after.self_digest != before.self_digest:
+            fails.append(
+                f"{task_id}: checkpoint sequence {after.sequence} was rewritten "
+                "with different content"
+            )
+        envelope = load_envelope(root, task_id)
+        steps = envelope.checkpoint_policy.steps if envelope is not None else ()
+        if steps and not after.terminal:
+            before_index = _step_index(steps, before.last_completed_step)
+            after_index = _step_index(steps, after.last_completed_step)
+            if after_index == -2:
+                fails.append(f"{task_id}: checkpoint names an unknown step")
+            elif after_index < before_index:
+                fails.append(
+                    f"{task_id}: last_completed_step went from "
+                    f"{before.last_completed_step} back to {after.last_completed_step}"
+                )
+        if verdicts is None:
+            unknown.append(f"{task_id}: reconciliation unreadable ({verdict_error})")
+            continue
+        verdict = verdicts.get(task_id)
+        if verdict is None:
+            unknown.append(f"{task_id}: no envelope, so no reconciliation verdict")
+            continue
+        if verdict.disposition is Disposition.START_FRESH:
+            fails.append(f"{task_id}: reconciliation would start it from nothing")
+        if (
+            verdict.disposition is Disposition.RESUME_AT_NEXT_STEP
+            and before.last_completed_step is not None
+            and steps
+            and verdict.resume_step == steps[0]
+        ):
+            fails.append(f"{task_id}: resumes at the first step, not from its checkpoint")
+        evidence["state_recovery"].append(
+            f"{task_id}: sequence {before.sequence}->{after.sequence}, "
+            f"last_completed_step {before.last_completed_step}->"
+            f"{after.last_completed_step}, disposition {verdict.disposition.value}"
+        )
+    evidence["state_recovery"].extend([*fails, *unknown])
+    c2 = _criterion(fails, unknown)
+
+    # ---- C3: pause and UNCERTAIN survive
+    fails, unknown = [], []
+    if witness.paused:
+        if pause_requested(root) is None:
+            fails.append("the dispatcher pause present at the witness is gone")
+        if beat is None or not new_process:
+            unknown.append(
+                "no new dispatcher heartbeat, so dispatch-while-paused cannot be counted"
+            )
+        elif beat.launches or beat.programs_started:
+            fails.append(
+                f"the restarted dispatcher dispatched while paused: "
+                f"launches={beat.launches}, programs_started={beat.programs_started}"
+            )
+        else:
+            evidence["pause_and_uncertain"].append(
+                "paused before and after; restarted dispatcher launches=0, "
+                "programs_started=0"
+            )
+    if witness.program_paused:
+        if state_error:
+            unknown.append(f"state.json unreadable ({state_error})")
+        elif state is None:
+            unknown.append("state.json paused at the witness is now absent")
+        elif not state.paused:
+            fails.append("state.json's program pause present at the witness is gone")
+    for task_id in witness.reconcile_required_task_ids:
+        if verdicts is None:
+            unknown.append(f"{task_id}: reconciliation unreadable ({verdict_error})")
+            continue
+        verdict = verdicts.get(task_id)
+        if verdict is None:
+            fails.append(f"{task_id}: the quarantined task has no verdict any more")
+        elif verdict.disposition is not Disposition.RECONCILE_REQUIRED:
+            fails.append(
+                f"{task_id}: quarantine cleared, now {verdict.disposition.value}"
+            )
+        elif verdict.launchable:
+            fails.append(f"{task_id}: quarantined but launchable")
+        else:
+            evidence["pause_and_uncertain"].append(
+                f"{task_id}: still RECONCILE_REQUIRED, launchable=False"
+            )
+    evidence["pause_and_uncertain"].extend([*fails, *unknown])
+    c3 = _criterion(fails, unknown)
+
+    # ---- C4: no double execution, counted
+    fails, unknown = [], []
+    for task_id in witness.terminal_task_ids:
+        before_count = witness.task_launches_before.get(task_id)
+        if before_count is None:
+            unknown.append(f"{task_id}: no launch count was witnessed")
+        elif state_error:
+            unknown.append(f"{task_id}: state.json unreadable ({state_error})")
+        elif state is None and before_count > 0:
+            unknown.append(f"{task_id}: state.json that counted launches is gone")
+        else:
+            after_count = (
+                state.tasks[task_id].launches
+                if state is not None and task_id in state.tasks
+                else 0
+            )
+            delta = after_count - before_count
+            if delta != 0:
+                fails.append(
+                    f"{task_id}: launches {before_count}->{after_count} "
+                    f"(delta {delta}) for a task with a terminal checkpoint"
+                )
+            else:
+                evidence["no_double_execution"].append(
+                    f"{task_id}: launches {before_count}->{after_count}, delta 0"
+                )
+        if verdicts is None:
+            unknown.append(f"{task_id}: reconciliation unreadable ({verdict_error})")
+            continue
+        verdict = verdicts.get(task_id)
+        if verdict is None:
+            unknown.append(f"{task_id}: no envelope, so no reconciliation verdict")
+        elif verdict.launchable or verdict.disposition not in (
+            Disposition.ALREADY_COMPLETE,
+            Disposition.HUMAN_DECISION_REQUIRED,
+        ):
+            fails.append(
+                f"{task_id}: terminal at the witness, now "
+                f"{verdict.disposition.value} launchable={verdict.launchable}"
+            )
+    evidence["no_double_execution"].extend([*fails, *unknown])
+    c4 = _criterion(fails, unknown)
+
+    return (
+        {
+            "service_and_candidate": c1,
+            "state_recovery": c2,
+            "pause_and_uncertain": c3,
+            "no_double_execution": c4,
+        },
+        evidence,
+    )
+
+
+def _process_has_exited(pid: int, recorded_identity: str) -> bool:
+    """True once ``pid`` no longer runs under ``recorded_identity``.
+
+    Gone, reused by another process (a different start identity), or a zombie
+    that has exited and waits only to be reaped. Never signals anything.
+    """
+    if not _pid_is_alive_host(pid):
+        return True
+    if os.name != "nt":
+        try:
+            raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+            close = raw.rfind(")")
+            if close >= 0 and raw[close + 1 :].split()[:1] in (["Z"], ["X"]):
+                return True
+        except OSError:
+            pass
+    live = process_start_identity(pid)
+    return bool(live) and live != "unknown" and live != recorded_identity
+
+
+def _pid_is_alive_host(pid: int) -> bool:
+    from project_atlas.orchestration.program.adapters.base import pid_is_alive
+
+    return pid_is_alive(pid)
