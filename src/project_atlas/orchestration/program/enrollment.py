@@ -50,6 +50,7 @@ from project_atlas.orchestration.program.models import (
     AuthorityExpansionError,
     ProgramError,
 )
+from project_atlas.orchestration.program.path_safety import child_path
 from project_atlas.orchestration.program.profiles import (
     AdapterKind,
     AgentProfile,
@@ -136,7 +137,7 @@ class AgentRegistry(BaseModel):
 
 
 def registry_path(root: Path) -> Path:
-    return state_dir(root) / REGISTRY_NAME
+    return child_path(state_dir(root), REGISTRY_NAME)
 
 
 def load_registry(root: Path) -> AgentRegistry:

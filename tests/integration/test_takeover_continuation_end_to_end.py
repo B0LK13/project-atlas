@@ -24,3 +24,5 @@ def test_continuation_installed_or_source_chain(tmp_path: Path, scenario: str) -
     assert evidence["launches"] == ([1, 0, 1, 0] if scenario == "complete" else [1, 0, 0, 0])
     assert evidence["owned_worker_survivors"] == []
     assert len(set(evidence["dispatcher_pids"])) == 4
+    assert evidence["checkpoint_count"] == 2
+    assert evidence["terminal_checkpoints"] == (1 if scenario == "uncertain" else 2)

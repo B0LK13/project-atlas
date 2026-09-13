@@ -15000,6 +15000,17 @@ implementation event `AE-20260913T102606Z-project-atlas-10d64237`.
 Shared-Vault synchronization/strict receipt remains separate. No service
 installation, activation, privilege change, paid worker, push or merge occurred.
 
+The first clean local candidate `036566ea60d6998dad02439d844258221ca3ac7f`
+passed 415 relevant regressions (one pre-existing unreachable-path skip), a
+non-editable source/wheel/install byte comparison and all three installed demos.
+Its evidence remains separately preserved. Review then reproduced an operator
+registry leaf-symlink read bypass outside the dispatch-only guards. The shared
+registry path now rejects that link for every reader; a red/green regression
+and the focused containment/authority/demo run (65 passed) verify the repair.
+The demo now counts terminal checkpoints rather than all checkpoints. Refusal
+diagnostics retain the containment code and explicitly identify digest mismatch.
+Final acceptance belongs to the next exact candidate, not this intermediate one.
+
 Evidence: `docs/orchestration/taskcontract/demo/evidence/` (11 raw files),
 `docs/orchestration/taskcontract/demo/snapshot/` (the item text and digest the
 run observed).

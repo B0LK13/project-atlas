@@ -577,7 +577,10 @@ class ResidentDispatcher:
                 last_stop_reason="PROGRAM_UNLOADABLE",
                 note=str(exc),
             )
-            result.notes.append(f"{entry.program_id}: quarantined -- {exc}")
+            result.notes.append(
+                f"{entry.program_id}: quarantined -- "
+                f"{getattr(exc, 'code', type(exc).__name__)}: {exc}"
+            )
             return None
 
         check_children(decisions_dir(state_root), root=state_root)

@@ -453,3 +453,18 @@ def test_same_root_default_boundary_remains_executable(tmp_path: Path) -> None:
     assert result.launched == 1
     assert result.report is not None and result.report.complete
     assert dispatcher.tick().launched == 0
+
+
+def test_registry_leaf_link_is_refused_by_operator_reader(tmp_path: Path) -> None:
+    from project_atlas.orchestration.program.enrollment import load_registry, registry_path
+
+    registry = tmp_path / "registry"
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"agents": {}}')
+    target = registry_path(registry)
+    target.parent.mkdir(parents=True)
+    target.symlink_to(outside)
+    before = outside.read_bytes()
+    with pytest.raises(ContainmentError):
+        load_registry(registry)
+    assert outside.read_bytes() == before

@@ -375,7 +375,8 @@ def reconcile_task(
             disposition=Disposition.FAIL_CLOSED,
             replay_class=envelope.replay_class,
             reason=(
-                "the checkpoint was written under a different envelope than the "
+                "checkpoint/envelope digest mismatch: the checkpoint was written "
+                "under a different envelope than the "
                 "one now on disk; the authority for this work changed mid-flight"
             ),
             evidence=(
