@@ -11,7 +11,10 @@ WRONG SHAPE → NOT AUTHORITATIVE → return 0 / current no-confirmed-PID semant
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -19,6 +22,7 @@ from project_atlas.orchestration.sdk.resident_driver import (
     LOCK_NAME,
     _runtime,
     acquire_primary_lock,
+    poll_github_ci,
     read_primary_lock_pid,
     release_primary_lock,
 )
@@ -119,3 +123,11 @@ def test_closed_loop_marker_wrong_shape_does_not_raise(
         clear_closed_loop_hook()
     assert result is not None
     assert result.get("paced") is not True
+
+
+@pytest.mark.parametrize("stdout", ("[1, 2, 3]", "1", '"pid"', "null"))
+def test_poll_github_ci_wrong_shape_is_in_progress(stdout: str) -> None:
+    fake = SimpleNamespace(returncode=0, stdout=stdout)
+    with patch.object(subprocess, "run", return_value=fake):
+        status, conclusion, head = poll_github_ci("123")
+    assert (status, conclusion, head) == ("in_progress", None, None)

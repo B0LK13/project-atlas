@@ -184,6 +184,8 @@ def poll_github_ci(run_id: str) -> tuple[str, str | None, str | None]:
         data = json.loads(proc.stdout or "{}")
     except json.JSONDecodeError:
         return "in_progress", None, None
+    if not isinstance(data, dict):
+        return "in_progress", None, None
     status = str(data.get("status") or "in_progress")
     conclusion = data.get("conclusion")
     conclusion_s = str(conclusion) if conclusion else None
