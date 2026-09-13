@@ -83,7 +83,9 @@ def _read_yaml_mapping(path: Path) -> dict[str, Any] | None:
         return None
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError):
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError):
+        # PyYAML ``!!bool nope`` raises KeyError, not YAMLError.
+        # Treat as unreadable — do not leak the constructor error.
         return None
     return raw if isinstance(raw, dict) else None
 
