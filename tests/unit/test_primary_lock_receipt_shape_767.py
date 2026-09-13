@@ -1,0 +1,75 @@
+"""D146-LOCK-RECEIPT-SHAPE-HARDENING (#767).
+
+``read_primary_lock_pid`` / ``acquire_primary_lock`` / ``release_primary_lock``
+must treat valid JSON that is not an object as a malformed receipt, not as
+an uncaught ``AttributeError``.
+
+WRONG SHAPE != EXCEPTION ESCAPE
+WRONG SHAPE → NOT AUTHORITATIVE → return 0 / current no-confirmed-PID semantic
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from project_atlas.orchestration.sdk.resident_driver import (
+    LOCK_NAME,
+    _runtime,
+    acquire_primary_lock,
+    read_primary_lock_pid,
+    release_primary_lock,
+)
+
+_WRONG_SHAPES: tuple[object, ...] = ([1, 2, 3], 1, "pid", None)
+
+
+def _write_lock(root: Path, payload: object) -> Path:
+    path = _runtime(root) / LOCK_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("payload", _WRONG_SHAPES)
+def test_read_primary_lock_pid_wrong_shape_returns_zero(
+    tmp_path: Path, payload: object
+) -> None:
+    _write_lock(tmp_path, payload)
+    assert read_primary_lock_pid(tmp_path) == 0
+
+
+@pytest.mark.parametrize("payload", _WRONG_SHAPES)
+def test_acquire_primary_lock_wrong_shape_does_not_raise(
+    tmp_path: Path, payload: object
+) -> None:
+    _write_lock(tmp_path, payload)
+    assert acquire_primary_lock(tmp_path) is True
+    assert read_primary_lock_pid(tmp_path) > 0
+
+
+@pytest.mark.parametrize("payload", _WRONG_SHAPES)
+def test_release_primary_lock_wrong_shape_does_not_raise(
+    tmp_path: Path, payload: object
+) -> None:
+    path = _write_lock(tmp_path, payload)
+    release_primary_lock(tmp_path)
+    assert path.is_file()
+
+
+def test_malformed_json_still_returns_zero(tmp_path: Path) -> None:
+    path = _runtime(tmp_path) / LOCK_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not valid json", encoding="utf-8")
+    assert read_primary_lock_pid(tmp_path) == 0
+
+
+def test_object_receipt_with_live_self_pid_still_reads(tmp_path: Path) -> None:
+    assert acquire_primary_lock(tmp_path) is True
+    import os
+
+    assert read_primary_lock_pid(tmp_path) == os.getpid()
+    release_primary_lock(tmp_path)
+    assert read_primary_lock_pid(tmp_path) == 0
