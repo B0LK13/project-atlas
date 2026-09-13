@@ -18,5 +18,8 @@ Planned+claim text becomes `proposed_decision`, or `next_step` when next-
 action language is also present. Bare current claims without plan language
 remain `claim_candidate`.
 
+`after` is not treated as plan language by itself (present-tense
+"uses PostgreSQL 15 after …" stays `claim_candidate`).
+
 Distinct from #847 (mixed-project extract batches) on the same file.
 Does not grant merge authority.

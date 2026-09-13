@@ -14927,4 +14927,6 @@ Evidence: the test module's own docstring, which carries the boundary statement.
 
 Extractor mapped planned+claim text to claim_candidate. Planned+claim is now proposed_decision or next_step. Distinct from #847.
 
+Follow-on: `_PLANNED` no longer treats bare `after` as intent language, so present-tense "uses PostgreSQL 15 after …" stays claim_candidate.
+
 Evidence: `docs/evidence/AT3-040-F2-INTENT-NOT-CLAIM.md`

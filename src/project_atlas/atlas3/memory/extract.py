@@ -13,7 +13,7 @@ EXTRACTOR_VERSION: Final[str] = "atlas3-extract-v1"
 
 _QUESTION = re.compile(r"\?")
 _DECISION = re.compile(r"\b(we decided|owner decided|decision is|decided to)\b", re.I)
-_PLANNED = re.compile(r"\b(planned|later|after|migrate|migration|intent)\b", re.I)
+_PLANNED = re.compile(r"\b(planned|later|migrate|migration|intent)\b", re.I)
 _CLAIM = re.compile(r"\b(uses|use|production|database|postgres|postgresql|endpoint)\b", re.I)
 _FAIL = re.compile(r"\b(failed|does not work|rollback)\b", re.I)
 _NEXT = re.compile(r"\b(next|todo|should|look at)\b", re.I)

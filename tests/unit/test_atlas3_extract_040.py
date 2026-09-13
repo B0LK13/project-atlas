@@ -134,6 +134,25 @@ def test_planned_should_claim_is_next_step() -> None:
     assert items[0]["item_type"] != "claim_candidate"
 
 
+def test_present_tense_after_is_not_planned_intent() -> None:
+    items = extract_items(
+        [
+            {
+                "role": "assistant",
+                "content_reference": (
+                    "production uses PostgreSQL 15 after the extension replacement"
+                ),
+                "provider": "chatgpt",
+                "conversation_id": "c1",
+                "message_id": "m4",
+                "content_hash": "sha256:d",
+                "project_id": "harbor-api",
+            }
+        ]
+    )
+    assert items[0]["item_type"] == "claim_candidate"
+
+
 def test_current_claim_without_plan_stays_claim() -> None:
     items = extract_items(
         [
