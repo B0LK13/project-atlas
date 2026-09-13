@@ -14915,3 +14915,18 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## YAML-CONSTRUCTOR-KEYERROR-CONTAINMENT
+
+**Date:** 2026-09-13
+**Branch:** `fix/yaml-constructor-keyerror-containment`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Mode:** Night-cycle autonomous remediation. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+Same constructor leak as F7-R1 / #819, at the three remaining
+`except yaml.YAMLError` loaders: `load_safe_yaml`, estate marker parse,
+and graph-acceptance metadata YAML. Each now refuses through its existing
+structured path. Does not touch `ingestion.py`.
+
