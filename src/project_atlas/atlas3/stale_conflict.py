@@ -62,6 +62,23 @@ def _require_object_list(raw: object, *, label: str, code: str) -> list[dict[str
     return rows
 
 
+def _assert_artifact_project_scope(
+    payload: dict[str, Any], *, project_id: str, label: str
+) -> None:
+    """Explicit foreign project_id fails closed. Unlabeled / null / whitespace stay allowed."""
+    explicit = payload.get("project_id")
+    if explicit is None:
+        return
+    text = str(explicit).strip()
+    if not text:
+        return
+    if text != project_id:
+        raise Atlas3Error(
+            "PROJECT_MISMATCH",
+            f"{label} project_id {explicit!r} != requested {project_id!r}",
+        )
+
+
 def _reject_authority_claims(payload: dict[str, Any], *, label: str) -> None:
     if payload.get("trust_score") is not None:
         raise Atlas3Error("TRUST_SCORE_FORBIDDEN", f"{label} must not carry a trust score")
@@ -104,6 +121,7 @@ def compile_stale_conflict_intel(vault: Path | str, project_id: str) -> dict[str
 
     pulse = _read_artifact_object(_pulse_path(root, pid), corrupt_code="PULSE_CORRUPT")
     if pulse is not None:
+        _assert_artifact_project_scope(pulse, project_id=pid, label="pulse")
         _reject_authority_claims(pulse, label="pulse")
         questions = pulse.get("questions")
         if questions is not None and not isinstance(questions, dict):
@@ -116,11 +134,13 @@ def compile_stale_conflict_intel(vault: Path | str, project_id: str) -> dict[str
     memory_stale: list[dict[str, Any]] = []
     memory_conflicts: dict[str, Any] | None = None
     if recon is not None:
+        _assert_artifact_project_scope(recon, project_id=pid, label="reconcile")
         _reject_authority_claims(recon, label="reconcile")
         nested = recon.get("reconciliation")
         if nested is not None and not isinstance(nested, dict):
             raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation must be an object")
         block = nested if isinstance(nested, dict) else recon
+        _assert_artifact_project_scope(block, project_id=pid, label="reconciliation")
         _reject_authority_claims(block, label="reconciliation")
         raw_items = block.get("items") if "items" in block else []
         memory_items = _require_object_list(

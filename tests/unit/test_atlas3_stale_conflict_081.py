@@ -133,6 +133,90 @@ def test_ledger_graph_winner_fails_closed(tmp_path: Path) -> None:
     assert exc.value.code == "GRAPH_WINNER_FORBIDDEN"
 
 
+def test_foreign_pulse_project_id_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_json(
+        vault / "generated" / "ops" / "atlas3" / "pulse" / "harbor-api.json",
+        {
+            "project_id": "other-api",
+            "questions": {
+                "what_became_stale": {
+                    "status": "derived",
+                    "items": [{"text": "foreign stale"}],
+                },
+                "what_conflicts": {
+                    "status": "derived",
+                    "items": [{"text": "foreign conflict"}],
+                },
+            },
+        },
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        compile_stale_conflict_intel(vault, "harbor-api")
+    assert exc.value.code == "PROJECT_MISMATCH"
+
+
+def test_unlabeled_pulse_stays_allowed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_json(
+        vault / "generated" / "ops" / "atlas3" / "pulse" / "harbor-api.json",
+        {
+            "questions": {
+                "what_became_stale": {
+                    "status": "derived",
+                    "items": [{"text": "unlabeled stale"}],
+                }
+            }
+        },
+    )
+    report = compile_stale_conflict_intel(vault, "harbor-api")
+    assert report["project_id"] == "harbor-api"
+    assert report["stale"]["pulse"]["items"][0]["text"] == "unlabeled stale"
+
+
+def test_foreign_reconcile_project_id_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_json(
+        vault / "generated" / "ops" / "atlas3" / "memory" / "harbor-api" / "reconcile.json",
+        {
+            "project_id": "other-api",
+            "reconciliation": {
+                "items": [
+                    {
+                        "project_id": "harbor-api",
+                        "provider": "chatgpt",
+                        "text": "PostgreSQL 15 is deployed",
+                    }
+                ]
+            },
+        },
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        compile_stale_conflict_intel(vault, "harbor-api")
+    assert exc.value.code == "PROJECT_MISMATCH"
+
+
+def test_unlabeled_reconcile_stays_allowed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_json(
+        vault / "generated" / "ops" / "atlas3" / "memory" / "harbor-api" / "reconcile.json",
+        {
+            "reconciliation": {
+                "items": [
+                    {
+                        "project_id": "harbor-api",
+                        "provider": "chatgpt",
+                        "text": "PostgreSQL 15 is deployed",
+                    }
+                ]
+            }
+        },
+    )
+    report = compile_stale_conflict_intel(vault, "harbor-api")
+    assert report["project_id"] == "harbor-api"
+    assert report["counts"]["memory_items"] == 1
+
+
 def test_foreign_memory_fails_closed(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     _write_json(
