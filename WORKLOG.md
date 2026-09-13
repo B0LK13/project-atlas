@@ -14915,3 +14915,19 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-CTRL-SPOOL-F1 — Spool sync binds dest vault identity
+
+**Date:** 2026-09-13
+**Branch:** `fix/as-ctrl-spool-vault-identity`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: `synchronize` copied an offline
+rehearsal spool into a dest vault whose `.atlas/vault.json` was a
+different vault_id/uuid and issued a passed receipt.
+
+Fix: compare session `vault.vault_id` / `vault_uuid` to dest identity
+before copy. Honest same-identity sync still works.
+
+Does not authorize merge.
