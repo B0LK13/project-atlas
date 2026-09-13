@@ -746,6 +746,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-005 Isolated 2.x→3.x compatibility prover
 - [x] AT3-006 Foundation threat catalog (reviewed; not certified)
 - [x] AT3-014 Isolated universal event ledger
+- [x] AT3-014-F2 Self-consistent non-object payload is LEDGER_SCHEMA_INVALID (not a healthy row / Pulse AttributeError)
 - [x] AT3-015 Isolated Atlas Pulse (eight questions)
 - [x] AT3-030 Isolated Atlas Start (budget + freshness)
 - [x] AT3-050 Isolated AGENT_PROOF
