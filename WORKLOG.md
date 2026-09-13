@@ -14915,3 +14915,29 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-020-F1 — Claim-nodes declared path integrity
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3-020-f1-claim-nodes-declared-path-integrity`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f` / tree `46d1989b026a2f15920ec5e1c78a106799bd1249`
+**Mode:** Isolated remediation. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+### Defect
+
+`compile_claim_nodes` treated any path that failed `Path.is_file()` as
+missing. A directory named `declared.json` reported
+`UNKNOWN` / `NO_DECLARED_CLAIM_NODES`. A symlink to a regular JSON file
+was followed and composed as a healthy harbor-api decision (`DEC-LEAK`).
+
+### Fix
+
+`_load_declared` now distinguishes missing from present-but-wrong.
+Missing stays missing. An existing symlink or non-file fails closed as
+`CLAIM_NODES_CORRUPT`. `ingestion.py` untouched. Does not modify `#862`.
+
+### Validation
+
+See the commit message / PR for the commands actually run.

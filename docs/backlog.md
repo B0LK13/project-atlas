@@ -770,6 +770,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-060 Isolated causal graph (declared CAUSED_BY; graph != authority)
 - [x] AT3-062 Isolated DECIDED_BY provenance (owner_origin required)
 - [x] AT3-020 Isolated claim/decision/requirement nodes (declared; graph != authority; no Truth Core write)
+- [ ] AT3-020-F1 Claim-nodes declared path integrity (IMPLEMENTED; AWAITING IV -- merge NOT pre-authorized). `compile_claim_nodes` used `if not path.is_file()` so a directory named `declared.json` reported `UNKNOWN` / `NO_DECLARED_CLAIM_NODES`, and a symlink was followed and composed as a healthy harbor-api decision (`DEC-LEAK`). Missing stays missing. A present symlink or non-file now fails closed as `CLAIM_NODES_CORRUPT`. Does not change `ingestion.py`, CLI surface, `#862` estate-nodes, or other declared-graph loaders.
 - [x] AT3-021 Isolated derived relationship expansion (GRAPH_REUSE aliases; no AS-GRAPH-003 write)
 - [x] AT3-022 Isolated conflict/UNKNOWN projection (UNKNOWN stays UNKNOWN; no winner; no healthy filter)
 - [x] AT3-023 Isolated graph != authority prover (winners/trust fail closed; no AS-GRAPH-003 write)
