@@ -14915,3 +14915,50 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-003-F2 — verify binds kind to event_type
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3003-verify-kind-type-bind`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: `normalize_engineering_event`
+rejects `kind=failure` + `event_type=TEST_PASSED` (`EVENT_TYPE_KIND_MISMATCH`).
+`verify_engineering_event` accepted a self-hashed row with that mismatch.
+`list_events` returned it and Pulse `what_failed` became `derived` for a
+passing test. Same hole: `kind=decision` made `what_was_decided` derived.
+
+Fix: `_bind_kind_to_event_type()` on the verify path. Canonical kinds must
+map through `KIND_TO_EVENT_TYPE`. Event types without a kind alias keep the
+lowercase `event_type` normalize already stamps (`TEST_FAILED` →
+`test_failed`).
+
+Does not touch `ingestion.py`, `pulse.py`, or `start.py`. Does not write
+Truth Core. Does not authorize merge.
+
+Evidence: `docs/evidence/AT3-003-F2-VERIFY-KIND-BIND.md`
+
+## AT3-003-F3 — verify rejects hash-valid merge authorization
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3003-verify-kind-type-bind`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Prior HEAD:** `4e5d003e621c8201e9da7fb7d1fa13c060d8bf52`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: a self-hashed decision row with
+`merge_authorization: GRANTED` verified, listed, and was re-emitted by
+Pulse `what_was_decided` while `honesty.merge_authorization` stayed
+`NOT_GRANTED`.
+
+Fix: `_reject_authority_claims()` on the verify path. Hash validity is
+not owner authorization. Distinct from F2 kind bind and from #830
+append-hash verify.
+
+Does not touch `ingestion.py`, `pulse.py`, or `start.py`. Does not write
+Truth Core. Does not authorize merge.
+
+Evidence: `docs/evidence/AT3-003-F3-LEDGER-AUTHORITY-INJECTION.md`
+
+

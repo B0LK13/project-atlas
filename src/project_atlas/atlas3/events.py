@@ -188,6 +188,73 @@ def _body_for_hash(record: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in record.items() if key not in {"event_id", "content_hash"}}
 
 
+def _bind_kind_to_event_type(event_type: str, kind: object) -> None:
+    """Fail closed when a present kind is not an alias of event_type.
+
+    Canonical kinds in EVENT_KINDS must map through KIND_TO_EVENT_TYPE.
+    Event types without a kind alias (TEST_FAILED, BUILD_STARTED, ...) keep
+    the lowercase event_type produced by normalize.
+    """
+    if kind is None:
+        return
+    event_kind = str(kind).strip().lower()
+    if not event_kind:
+        return
+    alias = EVENT_TYPE_TO_KIND.get(event_type, event_type.lower())
+    if event_kind in EVENT_KINDS:
+        expected = KIND_TO_EVENT_TYPE[event_kind]
+        if expected != event_type:
+            raise Atlas3Error(
+                "EVENT_TYPE_KIND_MISMATCH",
+                f"kind {event_kind!r} maps to {expected}, not {event_type}",
+            )
+        return
+    if event_kind != alias:
+        raise Atlas3Error(
+            "EVENT_TYPE_KIND_MISMATCH",
+            f"kind {event_kind!r} is not bound to {event_type}",
+        )
+
+
+_GRANTED: Final[frozenset[object]] = frozenset({"GRANTED", "granted", True})
+
+
+def _reject_authority_claims(record: dict[str, Any]) -> None:
+    """Fail closed when a ledger row invents merge or certification authority.
+
+    AT3-003-F3. Hash validity is not owner authorization. Event ledger is
+    evidence substrate, not Truth Core.
+    """
+    if record.get("merge_authorization") in _GRANTED:
+        raise Atlas3Error(
+            "MERGE_CLAIM_FORBIDDEN",
+            "ledger row must not grant merge authorization",
+        )
+    if record.get("certified_for_merge") is True:
+        raise Atlas3Error(
+            "MERGE_CLAIM_FORBIDDEN",
+            "ledger row must not certify merge",
+        )
+    payload = record.get("payload")
+    if isinstance(payload, dict):
+        if payload.get("merge_authorization") in _GRANTED:
+            raise Atlas3Error(
+                "MERGE_CLAIM_FORBIDDEN",
+                "ledger payload must not grant merge authorization",
+            )
+        if payload.get("certified_for_merge") is True:
+            raise Atlas3Error(
+                "MERGE_CLAIM_FORBIDDEN",
+                "ledger payload must not certify merge",
+            )
+    honesty = record.get("honesty")
+    if isinstance(honesty, dict) and honesty.get("merge_authorization") in _GRANTED:
+        raise Atlas3Error(
+            "MERGE_CLAIM_FORBIDDEN",
+            "ledger honesty must not grant merge authorization",
+        )
+
+
 def verify_engineering_event(record: dict[str, Any], *, expected_project_id: str) -> None:
     """Fail-closed read-path validation for ledger rows."""
     if not isinstance(record, dict):
@@ -206,6 +273,13 @@ def verify_engineering_event(record: dict[str, Any], *, expected_project_id: str
     event_type = str(record.get("event_type") or "")
     if event_type not in EVENT_TYPES:
         raise Atlas3Error("LEDGER_SCHEMA_INVALID", f"unsupported event_type {event_type!r}")
+    # AT3-003-F2: kind is an alias of event_type. A self-hashed TEST_PASSED
+    # row labeled kind=failure must not verify and become Pulse what_failed.
+    _bind_kind_to_event_type(event_type, record.get("kind"))
+    # AT3-003-F3: a hash-valid row must not mint merge/certification authority.
+    # Pulse re-emits ledger rows in what_was_decided; GRANTED on the row
+    # contradicts honesty.merge_authorization = NOT_GRANTED.
+    _reject_authority_claims(record)
     digest = str(record.get("content_hash") or "")
     if not digest.startswith("sha256:"):
         raise Atlas3Error("LEDGER_SCHEMA_INVALID", "content_hash is required")

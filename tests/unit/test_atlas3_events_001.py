@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import jsonschema
 import pytest
@@ -11,9 +12,14 @@ import pytest
 from project_atlas.atlas3.contracts import Atlas3Error
 from project_atlas.atlas3.events import (
     EVENT_TYPES,
+    _body_for_hash,
+    _canonical_hash,
     ingest_existing_agent_event,
     normalize_engineering_event,
+    verify_engineering_event,
 )
+from project_atlas.atlas3.ledger import list_events
+from project_atlas.atlas3.pulse import compile_pulse
 
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_FIELDS = (
@@ -105,3 +111,104 @@ def test_kind_and_event_type_mismatch_fails_closed() -> None:
             summary="mismatch",
         )
     assert exc.value.code == "EVENT_TYPE_KIND_MISMATCH"
+
+
+def _rehash(record: dict[str, Any]) -> dict[str, Any]:
+    body = dict(record)
+    digest = _canonical_hash(_body_for_hash(body))
+    body["content_hash"] = digest
+    body["event_id"] = "a3ev-" + digest[7:23]
+    return body
+
+
+def test_verify_rejects_self_hashed_kind_event_type_mismatch() -> None:
+    """AT3-003-F2 — verify binds kind to event_type the same way normalize does."""
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="unit tests passed",
+    )
+    verify_engineering_event(event, expected_project_id="harbor-api")
+    forged = _rehash({**event, "kind": "failure"})
+    with pytest.raises(Atlas3Error) as exc:
+        verify_engineering_event(forged, expected_project_id="harbor-api")
+    assert exc.value.code == "EVENT_TYPE_KIND_MISMATCH"
+
+
+def test_verify_accepts_normalize_aliases_without_canonical_kind() -> None:
+    """AT3-003-F2 — TEST_FAILED keeps kind=test_failed from normalize."""
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_FAILED",
+        source_plane="engineering",
+        summary="iv failed",
+    )
+    assert event["kind"] == "test_failed"
+    verify_engineering_event(event, expected_project_id="harbor-api")
+
+
+def test_list_and_pulse_refuse_forged_failure_kind(tmp_path: Path) -> None:
+    """AT3-003-F2 — planted TEST_PASSED+kind=failure must not become what_failed."""
+    vault = tmp_path / "vault"
+    (vault / "projects" / "harbor-api").mkdir(parents=True)
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="unit tests passed",
+    )
+    forged = _rehash({**event, "kind": "failure"})
+    path = vault / "generated" / "ops" / "atlas3" / "ledger" / "harbor-api.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(forged, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(Atlas3Error) as exc:
+        list_events(vault, "harbor-api")
+    assert exc.value.code == "EVENT_TYPE_KIND_MISMATCH"
+    with pytest.raises(Atlas3Error) as pulse_exc:
+        compile_pulse(vault, "harbor-api")
+    assert pulse_exc.value.code == "EVENT_TYPE_KIND_MISMATCH"
+
+
+def test_verify_rejects_self_hashed_merge_authorization() -> None:
+    """AT3-003-F3 — hash-valid GRANTED is still not owner authorization."""
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        kind="decision",
+        source_plane="engineering",
+        summary="ship it",
+    )
+    verify_engineering_event(event, expected_project_id="harbor-api")
+    forged = _rehash(
+        {
+            **event,
+            "merge_authorization": "GRANTED",
+            "certified_for_merge": True,
+            "payload": {"merge_authorization": "GRANTED"},
+        }
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        verify_engineering_event(forged, expected_project_id="harbor-api")
+    assert exc.value.code == "MERGE_CLAIM_FORBIDDEN"
+
+
+def test_list_and_pulse_refuse_granted_merge_row(tmp_path: Path) -> None:
+    """AT3-003-F3 — planted GRANTED must not become Pulse what_was_decided."""
+    vault = tmp_path / "vault"
+    (vault / "projects" / "harbor-api").mkdir(parents=True)
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        kind="decision",
+        source_plane="engineering",
+        summary="ship it",
+    )
+    forged = _rehash({**event, "merge_authorization": "GRANTED"})
+    path = vault / "generated" / "ops" / "atlas3" / "ledger" / "harbor-api.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(forged, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(Atlas3Error) as exc:
+        list_events(vault, "harbor-api")
+    assert exc.value.code == "MERGE_CLAIM_FORBIDDEN"
+    with pytest.raises(Atlas3Error) as pulse_exc:
+        compile_pulse(vault, "harbor-api")
+    assert pulse_exc.value.code == "MERGE_CLAIM_FORBIDDEN"
