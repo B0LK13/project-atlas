@@ -143,6 +143,16 @@ def register_capability(capability: Capability) -> Capability:
     surfaces = [str(item) for item in (capability.get("available_surfaces") or [])]
     if any(item not in SURFACES for item in surfaces):
         raise Atlas3Error("UNKNOWN_SURFACE", "surface is a projection, not a capability")
+    # AT3-004: catalog honesty. SECURITY_CLASSES is closed; "authority" is not a
+    # capability class. LLM/model/owner-authority must not be minted here.
+    security_class = str(capability.get("security_class") or "").strip()
+    if security_class == "authority":
+        raise Atlas3Error(
+            "AUTHORITY_SECURITY_CLASS",
+            "capability registry must not mint authority",
+        )
+    if security_class not in SECURITY_CLASSES:
+        raise Atlas3Error("UNKNOWN_SECURITY_CLASS", security_class)
     REGISTRY[cid] = capability
     return capability
 
