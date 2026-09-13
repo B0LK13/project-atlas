@@ -747,6 +747,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-006 Foundation threat catalog (reviewed; not certified)
 - [x] AT3-014 Isolated universal event ledger
 - [x] AT3-015 Isolated Atlas Pulse (eight questions)
+- [x] AT3-015-F2 Pulse must not compose STALE-as-verified or empty-object-as-derived (STALE != CURRENT; UNKNOWN stays UNKNOWN)
 - [x] AT3-030 Isolated Atlas Start (budget + freshness)
 - [x] AT3-050 Isolated AGENT_PROOF
 - [x] AT3-035/036/039/040/041/042/044/047/048/049 Isolated ChatGPT-first memory vertical

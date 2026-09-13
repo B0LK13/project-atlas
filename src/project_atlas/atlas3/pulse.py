@@ -15,6 +15,7 @@ from project_atlas.atlas3.contracts import (
     GENERATOR_ID,
     OPS_RELATIVE,
     TRUTH_BOUNDARY,
+    Atlas3Error,
     honesty_block,
     load_answer,
     require_project,
@@ -45,11 +46,24 @@ def _unknown(reason: str) -> dict[str, Any]:
 
 
 def _from_answer(answer: dict[str, Any] | None, *, missing: str) -> dict[str, Any]:
-    if answer is None:
+    if answer is None or not isinstance(answer, dict) or not answer:
         return _unknown(missing)
-    status = str(answer.get("status") or answer.get("disposition") or "derived")
+    freshness = str(answer.get("freshness") or "").strip().upper()
+    raw_status = answer.get("status") or answer.get("disposition")
+    status_text = str(raw_status).strip() if raw_status is not None else ""
+    if freshness == "STALE" and status_text.lower() in {"verified", "current"}:
+        raise Atlas3Error(
+            "STALE_AS_CURRENT",
+            "pulse must not compose a stale answer as current or verified truth",
+        )
+    if freshness == "STALE":
+        return {
+            "status": "STALE",
+            "items": [answer],
+            "authority": "derived",
+        }
     return {
-        "status": status if status else "derived",
+        "status": status_text or "derived",
         "items": [answer],
         "authority": "derived",
     }
