@@ -134,7 +134,7 @@ def test_same_identity_in_both_layers_fails_closed() -> None:
 
 def test_cli_honesty_empty_reconcile(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     vault = tmp_path / "vault"
-    vault.mkdir()
+    (vault / "projects" / "harbor-api").mkdir(parents=True)
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command")
     register_atlas3_parsers(sub)

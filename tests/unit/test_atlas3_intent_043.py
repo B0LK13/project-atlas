@@ -118,7 +118,7 @@ def test_cli_intent_empty_reconcile(tmp_path: Path, capsys: pytest.CaptureFixtur
     import argparse
 
     vault = tmp_path / "vault"
-    vault.mkdir()
+    (vault / "projects" / "harbor-api").mkdir(parents=True)
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command")
     register_atlas3_parsers(sub)
