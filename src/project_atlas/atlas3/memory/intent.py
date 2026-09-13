@@ -101,6 +101,17 @@ def extract_intent_report(
                     "confirmed_owner_decision requires explicit owner_origin",
                 )
         layer = _layer_for(item_type)
+        freshness = str(raw.get("freshness") or "").strip().upper()
+        if layer == "current_state" and freshness == "STALE":
+            raise Atlas3Error(
+                "STALE_AS_CURRENT",
+                "stale memory must not be classified as current_state",
+            )
+        if freshness == "STALE" and raw.get("present_as_current") is True:
+            raise Atlas3Error(
+                "STALE_AS_CURRENT",
+                "stale memory must not be presented as current",
+            )
         if layer == "current_state" and item_type in _INTENT_TYPES:
             raise Atlas3Error(
                 "INTENT_COLLAPSED_TO_STATE",
@@ -114,6 +125,8 @@ def extract_intent_report(
             "authority": "NON_CANONICAL",
             "promoted_to_truth_core": False,
         }
+        if freshness:
+            row["freshness"] = freshness
         if item_type == "confirmed_owner_decision":
             row["owner_origin"] = {
                 "evidence_kind": "explicit_owner_statement",

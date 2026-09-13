@@ -9,6 +9,7 @@ import pytest
 
 from project_atlas.atlas3.cli import dispatch_atlas3, register_atlas3_parsers
 from project_atlas.atlas3.contracts import Atlas3Error
+from project_atlas.atlas3.memory.honesty import wrap_intent_state_honesty
 from project_atlas.atlas3.memory.intent import PACKAGE_ID, TRUTH_BOUNDARY, extract_intent_report
 
 
@@ -103,6 +104,71 @@ def test_confirmed_owner_decision_stays_decision() -> None:
     assert report["counts"]["decision"] == 1
     assert report["layers"]["decision"][0]["layer"] == "decision"
     assert report["layers"]["decision"][0]["promoted_to_truth_core"] is False
+
+
+def test_stale_claim_is_not_current_state() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        extract_intent_report(
+            [
+                _item(
+                    item_type="claim_candidate",
+                    text="production uses postgres 16",
+                )
+                | {"freshness": "STALE"}
+            ],
+            requested_project_id="harbor-api",
+        )
+    assert exc.value.code == "STALE_AS_CURRENT"
+
+
+def test_stale_observation_is_not_current_state() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        extract_intent_report(
+            [_item(item_type="observation", text="saw postgres 16") | {"freshness": "STALE"}],
+            requested_project_id="harbor-api",
+        )
+    assert exc.value.code == "STALE_AS_CURRENT"
+
+
+def test_stale_intent_is_not_presented_as_current() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        extract_intent_report(
+            [
+                _item(
+                    item_type="next_step",
+                    text="migrate later",
+                )
+                | {"freshness": "STALE", "present_as_current": True}
+            ],
+            requested_project_id="harbor-api",
+        )
+    assert exc.value.code == "STALE_AS_CURRENT"
+
+
+def test_stale_next_step_stays_intent() -> None:
+    report = extract_intent_report(
+        [_item(item_type="next_step", text="look at the migration") | {"freshness": "STALE"}],
+        requested_project_id="harbor-api",
+    )
+    assert report["counts"]["intent"] == 1
+    assert report["counts"]["current_state"] == 0
+    assert report["layers"]["intent"][0]["freshness"] == "STALE"
+    assert report["layers"]["intent"][0]["layer"] == "intent"
+
+
+def test_honesty_wrapper_refuses_stale_current_state() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        wrap_intent_state_honesty(
+            [
+                _item(
+                    item_type="claim_candidate",
+                    text="production uses postgres 16",
+                )
+                | {"freshness": "STALE"}
+            ],
+            requested_project_id="harbor-api",
+        )
+    assert exc.value.code == "STALE_AS_CURRENT"
 
 
 def test_open_question_stays_unknown() -> None:

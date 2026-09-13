@@ -765,6 +765,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-038 Isolated Gemini fixture/export ingest (native history sync remains NOT IMPLEMENTED)
 - [ ] AT3-038 Gemini native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
 - [x] AT3-043 Isolated conversation decision + intent extraction
+- [x] AT3-043-F1 Stale memory must not classify as current_state (STALE != CURRENT; freshness preserved on intent)
 - [x] AT3-045 Isolated provider session lineage
 - [x] AT3-061 Isolated intent vs current-state honesty wrapper
 - [x] AT3-060 Isolated causal graph (declared CAUSED_BY; graph != authority)
