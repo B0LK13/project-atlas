@@ -80,6 +80,7 @@ from project_atlas.orchestration.program.enrollment import (
     bind,
     load_registry,
     registry_path,
+    validate_workspace_binding,
 )
 from project_atlas.orchestration.program.loader import LoadedProgram, profile_digest
 from project_atlas.orchestration.program.models import (
@@ -1707,6 +1708,27 @@ class ProgramSupervisor:
                 f"{kind} {agent_id} was re-enrolled into role {current.role!r}, "
                 f"not {launched_as.role!r}, since this program started"
             )
+        # Effective profiles were narrowed at binding time. A fresh narrower
+        # roster (or different runtime) cannot authorize reuse of that older
+        # effective profile. Rebind explicitly; do not widen or switch in place.
+        if current.profile_narrowing != launched_as.profile_narrowing:
+            return f"{kind} {agent_id}: enrollment narrowing changed; a fresh binding is required"
+        if current.adapter is not launched_as.adapter:
+            return f"{kind} {agent_id}: enrolled runtime changed; a fresh binding is required"
+        competitors = sorted(
+            agent.agent_id for agent in registry.agents.values()
+            if agent.role == current.role and agent.status is AgentStatus.ACTIVE
+            and agent.agent_id != agent_id
+        )
+        if competitors:
+            return (
+                f"ROLE_CONTENTION: {kind} role {current.role!r} is also claimed by "
+                + ", ".join(competitors)
+            )
+        try:
+            validate_workspace_binding(current, self.loaded)
+        except ProgramError as exc:
+            return f"{kind} {agent_id}: {exc.code}: {exc}"
         # An assignment is not a one-time gate. Re-reading it here is what stops
         # a binding recorded before the first task from carrying a later task
         # after the operator pointed that agent at a different program.

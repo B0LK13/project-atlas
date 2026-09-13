@@ -50,7 +50,7 @@ from project_atlas.orchestration.program.models import (
     AuthorityExpansionError,
     ProgramError,
 )
-from project_atlas.orchestration.program.path_safety import child_path
+from project_atlas.orchestration.program.path_safety import checked_path, child_path, trusted_root
 from project_atlas.orchestration.program.profiles import (
     AdapterKind,
     AgentProfile,
@@ -184,7 +184,7 @@ def enroll(
             "pass replace to change it",
             code="AGENT_ALREADY_ENROLLED",
         )
-    workspace = workspace_root.expanduser().resolve()
+    workspace = trusted_root(workspace_root.expanduser())
     if not workspace.is_dir():
         raise EnrollmentError(
             f"workspace {workspace} is not a directory", code="WORKSPACE_MISSING"
@@ -271,6 +271,27 @@ def assign(
     return agent, loaded
 
 
+def validate_workspace_binding(agent: EnrolledAgent, loaded: LoadedProgram) -> None:
+    """Require the current registered workspace to be the approved workspace.
+
+    Registration cannot silently expand to another repository. Do not resolve
+    links or relative roster strings before deciding whether the binding holds.
+    Used at initial binding AND immediately before each subsequent dispatch.
+    """
+    raw = Path(agent.workspace_root)
+    try:
+        if not raw.is_absolute():
+            raise ValueError("registered workspace must be absolute")
+        workspace = checked_path(raw, root=loaded.workspace)
+        if workspace != loaded.workspace or not workspace.is_dir():
+            raise ValueError("registered workspace is not the approved workspace")
+    except (ProgramError, OSError, ValueError) as exc:
+        raise EnrollmentError(
+            f"agent {agent.agent_id} workspace binding does not match the approved "
+            f"program workspace: {exc}", code="ENROLLMENT_WORKSPACE_MISMATCH",
+        ) from exc
+
+
 def bind(
     agent: EnrolledAgent,
     loaded: LoadedProgram,
@@ -296,6 +317,7 @@ def bind(
             f"{agent.role!r}; it has: {', '.join(sorted(loaded.profiles.profiles))}",
             code="ROLE_NOT_IN_PROGRAM",
         )
+    validate_workspace_binding(agent, loaded)
     if profile.adapter is not agent.adapter and not allow_runtime_substitution:
         raise EnrollmentError(
             f"agent {agent.agent_id} is a {agent.adapter.value} agent but role "

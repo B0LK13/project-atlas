@@ -62,6 +62,15 @@ Every permission still comes from the **approved program's** profile for that
 role. An enrollment can tighten it and can never widen it; the attempt raises
 `AuthorityExpansionError` with the same codes a task override would.
 
+The registered absolute workspace is a binding, not an informational hint.
+Assignment/initial binding and each later dispatch require exactly the approved
+program workspace; relative roster paths, different workspaces and symlink/
+reparse aliases fail closed. Registration does not normalize a symlink into a
+valid binding. A changed narrowing or runtime requires a fresh binding rather
+than reuse of an older effective profile. Newly active duplicate-role claims
+also withhold dispatch. These checks cover both implementer and verifier;
+description-only metadata changes do not revoke an otherwise unchanged binding.
+
 Where a limit is set on both sides, the **tighter** one wins field by field.
 Both bounds were set on purpose, and honouring only one would silently discard
 the other.

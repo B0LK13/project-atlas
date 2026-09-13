@@ -15104,3 +15104,27 @@ The standalone installed within-task demo is prepared in
 `scripts/atlas_continuation_execution_demo.py`. The next exact frozen candidate
 still requires its new noneditable installation, actual demo runs and fresh
 independent verdict. No source tests or earlier passes imply activation.
+
+### 2026-09-13 — continuation-002 current enrollment binding closure
+
+C2 HEAD `f96af0d03172e163f632fe783ccb9f28b8574e6d`, TREE
+`01e32ce3dd92dc2294e726a95708649cc49827a0` passed 466 tests plus one skip from
+its noneditable installation and all five installed demonstrations. Independent
+original-proof-9 expansion nevertheless found ignored registry workspace
+bindings. C2 remains unaccepted; preserve its wheel, runtime, source and results.
+
+Coordinator reproduced 13 workspace/alias failures with two valid controls,
+then repaired initial binding, registration alias refusal and current
+implementer/verifier workspace validation. In the same fresh-authority branch,
+six measured failures showed stale narrowing/runtime profiles and new active
+duplicate-role claims being ignored; current dispatch now withholds those
+changed bindings. Principal/key inconsistency already refused, and metadata-only
+description changes retain correct execution. Focused authority/enrollment
+regression: 46 passed, one existing skip in 11.82 seconds. Repository-root Ruff
+and mypy pass. A first parent-directory mypy invocation omitted project import
+overrides and is retained as a command-context issue, not a new product defect.
+
+Evidence: continuation-completion-002-NCrqj3B3/evidence/enrollment-*. Exact next
+candidate installation/full regression and independent C3 acceptance are still
+required; no prior candidate pass is transferred. Source repair owner remains
+codex-continuation-002, verifier remains the existing Maxwell session.
