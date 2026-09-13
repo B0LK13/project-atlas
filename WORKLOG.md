@@ -14915,3 +14915,20 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-046-F1 — Incremental consume validates envelope identity
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3046-envelope-consume-integrity`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: `apply_local_incremental` trusted
+any `a3ce-*` envelope_id. Stolen id + forged schema/hash/body applied;
+authentic envelope then skipped.
+
+Fix: `verify_envelope` binds schema, content_hash, and envelope_id.
+Honest `build_envelope` output still applies.
+
+Does not enable live provider incremental sync. Does not write Truth
+Core. Does not authorize merge.

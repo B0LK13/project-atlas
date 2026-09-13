@@ -796,6 +796,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-101 Isolated ledger observability (validated read; ledger != truth; no healthy filter)
 - [x] AT3-102 Isolated provider sync status (honest capabilities; AT3-046 EXTERNAL_BLOCKED)
 - [x] AT3-046 Isolated incremental export-cursor (local apply only; live provider incremental EXTERNAL_BLOCKED)
+- [x] AT3-046-F1 Incremental consume binds envelope schema/hash/id (stolen a3ce-* id fail-closed; live sync still EXTERNAL_BLOCKED)
 - [x] AT3-054 Isolated consume-only memory context compiler (no 2.x rewrite; stale != current; UNKNOWN stays UNKNOWN)
 - [x] AT3-055 Isolated ranked-context local serve (chatgpt/claude/gemini/cursor pack; live serve EXTERNAL_BLOCKED)
 - [x] AT3-056 Isolated fixture provider handoff (ChatGPT→Claude fixture path; live multi-account EXTERNAL_BLOCKED)
