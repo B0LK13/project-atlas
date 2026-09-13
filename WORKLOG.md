@@ -14939,3 +14939,26 @@ Truth Core. Does not authorize merge.
 
 Evidence: `docs/evidence/AT3-003-F2-VERIFY-KIND-BIND.md`
 
+## AT3-003-F3 — verify rejects hash-valid merge authorization
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3003-verify-kind-type-bind`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Prior HEAD:** `4e5d003e621c8201e9da7fb7d1fa13c060d8bf52`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: a self-hashed decision row with
+`merge_authorization: GRANTED` verified, listed, and was re-emitted by
+Pulse `what_was_decided` while `honesty.merge_authorization` stayed
+`NOT_GRANTED`.
+
+Fix: `_reject_authority_claims()` on the verify path. Hash validity is
+not owner authorization. Distinct from F2 kind bind and from #830
+append-hash verify.
+
+Does not touch `ingestion.py`, `pulse.py`, or `start.py`. Does not write
+Truth Core. Does not authorize merge.
+
+Evidence: `docs/evidence/AT3-003-F3-LEDGER-AUTHORITY-INJECTION.md`
+
+

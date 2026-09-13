@@ -743,6 +743,8 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-012 Isolated service/environment nodes (declared fixture; not authentic estate)
 - [x] AT3-003 Isolated engineering event model (canonical envelope)
 - [x] AT3-003-F2 verify_engineering_event binds kind to event_type (self-hashed TEST_PASSED+kind=failure fail-closed; EVENT LEDGER != TRUTH CORE)
+- [x] AT3-003-F3 verify_engineering_event rejects hash-valid merge_authorization GRANTED (Pulse must not re-emit owner authority; EVENT LEDGER != TRUTH CORE)
+
 - [x] AT3-004 Isolated semantic capability registry
 - [x] AT3-005 Isolated 2.x→3.x compatibility prover
 - [x] AT3-006 Foundation threat catalog (reviewed; not certified)
