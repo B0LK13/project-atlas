@@ -14939,3 +14939,24 @@ with `RECONCILE_CORRUPT`. Missing stays missing. `read_json` unchanged.
 ### Validation
 See the commit message / PR for the commands actually run.
 
+## AT3-CLI-F2 — memory stale must not dump CURRENT-tagged rows
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3-cli-f1-reconcile-consume-fail-closed`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Prior HEAD:** `05a0c4facd8f9bcddda22c674209a6116eabd075`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: `compile_stale_conflict_intel`
+raised `STALE_AS_CURRENT` for CURRENT-tagged `stale_memories`, but
+`atlas memory stale` dumped the same list with exit 0.
+
+Fix: CLI stale path fail-closes with `STALE_AS_CURRENT` after the F1
+artifact bind and project-scope assert. Honest STALE rows still dump.
+
+Does not touch `ingestion.py` or `stale_conflict.py`. Does not authorize
+merge.
+
+Evidence: `docs/evidence/AT3-CLI-F2-STALE-CURRENT-GUARD.md`
+
+

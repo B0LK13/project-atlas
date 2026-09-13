@@ -1019,6 +1019,17 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 else:
                     stale = raw_stale
                 assert_items_project_scope(stale, project_id=args.project)
+                # AT3-CLI-F2: atlas memory stale must not dump CURRENT-tagged
+                # rows. compile_stale_conflict_intel already fail-closes this;
+                # the CLI lens must not bypass that guard.
+                if any(
+                    isinstance(item, dict) and str(item.get("freshness") or "") == "CURRENT"
+                    for item in stale
+                ):
+                    raise Atlas3Error(
+                        "STALE_AS_CURRENT",
+                        "stale_memories must not be CURRENT",
+                    )
                 return _dump({"stale_count": len(stale), "items": stale}, as_json=True)
         if command == "ledger":
             sub = getattr(args, "ledger_command", "")

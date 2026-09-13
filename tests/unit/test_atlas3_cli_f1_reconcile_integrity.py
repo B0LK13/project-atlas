@@ -167,3 +167,37 @@ def test_valid_reconcile_still_present(
     payload = json.loads(capsys.readouterr().out)
     assert payload["reconcile_present"] is True
     assert main(_mem(vault, "honesty")) == EXIT_OK
+
+
+def test_stale_current_freshness_fails_closed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AT3-CLI-F2 — memory stale must not dump CURRENT-tagged rows."""
+    vault = _vault(tmp_path)
+    _write_reconcile(
+        vault,
+        {
+            "reconciliation": {
+                "items": [
+                    {
+                        "project_id": "harbor-api",
+                        "provider": "chatgpt",
+                        "text": "PostgreSQL 16 is deployed",
+                        "freshness": "CURRENT",
+                    }
+                ],
+                "stale_memories": [
+                    {
+                        "project_id": "harbor-api",
+                        "provider": "chatgpt",
+                        "text": "PostgreSQL 16 is deployed",
+                        "freshness": "CURRENT",
+                    }
+                ],
+            }
+        },
+    )
+    assert main(_mem(vault, "stale")) == EXIT_ERROR
+    payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert payload["ok"] is False
+    assert payload["error"] == "STALE_AS_CURRENT"
