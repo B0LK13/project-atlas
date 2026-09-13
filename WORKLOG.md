@@ -15030,6 +15030,16 @@ the additional implementer's review. Non-fixture Codex/Claude runtime behavior,
 including source-only evidence-sink observations, is not accepted by this
 zero-model delivery; model dispatch stays disabled. No service action was taken.
 
+The third frozen candidate `24b3d286c09cb4335d4ad6d291ca75f2cf831c8a`
+passed 465 coordinator regressions (one existing skip), but independent
+acceptance again correctly remained closed. Expanded negative controls exposed
+two missing zero-model runtime guards and two pre-planted hardlink write paths.
+No model was called: the independent probes intercepted runtime entry. The
+resident now rejects non-fixture profiles and enrollment substitutions before
+supervisor construction, and the shared path guard rejects multiply linked
+regular files before temporary truncation or event append. The original failed
+evidence is retained; safety acceptance is bound only to the next verified pin.
+
 Evidence: `docs/orchestration/taskcontract/demo/evidence/` (11 raw files),
 `docs/orchestration/taskcontract/demo/snapshot/` (the item text and digest the
 run observed).

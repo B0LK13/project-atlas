@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -620,3 +621,45 @@ def test_service_identity_link_is_refused_without_service_action(tmp_path: Path)
     target.symlink_to(outside)
     with pytest.raises(ContainmentError):
         service.read_identity(root)
+
+
+@pytest.mark.parametrize("sink", ["temporary", "events"])
+def test_planted_hardlink_never_modifies_outside_inode(tmp_path: Path, sink: str) -> None:
+    root = tmp_path / "governed"
+    outside = tmp_path / "outside.txt"
+    outside.write_text("immutable fixture")
+    target = store.state_path(root) if sink == "temporary" else store.events_path(root)
+    target.parent.mkdir(parents=True)
+    link = target.with_name(target.name + ".tmp") if sink == "temporary" else target
+    os.link(outside, link)
+    with pytest.raises(ContainmentError):
+        if sink == "temporary":
+            store.write_json_atomic(target, {"must_not_write_outside": True})
+        else:
+            store.append_event(root, "must_not_append_outside", {})
+    assert outside.read_text() == "immutable fixture"
+
+
+@pytest.mark.parametrize("kind", ["codex", "claude-code"])
+def test_resident_nonfixture_profile_refuses_before_supervisor_construction(
+    tmp_path: Path, kind: str
+) -> None:
+    program = _program(tmp_path, tmp_path)
+    payload = json.loads(program.read_text())
+    payload["profiles"]["fixture"].update(
+        adapter=kind, credential="SUBSCRIPTION_OAUTH", adapter_options={}
+    )
+    program.write_text(json.dumps(payload))
+    queue = tmp_path / "queue"
+    _raw_queue(queue, program, tmp_path / "state")
+
+    def forbidden_factory(*args: object, **kwargs: object) -> None:
+        pytest.fail("unsupported profile reached supervisor/runtime construction")
+
+    dispatcher = ResidentDispatcher(
+        root=tmp_path, queue_root=queue, checkout=tmp_path,
+        supervisor_factory=forbidden_factory,
+    )
+    result = dispatcher.tick()
+    assert result.launched == 0
+    assert result.queue_error_code == "MODEL_DISPATCH_DISABLED"

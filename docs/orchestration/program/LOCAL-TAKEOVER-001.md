@@ -26,8 +26,9 @@ are siblings. The root is an operator-selected directory; it is never inferred
 from the common ancestor of paths found in queue data. With no explicit root,
 dispatcher state and standalone queue roots are their own narrow boundaries.
 Absolute operator bindings inside the selected root are supported. Untrusted
-relative components reject absolute paths, `..`, backslashes, symlinks and
-reparse points. Do not migrate old state by broadening the root until it fits.
+relative components reject absolute paths, `..`, backslashes, symlinks,
+reparse points and multiply linked regular files. Do not migrate old state by
+broadening the root until it fits.
 
 The registry is a separate explicit operator binding; it is made absolute once
 and read again before dispatch. A missing, changed or revoked enrollment does
@@ -82,6 +83,9 @@ is labelled fault injection, never an observed external incident.
 ## Limits and decisions
 
 - Proven local runtime support is the bounded `local-command` fixture adapter.
+  The resident rejects non-fixture effective/verifier profiles and enrollment
+  substitutions before supervisor construction or runtime discovery, with
+  `MODEL_DISPATCH_DISABLED`. A zero-model label alone is not enforcement.
   Generated instruction files are not runtime compatibility evidence. Codex,
   Claude, IDE and remote model execution require separate acceptance.
   Bounded source review also identified evidence-path concerns in non-fixture

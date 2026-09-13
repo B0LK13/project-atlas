@@ -84,7 +84,6 @@ from project_atlas.orchestration.program.decisions import (
 from project_atlas.orchestration.program.enrollment import AgentStatus, load_registry, registry_path
 from project_atlas.orchestration.program.loader import (
     LoadedProgram,
-    ProgramLoadError,
     load_program,
 )
 from project_atlas.orchestration.program.models import ProgramError, ProgramStopReason
@@ -95,6 +94,7 @@ from project_atlas.orchestration.program.path_safety import (
     child_path,
     trusted_root,
 )
+from project_atlas.orchestration.program.profiles import AdapterKind
 from project_atlas.orchestration.program.store import (
     append_event,
     load_state,
@@ -568,7 +568,21 @@ class ResidentDispatcher:
             loaded = load_program(Path(entry.program_path), governed_root=self.governed_root)
             if loaded.program.program_id != entry.program_id:
                 raise QueueError("queue program id mismatch", code="QUEUE_PROGRAM_MISMATCH")
-        except (ProgramLoadError, QueueError, ContainmentError) as exc:
+            # A zero-model declaration is an enforced boundary, not a report
+            # label. Reject before factory construction or runtime discovery.
+            profiles = (*loaded.effective.values(), *loaded.verifiers.values())
+            if any(profile.adapter is not AdapterKind.LOCAL_COMMAND for profile in profiles):
+                raise DispatcherError(
+                    "resident dispatch supports only the zero-model local-command fixture",
+                    code="MODEL_DISPATCH_DISABLED",
+                )
+            enrolled = self._enrolled_for(loaded)
+            if any(agent.adapter is not AdapterKind.LOCAL_COMMAND for agent in enrolled):
+                raise DispatcherError(
+                    "resident enrollment cannot substitute a non-fixture runtime",
+                    code="MODEL_DISPATCH_DISABLED",
+                )
+        except ProgramError as exc:
             result.state = DispatcherState.WAITING_ON_WORK
             result.queue_error = str(exc)
             result.queue_error_code = exc.code
@@ -613,7 +627,6 @@ class ResidentDispatcher:
         # safe, but a registry-configured deployment could never dispatch at
         # all. The finite `program start` path bound enrolments all along; only
         # this one did not, which is why no test caught it.
-        enrolled = self._enrolled_for(loaded)
         supervisor = (
             self._supervisor_factory(loaded, state_root)
             if self._supervisor_factory is not None

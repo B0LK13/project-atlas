@@ -48,6 +48,8 @@ def _no_links(path: Path) -> None:
             getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
         ):
             raise ContainmentError("symlink or reparse point in governed path")
+        if stat.S_ISREG(info.st_mode) and getattr(info, "st_nlink", 1) > 1:
+            raise ContainmentError("multiply linked regular file in governed path")
 
 
 def trusted_root(root: Path) -> Path:
