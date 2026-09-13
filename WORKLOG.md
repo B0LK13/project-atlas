@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-093-F1 — Time Machine must not compose a stale snapshot
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3093-time-machine-stale-snapshot`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+STALE snapshots composed as derived. Now fail closed. Empty-object clone class not included.
+
+Evidence: `docs/evidence/AT3-093-F1-TIME-MACHINE-STALE-SNAPSHOT.md`
