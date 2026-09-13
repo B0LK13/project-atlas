@@ -463,7 +463,7 @@ def _p2_vault(tmp_path: Path) -> Path:
     )
     conflicts = vault / "review" / "conflicts"
     conflicts.mkdir(parents=True)
-    (conflicts / "conflicts.json").write_text(
+    (conflicts / f"{PROJECT_A}.json").write_text(
         json.dumps(
             {
                 "entries": [

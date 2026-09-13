@@ -114,7 +114,11 @@ def _claims_vault(
             {"claims": rows},
         )
     if conflicts:
-        _wr(vault / "review" / "conflicts" / "conflicts.json", {"entries": conflicts})
+        for project_id in grouped:
+            _wr(
+                vault / "review" / "conflicts" / f"{project_id}.json",
+                {"entries": conflicts},
+            )
     if portfolio is not None:
         _wr(
             vault / "generated" / "portfolio" / "stale-knowledge.json",

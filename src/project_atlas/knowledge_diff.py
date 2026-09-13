@@ -215,12 +215,20 @@ def _load_claims(
     return claims
 
 
+def _claim_project_ids(root: Path) -> set[str]:
+    claims_dir = root / "state" / "claims"
+    if not claims_dir.is_dir():
+        return set()
+    return {path.stem for path in claims_dir.glob("*.json")}
+
+
 def _load_windows(
     root: Path,
     claims: dict[str, _ClaimInfo],
     *,
     knowledge_compilation_id: str | None,
     inspected: list[str],
+    project_id: str,
 ) -> dict[tuple[str, str], list[ClaimValidityWindow]]:
     """Group AS-2.0-TEMPORAL-001 validity windows by (subject, field).
 
@@ -232,8 +240,14 @@ def _load_windows(
     catalog_dir = root / "generated" / "ops" / "bitemporal"
     if not catalog_dir.is_dir():
         return by_key
+    sibling_projects = _claim_project_ids(root)
     for path in sorted(catalog_dir.glob("*.json")):
         raw = _load_json_object(path)
+        catalog_id = str(raw.get("catalog_id") or raw.get("project_id") or "").strip()
+        # A catalog minted for a sibling project must not select this project's
+        # claims just because claim_id strings collide (AS-KDIFF-F1).
+        if catalog_id in sibling_projects and catalog_id != project_id:
+            continue
         windows = raw.get("windows")
         if not isinstance(windows, list):
             continue
@@ -327,13 +341,14 @@ def _load_state(
         claims,
         knowledge_compilation_id=knowledge_compilation_id,
         inspected=inspected,
+        project_id=project_id,
     )
     authority_by_key = _load_authority(root, project_id, inspected)
 
     freshness = _load_portfolio_freshness(root)
     if freshness:
         inspected.append("generated/portfolio/stale-knowledge.json")
-    conflicts, _records = _load_unresolved_claim_conflicts(root)
+    conflicts, _records = _load_unresolved_claim_conflicts(root, project_id=project_id)
     if (root / "review" / "conflicts").is_dir():
         inspected.append("review/conflicts")
 

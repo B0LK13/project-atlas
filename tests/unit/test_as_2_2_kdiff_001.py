@@ -451,6 +451,63 @@ def test_cross_project_isolation(tmp_path: Path) -> None:
     assert {c["subject"] for c in snap_b["cells"]} == {"s-leak"}
 
 
+def test_sibling_catalog_same_claim_id_does_not_select(tmp_path: Path) -> None:
+    """AS-KDIFF-F1 — colliding claim_id in a sibling catalog stays UNKNOWN."""
+    vault = tmp_path / "vault"
+    _write_json(
+        vault / "state" / "claims" / "proj-a.json",
+        {
+            "compilation_id": "kc-1",
+            "claims": [_claim("c-shared", "s-a", "engine", "unknown-here", "srca")],
+        },
+    )
+    _write_json(
+        vault / "state" / "claims" / "proj-b.json",
+        {
+            "compilation_id": "kc-1",
+            "claims": [_claim("c-shared", "s-b", "engine", "postgresql-15", "srcb")],
+        },
+    )
+    _write_json(
+        vault / "generated" / "ops" / "bitemporal" / "proj-b-validity-catalog.json",
+        {
+            "catalog_id": "proj-b",
+            "windows": [_window("c-shared", "2023-01-01")],
+        },
+    )
+    snapshot = read_as_of(vault, project_id="proj-a", as_of_valid_time=T1)
+    rendered = snapshot_to_json(snapshot)
+    assert "postgresql-15" not in rendered
+    assert not any(
+        cell.get("selected_claim_id") == "c-shared" and cell.get("disposition") == "selected"
+        for cell in snapshot["cells"]
+    )
+
+
+def test_sibling_conflict_file_does_not_attach(tmp_path: Path) -> None:
+    """AS-KDIFF-F1 — review/conflicts/proj-b.json must not mark proj-a unresolved."""
+    vault = _build_matrix_vault(tmp_path)
+    _write_json(
+        vault / "review" / "conflicts" / "proj-b.json",
+        {
+            "entries": [
+                {
+                    "state": "unresolved",
+                    "conflict_id": "conf-foreign-helix",
+                    "claim_ids": ["cval1"],
+                    "subject": "s-val",
+                    "field": "status",
+                }
+            ]
+        },
+    )
+    snapshot = read_as_of(vault, project_id="proj-a", as_of_valid_time=T1)
+    val = next(cell for cell in snapshot["cells"] if cell["subject"] == "s-val")
+    assert val.get("conflict_state") != "unresolved"
+    assert "conf-foreign-helix" not in str(val)
+    assert "conf-foreign-helix" not in snapshot_to_json(snapshot)
+
+
 # ---------------------------------------------------------------------------
 # Determinism / read-only / scope
 # ---------------------------------------------------------------------------
