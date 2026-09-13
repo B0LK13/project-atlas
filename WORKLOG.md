@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-043-F1 — stale memory is not current_state
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3043-stale-as-current-state`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+extract_intent_report classified STALE claim_candidate/observation as current_state and dropped freshness. STALE current-state types now fail closed. honesty.py untouched.
+
+Evidence: `docs/evidence/AT3-043-F1-STALE-NOT-CURRENT-STATE.md`
