@@ -756,6 +756,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-041 Isolated cross-LLM dedup (provenance retained; no state/intent/history collapse)
 - [x] AT3-042 Isolated cross-LLM conflict detection (no winner; no layer collapse)
 - [x] AT3-044 Isolated memory freshness (STALE != CURRENT; UNKNOWN stays UNKNOWN)
+- [x] AT3-044-F1 Stale/unknown/historical stronger evidence must not mint CURRENT (STALE != CURRENT; historical memory is not current truth)
 - [x] AT3-047 Isolated privacy/secret gate (fail-closed scan; raw transcript minimized)
 - [x] AT3-048 Isolated unified memory search (extracted items only; not a transcript dump)
 - [x] AT3-049 Isolated memory reconciliation (compose 041/042/044; never auto-promote)

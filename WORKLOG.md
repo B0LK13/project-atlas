@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-044-F1 — stale stronger evidence is not CURRENT
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3044-stale-evidence-not-current`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+classify_freshness minted CURRENT from matching STALE/UNKNOWN/historical stronger evidence. Matching non-current evidence now stays STALE/UNKNOWN/CONTESTED. Unspecified evidence freshness remains CURRENT.
+
+Evidence: `docs/evidence/AT3-044-F1-STALE-EVIDENCE-NOT-CURRENT.md`

@@ -49,6 +49,39 @@ def test_matching_evidence_is_current() -> None:
     assert state == "CURRENT"
 
 
+def test_stale_matching_evidence_is_not_current() -> None:
+    state = classify_freshness(
+        {"text": "production uses PostgreSQL 16"},
+        stronger_evidence=[
+            {"kind": "deployment", "text": "PostgreSQL 16", "freshness": "STALE"},
+        ],
+    )
+    assert state == "STALE"
+    assert state != "CURRENT"
+
+
+def test_unknown_matching_evidence_is_not_current() -> None:
+    state = classify_freshness(
+        {"text": "production uses PostgreSQL 16"},
+        stronger_evidence=[
+            {"kind": "deployment", "text": "PostgreSQL 16", "freshness": "UNKNOWN"},
+        ],
+    )
+    assert state == "UNKNOWN"
+    assert state != "CURRENT"
+
+
+def test_historical_matching_evidence_is_not_current() -> None:
+    state = classify_freshness(
+        {"text": "production uses PostgreSQL 16"},
+        stronger_evidence=[
+            {"kind": "deployment", "text": "PostgreSQL 16", "historical": True},
+        ],
+    )
+    assert state == "STALE"
+    assert state != "CURRENT"
+
+
 def test_mixed_valid_and_corrupt_fails_closed() -> None:
     with pytest.raises(Atlas3Error) as exc:
         apply_freshness([{"text": "ok"}, "corrupt"])  # type: ignore[list-item]
