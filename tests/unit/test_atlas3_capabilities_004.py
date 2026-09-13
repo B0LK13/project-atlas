@@ -90,6 +90,25 @@ def test_register_rejects_unknown_security_class() -> None:
     assert "atlas3.forged-unknown-class" not in REGISTRY
 
 
+def test_register_rejects_authority_claim_key() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        register_capability(
+            {
+                "capability_id": "atlas3.forged-authority-flag",
+                "semantic_contract": "AT3-004-FORGED-FLAG",
+                "truth_dependency": "none",
+                "required_evidence": [],
+                "available_surfaces": ["python"],
+                "maturity": "implementation-unlocked",
+                "demo_required": False,
+                "security_class": "owner-gated",
+                "is_authority": True,
+            }
+        )
+    assert exc.value.code == "AUTHORITY_CLAIM_FORBIDDEN"
+    assert "atlas3.forged-authority-flag" not in REGISTRY
+
+
 def test_register_accepts_closed_security_class() -> None:
     cid = "atlas3.honest-owner-gated"
     try:

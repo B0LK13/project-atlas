@@ -20,6 +20,15 @@ MATURITIES: Final[frozenset[str]] = frozenset(
 SECURITY_CLASSES: Final[frozenset[str]] = frozenset(
     {"read-derived", "evidence-append", "privacy-sensitive", "owner-gated"}
 )
+AUTHORITY_CLAIM_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "is_authority",
+        "grants_authority",
+        "catalog_is_authority",
+        "mint_authority",
+        "owner_authority",
+    }
+)
 
 Capability = dict[str, Any]
 
@@ -153,6 +162,12 @@ def register_capability(capability: Capability) -> Capability:
         )
     if security_class not in SECURITY_CLASSES:
         raise Atlas3Error("UNKNOWN_SECURITY_CLASS", security_class)
+    for key in AUTHORITY_CLAIM_KEYS:
+        if capability.get(key) is True:
+            raise Atlas3Error(
+                "AUTHORITY_CLAIM_FORBIDDEN",
+                "capability registry must not persist authority claims",
+            )
     REGISTRY[cid] = capability
     return capability
 
