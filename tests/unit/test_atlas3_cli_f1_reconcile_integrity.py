@@ -90,6 +90,57 @@ def test_non_list_items_fails_closed(tmp_path: Path) -> None:
     assert exc.value.code == "RECONCILE_CORRUPT"
 
 
+def test_empty_object_is_present_with_no_items(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    vault = _vault(tmp_path)
+    _write_reconcile(vault, {})
+    assert load_reconcile_artifact(vault, "harbor-api") == {}
+    assert load_reconcile_items(vault, "harbor-api") == []
+    assert main(_mem(vault, "status")) == EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["reconcile_present"] is True
+    assert main(_mem(vault, "conflicts")) == EXIT_OK
+    assert main(_mem(vault, "stale")) == EXIT_OK
+
+
+def test_conflicts_and_stale_use_loaded_artifact(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    vault = _vault(tmp_path)
+    _write_reconcile(
+        vault,
+        {
+            "reconciliation": {
+                "items": [
+                    {
+                        "project_id": "harbor-api",
+                        "provider": "chatgpt",
+                        "text": "PostgreSQL 16 is deployed",
+                    }
+                ],
+                "conflicts": {"conflicted_history": True, "collapsed_to_scalar": False},
+                "stale_memories": [
+                    {
+                        "project_id": "harbor-api",
+                        "provider": "chatgpt",
+                        "text": "old",
+                        "freshness": "STALE",
+                    }
+                ],
+            }
+        },
+    )
+    assert main(_mem(vault, "conflicts")) == EXIT_OK
+    conflicts = json.loads(capsys.readouterr().out)
+    assert conflicts["conflicted_history"] is True
+    assert conflicts["collapsed_to_scalar"] is False
+    assert main(_mem(vault, "stale")) == EXIT_OK
+    stale = json.loads(capsys.readouterr().out)
+    assert stale["stale_count"] == 1
+    assert stale["items"][0]["freshness"] == "STALE"
+
+
 def test_valid_reconcile_still_present(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -597,26 +597,35 @@ def load_reconcile_artifact(vault: Path, project_id: str) -> dict[str, Any] | No
     return raw
 
 
+def _reconciliation_block(recon: dict[str, Any] | None) -> dict[str, Any] | None:
+    if recon is None:
+        return None
+    if "reconciliation" not in recon:
+        return None
+    block = recon.get("reconciliation")
+    if not isinstance(block, dict):
+        raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation must be an object")
+    return block
+
+
+def items_from_reconcile(recon: dict[str, Any] | None) -> list[Any]:
+    """Return items from a loaded artifact. Missing block/items → []."""
+    block = _reconciliation_block(recon)
+    if block is None or "items" not in block:
+        return []
+    items = block.get("items")
+    if not isinstance(items, list):
+        raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation items must be a list")
+    return items
+
+
 def load_reconcile_items(vault: Path, project_id: str) -> list[Any]:
     """Return reconcile items, or [] when no artifact exists.
 
     A present `reconciliation` / `items` field of the wrong type fails
     closed instead of leaking AttributeError or collapsing to empty.
     """
-    recon = load_reconcile_artifact(vault, project_id)
-    if recon is None:
-        return []
-    if "reconciliation" not in recon:
-        return []
-    block = recon.get("reconciliation")
-    if not isinstance(block, dict):
-        raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation must be an object")
-    if "items" not in block:
-        return []
-    items = block.get("items")
-    if not isinstance(items, list):
-        raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation items must be a list")
-    return items
+    return items_from_reconcile(load_reconcile_artifact(vault, project_id))
 
 
 def dispatch_atlas3(args: argparse.Namespace) -> int | None:
@@ -962,7 +971,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     as_json=True,
                 )
             if sub in {"search", "conflicts", "stale", "intent", "lineage", "honesty"}:
-                items = load_reconcile_items(Path(args.vault), str(args.project))
+                recon = load_reconcile_artifact(Path(args.vault), str(args.project))
+                items = items_from_reconcile(recon)
                 assert_items_project_scope(items, project_id=args.project)
                 if sub == "lineage":
                     return _dump(
@@ -984,13 +994,30 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         search_memory(items, args.query, project_id=args.project),
                         as_json=True,
                     )
+                block = _reconciliation_block(recon)
                 if sub == "conflicts":
-                    return _dump(
-                        ((recon or {}).get("reconciliation") or {}).get("conflicts")
-                        or {"conflicted_history": False, "reason": "NO_RECONCILE"},
-                        as_json=True,
+                    raw_conflicts = block.get("conflicts") if block is not None else None
+                    if raw_conflicts is None:
+                        return _dump(
+                            {"conflicted_history": False, "reason": "NO_RECONCILE"},
+                            as_json=True,
+                        )
+                    if not isinstance(raw_conflicts, dict):
+                        raise Atlas3Error(
+                            "RECONCILE_CORRUPT",
+                            "reconciliation conflicts must be an object",
+                        )
+                    return _dump(raw_conflicts, as_json=True)
+                raw_stale = block.get("stale_memories") if block is not None else None
+                if raw_stale is None:
+                    stale: list[Any] = []
+                elif not isinstance(raw_stale, list):
+                    raise Atlas3Error(
+                        "RECONCILE_CORRUPT",
+                        "stale_memories must be a list",
                     )
-                stale = ((recon or {}).get("reconciliation") or {}).get("stale_memories") or []
+                else:
+                    stale = raw_stale
                 assert_items_project_scope(stale, project_id=args.project)
                 return _dump({"stale_count": len(stale), "items": stale}, as_json=True)
         if command == "ledger":
