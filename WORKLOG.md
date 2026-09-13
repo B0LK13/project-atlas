@@ -14937,4 +14937,10 @@ already contains `JSONDecodeError`.
 Does not touch `ingestion.py`. Does not write Truth Core. Does not authorize
 merge.
 
+**Validation** (worktree `/tmp/atlas-proof-json`, `PYTHONPATH=src`):
+
+- `python -m pytest tests/unit/test_atlas3_proof_001.py -q` → 5 passed
+- `ruff check src/project_atlas/atlas3/proof.py tests/unit/test_atlas3_proof_001.py` → clean
+- `mypy src/project_atlas/atlas3/proof.py tests/unit/test_atlas3_proof_001.py` → clean
+
 Evidence: `docs/evidence/AT3-050-F1-PROOF-EVIDENCE-OBJECT.md`
