@@ -750,6 +750,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-030 Isolated Atlas Start (budget + freshness)
 - [x] AT3-050 Isolated AGENT_PROOF
 - [x] AT3-035/036/039/040/041/042/044/047/048/049 Isolated ChatGPT-first memory vertical
+- [x] AT3-035-F1 register_provider live_full_history_sync=True fails closed (LIVE_HISTORY_CLAIMED; registry unchanged)
 - [x] AT3-036 Isolated ChatGPT export ingest (parse_chat_export compose; live history claim fails closed; does not replace chatgpt_bridge)
 - [x] AT3-039 Isolated conversation normalization (canonical envelope; mixed corrupt fail-closed; no new CLI)
 - [x] AT3-040 Isolated conversation extractor (landed ITEM_TYPES; forged owner stays proposed; no Truth Core)
