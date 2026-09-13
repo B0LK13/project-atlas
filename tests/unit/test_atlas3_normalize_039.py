@@ -13,6 +13,7 @@ from project_atlas.atlas3.memory.normalize import (
     normalize_capability,
     normalize_turns,
 )
+from project_atlas.atlas3.memory.pipeline import ingest_provider_turns
 
 
 def test_capability_is_honest() -> None:
@@ -65,6 +66,64 @@ def test_mixed_valid_and_corrupt_fails_closed() -> None:
             import_mode="EXPORT",
         )
     assert exc.value.code == "NORMALIZE_INVALID"
+
+
+def test_ingest_provider_turns_refuses_live_history_claim() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        ingest_provider_turns(
+            [
+                {
+                    "role": "assistant",
+                    "text": "production uses PostgreSQL 15",
+                    "live_full_history_sync": True,
+                }
+            ],
+            provider="chatgpt",
+            conversation_id="c1",
+            project_id="harbor-api",
+        )
+    assert exc.value.code == "LIVE_HISTORY_CLAIMED"
+
+
+def test_live_full_history_claim_fails_closed() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        normalize_turns(
+            [
+                {
+                    "role": "assistant",
+                    "text": "production uses PostgreSQL 15",
+                    "live_full_history_sync": True,
+                }
+            ],
+            provider="chatgpt",
+            conversation_id="c1",
+            import_mode="EXPORT",
+            project_id="harbor-api",
+        )
+    assert exc.value.code == "LIVE_HISTORY_CLAIMED"
+
+
+def test_live_conversation_sync_claim_fails_closed() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        normalize_turns(
+            [{"role": "assistant", "text": "ok", "conversation_sync": "LIVE"}],
+            provider="chatgpt",
+            conversation_id="c1",
+            import_mode="EXPORT",
+        )
+    assert exc.value.code == "LIVE_HISTORY_CLAIMED"
+
+
+def test_honest_export_turn_still_normalizes() -> None:
+    envelopes = normalize_turns(
+        [{"role": "assistant", "text": "production uses PostgreSQL 15"}],
+        provider="chatgpt",
+        conversation_id="c1",
+        import_mode="EXPORT",
+        project_id="harbor-api",
+    )
+    assert envelopes[0]["import_mode"] == "EXPORT"
+    assert envelopes[0]["raw_transcript_persisted"] is False
 
 
 def test_unknown_role_fails_closed() -> None:

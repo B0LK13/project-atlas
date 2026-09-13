@@ -9,6 +9,7 @@ from project_atlas.atlas3.memory.envelope import SCHEMA_NAME, build_envelope
 from project_atlas.atlas3.memory.privacy import apply_privacy
 
 PACKAGE_ID: Final[str] = "AT3-039"
+_LIVE_VALUES: Final[frozenset[str]] = frozenset({"IMPLEMENTED", "LIVE", "SYNCED"})
 
 ROLE_ALIASES = {
     "human": "user",
@@ -49,6 +50,17 @@ def normalize_turns(
     for index, turn in enumerate(turns):
         if not isinstance(turn, dict):
             raise Atlas3Error("NORMALIZE_INVALID", "turn is not an object")
+        if turn.get("live_full_history_sync") is True or turn.get("live_incremental_sync") is True:
+            raise Atlas3Error(
+                "LIVE_HISTORY_CLAIMED",
+                f"turn[{index}] must not claim live history sync",
+            )
+        sync = str(turn.get("conversation_sync") or "")
+        if sync in _LIVE_VALUES:
+            raise Atlas3Error(
+                "LIVE_HISTORY_CLAIMED",
+                f"turn[{index}] live conversation sync is EXTERNAL_BLOCKED",
+            )
         raw_role = str(turn.get("role") or "assistant").strip().lower()
         role = ROLE_ALIASES.get(raw_role, raw_role)
         raw_text = str(turn.get("text") or turn.get("content") or "")
