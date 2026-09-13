@@ -58,6 +58,23 @@ def _signals(raw: object) -> list[dict[str, Any]]:
         state = str(item.get("state") or "UNKNOWN").strip().upper()
         if state not in ALLOWED_STATES:
             raise Atlas3Error("SIGNAL_STATE_UNKNOWN", f"unsupported signal state {state!r}")
+        freshness = str(item.get("freshness") or "").strip().upper()
+        status = str(item.get("status") or "").strip().lower()
+        if freshness == "STALE" and state == "CURRENT":
+            raise Atlas3Error(
+                "STALE_AS_CURRENT",
+                f"{signal_id} must not treat stale as current",
+            )
+        if item.get("stale_as_current") is True or item.get("stale_is_current") is True:
+            raise Atlas3Error(
+                "STALE_AS_CURRENT",
+                f"{signal_id} must not treat stale as current",
+            )
+        if item.get("unverified") is True and status in {"verified", "current"}:
+            raise Atlas3Error(
+                "UNVERIFIED_AS_CURRENT",
+                f"{signal_id} must not treat unverified as current",
+            )
         evidence = item.get("evidence_refs") or item.get("evidence")
         if not isinstance(evidence, list):
             raise Atlas3Error("PROVENANCE_REQUIRED", f"{signal_id} requires evidence_refs")

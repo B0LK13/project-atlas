@@ -780,6 +780,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-072 Isolated provider-register / capabilities CLI design (no CLI proliferation)
 - [x] AT3-080 Isolated impact explorer data (declared; graph != authority; no trust scores)
 - [x] AT3-100 Isolated twin health (derived signals; health != authority; estate != authorization)
+- [x] AT3-100-F1 Twin health STALE freshness / stale_as_current cannot keep state=CURRENT
 - [x] AT3-090 Isolated Atlas Home composer (Pulse+Start+twin health; UI != truth)
 - [x] AT3-091 Isolated Timeline (declared valid-time; wall-clock != valid-time)
 - [x] AT3-094 Isolated Decision Explorer (declared owner_origin; model paraphrase != owner)
