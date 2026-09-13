@@ -58,3 +58,26 @@ def test_repository_gate_malformed_receipt_is_unreadable(tmp_path: Path) -> None
     )
     assert report["ok"] is False
     assert "receipt is unreadable" in report["errors"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    ("null", "[1]", "true", "1", '"x"'),
+)
+def test_repository_gate_non_object_receipt_is_malformed(tmp_path: Path, body: str) -> None:
+    """JSON null/array/bool/number/string must fail closed without AttributeError.
+
+    #828 IV (3427d76c): ``null`` parsed as None and skipped both error arms,
+    so validate returned ok=True. Truthy non-dicts then crashed on .get.
+    """
+    receipt = tmp_path / "receipt.json"
+    receipt.write_text(body, encoding="utf-8")
+    report = repository_gate.validate(
+        project_id="fixture",
+        changed_files=["docs/a.md"],
+        receipt_path=receipt,
+    )
+    assert report["ok"] is False
+    assert "receipt is malformed" in report["errors"]
+    assert "receipt is unreadable" not in report["errors"]
+    assert report["receipt_id"] is None

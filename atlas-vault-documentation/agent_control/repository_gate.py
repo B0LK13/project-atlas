@@ -22,15 +22,22 @@ def validate(*, project_id: str, changed_files: list[str], receipt_path: Path | 
         if not receipt_path.is_file():
             errors.append("receipt is missing")
         else:
+            loaded: object | None
+            decode_failed = False
             try:
-                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                loaded = json.loads(receipt_path.read_text(encoding="utf-8"))
             except (OSError, UnicodeError, json.JSONDecodeError):
                 errors.append("receipt is unreadable")
-                receipt = None
-            if not isinstance(receipt, dict):
-                if receipt is not None:
+                decode_failed = True
+                loaded = None
+            # Successful parse of null/array/bool/number/string is malformed,
+            # not unreadable. Never call mapping methods on a non-dict.
+            if not isinstance(loaded, dict):
+                if not decode_failed:
                     errors.append("receipt is malformed")
+                receipt = None
             else:
+                receipt = loaded
                 if receipt.get("session", {}).get("project_id") != project_id:
                     errors.append("receipt belongs to another project")
                 if skill_sha256 and receipt.get("skill", {}).get("sha256") != skill_sha256:
@@ -39,4 +46,11 @@ def validate(*, project_id: str, changed_files: list[str], receipt_path: Path | 
                     errors.append("receipt lacks validation evidence")
                 if not receipt.get("events", {}).get("completion"):
                     errors.append("receipt lacks completion evidence")
-    return {"ok": not errors, "project_id": project_id, "changed_files": changed_files, "protected_files": protected, "receipt_id": receipt.get("receipt_id") if receipt else None, "errors": errors}
+    return {
+        "ok": not errors,
+        "project_id": project_id,
+        "changed_files": changed_files,
+        "protected_files": protected,
+        "receipt_id": receipt.get("receipt_id") if isinstance(receipt, dict) else None,
+        "errors": errors,
+    }

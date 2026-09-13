@@ -26,6 +26,17 @@ Reproduced on `b87b4a22`. Sibling of #827 (YAML constructor class; this is JSON)
 Map `JSONDecodeError` onto existing structured refusals. Does not authorize
 grants or sessions. Does not touch Core `ingestion.py`.
 
+## IV remediation (2026-09-13)
+
+Independent verification of `3427d76c` found a VALID P1: JSON `null`
+parsed successfully as `None` and skipped both the unreadable and
+malformed arms, so `repository_gate.validate` returned `ok=True`.
+Truthy non-dicts (`[1]`, `true`) then crashed on `receipt.get`.
+
+Successful non-object parses now collect `receipt is malformed` and
+never call mapping methods on a non-dict. Decode failures still collect
+`receipt is unreadable` only.
+
 ## Tests
 
 `atlas-vault-documentation/tests/test_ctrl_json_decode_fail_closed.py`

@@ -14928,3 +14928,8 @@ Evidence: the test module's own docstring, which carries the boundary statement.
 Malformed JSON leaked ``JSONDecodeError`` from vault identity, authority
 grants, sessions, and repository-gate receipts. Those readers now raise
 or collect structured refusals. Does not touch Core `ingestion.py`.
+
+IV of ``3427d76c`` (``bc-f2e204c2-3942-5f97-b8b9-fac6e0f41a0a``) found
+a VALID P1: JSON ``null`` fail-opened ``repository_gate.validate``
+(``ok=True``). Remediation maps successful non-object parses to
+``receipt is malformed`` and never calls ``.get`` on a non-dict.
