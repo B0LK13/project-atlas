@@ -29,7 +29,9 @@ def _classify(text: str, *, role: str, owner_origin: dict[str, Any] | None) -> s
     if _FAIL.search(text):
         return "failed_approach"
     if _PLANNED.search(text) and _CLAIM.search(text):
-        return "claim_candidate"
+        if _NEXT.search(text):
+            return "next_step"
+        return "proposed_decision"
     if _CLAIM.search(text):
         return "claim_candidate"
     if _NEXT.search(text):
