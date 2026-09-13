@@ -129,7 +129,9 @@ def _load_receipt(package: Path) -> ReceiptReference:
     try:
         raw = yaml.safe_load((package / "receipt.yaml").read_text(encoding="utf-8"))
         return ReceiptReference.model_validate(raw)
-    except (OSError, UnicodeError, yaml.YAMLError, ValidationError, TypeError) as exc:
+    except (OSError, UnicodeError, yaml.YAMLError, ValidationError, TypeError, KeyError) as exc:
+        # PyYAML ``!!bool nope`` (and similar constructor tags) raise
+        # KeyError, not YAMLError. Refuse at the Core package boundary.
         raise PackageValidationError(f"receipt.yaml invalid: {exc}") from exc
 
 

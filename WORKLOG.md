@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## EVENT-PACKAGE-RECEIPT-YAML-KEYERROR
+
+**Date:** 2026-09-13
+**Branch:** `fix/event-package-receipt-yaml-keyerror`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Mode:** Night-cycle autonomous remediation. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+Same constructor leak as F7-R1 / #819–#824, at the event-package
+``receipt.yaml`` loader. Constructor ``KeyError`` now raises
+``PackageValidationError``. Does not touch `ingestion.py`.
