@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Final
 
-from project_atlas.atlas3.contracts import TRUTH_BOUNDARY, honesty_block
+from project_atlas.atlas3.contracts import TRUTH_BOUNDARY, Atlas3Error, honesty_block
 
 PACKAGE_ID: Final[str] = "AT3-035"
 IMPORT_MODES: Final[frozenset[str]] = frozenset(
@@ -120,6 +120,11 @@ def register_provider(adapter: ProviderAdapter) -> ProviderAdapter:
     modes = [str(item) for item in (adapter.get("import_modes") or [])]
     if any(mode not in IMPORT_MODES for mode in modes):
         raise ValueError("unknown import mode")
+    if adapter.get("live_full_history_sync") is True:
+        raise Atlas3Error(
+            "LIVE_HISTORY_CLAIMED",
+            "register_provider must not claim live full-history sync",
+        )
     _REGISTRY[provider] = adapter
     return adapter
 

@@ -5,9 +5,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from project_atlas.atlas3.contracts import Atlas3Error
 from project_atlas.atlas3.memory.chatgpt import chatgpt_capability, import_chatgpt_export
 from project_atlas.atlas3.memory.compiler import next_agent_must_not_claim_pg16
-from project_atlas.atlas3.memory.connector import provider_capabilities
+from project_atlas.atlas3.memory.connector import (
+    _REGISTRY,
+    provider_capabilities,
+    register_provider,
+)
 from project_atlas.atlas3.memory.extract import extract_items, reject_forged_owner_decision
 from project_atlas.atlas3.memory.pipeline import ingest_provider_turns, run_memory_vertical
 from project_atlas.conversation_capture import ITEM_TYPES
@@ -37,6 +44,25 @@ def test_chatgpt_live_sync_not_claimed() -> None:
     assert providers["providers"]["claude"]["state"] == "EXPORT_ONLY"
     assert providers["providers"]["gemini"]["state"] == "EXPORT_ONLY"
     assert providers["fixture_coverage_is_sync"] is False
+
+
+def test_register_provider_refuses_live_history_claim() -> None:
+    original = dict(_REGISTRY["chatgpt"])
+    try:
+        with pytest.raises(Atlas3Error) as exc:
+            register_provider(
+                {
+                    "provider": "chatgpt",
+                    "state": "CONNECTED",
+                    "import_modes": ["API"],
+                    "live_full_history_sync": True,
+                }
+            )
+        assert exc.value.code == "LIVE_HISTORY_CLAIMED"
+        assert _REGISTRY["chatgpt"] == original
+        assert provider_capabilities("chatgpt")["live_full_history_sync"] is False
+    finally:
+        _REGISTRY["chatgpt"] = original
 
 
 def test_chatgpt_export_wraps_parser(tmp_path: Path) -> None:

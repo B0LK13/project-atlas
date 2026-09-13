@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-035-F1 — register_provider live history claim
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3035-register-live-history-claim`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+register_provider accepted live_full_history_sync=True and overwrote the adapter registry. It now fails closed and leaves the registry unchanged.
+
+Evidence: `docs/evidence/AT3-035-F1-REGISTER-LIVE-HISTORY-CLAIM.md`
