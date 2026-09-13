@@ -97,6 +97,21 @@ def compile_start(
     sections["project_identity"] = take("derived", identity_text)
 
     state = load_answer(root, f"ans-state-{pid}")
+    if state is not None and (not isinstance(state, dict) or not state):
+        state = None
+    if isinstance(state, dict):
+        state_freshness = str(state.get("freshness") or "").strip().upper()
+        raw_state_status = state.get("status") or state.get("disposition")
+        state_status = (
+            str(raw_state_status).strip().lower() if raw_state_status is not None else ""
+        )
+        if state_freshness == "STALE" and (
+            freshness == "CURRENT" or state_status in {"verified", "current"}
+        ):
+            raise Atlas3Error(
+                "STALE_AS_CURRENT",
+                "start must not present a stale state lens as current verified truth",
+            )
     stale_block = (pulse.get("questions") or {}).get("what_became_stale") or {}
     stale_items = stale_block.get("items") or []
     truth_text = "UNKNOWN — state lens not materialized"
