@@ -40,6 +40,28 @@ def test_stale_derived_next_fails_closed(tmp_path: Path) -> None:
     assert exc.value.code == "STALE_AS_CURRENT"
 
 
+def test_stale_without_status_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    pulse = vault / "generated" / "ops" / "atlas3" / "pulse" / "harbor-api.json"
+    pulse.parent.mkdir(parents=True)
+    pulse.write_text(
+        json.dumps(
+            {
+                "questions": {
+                    "what_should_i_look_at_next": {
+                        "freshness": "STALE",
+                        "value": "stale next without status",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        compile_next_action_honesty(vault, "harbor-api")
+    assert exc.value.code == "STALE_AS_CURRENT"
+
+
 def test_fresh_derived_next_still_composes(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     pulse = vault / "generated" / "ops" / "atlas3" / "pulse" / "harbor-api.json"
