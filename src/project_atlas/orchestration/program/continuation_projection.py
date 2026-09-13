@@ -48,7 +48,6 @@ from project_atlas.orchestration.program.continuation import (
     CheckpointError,
     CheckpointPolicy,
     CommandRecord,
-    ConsumedBudget,
     ContinuationCheckpoint,
     ExecutionCapture,
     ExecutionCaptureReport,
@@ -284,6 +283,8 @@ def replay_class_for(task: ProgramTask) -> ReplayClass:
        is the cautious answer, and it is the right default because the
        alternative reading of silence is "safe to repeat".
     """
+    if task.execution_steps:
+        return ReplayClass.CHECKPOINT_RESUMABLE
     if task.retry_safe_when_no_launch_evidence:
         return ReplayClass.IDEMPOTENT_MUTATION
     if not task.mutation_paths:
@@ -331,7 +332,9 @@ def materialise_envelopes(
                 max_model_calls=0,
                 max_estimated_cost_usd=float(limits.max_estimated_cost_usd or 0.0),
             ),
-            checkpoint_policy=CheckpointPolicy(steps=()),
+            checkpoint_policy=CheckpointPolicy(
+                steps=tuple(s.step_id for s in task.execution_steps)
+            ),
             forbidden_paths=(),
             allowed_actions=(),
             # Recorded on every envelope, for a reader rather than for a gate:
@@ -356,7 +359,9 @@ def _lease_snapshot(root: Path, task_id: str, *, session_id: str) -> LeaseSnapsh
     from a live holder on the strength of a number nobody measured.
     """
     try:
-        projection = load_projection(root)
+        from project_atlas.orchestration.program.store import state_dir
+
+        projection = load_projection(state_dir(root))
     except ProjectionError:
         return None
     for row in active_rows(projection):
@@ -388,6 +393,7 @@ def project_checkpoints(
     worktree: Path,
     git_head: str,
     git_tree: str,
+    revision_observed: bool = True,
 ) -> tuple[ContinuationCheckpoint, ...]:
     """Project one checkpoint per task from durable supervisor state.
 
@@ -441,6 +447,20 @@ def project_checkpoints(
             or any(effect.confirmed is not True for effect in previous.external_effects)
         ):
             continue
+        # Step checkpoints are first-hand execution records. A boundary lens
+        # may add a final task seal, but must never erase their history.
+        if task.execution_steps and previous is not None:
+            if record.state in _DONE:
+                from project_atlas.orchestration.program.consumption import consumed_for_task
+
+                written.append(persist_checkpoint(root, previous.model_copy(update={
+                    "sequence": previous.sequence + 1,
+                    "recorded_at": utc_now(),
+                    "consumed_budget": consumed_for_task(state, task.task_id, previous),
+                    "terminal": True, "replay_class": ReplayClass.COMPLETED,
+                    "next_action": "nothing; task acceptance confirmed; never replay",
+                })))
+            continue
         sequence = (previous.sequence + 1) if previous is not None else 1
 
         terminal = record.state in _DONE or record.state in _STUCK
@@ -490,6 +510,11 @@ def project_checkpoints(
             changed_files=_CHANGED_FILES_UNAVAILABLE,
         )
 
+        from project_atlas.orchestration.program.consumption import (
+            consumed_for_task,
+            unobserved_wall_attempts,
+        )
+
         checkpoint = ContinuationCheckpoint(
             identity=ExecutionIdentity(
                 task_id=task.task_id,
@@ -514,16 +539,7 @@ def project_checkpoints(
                 attempt.process_start_identity if attempt is not None else None
             ),
             lease=_lease_snapshot(root, task.task_id, session_id=session_id),
-            consumed_budget=ConsumedBudget(
-                attempts=record.attempts,
-                launches=record.launches,
-                model_calls=0,
-                estimated_cost_usd=(
-                    float(attempt.estimated_cost_usd or 0.0)
-                    if attempt is not None
-                    else 0.0
-                ),
-            ),
+            consumed_budget=consumed_for_task(state, task.task_id, previous),
             # G4a: OBSERVED means at least one field below was captured from a
             # record; NOT_CAPTURED means none was. The per-field report says
             # which. Neither value is ever set from the emptiness of a list.
@@ -540,6 +556,15 @@ def project_checkpoints(
             replay_class=replay,
             terminal=terminal,
         )
+        if not revision_observed:
+            from project_atlas.orchestration.program.candidate import UNVERSIONED_FIXTURE_BOUNDARY
+
+            checkpoint.truth_boundary += " / " + UNVERSIONED_FIXTURE_BOUNDARY
+        if unobserved_wall_attempts(state, task.task_id):
+            checkpoint.truth_boundary += (
+                " / WALL_BUDGET_UNOBSERVED: recorded wall time is a known lower bound; "
+                "missing attempt measurements block further dispatch"
+            )
         try:
             written.append(persist_checkpoint(root, checkpoint))
         except CheckpointError:

@@ -308,15 +308,22 @@ def run_control(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 
 def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    from project_atlas.orchestration.program.path_safety import trusted_root
+
     action = str(getattr(args, "service_action", ""))
     program_path = Path(args.program)
-    loaded = load_program(program_path, governed_root=getattr(args, "governed_root", None))
+    boundary = trusted_root(getattr(args, "governed_root", None) or program_path.absolute().parent)
+    loaded = load_program(program_path, governed_root=boundary)
     root = _state_root(args, loaded)
     registry = getattr(args, "registry", None)
-    registry_root = Path(registry).expanduser().resolve() if registry else None
+    registry_root = trusted_root(Path(registry).expanduser()) if registry else None
     allow_unregistered = bool(getattr(args, "allow_unregistered", False))
     if action == "install":
-        return service.install(root, program_path, registry_root=registry_root), EXIT_OK
+        return (
+            service.install(root, program_path, registry_root=registry_root,
+                            governed_root=boundary),
+            EXIT_OK,
+        )
     if action == "start":
         return (
             service.start(
@@ -324,13 +331,18 @@ def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 program_path,
                 registry_root=registry_root,
                 allow_unregistered=allow_unregistered,
+                governed_root=boundary,
             ),
             EXIT_OK,
         )
     if action == "stop":
         return service.stop(root), EXIT_OK
     if action == "status":
-        return service.status(root, program_path, registry_root=registry_root), EXIT_OK
+        return (
+            service.status(root, program_path, registry_root=registry_root,
+                           governed_root=boundary),
+            EXIT_OK,
+        )
     if action == "run":
         return (
             service.run(
@@ -340,6 +352,7 @@ def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 max_rounds=getattr(args, "max_rounds", None),
                 registry_root=registry_root,
                 allow_unregistered=allow_unregistered,
+                governed_root=boundary,
             ),
             EXIT_OK,
         )

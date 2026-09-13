@@ -612,12 +612,20 @@ class ResidentDispatcher:
         # no recorded authority is a task a replacement session cannot
         # reconstruct, and the moment to write it is before the work, not after.
         head, tree = _git_revision(checked_path(loaded.workspace, root=self.governed_root))
-        materialise_envelopes(
-            loaded,
-            state_root,
-            candidate_head=head or loaded.program.base_pin,
-            candidate_tree=tree or loaded.program.base_pin,
+        from project_atlas.orchestration.program.candidate import (
+            UNVERSIONED_FIXTURE_BOUNDARY,
+            require_revision,
         )
+
+        try:
+            candidate_head, candidate_tree = require_revision(loaded, head, tree)
+        except ProgramError as exc:
+            update_entry(self.queue_root, entry.program_id, governed_root=self.governed_root,
+                         status=QueueEntryStatus.QUARANTINED, note=f"{exc.code}: {exc}")
+            result.notes.append(f"{exc.code}: {exc}")
+            return None
+        if not head or not tree:
+            result.notes.append(UNVERSIONED_FIXTURE_BOUNDARY)
 
         # D5: the resident path threaded `registry_root` but never passed
         # `enrolled_agents`, so `_apply_enrollments` never ran, the program's
@@ -637,6 +645,10 @@ class ResidentDispatcher:
                 registry_root=self.registry_root,
                 governed_root=self.governed_root,
             )
+        )
+        materialise_envelopes(
+            supervisor.loaded if isinstance(supervisor, ProgramSupervisor) else loaded,
+            state_root, candidate_head=candidate_head, candidate_tree=candidate_tree,
         )
         update_entry(
             self.queue_root,
@@ -719,6 +731,7 @@ class ResidentDispatcher:
                 worktree=loaded.workspace,
                 git_head=head or loaded.program.base_pin,
                 git_tree=tree or loaded.program.base_pin,
+                revision_observed=bool(head and tree),
             )
         except ContinuationError as exc:
             result.notes.append(f"checkpoint projection refused: {exc}")
@@ -770,8 +783,21 @@ class ResidentDispatcher:
             return
 
         kind = _DECISION_STOPS.get(stop)
+        fallback_available = False
         if kind is not None:
-            self._route_to_decision_queue(entry, report, state_root, result, kind)
+            fallback_available = self._route_to_decision_queue(
+                entry, report, state_root, result, kind
+            )
+
+        if fallback_available and stop not in {
+            ProgramStopReason.RECONCILE_REQUIRED, ProgramStopReason.CANCELLED,
+        }:
+            update_entry(self.queue_root, entry.program_id, governed_root=self.governed_root,
+                         status=QueueEntryStatus.PENDING, last_stop_reason=stop.value)
+            result.notes.append(
+                "blocked task remains held; approved fallback returns through normal gates"
+            )
+            return
 
         if stop in _QUARANTINE_STOPS or kind is not None:
             update_entry(
@@ -811,7 +837,7 @@ class ResidentDispatcher:
         state_root: Path,
         result: TickResult,
         kind: DecisionKind,
-    ) -> None:
+    ) -> bool:
         """One durable question per blocker, then yield to a fallback.
 
         The blocking TASKS are identified rather than the program being blamed
@@ -832,6 +858,7 @@ class ResidentDispatcher:
         check_children(decisions_dir(state_root), root=state_root)
         blocking = self._blocking_task_ids(state_root)
         handled = 0
+        fallback_available = False
         for task_id in blocking:
             envelope = load_envelope(state_root, task_id)
             if envelope is None:
@@ -840,7 +867,7 @@ class ResidentDispatcher:
                 state_root,
                 envelope=envelope,
                 kind=kind,
-                subject=stop.value,
+                subject="TASK_BLOCKED",
                 question=(
                     f"Task {task_id} in program {entry.program_id} cannot "
                     f"proceed ({stop.value}). A person must decide; the "
@@ -853,7 +880,9 @@ class ResidentDispatcher:
                 worker_id=envelope.worker_id,
                 session_id=self.session_id,
                 evidence=evidence,
+                lease_root=state_dir(state_root),
             )
+            fallback_available |= outcome.fallback_task_id is not None
             handled += 1
             if outcome.newly_raised:
                 result.decisions_raised.append(outcome.decision.decision_id)
@@ -869,7 +898,7 @@ class ResidentDispatcher:
                 f"fallback={outcome.fallback_task_id} ({outcome.fallback_reason})"
             )
         if handled:
-            return
+            return fallback_available
 
         request, newly = raise_decision(
             state_root,
@@ -902,6 +931,7 @@ class ResidentDispatcher:
                 f"{entry.program_id}: decision {request.decision_id} is already "
                 f"open (seen {request.seen_count}x); not re-asked"
             )
+        return False
 
     @staticmethod
     def _blocking_task_ids(state_root: Path) -> tuple[str, ...]:

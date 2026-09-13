@@ -535,6 +535,18 @@ class ProgramSupervisor:
         started_at = self._clock()
         try:
             state = self.load_or_init_state()
+            if any(task.execution_steps for task in self.program.tasks):
+                from project_atlas.orchestration.program.continuation_projection import (
+                    materialise_envelopes,
+                )
+                from project_atlas.orchestration.program.resident import _git_revision
+
+                head, tree = _git_revision(self.workspace)
+                from project_atlas.orchestration.program.candidate import require_revision
+
+                head, tree = require_revision(self.loaded, head, tree)
+                materialise_envelopes(self.loaded, self.root,
+                    candidate_head=head, candidate_tree=tree)
             state.supervisor_instance_id = self._instance_id
             state.supervisor_pid = _self_pid()
             persist_state(self.root, state)
@@ -1561,6 +1573,15 @@ class ProgramSupervisor:
 
         Returns a reason string when the dispatch must not proceed, else None.
         """
+        from project_atlas.orchestration.program.loader import load_program
+
+        try:
+            current_program = load_program(self.loaded.source_path,
+                                           governed_root=self.governed_root)
+        except ProgramError as exc:
+            return f"approved program cannot be revalidated: {exc}"
+        if current_program.digest != self.loaded.digest:
+            return "approved program changed since this execution began"
         # Deliberately NOT `if not self.enrolled_agents`. An empty binding is
         # the symptom of the very thing this guard exists to catch: the
         # callers' `--registry` filters keep only ACTIVE agents, so suspending
@@ -1996,9 +2017,51 @@ class ProgramSupervisor:
         workspace = self.workspace
         if profile.workspace.working_subdir != ".":
             workspace = child_path(workspace, profile.workspace.working_subdir)
-        timeout = min(
+        timeout = float(min(
             self.program.limits.max_task_seconds, profile.limits.max_seconds
-        )
+        ))
+        from project_atlas.orchestration.program.continuation import load_checkpoint, load_envelope
+
+        envelope = load_envelope(self.root, task.task_id)
+        continuation_env: dict[str, str] = {}
+        if envelope is not None:
+            import json
+
+            from project_atlas.orchestration.program.consumption import consumed_for_task
+
+            current_state = load_state(self.root)
+            if current_state is not None:
+                checkpoint = load_checkpoint(self.root, task.task_id)
+                consumed = consumed_for_task(current_state, task.task_id, checkpoint)
+                timeout = min(timeout, max(0.0, envelope.budgets.max_wall_seconds
+                                           - consumed.wall_seconds))
+                context = {
+                    "schema_version": 1,
+                    "program_id": self.program.program_id,
+                    "program_digest": self.loaded.digest,
+                    "task_id": task.task_id,
+                    "attempt_id": attempt.attempt_id,
+                    "worker_id": profile.agent_id,
+                    "envelope_digest": envelope.digest(),
+                    "candidate_head": envelope.candidate_head,
+                    "candidate_tree": envelope.candidate_tree,
+                    "unversioned_fixture_grant": self.program.allow_unversioned_fixture,
+                    "last_completed_step": checkpoint.last_completed_step if checkpoint else None,
+                    "next_step": attempt.step_id,
+                    "checkpoint_digest": checkpoint.self_digest if checkpoint else None,
+                    "checkpoint_sequence": checkpoint.sequence if checkpoint else None,
+                    "commands_captured": len(checkpoint.commands) if checkpoint else 0,
+                    "changed_files_captured": False,
+                    "consumed_budget": consumed.model_dump(mode="json"),
+                    "budgets": envelope.budgets.model_dump(mode="json"),
+                    "deadline_utc": envelope.deadline_utc,
+                    "truth_boundary": "BOUNDED_STATE_CONTEXT != NEW_AUTHORITY; no invented history",
+                }
+                encoded = json.dumps(context, sort_keys=True, allow_nan=False)
+                if len(encoded.encode("utf-8")) > 8192:
+                    raise ProgramError("continuation context exceeds its fixed bound",
+                                       code="WORKER_CONTEXT_TOO_LARGE")
+                continuation_env = {"ATLAS_PROGRAM_CONTINUATION": encoded}
         return AdapterRequest(
             program_id=self.program.program_id,
             task_id=task.task_id,
@@ -2015,6 +2078,10 @@ class ProgramSupervisor:
             cancel_requested=cancel_check,
             process_launched=self._launch_intent_recorder(attempt.attempt_id),
             process_started=self._launch_recorder(attempt.attempt_id),
+            extra_env=continuation_env,
+            step_argv=next(
+                (s.argv for s in task.execution_steps if s.step_id == attempt.step_id), None
+            ),
         )
 
     def _launch_intent_recorder(self, attempt_id: str) -> Callable[[int], None]:
@@ -2071,10 +2138,10 @@ class ProgramSupervisor:
         return record
 
     def _continuation_refusal(
-        self, task_id: str, worker_id: str, state: ProgramStateRecord
+        self, task_id: str, worker_id: str, state: ProgramStateRecord,
+        *, verifying: bool = False,
     ) -> str | None:
         from project_atlas.orchestration.program.continuation import (
-            ConsumedBudget,
             load_checkpoint,
             load_envelope,
             validate_envelope_for_dispatch,
@@ -2090,21 +2157,54 @@ class ProgramSupervisor:
                     return "ENVELOPE_MISSING: checkpoint has no remaining authority"
                 return None  # finite programs without the continuation layer
             head, tree = _git_revision(self.workspace)
-            consumed = checkpoint.consumed_budget if checkpoint else ConsumedBudget()
-            record = state.tasks[task_id]
-            consumed = consumed.model_copy(update={
-                "attempts": max(consumed.attempts, record.attempts),
-                "launches": max(consumed.launches, record.launches),
-            })
+            from project_atlas.orchestration.program.candidate import require_revision
+            from project_atlas.orchestration.program.consumption import consumed_for_task
+
+            head, tree = require_revision(self.loaded, head, tree)
+            from project_atlas.orchestration.program.consumption import unobserved_wall_attempts
+
+            if unobserved_wall_attempts(state, task_id):
+                return (
+                    "TASK_WALL_BUDGET_UNOBSERVED: prior execution has no measured "
+                    "or conservative bound"
+                )
+            consumed = consumed_for_task(state, task_id, checkpoint)
             validate_envelope_for_dispatch(envelope, program=self.program,
-                observed_head=head or self.program.base_pin,
-                observed_tree=tree or self.program.base_pin, consumed=consumed)
+                observed_head=head, observed_tree=tree, consumed=consumed)
+            if verifying:
+                record = state.tasks[task_id]
+                implementer = state.attempts.get(record.last_attempt_id or "")
+                if (not record.awaiting_independent_verification or implementer is None
+                        or implementer.acceptance_passed is not True
+                        or implementer.confidence is not ExecutionConfidence.CONFIRMED):
+                    return "VERIFIER_BASIS_UNCONFIRMED: no observed implementation acceptance"
+                if checkpoint is not None and (
+                    checkpoint.envelope_digest != envelope.digest()
+                    or checkpoint.uncertainty or checkpoint.terminal
+                    or any(e.confirmed is not True for e in checkpoint.external_effects)
+                ):
+                    return "VERIFIER_CHECKPOINT_CONTRADICTION: reconcile before verification"
+                # Verification has its own read-only authorization basis. It
+                # does not replay implementation, but shares current candidate,
+                # deadline, budget and registry gates with every other launch.
+                return None
             verdict = reconcile_one(self.root, task_id, our_worker_id=worker_id,
                                     governed_root=self.governed_root)
             if not verdict.launchable:
                 return f"{verdict.disposition.value}: {verdict.reason}"
-            if verdict.disposition is Disposition.RESUME_AT_NEXT_STEP:
+            if (verdict.disposition is Disposition.RESUME_AT_NEXT_STEP
+                    and not self.program.task(task_id).execution_steps):
                 return "CONTINUATION_STEP_RESUME_UNSUPPORTED: no step execution adapter is bound"
+            if self.program.task(task_id).execution_steps:
+                from project_atlas.orchestration.program.step_execution import (
+                    completed_boundary,
+                    selected_step,
+                )
+
+                task = self.program.task(task_id)
+                selected_step(self.root, task)
+                if not completed_boundary(self.root, task, state):
+                    return "STEP_BOUNDARY_UNVERIFIABLE: no matching observed quiescent completion"
         except ProgramError as exc:
             return f"{exc.code}: {exc}"
         return None
@@ -2161,15 +2261,16 @@ class ProgramSupervisor:
 
         # TAKEOVER-001: continuation evidence must gate the REAL launch route,
         # not only the read-only operator lens.
-        if not verifying:
-            continuation_refusal = self._continuation_refusal(task.task_id, profile.agent_id, state)
-            if continuation_refusal is not None:
-                append_event(self.root, "CONTINUATION_DISPATCH_REFUSED",
-                             {"task_id": task.task_id, "reason": continuation_refusal})
-                self._transition(state, task.task_id, NodeState.OWNER_HELD,
-                                 reason=continuation_refusal[:512])
-                result.stop_reason = ProgramStopReason.OWNER_DECISION_REQUIRED
-                return None
+        continuation_refusal = self._continuation_refusal(
+            task.task_id, profile.agent_id, state, verifying=verifying
+        )
+        if continuation_refusal is not None:
+            append_event(self.root, "CONTINUATION_DISPATCH_REFUSED",
+                         {"task_id": task.task_id, "reason": continuation_refusal})
+            self._transition(state, task.task_id, NodeState.OWNER_HELD,
+                             reason=continuation_refusal[:512])
+            result.stop_reason = ProgramStopReason.OWNER_DECISION_REQUIRED
+            return None
 
         try:
             adapter.preflight(profile)
@@ -2265,6 +2366,11 @@ class ProgramSupervisor:
         if choice.resume_session_id:
             attempt.runtime_session_id = choice.resume_session_id
 
+        if task.execution_steps and not verifying:
+            from project_atlas.orchestration.program.step_execution import selected_step
+
+            attempt.step_id = selected_step(self.root, task).step_id
+
         if choice.mode is DispatchMode.RESUME:
             handoff = state.handoffs.get(task.task_id)
             if handoff is not None and handoff.consumed_by_attempt_id is None:
@@ -2315,12 +2421,31 @@ class ProgramSupervisor:
             cancel_check=lambda: state.cancel_requested or stop_requested(self.lock_root),
             instruction=instruction,
         )
+        if "ATLAS_PROGRAM_CONTINUATION" in request.extra_env:
+            import json
+
+            context_name = f"{attempt.attempt_id}.continuation-context.json"
+            write_evidence(self.root, context_name,
+                           json.loads(request.extra_env["ATLAS_PROGRAM_CONTINUATION"]))
+            attempt.evidence_paths = (*attempt.evidence_paths, context_name)
 
         attempt.phase = AttemptPhase.ADAPTER_INVOKED
         persist_state(self.root, state)
+        from project_atlas.orchestration.program.continuation import ReplayClass, load_envelope
+
+        envelope = load_envelope(self.root, task.task_id)
+        if attempt.step_id is not None or (not verifying and envelope is not None
+                and envelope.replay_class is ReplayClass.READ_ONLY_REPLAYABLE):
+            from project_atlas.orchestration.program.resident import _git_revision
+            from project_atlas.orchestration.program.step_execution import record_intent
+
+            recorded_head, recorded_tree = _git_revision(self.workspace)
+            record_intent(self.root, task, attempt, state, self.workspace,
+                          revision_observed=bool(recorded_head and recorded_tree))
         state.total_launches += 1
         record.launches += 1
         self._launches_this_run += 1
+        persist_state(self.root, state)
 
         return RunningWork(
             attempt_id=attempt_id,
@@ -2383,12 +2508,14 @@ class ProgramSupervisor:
         # hand to a stranger.
         clear_launch(self.root, attempt_id)
         attempt.runtime_session_id = outcome.session_id or attempt.runtime_session_id
-        attempt.evidence_paths = outcome.evidence
+        attempt.evidence_paths = (*attempt.evidence_paths, *outcome.evidence)
         attempt.estimated_cost_usd = outcome.estimated_cost_usd
         attempt.policy_denials = outcome.policy_denials
         attempt.usage = dict(outcome.usage)
         attempt.notes = (*attempt.notes, *outcome.notes)
         attempt.ended_at = _now_iso()
+        attempt.duration_seconds = outcome.duration_seconds
+        attempt.duration_basis = "ADAPTER_MONOTONIC"
         if outcome.estimated_cost_usd:
             state.estimated_cost_usd += float(outcome.estimated_cost_usd)
         persist_state(self.root, state)
@@ -2410,6 +2537,33 @@ class ProgramSupervisor:
         if outcome.confidence is ExecutionConfidence.UNCERTAIN:
             self._handle_uncertain(state, task, attempt, outcome.terminal_state, result)
             return
+
+        if attempt.step_id is not None:
+            if outcome.confidence is not ExecutionConfidence.CONFIRMED:
+                self._handle_uncertain(state, task, attempt, "unconfirmed step", result)
+                return
+            step = next(s for s in task.execution_steps if s.step_id == attempt.step_id)
+            step_task = task.model_copy(update={"acceptance": step.acceptance})
+            acceptance = evaluate_task(step_task, workspace=self.workspace, profile=profile)
+            attempt.acceptance_passed = acceptance.passed
+            attempt.acceptance_detail = tuple(c.to_public_dict() for c in acceptance.checks)
+            persist_state(self.root, state)
+            if not acceptance.passed:
+                self._handle_uncertain(state, task, attempt, "step acceptance failed", result)
+                return
+            from project_atlas.orchestration.program.step_execution import record_completion
+
+            record_completion(
+                self.root, step_task, attempt, self.workspace, outcome.duration_seconds
+            )
+            append_event(self.root, "STEP_COMPLETED", {"task_id": task.task_id,
+                "step_id": step.step_id, "attempt_id": attempt.attempt_id})
+            if step.step_id != task.execution_steps[-1].step_id:
+                attempt.phase = AttemptPhase.TERMINAL
+                self._transition(state, task.task_id, NodeState.REMEDIATING,
+                                 reason="step confirmed; next approved step remains")
+                persist_state(self.root, state)
+                return
 
         self._evaluate_and_settle(
             state,
@@ -2763,6 +2917,161 @@ class ProgramSupervisor:
                 continue
             task = self.program.task(attempt.task_id)
             profile = self.loaded.effective_profile(task.task_id)
+            from project_atlas.orchestration.program.continuation import (
+                ReplayClass,
+                load_checkpoint,
+                load_envelope,
+                persist_checkpoint,
+            )
+
+            envelope = load_envelope(self.root, task.task_id)
+            if (
+                envelope is not None
+                and envelope.replay_class is ReplayClass.READ_ONLY_REPLAYABLE
+                and attempt.phase is AttemptPhase.ADAPTER_INVOKED
+            ):
+                from datetime import UTC, datetime
+
+                from project_atlas.orchestration.program.adapters.base import pid_is_alive
+                from project_atlas.orchestration.program.store import load_launch
+
+                checkpoint = load_checkpoint(self.root, task.task_id)
+                launched = load_launch(self.root, attempt.attempt_id)
+                pid = launched.get("pid") if launched else None
+                identity = launched.get("process_start_identity") if launched else None
+                revoked = self._authority_revoked(task.task_id)
+                safe = (
+                    not task.mutation_paths
+                    and revoked is None
+                    and checkpoint is not None
+                    and checkpoint.identity.attempt_id == attempt.attempt_id
+                    and checkpoint.envelope_digest == envelope.digest()
+                    and not checkpoint.uncertainty
+                    and not checkpoint.terminal
+                    and isinstance(pid, int)
+                    and pid > 0
+                    and isinstance(identity, str)
+                    and identity not in {"", "unknown"}
+                    and not pid_is_alive(pid)
+                )
+                if safe:
+                    assert (
+                        checkpoint is not None
+                        and isinstance(pid, int)
+                        and isinstance(identity, str)
+                    )
+                    elapsed = max(
+                        0.0,
+                        (
+                            datetime.now(UTC)
+                            - datetime.fromisoformat(attempt.started_at.replace("Z", "+00:00"))
+                        ).total_seconds(),
+                    )
+                    attempt.duration_seconds = elapsed
+                    attempt.duration_basis = "CONSERVATIVE_WALL_BOUND_INCLUDING_DOWNTIME"
+                    attempt.process_pid, attempt.process_start_identity = pid, identity
+                    persist_checkpoint(
+                        self.root,
+                        checkpoint.model_copy(
+                            update={
+                                "sequence": checkpoint.sequence + 1,
+                                "process_pid": pid,
+                                "process_start_identity": identity,
+                            }
+                        ),
+                    )
+                    refusal = self._continuation_refusal(task.task_id, profile.agent_id, state)
+                    if refusal is None:
+                        attempt.phase = AttemptPhase.TERMINAL
+                        attempt.notes = (
+                            *attempt.notes,
+                            "outcome remains unknown; approved read-only work may restart "
+                            "after proven exit",
+                        )
+                        clear_launch(self.root, attempt.attempt_id)
+                        if state.tasks[task.task_id].state is NodeState.ACTIVE:
+                            self._transition(
+                                state,
+                                task.task_id,
+                                NodeState.REMEDIATING,
+                                reason="read-only child exited; recheck authority before repeat",
+                            )
+                        persist_state(self.root, state)
+                        continue
+                blockers.append(
+                    {
+                        "task_id": task.task_id,
+                        "attempt_id": attempt.attempt_id,
+                        "reason": "READ_ONLY_RECOVERY_UNVERIFIABLE: "
+                        + (revoked or "identity, checkpoint or authority gate"),
+                    }
+                )
+                continue
+            if attempt.step_id is not None:
+                from project_atlas.orchestration.program.step_execution import (
+                    completed_boundary,
+                    final_acceptance_ready,
+                )
+
+                if final_acceptance_ready(self.root, task, state):
+                    from project_atlas.orchestration.program.candidate import require_revision
+                    from project_atlas.orchestration.program.continuation import (
+                        validate_envelope_authority,
+                    )
+                    from project_atlas.orchestration.program.resident import _git_revision
+
+                    revoked = self._authority_revoked(task.task_id)
+                    try:
+                        if revoked is not None:
+                            raise ProgramError(revoked, code="FINAL_ACCEPTANCE_AUTHORITY_REVOKED")
+                        head, tree = require_revision(self.loaded, *_git_revision(self.workspace))
+                        assert envelope is not None
+                        validate_envelope_authority(
+                            envelope, program=self.program, observed_head=head, observed_tree=tree
+                        )
+                    except ProgramError as exc:
+                        blockers.append({"task_id": task.task_id, "reason": f"{exc.code}: {exc}"})
+                        continue
+                    append_event(
+                        self.root,
+                        "FINAL_ACCEPTANCE_RECONCILIATION",
+                        {
+                            "task_id": task.task_id,
+                            "attempt_id": attempt.attempt_id,
+                            "worker_launch_authorized": False,
+                        },
+                    )
+                    self._evaluate_and_settle(
+                        state,
+                        task=task,
+                        profile=profile,
+                        attempt=attempt,
+                        verifying=False,
+                        verifier_agent_id=None,
+                        result=CycleResult(cycle=0),
+                    )
+                    continue
+
+                refusal = self._continuation_refusal(task.task_id, profile.agent_id, state)
+                if refusal is None and completed_boundary(self.root, task, state):
+                    attempt.phase = AttemptPhase.TERMINAL
+                    if state.tasks[task.task_id].state is NodeState.ACTIVE:
+                        self._transition(
+                            state,
+                            task.task_id,
+                            NodeState.REMEDIATING,
+                            reason="recovered step boundary; completed step is not replayed",
+                        )
+                    persist_state(self.root, state)
+                else:
+                    blockers.append(
+                        {
+                            "task_id": task.task_id,
+                            "attempt_id": attempt.attempt_id,
+                            "reason": refusal or "STEP_BOUNDARY_UNVERIFIABLE",
+                        }
+                    )
+                continue
             adapter = self._adapter_for(profile)
             request = self._build_request(
                 task=task,

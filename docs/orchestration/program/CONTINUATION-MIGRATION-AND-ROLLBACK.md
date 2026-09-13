@@ -1,86 +1,135 @@
 # Migration and rollback
 
-`STATE_COMPATIBILITY = ADDITIVE_ONLY_NO_IN_PLACE_MIGRATION`
+`AUTOMATIC_MIGRATION = NOT_IMPLEMENTED` · `CHECKPOINT_READER_SCHEMA = 2`
 
-## There is no migration, and that is the design
+Adding continuation directories does not guarantee that every old/new binary
+can read the same state. Preserve records and exact reader/writer revisions;
+never delete or relabel a checkpoint to make a release accept it.
 
-This layer writes only **new files in new directories** under the program state
-directory:
+## Explicit layout and boundary
 
+Use an operator-approved absolute `<G>` (for example `/srv/atlas`) containing
+sibling `state/`, `queue/`, `programs/`, `worktrees/`, `checkout/` and `registry/`.
+Here `<S>` = `<G>/state`, `<Q>` = `<G>/queue`, `<P>` =
+`<G>/programs/approved.json`. Replace placeholders before running commands.
+G must not be `/` or the current account's home directory; no component may be
+a symlink/reparse point. State must not be inside a workspace. Pass
+`--governed-root <G>` rather than broadening defaults.
+
+```text
+<S>/.atlas/orchestration/program/
+    state.json
+    events.jsonl
+    launches/
+    envelopes/
+    checkpoints/
+    decisions/
+    dispatcher/
 ```
-<state-root>/.atlas/orchestration/program/
-    state.json          ← pre-existing, unchanged
-    events.jsonl        ← pre-existing, appended to (new event names only)
-    launches/           ← pre-existing, unchanged
-    envelopes/          ← NEW
-    checkpoints/        ← NEW
-    decisions/          ← NEW
-    dispatcher/         ← NEW
-```
 
-No existing file's schema changed. `ProgramStateRecord`, `AttemptRecord` and
-`TaskRecord` are untouched, and `store.py` gained exactly one public function
-(`write_json_atomic`) that wraps the atomic write it already performed.
+Queue data is under Q, which may differ from S. Keep every queue-referenced
+state root, approved program bytes, workspace evidence and registry binding
+together in a quiescent backup. There is no automatic relocation of absolute
+paths when copying this layout to another machine or root.
 
-So there is nothing to migrate forward and nothing to migrate back. A previous
-revision reading this state directory ignores four directories it does not know
-about and behaves exactly as it did before — which
-`test_the_existing_finite_program_behaviour_is_unchanged` asserts directly, by
-running a program the old way and checking that none of the four appear.
+## Reader compatibility, not automatic conversion
 
-## Forward: adopting the layer on an existing state root
+| Persisted record / reader | Behavior |
+| --- | --- |
+| Checkpoint schema 2, current schema-2 reader | Validate shape, seal/digest and sequence; matching versions alone do not establish safety or completion. |
+| Checkpoint schema 1 or any other explicit integer version, current reader | `CHECKPOINT_VERSION_SKEW`, naming writer/reader versions; reconciliation is `FAIL_CLOSED`, not launchable. Original bytes remain intact. |
+| Missing/noninteger version or malformed data | Not an explicit version-skew statement; ordinary shape/seal validation applies. Do not infer compatibility or invent a writer version. |
+| Earlier reader against newer checkpoint | Release-specific refusal; code at 643c7ebe or earlier reports `CHECKPOINT_MALFORMED` for schema 2. Do not assume an old reader ignores it safely. |
+| Envelopes, queue, decisions, heartbeat, capsule | Their own schema versions remain separate (currently 1); checkpoint schema 2 is not a blanket version bump. |
 
-Nothing to run. The first `queue admit` creates `dispatcher/`; the first
-envelope creates `envelopes/`. Programs mid-flight keep their `state.json` and
-their in-flight launch records.
+`tests/unit/test_program_checkpoint_version_skew.py` covers older/newer-version
+refusal, preserved skewed bytes, current-version digest failures, and same-version
+terminal positives. Current finite-behavior tests execute the current binary;
+they do **not** prove arbitrary historical readers or binary rollback against
+new state. `CONTINUATION-DELIVERY.md` is a historical implementation record,
+not a current cross-version compatibility certificate.
 
-The one thing to check first, because it is the only way this can surprise you:
+No converter, automatic upgrade, downgrade, resealing, or in-place migration is
+provided here. Retain the compatible reader environment and writer revision.
+If compatibility cannot be established, keep dispatch paused and obtain a
+separately reviewed migration/reconciliation decision. Changing `schema_version`
+by hand is not migration; neither is recalculating a digest over changed data.
+
+## Forward adoption: establish compatibility before admission
+
+These are operator commands, not actions performed by this document:
 
 ```bash
-atlas program status --program <P> --state-root <S>
+atlas program status --governed-root <G> --program <P> --state-root <S>
+atlas program queue --governed-root <G> --queue-root <Q> --action list
+atlas program continuation --governed-root <G> --state-root <S> --queue-root <Q> \
+    --action reconcile --worker-id <WORKER_ID>
+atlas program capsule --governed-root <G> --state-root <S> --queue-root <Q> \
+    --worker-id <WORKER_ID>
 ```
 
-If an attempt is sitting at `ADAPTER_INVOKED` from a previous run, reconcile it
-**before** admitting the program to the queue. The dispatcher runs the same
-finite supervisor, which correctly refuses to redispatch it — you would simply
-get a `RECONCILE_REQUIRED` quarantine and a decision record instead of work.
+Use copies for checks with a proposed reader, preserving original bindings or
+using a separately reviewed relocation procedure. Reconciliation is a read-only
+decision lens, not execution or repair. An interrupted `ADAPTER_INVOKED` attempt,
+uncertain effect, unreadable record or version skew must not be made eligible by
+re-admission or clearing state. Admit only after current authority, compatibility
+and outstanding decisions have been established. Do not replace an envelope to
+silently widen old approval.
 
-## Backward: rolling back the code
+## Backward: operator-controlled code rollback
 
 ```bash
-atlas program continuation --state-root <S> --action rollback
+atlas program continuation --governed-root <G> --state-root <S> --action rollback
 ```
 
-prints these steps with the preconditions checked. In full:
+This prints guidance only: `performed: false`. It does not stop work, check
+target-reader compatibility, snapshot state, reinstall code, or verify rollback.
+It reports `preconditions_verified: false`, `automatic_migration: false`,
+`checkpoint_reader_schema: 2` and `REQUIRES_COMPATIBLE_READER`. These fields
+describe the procedure and current reader, not an observed compatibility check.
 
-1. **Withhold new work.** `dispatcher --action pause`. Work already running
-   finishes; pause is not cancel.
-2. **Wait for quiet.** Poll `dispatcher --action status` until `state` is not
-   `RUNNING_PROGRAM`.
-3. **Stop cleanly.** `dispatcher --action drain`, then confirm
-   `terminal_reason: OPERATOR_DRAIN` in the heartbeat. Draining rather than
-   killing matters: a killed dispatcher leaves an attempt at `ADAPTER_INVOKED`,
-   and the next start turns a rollback into a reconciliation.
-4. **Repoint the pinned checkout** at the previous revision and reinstall
-   non-editable into the pinned environment.
-5. **Delete nothing.** In particular do not delete `checkpoints/`. A deleted
-   terminal checkpoint is precisely how completed work becomes replayable
-   again — it is the one action that can undo the no-replay guarantee.
-6. **Restart and verify the revision.** The heartbeat's `revision_head` must be
-   the revision you rolled back to. A restart that came back on different code
-   is a fact to see here, not to discover later.
+1. **Withhold new work** and record the approved rollback target, installed
+   module provenance, checkout HEAD/TREE and reader versions.
 
-### What rollback does not undo
+   ```bash
+   atlas program dispatcher --governed-root <G> --state-root <S> --action pause \
+       --requested-by <OPERATOR_ID>
+   atlas program dispatcher --governed-root <G> --state-root <S> --action status
+   ```
 
-* **Decision records stay.** An operator's answer is evidence of a human act,
-  and a code rollback did not un-decide it.
-* **Queue `COMPLETE` entries stay complete.** That is the point.
-* **Sealed checkpoints stay sealed.** A previous revision cannot read them and
-  does not try to.
+2. **Drain and observe exit.** Allow work to settle; a submitted sentinel is
+   not proof of exit. Confirm the recorded PID **and start identity** have
+   exited, terminal reason is `OPERATOR_DRAIN`, and no owned workers remain.
+   Unknown identity, timeout or an in-flight uncertain effect means stop the
+   procedure, not kill/retry by PID alone.
 
-## Schema versioning
+   ```bash
+   atlas program dispatcher --governed-root <G> --state-root <S> --action drain \
+       --requested-by <OPERATOR_ID>
+   atlas program dispatcher --governed-root <G> --state-root <S> --action status
+   ```
 
-Every persisted model carries `schema_version: 1`. When a field is added, the
-version rises and the reader must reject a version it does not know rather than
-guessing at a partial document — the same fail-closed rule the rest of the
-package uses. There is no version-1 reader that tolerates a version-2 file.
+3. **Preserve a byte-complete quiescent snapshot** of all queue-referenced state,
+   checkpoints, envelopes, decisions, launch evidence, program bytes and binding
+   context. Retain the original environment/revision. The commands above do not
+   create that snapshot; use an approved backup procedure and verify its hashes.
+4. **Check the target reader on preserved copies.** Require support for the
+   actual schemas and no-replay evidence. An incompatible target blocks rollback;
+   it is not a reason to erase/downgrade records. Retain a compatible reader or
+   obtain a separate reviewed migration.
+5. **Only after those checks**, repoint/install approved code into a noneditable
+   pinned environment using the release procedure. Do not mutate a running shared
+   checkout or reinterpret absolute state/workspace paths.
+6. **Restart with pause retained under the same explicit boundary**, verify
+   installed module provenance and expected HEAD/TREE, then inspect sequences,
+   seals, terminal no-replay counts and uncertain quarantine. Resume only by a
+   separate operator act when all gates hold. Rollback does not answer decisions,
+   reopen COMPLETE entries, or grant authority.
+
+## Evidence boundary
+
+These are preparation and compatibility requirements, not a performed rollback,
+service installation, failure restart, or reboot. Local-command fixture tests
+and process-restart tests do not establish historical-binary compatibility or
+host reboot recovery. See [operator commands](CONTINUATION-OPERATOR-COMMANDS.md)
+and [installation preparation](../../../deploy/INSTALL-NOT-PERFORMED.md).

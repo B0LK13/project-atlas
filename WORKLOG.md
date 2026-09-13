@@ -15043,3 +15043,41 @@ evidence is retained; safety acceptance is bound only to the next verified pin.
 Evidence: `docs/orchestration/taskcontract/demo/evidence/` (11 raw files),
 `docs/orchestration/taskcontract/demo/snapshot/` (the item text and digest the
 run observed).
+
+## 2026-09-13 — Durable execution completion-002 (in progress)
+
+Coordinator `codex-continuation-002`, successor branch
+`takeover/continuation-completion-002`, parent HEAD
+`0b82d7d184150af4b59c13a7bbd9119ac369fbfa` / TREE
+`4a3d514ea20aefc6ddfe97aebb2bde9ab76436f4`. The separately sealed predecessor,
+original e3b37558 candidate and live pilot remain untouched.
+
+The full-design audit found that a resume disposition was not actual step
+execution. Implemented explicit approved local-command execution steps with
+controller-owned intent/completion checkpoints, pause/next-step dispatch,
+actual interrupted read-only recovery and final-acceptance reconciliation.
+Fresh controller processes demonstrate FIRST once, SECOND once and subsequent
+zero launches; unknown mutating effects remain unlaunchable. Measured and fixed
+changed-program authority, verifier deadline, remaining wall-time and actual
+fallback integration gaps. Workers receive bounded current continuation data;
+actual command history remains sourced from observations. Unknown current Git
+revision now refuses unless an explicit fixture-only exception is approved and
+labelled as not observed Git/package provenance.
+
+Independent verifier Maxwell supplied execution-level findings IV-STEP-01
+(last-step seal recovery) and IV-STEP-02 (weaker checkpoint wall consumption).
+Both received targeted source repairs and coordinator regression checks; no
+independent final acceptance is claimed yet. Avicenna separately supplied
+documentation/service-command boundary and schema-2 rollback preparation work.
+Source/component ownership remained separate; no additional agents were started.
+
+Evidence is retained under
+`/home/gebruiker/.cache/atlas-r-deploy/continuation-completion-002-NCrqj3B3/`.
+The latest complete candidate and outcomes will be in its manifest/handoff,
+not inferred from this parent pin. Earlier dirty-source regression: 212 passed,
+one existing skip; native execution tests and independent preliminary reports
+retain their separate exact source snapshots and RED/GREEN results. Full
+pre-freeze regression is running at this entry; installation and acceptance
+checkboxes remain open. No service installation/activation, paid worker, reboot,
+privilege change, push or merge occurred. Governance events are pending in the
+approved local spool and are not a strict receipt.

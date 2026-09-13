@@ -170,6 +170,10 @@ def _program_file(
             "approved_by": "fixture-operator",
             "approval_reference": "docs/orchestration/program/DURABLE-CONTINUATION.md",
             "workspace_root": str(workspace),
+            "allow_unversioned_fixture": all(
+                profile["adapter"] == "local-command"
+                for profile in (profiles or {"impl": _profile("agent-one")}).values()
+            ),
             "base_pin": "0" * 40,
             "limits": {
                 "max_cycles": 20,
@@ -1713,7 +1717,7 @@ def test_the_operator_commands_all_answer(tmp_path: Path) -> None:
         "program", "continuation", "--state-root", str(state_root), "--action", "rollback"
     )
     assert rollback["performed"] is False
-    assert rollback["state_compatibility"] == "ADDITIVE_ONLY_NO_IN_PLACE_MIGRATION"
+    assert rollback["state_compatibility"] == "REQUIRES_COMPATIBLE_READER"
 
     events = _cli("program", "events", "--program", str(program), "--state-root", str(state_root))
     names = {row.get("event") for row in events["events"]}

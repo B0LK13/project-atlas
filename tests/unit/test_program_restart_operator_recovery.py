@@ -275,6 +275,7 @@ def _program(tmp_path: Path, name: str, task_ids: list[str]) -> Path:
             "approved_by": "fixture-operator",
             "approval_reference": "tests/unit/test_program_restart_operator_recovery.py",
             "workspace_root": str(workspace),
+            "allow_unversioned_fixture": True,
             "base_pin": "0" * 40,
             "limits": {
                 "max_cycles": 20,

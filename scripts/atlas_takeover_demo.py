@@ -95,6 +95,7 @@ def main() -> None:
                     "approved_by": "fixture-operator",
                     "approval_reference": "TAKEOVER-001",
                     "workspace_root": str(workspace),
+                    "allow_unversioned_fixture": True,
                     "base_pin": revision[0],
                     "limits": {
                         "max_cycles": 30,

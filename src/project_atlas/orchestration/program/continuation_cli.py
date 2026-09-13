@@ -749,32 +749,54 @@ def cmd_continuation(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             ),
         }, EXIT_OK
     if args.action == "rollback":
-        # Printed, never performed. See the module docstring.
+        # Guidance only: schema compatibility and quiescence are not observed
+        # by this command. Additive directories do not imply safe downgrade.
+        from shlex import quote
+
+        from project_atlas.orchestration.program.continuation import CHECKPOINT_SCHEMA_VERSION
+
+        command = (
+            "atlas program dispatcher "
+            f"--governed-root {quote(str(_governed_root(args)))} "
+            f"--state-root {quote(str(root))}"
+        )
         return {
             "performed": False,
             "reason": "NOT_AUTHORIZED_FROM_HERE",
+            "preconditions_verified": False,
+            "checkpoint_reader_schema": CHECKPOINT_SCHEMA_VERSION,
+            "automatic_migration": False,
             "operator_procedure": [
-                "1. Withhold new work:  atlas program dispatcher "
-                f"--state-root {root} --action pause",
-                "2. Let in-flight work finish: watch `--action status` until "
-                "state is not RUNNING_PROGRAM.",
-                "3. Stop the dispatcher: `--action drain`, then confirm "
-                "terminal_reason=OPERATOR_DRAIN.",
-                "4. Repoint the pinned checkout at the previous revision "
-                "(git -C <CHECKOUT> checkout <PREVIOUS_HEAD>) and reinstall "
-                "the package non-editable into the pinned environment.",
-                "5. Durable state is forward-compatible by construction: this "
-                "layer only ADDS files under the program state directory "
-                "(envelopes/, checkpoints/, decisions/, dispatcher/). A "
-                "previous revision ignores them; nothing has to be deleted "
-                "and nothing is migrated in place.",
-                "6. Restart the dispatcher and confirm revision_head in the "
-                "heartbeat is the rolled-back revision.",
+                f"1. Withhold new work: {command} --action pause. Record the "
+                "approved target revision and current installed module provenance.",
+                f"2. Request drain: {command} --action drain. Observe status with "
+                f"{command} --action status; confirm OPERATOR_DRAIN and actual "
+                "exit under the recorded PID AND start identity, with no owned workers. "
+                "A submitted sentinel is not proof of exit; unknown means stop.",
+                "3. Preserve a byte-complete quiescent snapshot of queue-referenced "
+                "state, checkpoints, envelopes, decisions, launch evidence, approved "
+                "program bytes and registry/workspace bindings; verify hashes and "
+                "retain the original writer revision and compatible reader environment.",
+                f"4. Require a compatible reader for the actual schemas before "
+                f"repointing code. This checkpoint reader uses schema {CHECKPOINT_SCHEMA_VERSION}; "
+                "other explicit versions fail closed as CHECKPOINT_VERSION_SKEW. "
+                "Historical readers may report CHECKPOINT_MALFORMED. No automatic "
+                "upgrade/downgrade or migration is provided; never delete, relabel "
+                "or reseal records to bypass refusal.",
+                "5. Only after compatibility checks on preserved copies, install "
+                "the approved revision non-editably using the release procedure. "
+                "Preserve the explicit governed root and absolute bindings; "
+                "copying JSON does not relocate paths automatically.",
+                "6. Restart with pause retained; verify installed module origin and "
+                "expected HEAD/TREE, checkpoint seals/sequences, completed-task zero "
+                "replay and uncertain quarantine. Resume only by a separate "
+                "operator act after all gates hold.",
             ],
-            "state_compatibility": "ADDITIVE_ONLY_NO_IN_PLACE_MIGRATION",
+            "state_compatibility": "REQUIRES_COMPATIBLE_READER",
             "note": (
-                "Rollback repoints code. It never deletes checkpoints: a "
-                "deleted checkpoint is how completed work becomes replayable."
+                "No rollback, snapshot, reader check, service action or reboot was "
+                "performed. Records and reader environments must be preserved; "
+                "printed guidance and a reconciliation lens do not grant authority."
             ),
         }, EXIT_OK
     return {"error": f"unknown continuation action {args.action}"}, EXIT_USAGE

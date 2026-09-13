@@ -31,9 +31,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
-from project_atlas.orchestration.program.enrollment import AgentStatus, load_registry
+from project_atlas.orchestration.program.enrollment import AgentStatus, load_registry, registry_path
 from project_atlas.orchestration.program.loader import LoadedProgram, load_program
 from project_atlas.orchestration.program.models import ProgramError, ProgramStopReason
+from project_atlas.orchestration.program.path_safety import checked_path, child_path, trusted_root
 from project_atlas.orchestration.program.store import (
     _write_atomic,
     append_event,
@@ -111,8 +112,9 @@ def log_path(root: Path) -> Path:
 
 def _bound_agents(loaded: LoadedProgram, registry_root: Path) -> tuple[Any, ...]:
     """Resolve every program role to its active, assigned registry record."""
+    checked_path(registry_path(registry_root), root=registry_root)
     registry = load_registry(registry_root)
-    program_path = str(loaded.source_path.expanduser().resolve())
+    program_path = str(checked_path(loaded.source_path, root=loaded.governed_root))
     bound: list[Any] = []
     for role in loaded.profiles.profiles:
         candidates = [
@@ -206,12 +208,41 @@ def service_is_alive(identity: ServiceIdentity | None) -> bool:
     return live == recorded
 
 
+def _service_context(
+    root: Path,
+    program_path: Path,
+    registry_root: Path | None,
+    governed_root: Path | None,
+) -> tuple[Path, LoadedProgram, Path | None, Path]:
+    """Completion D/E: retain one explicit boundary before service IO/effects.
+
+    The legacy default is the program file's directory, never a guessed common
+    ancestor. A sibling programs/state/worktrees layout needs an explicit root.
+    The registry is an independently supplied trusted binding, pinned absolute
+    before any child changes cwd; links must not be resolved away first.
+    """
+    boundary = trusted_root(governed_root or program_path.absolute().parent)
+    root = checked_path(root, root=boundary)
+    program_path = checked_path(program_path, root=boundary)
+    registry = trusted_root(registry_root) if registry_root is not None else None
+    if registry is not None:
+        checked_path(registry_path(registry), root=registry)
+    # Validate existing derived leaves before clearing signals or writing an
+    # identity/log. Checks at their IO sites still run; no concurrent-swap
+    # filesystem sandbox is claimed by this preparation boundary.
+    identity_path(root)
+    log_path(root)
+    loaded = load_program(program_path, governed_root=boundary)
+    return root, loaded, registry, boundary
+
+
 def install(
     root: Path,
     program_path: Path,
     *,
     python: str | None = None,
     registry_root: Path | None = None,
+    governed_root: Path | None = None,
 ) -> dict[str, Any]:
     """Write a launcher for this program. Activates nothing.
 
@@ -220,19 +251,21 @@ def install(
     operator's machine, and this package prints what to run rather than
     running it.
     """
-    loaded = load_program(program_path)
+    root, loaded, registry_root, boundary = _service_context(
+        root, program_path, registry_root, governed_root
+    )
     directory = service_dir(root)
+    script = child_path(directory, f"run-{loaded.program.program_id}.sh")
+    unit_file = child_path(directory, f"atlas-program-{loaded.program.program_id}.service")
     directory.mkdir(parents=True, exist_ok=True)
     interpreter = python or sys.executable
-    program_arg = str(program_path.expanduser().resolve())
-    root_arg = str(root.expanduser().resolve())
-    registry_arg = (
-        str(registry_root.expanduser().resolve()) if registry_root is not None else None
-    )
+    program_arg = str(loaded.source_path)
+    root_arg = str(root)
+    registry_arg = str(registry_root) if registry_root is not None else None
     registry_flag = f"  --registry {registry_arg!r} \\\n" if registry_arg else ""
 
-    script = directory / f"run-{loaded.program.program_id}.sh"
-    script.write_text(
+    _write_atomic(
+        checked_path(script, root=boundary),
         "#!/usr/bin/env bash\n"
         "# Durable Atlas program supervisor. Does not merge, does not grant\n"
         "# any owner gate, and runs exactly the approved program named below.\n"
@@ -240,11 +273,11 @@ def install(
         f'exec {interpreter!r} -m project_atlas.orchestration.program.cli \\\n'
         f'  program service run --program {program_arg!r} \\\n'
         f'  --state-root {root_arg!r} \\\n'
+        f'  --governed-root {str(boundary)!r} \\\n'
         f'{registry_flag}'
         '  "$@"\n',
-        encoding="utf-8",
     )
-    script.chmod(0o755)
+    checked_path(script, root=boundary).chmod(0o755)
 
     unit = (
         "[Unit]\n"
@@ -254,14 +287,14 @@ def install(
         "Type=simple\n"
         f"ExecStart={script}\n"
         f"ExecStop={interpreter} -m project_atlas.orchestration.program.cli "
-        f"program service stop --program {program_arg} --state-root {root_arg}\n"
+        f"program service stop --program {program_arg} --state-root {root_arg} "
+        f"--governed-root {boundary}\n"
         "Restart=on-failure\n"
         "RestartSec=30\n\n"
         "[Install]\n"
         "WantedBy=default.target\n"
     )
-    unit_file = directory / f"atlas-program-{loaded.program.program_id}.service"
-    unit_file.write_text(unit, encoding="utf-8")
+    _write_atomic(checked_path(unit_file, root=boundary), unit)
 
     return {
         "program_id": loaded.program.program_id,
@@ -291,9 +324,12 @@ def start(
     python: str | None = None,
     registry_root: Path | None = None,
     allow_unregistered: bool = False,
+    governed_root: Path | None = None,
 ) -> dict[str, Any]:
     """Detach a service process for this program, if one is not already live."""
-    loaded = load_program(program_path)
+    root, loaded, registry_root, boundary = _service_context(
+        root, program_path, registry_root, governed_root
+    )
     existing = read_identity(root)
     if service_is_alive(existing):
         assert existing is not None
@@ -326,12 +362,14 @@ def start(
         "service",
         "run",
         "--program",
-        str(program_path.expanduser().resolve()),
+        str(loaded.source_path),
         "--state-root",
-        str(root.expanduser().resolve()),
+        str(root),
+        "--governed-root",
+        str(boundary),
     ]
     if registry_root is not None:
-        argv += ["--registry", str(registry_root.expanduser().resolve())]
+        argv += ["--registry", str(registry_root)]
     elif allow_unregistered:
         argv += ["--allow-unregistered"]
     creationflags = 0
@@ -412,8 +450,11 @@ def status(
     program_path: Path,
     *,
     registry_root: Path | None = None,
+    governed_root: Path | None = None,
 ) -> dict[str, Any]:
-    loaded = load_program(program_path)
+    root, loaded, registry_root, boundary = _service_context(
+        root, program_path, registry_root, governed_root
+    )
     identity = read_identity(root)
     enrolled_agents = (
         _bound_agents(loaded, registry_root) if registry_root is not None else ()
@@ -423,6 +464,7 @@ def status(
         state_root=root,
         enrolled_agents=enrolled_agents,
         registry_root=registry_root,
+        governed_root=boundary,
     )
     state = load_state(root)
     return {
@@ -452,6 +494,7 @@ def run(
     registry_root: Path | None = None,
     allow_unregistered: bool = True,
     sleeper: Any = time.sleep,
+    governed_root: Path | None = None,
 ) -> dict[str, Any]:
     """The service body: supervise until finished, blocked, or asked to stop.
 
@@ -466,7 +509,15 @@ def run(
     otherwise left for a person. The service never redispatches a task because
     a previous round ended untidily.
     """
-    loaded = load_program(program_path)
+    root, loaded, registry_root, boundary = _service_context(
+        root, program_path, registry_root, governed_root
+    )
+    if registry_root is None and not allow_unregistered:
+        raise ServiceError(
+            "detached service run requires a registry binding", code="REGISTRY_REQUIRED"
+        )
+    if registry_root is not None:
+        _bound_agents(loaded, registry_root)
     identity = write_own_identity(root, loaded)
     append_event(
         root,
@@ -494,6 +545,7 @@ def run(
                 state_root=root,
                 enrolled_agents=enrolled_agents,
                 registry_root=registry_root,
+                governed_root=boundary,
             )
             report = supervisor.start()
             rounds.append(

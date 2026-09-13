@@ -347,6 +347,22 @@ class ProgramLimits(BaseModel):
     max_concurrent_workers: int = Field(default=1, ge=1, le=16)
 
 
+class ExecutionStep(BaseModel):
+    """Approved fixed-command step; completion is observed by the controller."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    step_id: str = Field(pattern=r"^[A-Z][A-Z0-9_]{0,63}$")
+    argv: tuple[str, ...] = Field(min_length=1, max_length=64)
+    acceptance: tuple[AcceptanceCheck, ...] = Field(min_length=1, max_length=32)
+
+    @field_validator("argv")
+    @classmethod
+    def _argv(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not arg or "\x00" in arg or len(arg) > 32768 for arg in value):
+            raise ValueError("step argv entries must be bounded, nonempty and NUL-free")
+        return value
+
+
 class ProgramTask(BaseModel):
     """One bounded unit of work inside an approved program."""
 
@@ -360,6 +376,7 @@ class ProgramTask(BaseModel):
     instruction: str = Field(min_length=1, max_length=32_768)
     profile_ref: str = Field(min_length=1, max_length=128)
     depends_on: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
+    fallback_task_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     #: Workspace-relative paths this task may mutate. Projected onto
     #: ``WorkNode.mutation_surface`` so the existing overlap gate applies.
     mutation_paths: tuple[str, ...] = Field(default_factory=tuple, max_length=64)
@@ -369,6 +386,15 @@ class ProgramTask(BaseModel):
         default=(AgentCapability.IMPLEMENT,), min_length=1, max_length=8
     )
     acceptance: tuple[AcceptanceCheck, ...] = Field(min_length=1, max_length=32)
+    #: Explicit local-command protocol, not instruction text or conversation resume.
+    execution_steps: tuple[ExecutionStep, ...] = Field(default_factory=tuple, max_length=64)
+
+    @field_validator("execution_steps")
+    @classmethod
+    def _steps(cls, value: tuple[ExecutionStep, ...]) -> tuple[ExecutionStep, ...]:
+        if len({step.step_id for step in value}) != len(value):
+            raise ValueError("execution step ids must be unique")
+        return value
     external_precondition: ExternalPrecondition | None = None
     #: When set, the supervisor never dispatches this task. Owner gates are
     #: not grantable from inside this package; see ``autonomy.owner_gates``.
@@ -515,6 +541,8 @@ class WorkProgram(BaseModel):
     #: The commit the program was approved against. Recorded on every lease
     #: and every idempotency key so a moved base is visible, not silent.
     base_pin: str = Field(min_length=40, max_length=40)
+    #: An explicit zero-model test grant, never installed-package provenance.
+    allow_unversioned_fixture: bool = False
     tasks: tuple[ProgramTask, ...] = Field(min_length=1, max_length=256)
     limits: ProgramLimits = Field(default_factory=ProgramLimits)
     merge_authorized: Literal[False] = False
@@ -541,6 +569,9 @@ class WorkProgram(BaseModel):
             raise ValueError("duplicate task_id in program")
         known = set(ids)
         for task in self.tasks:
+            if (set(task.fallback_task_ids) - known or task.task_id in task.fallback_task_ids
+                    or len(set(task.fallback_task_ids)) != len(task.fallback_task_ids)):
+                raise ValueError("fallback tasks must be distinct other approved tasks")
             unknown = sorted(set(task.depends_on) - known)
             if unknown:
                 raise ValueError(

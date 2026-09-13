@@ -1,5 +1,15 @@
 # Executable Backlog
 
+## Executable durable continuation — completion-002
+
+- [x] Implement approved step execution, actual interrupted read-only recovery and observed final-acceptance reconciliation.
+- [x] Integrate current authority, bounded worker context, durable consumption and actual approved fallback execution.
+- [ ] Freeze and independently verify one full candidate, including negative controls and all original execution requirements.
+- [ ] Bind a noneditable installation and deployment/operator dossier to that exact candidate.
+- [ ] Obtain strict governed receipt through the authorized documentation pipeline; local spool capture is not completion.
+
+See `docs/orchestration/program/DURABLE-EXECUTION-002.md`. Local fixture support is not live activation or provider-runtime acceptance.
+
 ## Local supervisor takeover — TAKEOVER-001
 
 - [x] Implement F-01 explicit containment and F-02 restart identity refusal in an isolated successor.

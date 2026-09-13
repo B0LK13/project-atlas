@@ -79,6 +79,10 @@ class AttemptRecord(BaseModel):
     base_pin: str = Field(min_length=40, max_length=40)
     lease_id: str | None = None
     phase: AttemptPhase = AttemptPhase.INTENT_RECORDED
+    step_id: str | None = None
+    #: Observed adapter wall time; None is unknown, never a measured zero.
+    duration_seconds: float | None = Field(default=None, ge=0.0)
+    duration_basis: str = "UNOBSERVED"
     #: Runtime session identity, assigned by the supervisor BEFORE launch so an
     #: interrupted invocation is still addressable. ``None`` for adapters with
     #: no session concept.

@@ -177,7 +177,7 @@ class AdapterRequest:
     session_id: str | None
     #: Set when continuing an interrupted invocation instead of starting one.
     resume_session_id: str | None
-    timeout_seconds: int
+    timeout_seconds: float
     evidence_dir: Path
     #: Consulted between polls while a child runs. Returning True asks the
     #: adapter to terminate the child and report an UNCERTAIN outcome.
@@ -199,6 +199,8 @@ class AdapterRequest:
     #: fires afterwards with the resolved identity; this does not replace it.
     process_launched: Callable[[int], None] | None = None
     extra_env: Mapping[str, str] = field(default_factory=dict)
+    #: Only the controller selects this from the approved task's execution_steps.
+    step_argv: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -378,7 +380,7 @@ def run_child_to_completion(
     cwd: Path,
     env: Mapping[str, str],
     stdin_text: str | None,
-    timeout_seconds: int,
+    timeout_seconds: float,
     cancel_requested: Callable[[], bool] | None,
     poll_interval: float = 0.25,
     stdout_path: Path | None = None,

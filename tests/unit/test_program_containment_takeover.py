@@ -31,6 +31,7 @@ def _program(root: Path, workspace: Path) -> Path:
                     "approved_by": "fixture-operator",
                     "approval_reference": "F01 / AT-013",
                     "workspace_root": str(workspace),
+                    "allow_unversioned_fixture": True,
                     "base_pin": "0" * 40,
                     "limits": {"max_cycles": 8, "idle_sleep_seconds": 0.0},
                     "tasks": [
@@ -649,6 +650,8 @@ def test_resident_nonfixture_profile_refuses_before_supervisor_construction(
     payload["profiles"]["fixture"].update(
         adapter=kind, credential="SUBSCRIPTION_OAUTH", adapter_options={}
     )
+    # This negative targets the model-dispatch gate, not the separate fixture-only grant.
+    payload["program"]["allow_unversioned_fixture"] = False
     program.write_text(json.dumps(payload))
     queue = tmp_path / "queue"
     _raw_queue(queue, program, tmp_path / "state")

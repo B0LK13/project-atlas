@@ -95,6 +95,7 @@ class LocalCommandAdapter:
 
     def run(self, request: AdapterRequest) -> AdapterOutcome:
         started = time.monotonic()
+        argv = request.step_argv or self._argv
         workspace = trusted_root(request.workspace)
         directory = trusted_root(request.evidence_dir)
         marker = self._marker_path(request)
@@ -124,7 +125,7 @@ class LocalCommandAdapter:
         )
 
         exit_status, stdout, stderr, pid, identity, terminal = run_child_to_completion(
-            self._argv,
+            argv,
             cwd=trusted_root(workspace),
             env=env,
             stdin_text=None,
@@ -138,7 +139,7 @@ class LocalCommandAdapter:
         payload: dict[str, Any] = {
             "label": FIXTURE_LABEL,
             "adapter": ADAPTER_ID,
-            "argv": list(self._argv),
+            "argv": list(argv),
             "exit_status": exit_status,
             "terminal_state": terminal,
             "stdout": stdout[-16_384:],

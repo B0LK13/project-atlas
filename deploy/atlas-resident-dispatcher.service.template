@@ -16,7 +16,7 @@
 
 [Unit]
 Description=Atlas resident dispatcher (model-free, AS-ORCH-DURABLE-CONTINUATION-001)
-Documentation=file://<ATLAS_ROOT>/docs/orchestration/program/DURABLE-CONTINUATION.md
+Documentation=file://<ATLAS_ROOT>/checkout/docs/orchestration/program/DURABLE-CONTINUATION.md
 After=network-online.target local-fs.target
 Wants=local-fs.target
 
@@ -47,9 +47,15 @@ WorkingDirectory=<ATLAS_ROOT>/checkout
 Environment=PATH=<ATLAS_ROOT>/env/bin:/usr/bin:/bin
 # Deliberately NOT set: PYTHONPATH. It shadows the pinned install and has
 # already caused one deployment to run code nobody had recorded.
+# ATLAS_ROOT is the explicit trusted boundary for sibling state/queue/programs/
+# worktrees, NOT a guessed common ancestor. It must not be / or this account's
+# home directory; every component must be free of symlinks/reparse points.
+# This unquoted template requires an absolute path without whitespace or
+# systemd/sed expansion characters; /srv/atlas is the example in the procedure.
 
 ExecStart=<ATLAS_ROOT>/env/bin/python -m project_atlas.orchestration.program.cli \
     program dispatcher \
+    --governed-root <ATLAS_ROOT> \
     --state-root <ATLAS_ROOT>/state \
     --queue-root <ATLAS_ROOT>/queue \
     --checkout <ATLAS_ROOT>/checkout \
@@ -57,12 +63,13 @@ ExecStart=<ATLAS_ROOT>/env/bin/python -m project_atlas.orchestration.program.cli
     --action run \
     --tick-seconds 5
 
-# Drain rather than kill: the current program finishes, nothing new starts.
-# SIGTERM straight to the dispatcher would leave an attempt at ADAPTER_INVOKED,
-# which the next start correctly refuses to redispatch -- turning a clean stop
-# into a reconciliation.
+# This submits a drain REQUEST; it does not wait for observed exit. Consequently
+# ExecStop alone is NOT proof of a graceful in-flight shutdown. Before enabling
+# this unit with work admitted, review a bounded identity-aware wait hook or
+# explicitly drain and observe exit before stopping the unit. TimeoutStopSec
+# does not turn this short-lived request command into that wait hook.
 ExecStop=<ATLAS_ROOT>/env/bin/python -m project_atlas.orchestration.program.cli \
-    program dispatcher --state-root <ATLAS_ROOT>/state \
+    program dispatcher --governed-root <ATLAS_ROOT> --state-root <ATLAS_ROOT>/state \
     --action drain --requested-by systemd
 TimeoutStopSec=900
 KillSignal=SIGTERM
@@ -102,8 +109,10 @@ SystemCallArchitectures=native
 ReadWritePaths=<ATLAS_ROOT>/state <ATLAS_ROOT>/queue <ATLAS_ROOT>/worktrees <ATLAS_ROOT>/logs <ATLAS_ROOT>/artifacts
 ReadOnlyPaths=<ATLAS_ROOT>/checkout <ATLAS_ROOT>/env <ATLAS_ROOT>/programs <ATLAS_ROOT>/registry
 
-# The dispatcher is model-free and makes no outbound call. Uncomment only if a
-# future adapter genuinely needs the network -- and record why.
+# The dispatcher is model-free. The following network denial is INACTIVE while
+# commented; this template is not evidence of OS-enforced zero network. An
+# operator may enable denial for a reviewed local-only workload. Any exception
+# for another adapter needs separate authorization and review.
 # IPAddressDeny=any
 
 # --- secrets ---------------------------------------------------------------

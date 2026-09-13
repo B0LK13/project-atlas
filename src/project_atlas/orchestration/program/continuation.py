@@ -614,7 +614,7 @@ def envelope_from_task(
         budgets=budgets or TaskBudgets(),
         deadline_utc=deadline_utc,
         checkpoint_policy=checkpoint_policy or CheckpointPolicy(),
-        fallback_task_ids=(),
+        fallback_task_ids=task.fallback_task_ids,
         replay_class=replay_class,
         approved_by=program.approved_by,
         approval_reference=program.approval_reference,
@@ -624,16 +624,15 @@ def envelope_from_task(
     )
 
 
-def validate_envelope_for_dispatch(
+def validate_envelope_authority(
     envelope: TaskEnvelope,
     *,
     program: WorkProgram,
     observed_head: str,
     observed_tree: str,
-    consumed: ConsumedBudget,
     now: datetime | None = None,
 ) -> None:
-    """Fail closed before dispatch, or return silently.
+    """Validate current authority without granting a worker launch.
 
     Called immediately before every dispatch, never once at start-up. The
     reason is the defect this program has already seen twice: authority read
@@ -681,6 +680,20 @@ def validate_envelope_for_dispatch(
             f"envelope deadline {envelope.deadline_utc} has passed",
             code="ENVELOPE_DEADLINE_PASSED",
         )
+
+
+def validate_envelope_for_dispatch(
+    envelope: TaskEnvelope,
+    *,
+    program: WorkProgram,
+    observed_head: str,
+    observed_tree: str,
+    consumed: ConsumedBudget,
+    now: datetime | None = None,
+) -> None:
+    """Current authority plus remaining execution budget before every launch."""
+    validate_envelope_authority(envelope, program=program, observed_head=observed_head,
+                                observed_tree=observed_tree, now=now)
     blown = consumed.exceeds(envelope.budgets)
     if blown is not None:
         raise EnvelopeError(

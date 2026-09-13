@@ -36,9 +36,13 @@ from project_atlas.orchestration.program.continuation import (
 from project_atlas.orchestration.program.decisions import (
     DecisionKind,
     DecisionRequest,
+    DecisionStatus,
     blocked_task_ids,
+    list_decisions,
     raise_decision,
 )
+from project_atlas.orchestration.program.path_safety import checked_path
+from project_atlas.orchestration.program.store import load_state
 
 
 @dataclass(frozen=True)
@@ -58,7 +62,9 @@ class BlockOutcome:
     fallback_reason: str
 
 
-def _release_lease_for(root: Path, *, task_id: str) -> tuple[bool, str]:
+def _release_lease_for(
+    root: Path, *, task_id: str, worker_id: str | None = None
+) -> tuple[bool, str]:
     """Release the ACTIVE projected lease for one task, or say why not.
 
     The lease is reconstructed from the projected row rather than accepted from
@@ -75,6 +81,8 @@ def _release_lease_for(root: Path, *, task_id: str) -> tuple[bool, str]:
     if not rows:
         return False, f"no ACTIVE projected lease for {task_id}"
     row = rows[0]
+    if worker_id is not None and row.agent_id != worker_id:
+        return False, "the active lease belongs to a different worker; not released"
     capabilities: list[AgentCapability] = []
     for name in row.capabilities:
         try:
@@ -121,11 +129,16 @@ def select_fallback(
         return None, "the envelope declares no fallback tasks"
     blocked = blocked_task_ids(root) | exclude | {envelope.task_id}
     known = {item.task_id for item in list_envelopes(root)}
+    state = load_state(root)
     for candidate in envelope.fallback_task_ids:
         if candidate in blocked:
             continue
         if candidate not in known:
             continue
+        if state is not None:
+            record = state.tasks.get(candidate)
+            if record is None or record.state.value not in {"DISCOVERED", "READY", "LEASED"}:
+                continue
         return candidate, f"{candidate} is approved, enveloped and unblocked"
     return (
         None,
@@ -144,8 +157,19 @@ def handle_blocked_task(
     worker_id: str,
     session_id: str,
     evidence: tuple[str, ...] = (),
+    lease_root: Path | None = None,
 ) -> BlockOutcome:
     """Perform the three acts, in order, and report each one."""
+    existing = next(
+        (
+            d
+            for d in list_decisions(root, status=DecisionStatus.OPEN)
+            if d.task_id == envelope.task_id and d.program_id == envelope.program_id
+        ),
+        None,
+    )
+    if existing is not None:
+        kind = existing.kind
     decision, newly = raise_decision(
         root,
         program_id=envelope.program_id,
@@ -158,7 +182,29 @@ def handle_blocked_task(
         session_id=session_id,
         evidence=evidence,
     )
-    released, detail = _release_lease_for(root, task_id=envelope.task_id)
+    projection_root = checked_path(lease_root, root=root) if lease_root is not None else root
+    safe_release = True
+    if lease_root is not None:
+        from project_atlas.orchestration.program.adapters.base import pid_is_alive
+        from project_atlas.orchestration.program.models import ExecutionConfidence
+
+        state = load_state(root)
+        record = state.tasks.get(envelope.task_id) if state else None
+        attempt = state.attempts.get(record.last_attempt_id or "") if state and record else None
+        safe_release = bool(
+            attempt
+            and attempt.process_pid
+            and attempt.process_start_identity
+            and attempt.process_start_identity != "unknown"
+            and attempt.confidence is not ExecutionConfidence.UNCERTAIN
+            and not pid_is_alive(attempt.process_pid)
+        )
+    if safe_release:
+        released, detail = _release_lease_for(
+            projection_root, task_id=envelope.task_id, worker_id=worker_id
+        )
+    else:
+        released, detail = False, "no confirmed exited execution identity; lease preserved"
     fallback, reason = select_fallback(root, envelope)
     return BlockOutcome(
         decision=decision,

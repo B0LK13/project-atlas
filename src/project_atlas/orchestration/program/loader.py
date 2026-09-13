@@ -211,10 +211,21 @@ def load_program(path: Path, *, governed_root: Path | None = None) -> LoadedProg
             profiles, profile_ref=task.profile_ref, override=task.profile_override
         )
         _check_task_against_profile(task, resolved)
+        if program.allow_unversioned_fixture and resolved.adapter.value != "local-command":
+            raise ProgramLoadError(
+                "unversioned fixture grant cannot authorize a model-backed runtime",
+                code="UNVERSIONED_FIXTURE_ADAPTER_FORBIDDEN",
+            )
+        if task.execution_steps and resolved.adapter.value != "local-command":
+            raise ProgramLoadError("execution_steps are supported only by local-command fixtures",
+                                   code="STEP_ADAPTER_UNSUPPORTED")
         effective[task.task_id] = resolved
         if task.verifier_profile_ref is not None:
             verifier = profiles.resolve(task.verifier_profile_ref)
             _check_verifier(task, implementer=resolved, verifier=verifier)
+            if program.allow_unversioned_fixture and verifier.adapter.value != "local-command":
+                raise ProgramLoadError("unversioned fixture verifier must be local-command",
+                                       code="UNVERSIONED_FIXTURE_ADAPTER_FORBIDDEN")
             verifiers[task.task_id] = verifier
 
     return LoadedProgram(
