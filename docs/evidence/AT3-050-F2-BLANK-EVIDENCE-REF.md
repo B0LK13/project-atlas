@@ -15,5 +15,8 @@ Eight blank stages produced `chain_status=PROVEN`.
 `evidence_ref` is stripped. Blank/empty refs stay UNKNOWN. A model claim
 with only blank refs is `UNPROVEN_MODEL_CLAIM`, never PROVEN.
 
+Non-string `evidence_ref` (`True`, `1`) is refused as `EVIDENCE_REF_INVALID`.
+`str(True)` must not mint PRESENT/PROVEN.
+
 Distinct from #831 (non-object evidence) and #839 (project-scope persist).
 Does not grant merge authority.

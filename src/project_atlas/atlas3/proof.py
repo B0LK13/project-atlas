@@ -53,7 +53,13 @@ def evaluate_proof(
         raw = supplied.get(name)
         evidence_ref = ""
         if isinstance(raw, dict):
-            evidence_ref = str(raw.get("evidence_ref") or "").strip()
+            raw_ref = raw.get("evidence_ref")
+            if raw_ref is not None and not isinstance(raw_ref, str):
+                raise Atlas3Error(
+                    "EVIDENCE_REF_INVALID",
+                    f"{name} evidence_ref must be a non-empty string",
+                )
+            evidence_ref = raw_ref.strip() if isinstance(raw_ref, str) else ""
         if evidence_ref:
             stages[name] = {
                 "status": "PRESENT",
