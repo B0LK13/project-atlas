@@ -40,6 +40,22 @@ def test_pg15_vs_pg16_stays_conflicted() -> None:
     assert report["intent_versions"]
 
 
+def test_present_tense_after_is_observed_not_intent() -> None:
+    report = detect_conflicts(
+        [
+            {
+                "text": "production uses PostgreSQL 16 after the rollback",
+                "provider": "chatgpt",
+            }
+        ],
+        current_state_text="repository pins PostgreSQL 15",
+    )
+    assert report["conflicted_history"] is True
+    assert "16" in report["observed_versions"]
+    assert report["intent_versions"] == []
+    assert report["winner"] is None
+
+
 def test_mixed_valid_and_corrupt_fails_closed() -> None:
     with pytest.raises(Atlas3Error) as exc:
         detect_conflicts([{"text": "PostgreSQL 15"}, "corrupt"])  # type: ignore[list-item]
