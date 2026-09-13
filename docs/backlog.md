@@ -739,6 +739,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-002 Isolated project twin schema + constructors
 - [x] AT3-010 Isolated repository/component inventory (declared; UNKNOWN if absent)
 - [x] AT3-013 Isolated PR/commit/test/build nodes (ledger projection; no invented git)
+- [x] AT3-013-F1 Conversation/non-canonical ledger rows do not mint derived engineering nodes
 - [x] AT3-011 Isolated file/symbol graph (declared; no host walk)
 - [x] AT3-012 Isolated service/environment nodes (declared fixture; not authentic estate)
 - [x] AT3-003 Isolated engineering event model (canonical envelope)
