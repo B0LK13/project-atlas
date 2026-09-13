@@ -789,6 +789,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-110 Isolated multi-project twin (declared siblings; federation != authority)
 - [x] AT3-111 Isolated org identity (declared only; does not mint)
 - [x] AT3-081 Isolated stale/conflict intelligence (Pulse + memory compose; no winner; stale != current)
+- [x] AT3-081-F1 Mixed valid + non-object reconcile items fail closed (no silent filter)
 - [x] AT3-082 Isolated next-action honesty (Pulse + next-lens compose; NEXT != command; no write)
 - [x] AT3-093 Isolated Time Machine UX reuse (kdiff only; no second clock; wall-clock != valid-time)
 - [x] AT3-112 Isolated federation reuse honesty (FED-001/002 compose; federation != authority; no promote)

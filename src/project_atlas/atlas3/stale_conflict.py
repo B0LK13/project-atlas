@@ -103,13 +103,27 @@ def compile_stale_conflict_intel(vault: Path | str, project_id: str) -> dict[str
         raw_items = block.get("items") or []
         if not isinstance(raw_items, list):
             raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation items must be a list")
-        memory_items = [item for item in raw_items if isinstance(item, dict)]
+        memory_items = []
+        for index, item in enumerate(raw_items):
+            if not isinstance(item, dict):
+                raise Atlas3Error(
+                    "RECONCILE_CORRUPT",
+                    f"reconciliation item[{index}] must be an object",
+                )
+            memory_items.append(item)
         assert_items_project_scope(memory_items, project_id=pid)
         raw_stale = block.get("stale_memories") or []
         if raw_stale:
             if not isinstance(raw_stale, list):
                 raise Atlas3Error("RECONCILE_CORRUPT", "stale_memories must be a list")
-            memory_stale = [item for item in raw_stale if isinstance(item, dict)]
+            memory_stale = []
+            for index, item in enumerate(raw_stale):
+                if not isinstance(item, dict):
+                    raise Atlas3Error(
+                        "RECONCILE_CORRUPT",
+                        f"stale_memories[{index}] must be an object",
+                    )
+                memory_stale.append(item)
             assert_items_project_scope(memory_stale, project_id=pid)
             if any(str(item.get("freshness") or "") == "CURRENT" for item in memory_stale):
                 raise Atlas3Error("STALE_AS_CURRENT", "stale_memories must not be CURRENT")
