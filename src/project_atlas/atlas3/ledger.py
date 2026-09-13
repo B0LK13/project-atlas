@@ -27,6 +27,23 @@ def _ledger_path(vault: Path, project_id: str) -> Path:
     return vault / LEDGER_RELATIVE / f"{project_id}.jsonl"
 
 
+def _regular_ledger_file(path: Path) -> Path | None:
+    """Return the ledger file, or None when the identity is absent.
+
+    AT3-014-F2: a directory, symlink, or other non-file at the ledger
+    identity is corrupt store state, not an empty healthy ledger.
+    EVENT LEDGER != TRUTH CORE. Do not follow a planted path.
+    """
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise Atlas3Error(
+            "LEDGER_CORRUPT",
+            "ledger path must be a regular file",
+        )
+    if not path.is_file():
+        return None
+    return path
+
+
 def append_event(
     vault: Path,
     project_id: str,
@@ -40,6 +57,7 @@ def append_event(
     if record.get("project_id") != pid:
         raise Atlas3Error("PROJECT_MISMATCH", "event project_id does not match ledger project")
     path = _ledger_path(root, pid)
+    _regular_ledger_file(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = list_events(root, pid)
     for prior in existing:
@@ -88,7 +106,7 @@ def query_events(
     root = require_vault(vault)
     pid = require_project(root, project_id)
     path = _ledger_path(root, pid)
-    if not path.is_file():
+    if _regular_ledger_file(path) is None:
         return []
     rows: list[dict[str, Any]] = []
     seen: dict[str, str] = {}
