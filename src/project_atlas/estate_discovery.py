@@ -717,7 +717,9 @@ def _parse_marker_file(marker: Path, label: str) -> dict[str, Any]:
         }
     try:
         data = yaml.safe_load(text)
-    except yaml.YAMLError:
+    except (yaml.YAMLError, KeyError):
+        # ``!!bool nope`` (and similar constructor tags) raise KeyError, not
+        # YAMLError. Treat as an invalid marker — do not leak the constructor.
         return {
             "marker_status": "invalid",
             "uuid_status": "absent",

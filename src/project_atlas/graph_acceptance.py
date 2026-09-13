@@ -214,7 +214,7 @@ def _project_id(manifest: dict[str, Any], project_root: Path) -> str:
     if marker.is_file():
         try:
             data = yaml.safe_load(marker.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
+        except (OSError, yaml.YAMLError, KeyError):
             data = None
         if isinstance(data, dict):
             project = data.get("project")
@@ -279,7 +279,8 @@ def _parse_artifact(path: Path, family: ArtifactFamily) -> tuple[int, int]:
         if path.suffix.lower() in {".yaml", ".yml"}:
             try:
                 payload = yaml.safe_load(text)
-            except yaml.YAMLError as exc:
+            except (yaml.YAMLError, KeyError) as exc:
+                # Constructor tags such as ``!!bool nope`` raise KeyError.
                 raise GraphAcceptanceError("malformed-metadata") from exc
         else:
             try:
