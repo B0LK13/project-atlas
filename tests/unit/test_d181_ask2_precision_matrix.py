@@ -108,7 +108,11 @@ def _claims_vault(
     for project_id, rows in grouped.items():
         _wr(vault / "state" / "claims" / f"{project_id}.json", {"claims": rows})
     if conflicts:
-        _wr(vault / "review" / "conflicts" / "conflicts.json", {"entries": conflicts})
+        for project_id in grouped:
+            _wr(
+                vault / "review" / "conflicts" / f"{project_id}.json",
+                {"entries": conflicts},
+            )
     return vault
 
 

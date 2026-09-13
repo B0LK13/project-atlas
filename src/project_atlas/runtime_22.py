@@ -222,14 +222,18 @@ def _load_portfolio_freshness(vault: Path) -> dict[str, str]:
 
 def _load_unresolved_claim_conflicts(
     vault: Path,
+    *,
+    project_id: str,
 ) -> tuple[dict[str, list[str]], dict[str, dict[str, Any]]]:
-    """Map claim_id → conflict_ids and conflict_id → unresolved record metadata."""
+    """Map claim_id → conflict_ids for one project. Sibling files stay out."""
     root = vault / "review" / "conflicts"
     claim_map: dict[str, set[str]] = {}
     conflict_records: dict[str, dict[str, Any]] = {}
     if not root.is_dir():
         return {}, {}
-    for path in sorted(root.glob("*.json")):
+    scoped = root / f"{project_id}.json"
+    paths = [scoped] if scoped.is_file() else []
+    for path in paths:
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
@@ -572,7 +576,7 @@ def compile_context(
     conflict_records: dict[str, dict[str, Any]] = {}
     if p2:
         claim_conflicts, conflict_records = _load_unresolved_claim_conflicts(
-            vault_path
+            vault_path, project_id=scope
         )
 
     selected: list[dict[str, Any]] = []

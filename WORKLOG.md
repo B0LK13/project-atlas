@@ -14915,3 +14915,19 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-KDIFF-F1 — Sibling catalogs/conflicts must not bind by claim_id
+
+**Date:** 2026-09-13
+**Branch:** `fix/as-kdiff-sibling-catalog-scope`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: a sibling `proj-b` validity catalog
+and `review/conflicts/proj-b.json` could select or mark unresolved a
+proj-a claim that shared a `claim_id`.
+
+Fix: skip catalogs whose catalog_id is a sibling project; load only
+`review/conflicts/<project_id>.json`.
+
+Does not write Truth Core. Does not authorize merge.

@@ -156,7 +156,7 @@ def _claims_vault(
         )
     if with_conflict:
         _wr(
-            vault / "review" / "conflicts" / "conflicts.json",
+            vault / "review" / "conflicts" / f"{project}.json",
             {
                 "entries": [
                     {

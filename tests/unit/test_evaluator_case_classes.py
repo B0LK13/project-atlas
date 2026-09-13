@@ -148,7 +148,7 @@ def _matrix_vault(tmp_path: Path) -> Path:
 
     # Unresolved conflict binding claim-conflict (CONFLICT class).
     _write_json(
-        vault / "review" / "conflicts" / "conflicts.json",
+        vault / "review" / "conflicts" / f"{PROJECT_A}.json",
         {
             "entries": [
                 {
