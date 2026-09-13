@@ -154,14 +154,22 @@ def stop_requested(root: Path) -> bool:
 
 def _write_atomic_text(path: Path, content: str) -> None:
     """Replace ``path`` atomically via same-directory temp + os.replace."""
-    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         tmp.write_text(content, encoding="utf-8")
         os.replace(tmp, path)
+    except OSError as exc:
+        raise SdkRuntimeError(
+            f"unable to write supervisor control file: {exc}",
+            code="HOST_CONTROL_WRITE_FAILED",
+        ) from exc
     finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
+        try:
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def request_supervisor_stop(root: Path) -> None:
@@ -349,7 +357,13 @@ def acquire_supervisor_lock(root: Path, *, instance_id: str | None = None) -> bo
     or when this process still holds the remembered token for ``root``.
     """
     path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
-    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SdkRuntimeError(
+            f"unable to create supervisor lock directory: {exc}",
+            code="HOST_LOCK_WRITE_FAILED",
+        ) from exc
     me = os.getpid()
     # Omitting instance_id always mints a fresh instance token so two contenders
     # in the same process cannot silently share PID-only ownership.
