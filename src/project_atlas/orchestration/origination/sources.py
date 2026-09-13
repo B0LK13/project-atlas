@@ -118,7 +118,8 @@ def load_origination_sources(project_root: Path) -> tuple[OriginationSourceConfi
         return DEFAULT_SOURCES
     try:
         raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+        # PyYAML constructor tags such as ``!!bool nope`` raise KeyError.
         raise OriginationSourceConfigError(f"unreadable project marker: {marker}") from exc
     if raw is None:
         # An entirely empty marker file. Genuinely no configuration at
