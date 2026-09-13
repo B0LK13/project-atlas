@@ -20,7 +20,15 @@ def check(path: Path | None, adapter_id: str, skill_version: str, skill_sha256: 
         }
     if not path.is_file():
         return {"status": "missing", "authorized": False, "reason": "readiness registry is missing"}
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError):
+        # SEC-015: unreadable registry must DENY. Constructor tags raise KeyError.
+        return {
+            "status": "invalid",
+            "authorized": False,
+            "reason": "readiness registry is unreadable",
+        }
     entry = data.get("adapters", {}).get(adapter_id) if isinstance(data, dict) else None
     if not isinstance(entry, dict):
         return {"status": "unknown", "authorized": False, "reason": "adapter is not registered"}
@@ -70,7 +78,11 @@ def promote(
     if bool(authority_grant.get("revoked")):
         raise ValueError("authority grant is revoked")
 
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+        # PyYAML constructor tags raise KeyError, not YAMLError.
+        raise ValueError("invalid readiness registry") from exc
     if not isinstance(data, dict) or not isinstance(data.get("adapters"), dict):
         raise ValueError("invalid readiness registry")
     entry = data["adapters"].setdefault(adapter_id, {})

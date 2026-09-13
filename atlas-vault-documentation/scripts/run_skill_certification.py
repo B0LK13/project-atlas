@@ -220,7 +220,7 @@ def main() -> int:
             mutation(fixture)
             try:
                 skill_loader.load(fixture)
-            except (OSError, ValueError, yaml.YAMLError):
+            except (OSError, ValueError, yaml.YAMLError, KeyError):
                 passed = True
             else:
                 passed = False

@@ -15,7 +15,11 @@ def project_config(project_root: Path) -> dict[str, Any]:
     path = project_root / ".atlas" / "project.yaml"
     if not path.is_file():
         raise ValueError(f"project Atlas configuration is missing: {path}")
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+        # PyYAML ``!!bool nope`` raises KeyError, not YAMLError.
+        raise ValueError("invalid .atlas/project.yaml") from exc
     if not isinstance(data, dict) or not isinstance(data.get("project"), dict):
         raise ValueError("invalid .atlas/project.yaml")
     return data
@@ -37,7 +41,11 @@ def run(*, project_root: Path, vault_root: Path | None, agent_type: str, agent_v
             certification_path = project_root / certification_path
         if not certification_path.is_file():
             raise ValueError("certified skill receipt is missing")
-        certification = yaml.safe_load(certification_path.read_text(encoding="utf-8"))
+        try:
+            certification = yaml.safe_load(certification_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+            # PyYAML constructor tags raise KeyError, not YAMLError.
+            raise ValueError("certified skill receipt is unreadable") from exc
         certified_skill = certification.get("skill", {}) if isinstance(certification, dict) else {}
         if not isinstance(certification, dict) or certification.get("status") != "certified" or certified_skill.get("id") != skill.skill_id or certified_skill.get("version") != skill.version or certified_skill.get("sha256") != skill.sha256:
             raise ValueError("certified skill dependency does not match resolved skill")
