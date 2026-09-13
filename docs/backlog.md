@@ -741,6 +741,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-013 Isolated PR/commit/test/build nodes (ledger projection; no invented git)
 - [x] AT3-011 Isolated file/symbol graph (declared; no host walk)
 - [x] AT3-012 Isolated service/environment nodes (declared fixture; not authentic estate)
+- [ ] AT3-012-F1 Estate-nodes declared path integrity (IMPLEMENTED; AWAITING IV -- merge NOT pre-authorized). `compile_estate_nodes` used `if not path.is_file()` so a directory named `declared.json` reported `UNKNOWN` / `NO_DECLARED_ESTATE_NODES`, and a symlink was followed and composed as a healthy harbor-api projection. Missing stays missing. A present symlink or non-file now fails closed as `ESTATE_NODES_CORRUPT`. Does not change `ingestion.py`, CLI surface, or other declared-graph loaders.
 - [x] AT3-003 Isolated engineering event model (canonical envelope)
 - [x] AT3-004 Isolated semantic capability registry
 - [x] AT3-005 Isolated 2.x→3.x compatibility prover

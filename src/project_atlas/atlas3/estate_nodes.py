@@ -27,7 +27,19 @@ def _declared_path(vault: Path, project_id: str) -> Path:
     return vault / OPS_RELATIVE / "estate-nodes" / project_id / DECLARED_NAME
 
 
-def _load_declared(path: Path) -> dict[str, Any]:
+def _load_declared(path: Path) -> dict[str, Any] | None:
+    """Load declared estate nodes.
+
+    Missing stays missing. A present symlink, directory, or unreadable
+    file fails closed — it is not reported as absent. AT3-012-F1.
+    """
+    if not path.exists():
+        return None
+    if path.is_symlink() or not path.is_file():
+        raise Atlas3Error(
+            "ESTATE_NODES_CORRUPT",
+            "declared estate nodes must be a regular file",
+        )
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -72,7 +84,8 @@ def compile_estate_nodes(vault: Path | str, project_id: str) -> dict[str, Any]:
     root = require_vault(vault)
     pid = require_project(root, project_id)
     path = _declared_path(root, pid)
-    if not path.is_file():
+    declared = _load_declared(path)
+    if declared is None:
         return {
             "package": PACKAGE_ID,
             "project_id": pid,
@@ -87,7 +100,6 @@ def compile_estate_nodes(vault: Path | str, project_id: str) -> dict[str, Any]:
             "truth_boundary": TRUTH_BOUNDARY,
             "honesty": honesty_block(),
         }
-    declared = _load_declared(path)
     declared_project = str(declared.get("project_id") or "").strip()
     if declared_project and declared_project != pid:
         raise Atlas3Error(
