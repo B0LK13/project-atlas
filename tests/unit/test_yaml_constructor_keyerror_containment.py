@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from project_atlas.estate_discovery import _parse_marker_file
-from project_atlas.graph_acceptance import GraphAcceptanceError, _parse_artifact
+from project_atlas.graph_acceptance import GraphAcceptanceError, _parse_artifact, _project_id
 from project_atlas.yaml_structured import MalformedYamlError, load_safe_yaml
 
 MALFORMED = "atlas: !!bool nope\n"
@@ -39,3 +39,9 @@ def test_graph_acceptance_metadata_constructor_tag_is_malformed(tmp_path: Path) 
     path.write_text(MALFORMED, encoding="utf-8")
     with pytest.raises(GraphAcceptanceError, match="malformed-metadata"):
         _parse_artifact(path, "metadata")
+
+
+def test_graph_acceptance_project_id_constructor_tag_falls_back(tmp_path: Path) -> None:
+    """Corrupt marker must not leak KeyError; fall back to the directory name."""
+    (tmp_path / ".atlas-project.yaml").write_text(MALFORMED, encoding="utf-8")
+    assert _project_id({}, tmp_path) == tmp_path.name

@@ -17,6 +17,7 @@ Three remaining loaders on live main leaked it:
 | `yaml_structured.load_safe_yaml` | public safe loader | `KeyError` |
 | `estate_discovery._parse_marker_file` | estate marker parse | `KeyError` |
 | `graph_acceptance._parse_artifact` (metadata YAML) | graph acceptance | `KeyError` |
+| `graph_acceptance._project_id` (marker YAML) | graph acceptance | `KeyError` |
 
 Reproduced on `b87b4a22`. Sibling package #819 contains the same class
 in `obsidian_capture_note._existing_capture_id` only.

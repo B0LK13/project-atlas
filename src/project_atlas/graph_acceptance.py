@@ -214,7 +214,7 @@ def _project_id(manifest: dict[str, Any], project_root: Path) -> str:
     if marker.is_file():
         try:
             data = yaml.safe_load(marker.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
+        except (OSError, yaml.YAMLError, KeyError):
             data = None
         if isinstance(data, dict):
             project = data.get("project")
