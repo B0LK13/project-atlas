@@ -14927,4 +14927,6 @@ Evidence: the test module's own docstring, which carries the boundary statement.
 
 Whitespace-only `evidence_ref` was PRESENT and produced PROVEN. Blank refs now stay UNKNOWN. Distinct from #831/#839.
 
+Follow-on on the same carrier: non-string `evidence_ref` (`True`, `1`) was coerced via `str(...)` to PRESENT/PROVEN. Those values now fail closed as `EVIDENCE_REF_INVALID`.
+
 Evidence: `docs/evidence/AT3-050-F2-BLANK-EVIDENCE-REF.md`
