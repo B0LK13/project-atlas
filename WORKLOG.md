@@ -14915,3 +14915,19 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-D192-PIPE-F1 — Pipeline stale accepted_decisions and secret persist
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3-d192-pipeline-stale-secrets`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: STALE owner text was minted into
+persisted `accepted_decisions`, and secret-shaped `current_state_text`
+was written to reconcile.json because AT3-047 was never called.
+
+Fix: `scan_or_raise` before persist; omit STALE owner decisions from
+`accepted_decisions`. Honest CURRENT owner decisions still rank.
+
+Does not write Truth Core. Does not authorize merge.

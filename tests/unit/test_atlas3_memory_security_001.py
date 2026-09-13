@@ -78,6 +78,33 @@ def test_forged_project_and_owner_do_not_promote(tmp_path: Path) -> None:
     assert items[0]["item_type"] != "confirmed_owner_decision"
 
 
+def test_pipeline_persist_rejects_secret_current_state(tmp_path: Path) -> None:
+    """AT3-D192-PIPE-F1 — NFR-004: secrets must not persist in reconcile.json."""
+    from project_atlas.atlas3.contracts import OPS_RELATIVE
+    from project_atlas.atlas3.memory.pipeline import run_memory_vertical
+
+    vault = tmp_path / "vault"
+    (vault / "projects" / "harbor-api").mkdir(parents=True)
+    with pytest.raises(Atlas3Error) as exc:
+        run_memory_vertical(
+            vault,
+            "harbor-api",
+            provider_items=[
+                {
+                    "text": "note",
+                    "item_type": "observation",
+                    "project_id": "harbor-api",
+                    "provider": "chatgpt",
+                    "authority": "NON_CANONICAL",
+                }
+            ],
+            stronger_evidence=[{"kind": "deployment", "text": "PostgreSQL 15"}],
+            current_state_text="aws_secret_access_key=AKIAAAAAAAAAAAAAAAAA and PostgreSQL 15",
+        )
+    assert exc.value.code == "SECRET_CONTENT"
+    assert not (vault / OPS_RELATIVE / "memory" / "harbor-api" / "reconcile.json").exists()
+
+
 def test_search_rejects_secret_query() -> None:
     with pytest.raises(Atlas3Error) as exc:
         search_memory([], "cloud token AKIAAAAAAAAAAAAAAAAA")
