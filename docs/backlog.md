@@ -758,6 +758,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-044 Isolated memory freshness (STALE != CURRENT; UNKNOWN stays UNKNOWN)
 - [x] AT3-047 Isolated privacy/secret gate (fail-closed scan; raw transcript minimized)
 - [x] AT3-048 Isolated unified memory search (extracted items only; not a transcript dump)
+- [x] AT3-048-F3 persist_search binds result.project_id to the persist target
 - [x] AT3-049 Isolated memory reconciliation (compose 041/042/044; never auto-promote)
 - [x] AT3-CHRONICLE Horizon design notes only (no runtime)
 - [x] AT3-037 Isolated Claude fixture/export ingest (native history sync remains NOT IMPLEMENTED)
