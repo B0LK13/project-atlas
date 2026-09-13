@@ -13,7 +13,7 @@ from project_atlas.atlas3.causal import compile_causal_graph
 from project_atlas.atlas3.claim_nodes import compile_claim_nodes
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.conflict_unknown import compile_conflict_unknown
-from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
+from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error
 from project_atlas.atlas3.decided import compile_decided_by
 from project_atlas.atlas3.decision_explorer import compile_decision_explorer
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
@@ -572,6 +572,62 @@ def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     return 0
 
 
+def _reconcile_path(vault: Path, project_id: str) -> Path:
+    return Path(vault) / OPS_RELATIVE / "memory" / str(project_id) / "reconcile.json"
+
+
+def load_reconcile_artifact(vault: Path, project_id: str) -> dict[str, Any] | None:
+    """Load a memory reconcile artifact.
+
+    Missing stays missing. An existing but unreadable, non-object, or
+    malformed file fails closed — it is not reported as absent.
+    AT3-CLI-F1.
+    """
+    path = _reconcile_path(vault, project_id)
+    if not path.exists():
+        return None
+    if path.is_symlink() or not path.is_file():
+        raise Atlas3Error("RECONCILE_CORRUPT", "memory reconcile must be a regular file")
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise Atlas3Error("RECONCILE_CORRUPT", "memory reconcile is not valid JSON") from exc
+    if not isinstance(raw, dict):
+        raise Atlas3Error("RECONCILE_CORRUPT", "memory reconcile must be an object")
+    return raw
+
+
+def _reconciliation_block(recon: dict[str, Any] | None) -> dict[str, Any] | None:
+    if recon is None:
+        return None
+    if "reconciliation" not in recon:
+        return None
+    block = recon.get("reconciliation")
+    if not isinstance(block, dict):
+        raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation must be an object")
+    return block
+
+
+def items_from_reconcile(recon: dict[str, Any] | None) -> list[Any]:
+    """Return items from a loaded artifact. Missing block/items → []."""
+    block = _reconciliation_block(recon)
+    if block is None or "items" not in block:
+        return []
+    items = block.get("items")
+    if not isinstance(items, list):
+        raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation items must be a list")
+    return items
+
+
+def load_reconcile_items(vault: Path, project_id: str) -> list[Any]:
+    """Return reconcile items, or [] when no artifact exists.
+
+    A present `reconciliation` / `items` field of the wrong type fails
+    closed instead of leaking AttributeError or collapsing to empty.
+    """
+    return items_from_reconcile(load_reconcile_artifact(vault, project_id))
+
+
 def dispatch_atlas3(args: argparse.Namespace) -> int | None:
     command = getattr(args, "command", None)
     if command not in ATLAS3_COMMANDS and command != "ledger":
@@ -772,14 +828,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 if items_path is not None:
                     items = load_item_list(Path(items_path))
                 else:
-                    recon = read_json(
-                        Path(args.vault)
-                        / OPS_RELATIVE
-                        / "memory"
-                        / str(project_id)
-                        / "reconcile.json"
-                    )
-                    items = ((recon or {}).get("reconciliation") or {}).get("items") or []
+                    items = load_reconcile_items(Path(args.vault), str(project_id))
                 stale_historical = bool(getattr(args, "include_stale_historical", False))
                 freshness = str(getattr(args, "freshness", "UNKNOWN"))
                 target = getattr(args, "target_provider", None)
@@ -911,10 +960,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     as_json=True,
                 )
             if sub == "status":
-                vault = Path(args.vault)
-                recon = read_json(
-                    vault / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
-                )
+                recon = load_reconcile_artifact(Path(args.vault), str(args.project))
                 return _dump(
                     {
                         "providers": provider_capabilities(),
@@ -925,10 +971,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     as_json=True,
                 )
             if sub in {"search", "conflicts", "stale", "intent", "lineage", "honesty"}:
-                recon = read_json(
-                    Path(args.vault) / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
-                )
-                items = ((recon or {}).get("reconciliation") or {}).get("items") or []
+                recon = load_reconcile_artifact(Path(args.vault), str(args.project))
+                items = items_from_reconcile(recon)
                 assert_items_project_scope(items, project_id=args.project)
                 if sub == "lineage":
                     return _dump(
@@ -950,14 +994,42 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         search_memory(items, args.query, project_id=args.project),
                         as_json=True,
                     )
+                block = _reconciliation_block(recon)
                 if sub == "conflicts":
-                    return _dump(
-                        ((recon or {}).get("reconciliation") or {}).get("conflicts")
-                        or {"conflicted_history": False, "reason": "NO_RECONCILE"},
-                        as_json=True,
+                    raw_conflicts = block.get("conflicts") if block is not None else None
+                    if raw_conflicts is None:
+                        return _dump(
+                            {"conflicted_history": False, "reason": "NO_RECONCILE"},
+                            as_json=True,
+                        )
+                    if not isinstance(raw_conflicts, dict):
+                        raise Atlas3Error(
+                            "RECONCILE_CORRUPT",
+                            "reconciliation conflicts must be an object",
+                        )
+                    return _dump(raw_conflicts, as_json=True)
+                raw_stale = block.get("stale_memories") if block is not None else None
+                if raw_stale is None:
+                    stale: list[Any] = []
+                elif not isinstance(raw_stale, list):
+                    raise Atlas3Error(
+                        "RECONCILE_CORRUPT",
+                        "stale_memories must be a list",
                     )
-                stale = ((recon or {}).get("reconciliation") or {}).get("stale_memories") or []
+                else:
+                    stale = raw_stale
                 assert_items_project_scope(stale, project_id=args.project)
+                # AT3-CLI-F2: atlas memory stale must not dump CURRENT-tagged
+                # rows. compile_stale_conflict_intel already fail-closes this;
+                # the CLI lens must not bypass that guard.
+                if any(
+                    isinstance(item, dict) and str(item.get("freshness") or "") == "CURRENT"
+                    for item in stale
+                ):
+                    raise Atlas3Error(
+                        "STALE_AS_CURRENT",
+                        "stale_memories must not be CURRENT",
+                    )
                 return _dump({"stale_count": len(stale), "items": stale}, as_json=True)
         if command == "ledger":
             sub = getattr(args, "ledger_command", "")
