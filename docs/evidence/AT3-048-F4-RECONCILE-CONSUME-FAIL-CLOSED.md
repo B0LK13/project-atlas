@@ -12,7 +12,8 @@ or array `reconcile.json` as a healthy zero-hit search.
 
 ## Fix
 
-`load_memory_reconcile` distinguishes missing (empty) from corrupt (fail closed).
+`load_memory_reconcile` requires the project to exist, then distinguishes
+missing (empty) from corrupt (fail closed).
 Nested `reconciliation` / `items` / `conflicts` / `stale_memories` must be the
 declared shapes. Mixed valid+corrupt items fail closed.
 

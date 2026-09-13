@@ -104,6 +104,18 @@ def test_non_object_conflicts_fail_closed(tmp_path: Path) -> None:
     )
 
 
+def test_unknown_project_is_not_empty_search(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    with pytest.raises(Atlas3Error) as exc:
+        load_memory_reconcile(vault, "harbor-api")
+    assert exc.value.code == "UNKNOWN_PROJECT"
+    assert (
+        main(["memory", "search", "secret", "--vault", str(vault), "--project", "harbor-api"])
+        == EXIT_ERROR
+    )
+
+
 def test_missing_reconcile_stays_empty(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     assert load_memory_reconcile(vault, "harbor-api") is None
