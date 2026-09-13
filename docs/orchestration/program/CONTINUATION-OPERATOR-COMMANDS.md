@@ -215,6 +215,17 @@ Dispositions and their intended continuation:
 
 ## Envelopes and checkpoints
 
+The installed within-task demonstration is reproducible with a fresh disposable
+root using `scripts/atlas_continuation_execution_demo.py`. Run that script with
+the verified noneditable environment's Python, passing `--checkout`, full
+`--head`/`--tree`, a new `--root`, and `--cut first` (then another new root with
+`--cut final`). It refuses a dirty or differently pinned source checkout and
+source imports. The versioned test-only controller exits itself after a real
+step seal; replacements execute only remaining work. It performs no service
+operation. Results, observed command history, worker context, process identities
+and the capsule stay under the supplied root. An explicit unversioned local
+workspace fixture is labelled separately from installed-package provenance.
+
 ```bash
 atlas program envelope   --governed-root <G> --state-root <S> --action list
 atlas program envelope   --governed-root <G> --state-root <S> --action show --task <TASK_ID>

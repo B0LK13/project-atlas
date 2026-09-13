@@ -15081,3 +15081,26 @@ pre-freeze regression is running at this entry; installation and acceptance
 checkboxes remain open. No service installation/activation, paid worker, reboot,
 privilege change, push or merge occurred. Governance events are pending in the
 approved local spool and are not a strict receipt.
+
+### 2026-09-13 — continuation-002 independent contradiction repairs
+
+Coordinator: codex-continuation-002. C1 HEAD
+`a6e91c5a0ae43c5372511826a74ce56835ff0f04`, TREE
+`7f80ca0d614f1d3001b035768f6adb14f639f167` was independently NOT ACCEPTED for
+IV-STEP-03/04/05; its source, wheel, runtime and raw failures remain preserved.
+Native discriminators reproduced seven failures plus one valid positive on
+C1. Repair requires agreement between read-only launch, intent, checkpoint and
+attempt identities, preserves first-hand interrupted checkpoints on refusal,
+and validates each prefix step's accepted durable receipt and transcript before
+final reconciliation. Exactly exhausted wall time refuses final checks; pause
+retains its no-new-dispatch semantics and permits settlement of completed work.
+
+Fresh native suite: 25 passed. Full program/continuation and installed-demo
+integration suite: 466 passed, one existing skip in 190.91 seconds. Repository
+ruff passed; mypy passed all 471 source files. Exact dirty source/provenance and
+RED/GREEN logs are in `continuation-completion-002-NCrqj3B3/evidence/c2-*` and
+`iv-*`; these are coordinator measurements, not independent acceptance.
+The standalone installed within-task demo is prepared in
+`scripts/atlas_continuation_execution_demo.py`. The next exact frozen candidate
+still requires its new noneditable installation, actual demo runs and fresh
+independent verdict. No source tests or earlier passes imply activation.

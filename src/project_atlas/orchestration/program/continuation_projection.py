@@ -67,6 +67,7 @@ from project_atlas.orchestration.program.continuation import (
 from project_atlas.orchestration.program.loader import LoadedProgram
 from project_atlas.orchestration.program.models import (
     AcceptanceKind,
+    AttemptPhase,
     ExecutionConfidence,
     ProgramTask,
 )
@@ -445,6 +446,16 @@ def project_checkpoints(
             previous.envelope_digest != envelope.digest()
             or previous.uncertainty
             or any(effect.confirmed is not True for effect in previous.external_effects)
+        ):
+            continue
+        # An interrupted read-only dispatch has a first-hand intent, too.
+        # Recovery may have refused conflicting process records. Do not erase
+        # that checkpoint's identity with the weaker pre-return state fields.
+        if (
+            previous is not None
+            and attempt is not None
+            and previous.identity.attempt_id == attempt.attempt_id
+            and attempt.phase is AttemptPhase.ADAPTER_INVOKED
         ):
             continue
         # Step checkpoints are first-hand execution records. A boundary lens

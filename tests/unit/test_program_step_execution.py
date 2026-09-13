@@ -469,8 +469,11 @@ def test_verifier_obeys_current_envelope_deadline(
     assert (tmp_path / "workspace/VERIFIER.txt").exists() is not expired
 
 
+@pytest.mark.parametrize("fault", [None, "checkpoint_pair", "intent_pid", "attempt_pair"])
 def test_interrupted_read_only_work_actually_restarts_after_owned_child_exit(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str | None,
 ) -> None:
     from project_atlas.orchestration.program.adapters.base import pid_is_alive
 
@@ -496,7 +499,7 @@ def test_interrupted_read_only_work_actually_restarts_after_owned_child_exit(
             f"Path({str(diagnostic)!r}).open('a').write(Path('INPUT.txt').read_text())",
         ]
 
-    prepare(tmp_path, configure=configure)
+    dispatcher = prepare(tmp_path, configure=configure)
     controller = Path(__file__).with_name("_step_execution_controller.py")
     env = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR") if key in os.environ}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -513,6 +516,52 @@ def test_interrupted_read_only_work_actually_restarts_after_owned_child_exit(
     while pid_is_alive(child["child_pid"]) and time.monotonic() < deadline:
         time.sleep(0.05)
     assert not pid_is_alive(child["child_pid"]), child
+    if fault is not None:
+        from project_atlas.orchestration.program import store
+        from project_atlas.orchestration.program.adapters import local_command
+        from project_atlas.orchestration.program.continuation import load_checkpoint
+
+        cp = load_checkpoint(tmp_path, "work")
+        assert cp is not None
+        # Explicit contradiction injection, using only the exited test-owned
+        # controller identity. The real child's launch record is preserved.
+        controller_identity = json.loads(cut.stdout.splitlines()[0])
+        pair = {
+            "process_pid": controller_identity["pid"],
+            "process_start_identity": controller_identity["start_identity"],
+        }
+        if fault == "checkpoint_pair":
+            persist_checkpoint(
+                tmp_path, cp.model_copy(update={"sequence": cp.sequence + 1, **pair})
+            )
+        elif fault == "attempt_pair":
+            state = store.load_state(tmp_path)
+            assert state is not None
+            attempt = state.attempts[cp.identity.attempt_id]
+            attempt.process_pid = pair["process_pid"]
+            attempt.process_start_identity = pair["process_start_identity"]
+            store.persist_state(tmp_path, state)
+        else:
+            intent = store.load_launch_intent(tmp_path, cp.identity.attempt_id)
+            assert intent is not None
+            store.record_launch_intent(
+                tmp_path, attempt_id=cp.identity.attempt_id,
+                pid=controller_identity["pid"], supervisor_pid=intent["supervisor_pid"],
+                supervisor_instance_id=intent["supervisor_instance_id"],
+                supervisor_start_identity=intent["supervisor_start_identity"],
+            )
+
+        def forbidden(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("CONTRADICTORY_READONLY_REACHED_WORKER_SPAWN")
+
+        monkeypatch.setattr(local_command, "run_child_to_completion", forbidden)
+        assert dispatcher.tick().launched == 0
+        assert diagnostic.read_text() == input_bytes
+        after = load_checkpoint(tmp_path, "work")
+        assert after is not None and not after.terminal
+        if fault == "checkpoint_pair":
+            assert after.process_pid == pair["process_pid"]
+        return
     resumed = subprocess.run(
         [sys.executable, str(controller), str(tmp_path), str(Path.cwd()), "resume"],
         env=env,
@@ -537,6 +586,52 @@ def test_interrupted_read_only_work_actually_restarts_after_owned_child_exit(
     assert json.loads(resumed.stdout.splitlines()[-1])["launches"] == 1, resumed.stdout
     assert diagnostic.read_text() == input_bytes * 2
     assert (tmp_path / "workspace/INPUT.txt").read_text() == input_bytes
+
+
+@pytest.mark.parametrize(
+    "fault", ["earlier_acceptance", "earlier_exit", "earlier_missing", "wall_equal"]
+)
+def test_final_reconciliation_refuses_contradictory_prefix_or_spent_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str,
+) -> None:
+    from project_atlas.orchestration.program import store, supervisor
+    from project_atlas.orchestration.program.continuation import load_checkpoint, load_envelope
+
+    dispatcher = prepare(tmp_path, steps=True)
+    controller = Path(__file__).with_name("_step_execution_controller.py")
+    cut = subprocess.run(
+        [sys.executable, str(controller), str(tmp_path), str(Path.cwd()), "cut-final"],
+        capture_output=True, text=True, timeout=20,
+    )
+    assert cut.returncode == 91, (cut.stdout, cut.stderr)
+    cp = load_checkpoint(tmp_path, "work")
+    state = store.load_state(tmp_path)
+    assert cp is not None and state is not None
+    assert cp.last_completed_step == "SECOND" and not cp.terminal
+    first = next(a for a in state.attempts.values() if a.step_id == "FIRST")
+    if fault == "earlier_acceptance":
+        first.acceptance_passed = False
+    elif fault == "earlier_exit":
+        first.exit_status = 23
+    elif fault == "earlier_missing":
+        del state.attempts[first.attempt_id]
+    else:
+        envelope = load_envelope(tmp_path, "work")
+        assert envelope is not None
+        persist_checkpoint(tmp_path, cp.model_copy(update={
+            "sequence": cp.sequence + 1,
+            "consumed_budget": cp.consumed_budget.model_copy(
+                update={"wall_seconds": envelope.budgets.max_wall_seconds}),
+        }))
+    store.persist_state(tmp_path, state)
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("CONTRADICTORY_FINAL_BOUNDARY_REACHED_ACCEPTANCE")
+
+    monkeypatch.setattr(supervisor, "evaluate_task", forbidden)
+    assert dispatcher.tick().launched == 0
+    after = load_checkpoint(tmp_path, "work")
+    assert after is not None and not after.terminal
 
 
 def test_unknown_workspace_revision_is_not_inferred_from_approval(tmp_path: Path) -> None:

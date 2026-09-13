@@ -75,6 +75,29 @@ def completed_boundary(root: Path, task: ProgramTask, state: ProgramStateRecord)
         for command, step in zip(cp.commands, prefix, strict=True)
     ):
         return False
+    # IV-STEP-05: the final receipt is not authority for an earlier step.
+    # Require one durable accepted attempt and its observed transcript for
+    # every approved prefix command. Missing, duplicate or contradictory
+    # receipts require reconciliation, never reconstructed success.
+    for command, step in zip(cp.commands, prefix, strict=True):
+        receipts = [
+            item for item in state.attempts.values()
+            if item.task_id == task.task_id and item.step_id == step.step_id
+        ]
+        if len(receipts) != 1:
+            return False
+        receipt = receipts[0]
+        if (
+            receipt.exit_status != 0
+            or receipt.confidence is not ExecutionConfidence.CONFIRMED
+            or receipt.acceptance_passed is not True
+            or not receipt.runtime_session_id
+            or not receipt.process_pid
+            or receipt.process_start_identity in {None, "", "unknown"}
+            or pid_is_alive(receipt.process_pid)
+            or _capture_commands(root, receipt)[0] != (command,)
+        ):
+            return False
     return bool(
         not cp.uncertainty
         and cp.last_completed_step
@@ -121,11 +144,12 @@ def final_acceptance_ready(root: Path, task: ProgramTask, state: ProgramStateRec
     consumed = consumed_for_task(state, task.task_id, cp)
     budgets = envelope.budgets
     # Exactly spent worker reservations do not prohibit controller acceptance;
-    # exceeding any bound still refuses. No new worker is authorized here.
+    # exceeding any bound still refuses. Final checks do require remaining
+    # wall time. Pause gates worker dispatch, not this no-launch settlement.
     return (
         consumed.attempts <= budgets.max_attempts
         and consumed.launches <= budgets.max_launches
-        and consumed.wall_seconds <= budgets.max_wall_seconds
+        and consumed.wall_seconds < budgets.max_wall_seconds
         and consumed.model_calls <= budgets.max_model_calls
         and consumed.estimated_cost_usd <= budgets.max_estimated_cost_usd
     )

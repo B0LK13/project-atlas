@@ -2933,10 +2933,14 @@ class ProgramSupervisor:
                 from datetime import UTC, datetime
 
                 from project_atlas.orchestration.program.adapters.base import pid_is_alive
-                from project_atlas.orchestration.program.store import load_launch
+                from project_atlas.orchestration.program.store import (
+                    load_launch,
+                    load_launch_intent,
+                )
 
                 checkpoint = load_checkpoint(self.root, task.task_id)
                 launched = load_launch(self.root, attempt.attempt_id)
+                intent = load_launch_intent(self.root, attempt.attempt_id)
                 pid = launched.get("pid") if launched else None
                 identity = launched.get("process_start_identity") if launched else None
                 revoked = self._authority_revoked(task.task_id)
@@ -2945,13 +2949,26 @@ class ProgramSupervisor:
                     and revoked is None
                     and checkpoint is not None
                     and checkpoint.identity.attempt_id == attempt.attempt_id
+                    and checkpoint.identity.task_id == attempt.task_id
+                    and checkpoint.identity.worker_id == attempt.agent_id
+                    and checkpoint.identity.session_id == attempt.runtime_session_id
                     and checkpoint.envelope_digest == envelope.digest()
                     and not checkpoint.uncertainty
                     and not checkpoint.terminal
                     and isinstance(pid, int)
+                    and not isinstance(pid, bool)
                     and pid > 0
                     and isinstance(identity, str)
                     and identity not in {"", "unknown"}
+                    # IV-STEP-03/04: never promote one record by overwriting
+                    # conflicting durable evidence. Only the original empty
+                    # pre-spawn pairs or the exact identified launch agree.
+                    and intent is not None
+                    and intent.get("pid") == pid
+                    and (checkpoint.process_pid, checkpoint.process_start_identity)
+                    in {(None, None), (pid, identity)}
+                    and (attempt.process_pid, attempt.process_start_identity)
+                    in {(None, None), (pid, identity)}
                     and not pid_is_alive(pid)
                 )
                 if safe:

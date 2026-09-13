@@ -71,6 +71,16 @@ downtime, not fabricated active CPU time. Missing historical time observations
 block further worker dispatch and are labelled as unknown/lower-bound data.
 Exactly spent worker reservations do not themselves authorize another worker;
 they also do not forbid controller-only final acceptance of completed steps.
+Final acceptance does require strictly positive remaining wall time and current
+authority/deadline. Pause prohibits new dispatch but permits this settlement
+of already completed work; it does not grant a new worker reservation.
+
+Every completed prefix step must retain exactly one matching successful durable
+attempt receipt and observed transcript. The last receipt cannot override a
+contradictory earlier acceptance. Read-only recovery requires agreeing launch
+and intent child IDs; existing checkpoint/attempt process pairs must either be
+the empty pre-spawn pair or match the identified launch exactly. Conflicting
+records are retained for reconciliation, never overwritten into a restart grant.
 
 ## Observed revision versus fixture input
 
