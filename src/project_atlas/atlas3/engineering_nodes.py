@@ -44,6 +44,13 @@ def compile_engineering_nodes(vault: Any, project_id: str) -> dict[str, Any]:
         event_id = str(event.get("event_id") or "").strip()
         if not event_id:
             continue
+        source = str(event.get("source") or event.get("source_plane") or "").strip()
+        authority = str(
+            event.get("authority_class") or event.get("authority") or ""
+        ).strip()
+        # CONVERSATION != TRUTH / LLM OUTPUT != AUTHORITY. AT3-013-F1.
+        if source == "conversation_capture" or authority == "non-canonical":
+            continue
         raw_refs = event.get("evidence_refs") or []
         refs = [str(item).strip() for item in raw_refs if str(item).strip()]
         if not refs:

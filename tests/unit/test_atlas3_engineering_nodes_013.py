@@ -52,6 +52,64 @@ def test_ledger_events_project_to_nodes(tmp_path: Path) -> None:
     assert all(node["evidence_refs"] for node in report["nodes"])
 
 
+def test_conversation_non_canonical_does_not_mint_derived_nodes(tmp_path: Path) -> None:
+    """AT3-013-F1 — conversation / non-canonical must not become derived nodes."""
+    vault = _vault(tmp_path)
+    append_event(
+        vault,
+        "harbor-api",
+        kind="commit",
+        source_plane="conversation_capture",
+        authority_class="non-canonical",
+        summary="LLM claimed a commit happened",
+        subject_id="deadbeef",
+        evidence_refs=[],
+    )
+    report = compile_engineering_nodes(vault, "harbor-api")
+    assert report["status"] == "UNKNOWN"
+    assert report["nodes"] == []
+    assert report["counts"] == {"commit": 0, "pr": 0, "test": 0, "build": 0}
+    assert report["invented_from_git"] is False
+    assert report["promoted_to_truth_core"] == 0
+
+
+def test_conversation_capture_skipped_even_when_authority_derived(
+    tmp_path: Path,
+) -> None:
+    """AT3-013-F1 — conversation plane is not engineering provenance."""
+    vault = _vault(tmp_path)
+    append_event(
+        vault,
+        "harbor-api",
+        kind="pr",
+        source_plane="conversation_capture",
+        authority_class="derived",
+        summary="model said a PR opened",
+        subject_id="pr-llm",
+        evidence_refs=["chat:turn-9"],
+    )
+    report = compile_engineering_nodes(vault, "harbor-api")
+    assert report["nodes"] == []
+    assert report["status"] == "UNKNOWN"
+
+
+def test_honest_engineering_event_still_projects(tmp_path: Path) -> None:
+    """AT3-013-F1 — honest engineering plane still becomes a derived node."""
+    vault = _vault(tmp_path)
+    append_event(
+        vault,
+        "harbor-api",
+        kind="commit",
+        source_plane="engineering",
+        summary="landed fix",
+        subject_id="abc123",
+    )
+    report = compile_engineering_nodes(vault, "harbor-api")
+    assert report["status"] == "derived"
+    assert report["counts"]["commit"] == 1
+    assert report["nodes"][0]["authority"] == "derived"
+
+
 def test_non_mapped_events_do_not_invent_nodes(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     append_event(vault, "harbor-api", kind="decision", summary="keep postgres 15")

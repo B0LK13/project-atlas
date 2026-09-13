@@ -14915,3 +14915,19 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-013-F1 — Conversation is not an engineering twin node
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3013-conversation-not-engineering-node`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: conversation_capture /
+non-canonical commit rows with empty evidence became derived commit
+nodes whose only provenance was an invented `ledger:{event_id}` self-ref.
+
+Fix: skip conversation_capture and non-canonical before minting nodes.
+Honest engineering-plane events still project.
+
+Does not write Truth Core. Does not authorize merge.
