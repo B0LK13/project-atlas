@@ -39,6 +39,9 @@ def append_event(
     record = event or normalize_engineering_event(project_id=pid, **kwargs)
     if record.get("project_id") != pid:
         raise Atlas3Error("PROJECT_MISMATCH", "event project_id does not match ledger project")
+    # AT3-014-F1: caller-supplied events are verified before any ledger I/O.
+    # A tampered content_hash must not persist and poison list_events/pulse/start.
+    verify_engineering_event(record, expected_project_id=pid)
     path = _ledger_path(root, pid)
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = list_events(root, pid)
