@@ -291,7 +291,11 @@ def _existing_capture_id(text: str) -> str | None:
         return None
     try:
         loaded = yaml.safe_load(probe[4:end])
-    except yaml.YAMLError:
+    except (yaml.YAMLError, KeyError):
+        # PyYAML constructor tags such as ``!!bool nope`` raise a bare
+        # ``KeyError``, not ``yaml.YAMLError``. Treat that the same as
+        # unparseable frontmatter: not Atlas-managed. Do not widen
+        # acceptance — the caller still refuses with OBSIDIAN_NOTE_CONFLICT.
         return None
     if not isinstance(loaded, dict):
         return None

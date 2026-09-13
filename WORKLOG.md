@@ -14915,3 +14915,20 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AS-OBSIDIAN-CAPTURE-001-F7-R1 — YAML constructor KeyError containment
+
+**Date:** 2026-09-13
+**Branch:** `fix/obsidian-capture-yaml-keyerror-f7-r1`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Mode:** Night-cycle autonomous remediation. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+F7 recorded that `yaml.safe_load("atlas: !!bool nope")` raises a bare
+`KeyError`, so `_existing_capture_id` and public `retry()` escaped. Outcome
+was fail-closed (bytes unchanged); mechanism was wrong.
+
+Fix: catch `(yaml.YAMLError, KeyError)` and treat the shape as unmanaged.
+Does not widen acceptance. Does not touch `ingestion.py`.
+
