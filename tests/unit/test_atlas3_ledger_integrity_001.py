@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,7 +23,7 @@ def _ledger_path(vault: Path) -> Path:
     return vault / "generated" / "ops" / "atlas3" / "ledger" / "harbor-api.jsonl"
 
 
-def _read_ledger_rows(vault: Path) -> list[dict]:
+def _read_ledger_rows(vault: Path) -> list[dict[str, Any]]:
     path = _ledger_path(vault)
     lines = path.read_text(encoding="utf-8").splitlines()
     return [json.loads(line) for line in lines if line.strip()]
