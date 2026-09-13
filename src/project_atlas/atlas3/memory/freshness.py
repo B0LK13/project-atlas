@@ -12,6 +12,19 @@ _PG = re.compile(r"postgresql?\s*(\d+)", re.I)
 FRESHNESS_STATES: Final[frozenset[str]] = frozenset(
     {"CURRENT", "STALE", "CONTESTED", "UNKNOWN"}
 )
+_NON_CURRENT_EVIDENCE: Final[frozenset[str]] = frozenset(
+    {"STALE", "UNKNOWN", "CONTESTED"}
+)
+
+
+def _evidence_freshness(row: dict[str, Any]) -> str:
+    if row.get("historical") is True:
+        return "STALE"
+    return str(row.get("freshness") or "").strip().upper()
+
+
+def _evidence_is_non_current(row: dict[str, Any]) -> bool:
+    return _evidence_freshness(row) in _NON_CURRENT_EVIDENCE
 
 
 def freshness_capability() -> dict[str, Any]:
@@ -45,15 +58,24 @@ def classify_freshness(
             return "STALE"
         return "UNKNOWN"
     claimed = claim_match.group(1)
-    current_state = None
+    version_rows: list[tuple[str, dict[str, Any]]] = []
     for row in evidence:
         if row.get("kind") in {"deployment", "repository", "config", "current_state"}:
             found = _PG.search(str(row.get("text") or ""))
             if found:
-                current_state = found.group(1)
+                version_rows.append((found.group(1), row))
+    current_state = version_rows[-1][0] if version_rows else None
     if current_state and current_state != claimed:
         return "STALE"
     if current_state and current_state == claimed:
+        matching = [row for version, row in version_rows if version == claimed]
+        if matching and all(_evidence_is_non_current(row) for row in matching):
+            labels = {_evidence_freshness(row) for row in matching}
+            if "CONTESTED" in labels:
+                return "CONTESTED"
+            if "STALE" in labels:
+                return "STALE"
+            return "UNKNOWN"
         return "CURRENT"
     if any(row.get("contested") for row in evidence):
         return "CONTESTED"
