@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from agent_control import receipt_gate, session
+from agent_control import receipt_gate, session, vault_identity
 
 
 def synchronize(spool_root: Path, vault_root: Path, mda_command: str) -> dict[str, Any]:
@@ -27,6 +27,15 @@ def synchronize(spool_root: Path, vault_root: Path, mda_command: str) -> dict[st
         raise ValueError("spool skill acknowledgement mismatch")
     if state.get("preflight", {}).get("readiness", {}).get("authorized") is not True:
         raise ValueError("spool adapter readiness is not authorized")
+    expected_id = str((state.get("vault") or {}).get("vault_id") or "").strip()
+    expected_uuid = str((state.get("vault") or {}).get("vault_uuid") or "").strip()
+    dest_identity = vault_identity.read(vault_root)
+    if expected_id and dest_identity.vault_id != expected_id:
+        raise ValueError(
+            f"wrong Atlas Vault ID: expected {expected_id}, found {dest_identity.vault_id}"
+        )
+    if expected_uuid and dest_identity.vault_uuid != expected_uuid:
+        raise ValueError("wrong Atlas Vault UUID")
     if not events:
         existing_path = vault_root / ".atlas" / "sessions" / state_files[0].name
         if existing_path.is_file():

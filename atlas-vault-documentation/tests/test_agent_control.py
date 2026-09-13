@@ -230,6 +230,76 @@ def test_real_cli_offline_spool_syncs_once(tmp_path: Path) -> None:
     assert json.loads(replay.stdout)["spool"]["synchronized"] == 0
 
 
+def test_sync_spool_refuses_foreign_vault_identity(tmp_path: Path) -> None:
+    """AS-CTRL-SPOOL-F1 — spool session vault id must match dest vault.json."""
+    project = tmp_path / "project"
+    vault = tmp_path / "vault"
+    other = tmp_path / "other"
+    registry = tmp_path / "readiness.yaml"
+    (project / ".atlas").mkdir(parents=True)
+    (vault / ".atlas").mkdir(parents=True)
+    (other / ".atlas").mkdir(parents=True)
+    (vault / ".atlas" / "vault.json").write_text(
+        json.dumps({"vault_id": "atlas-rehearsal", "vault_uuid": "rehearsal-uuid"}),
+        encoding="utf-8",
+    )
+    (other / ".atlas" / "vault.json").write_text(
+        json.dumps({"vault_id": "vault-OTHER", "vault_uuid": "other-uuid"}),
+        encoding="utf-8",
+    )
+    skill = skill_loader.load(ROOT / "skills" / "atlas-governed-work")
+    registry.write_text(
+        f"schema_version: 1\nadapters:\n  generic-cli-v1:\n    skill_version: {skill.version}\n    skill_sha256: {skill.sha256}\n    rehearsal_status: passed\n    revoked: false\n",
+        encoding="utf-8",
+    )
+    (project / ".atlas" / "project.yaml").write_text(
+        f"schema_version: 1\nproject:\n  id: governed-work-offline\n  name: Governed Work Offline\nvault:\n  required_vault_id: atlas-rehearsal\n  required_vault_uuid: rehearsal-uuid\ndocumentation:\n  skill_id: atlas-governed-work\n  readiness_registry: {registry}\n  strict: true\n",
+        encoding="utf-8",
+    )
+    cli = str(ROOT / "scripts" / "atlas_agent.py")
+    env = dict(os.environ, ATLAS_MDA_COMMAND=str(ROOT / "tests" / "fixtures" / "bin" / "mda"))
+    boot = subprocess.run(
+        [sys.executable, cli, "bootstrap", "--project-root", str(project), "--task-id", "AS-SKILL-001", "--json"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert boot.returncode == 0, boot.stderr
+    sid = str(json.loads(boot.stdout)["session"]["id"])
+    spool = project / ".atlas-spool"
+    for command in (("acknowledge-skill",), ("capability-check",)):
+        result = subprocess.run(
+            [sys.executable, cli, *command, "--vault-root", str(spool), "--session-id", sid, "--json"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+    for event_type in ("implementation", "validation", "completion"):
+        result = subprocess.run(
+            [sys.executable, cli, "document", "--vault-root", str(spool), "--session-id", sid, "--type", event_type, "--summary", f"Offline {event_type}", "--json"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+    sync = subprocess.run(
+        [sys.executable, cli, "sync-spool", "--spool-root", str(project), "--vault-root", str(other), "--mda-command", env["ATLAS_MDA_COMMAND"], "--json"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert sync.returncode != 0
+    combined = (sync.stderr or "") + (sync.stdout or "")
+    assert "wrong Atlas Vault" in combined
+    assert not list((other / "sources").glob("**/*")) if (other / "sources").exists() else True
+    assert not list((other / ".atlas" / "receipts").glob("ASR-*.json"))
+
+
 def test_managed_launcher_automates_ack_capability_and_postflight(tmp_path: Path) -> None:
     project = tmp_path / "project"
     vault = tmp_path / "vault"
