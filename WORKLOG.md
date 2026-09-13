@@ -14915,3 +14915,18 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-051/052-F1 — control characters cannot disguise implementer as verifier
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3051-actor-id-control-chars`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+`implementer\\x00` / `model\\x00` bound IV/ADV because the forbidden-actor check compared the full NUL-suffixed string. Control characters now fail closed.
+
+Follow-on: ZWSP/format characters and non-ASCII homoglyphs (`implementer\\u200b`, Cyrillic i) also fail closed. Actor ids must be ASCII tokens.
+
+Evidence: `docs/evidence/AT3-051-F1-ACTOR-ID-CONTROL-CHARS.md`
