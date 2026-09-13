@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-030-F2 — Start must not present a stale state lens as current truth
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3030-start-stale-as-current`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+`compile_start(..., freshness_requirement="CURRENT")` presented a STALE+verified state lens as `current_verified_truth` / derived and set `stale_presented_as_current=False`. Empty `{}` was treated as a present lens. STALE state now fails closed (`STALE_AS_CURRENT`). Distinct from #844 project-scope bind. `pulse.py` / `ingestion.py` untouched.
+
+Evidence: `docs/evidence/AT3-030-F2-START-STALE-AS-CURRENT.md`
