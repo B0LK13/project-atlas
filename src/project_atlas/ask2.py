@@ -56,6 +56,7 @@ from project_atlas.runtime_22 import (
     compile_context,
 )
 from project_atlas.schema import SchemaValidationError, validate_record
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-2.2-ASK2-001"
 ARTIFACT_KIND = "ask-atlas-2-answer"
@@ -225,7 +226,7 @@ def _record_provenance(hit: RetrievalResult) -> list[dict[str, str]]:
     pointers: list[dict[str, str]] = []
     for item in hit.provenance:
         ref = _extract_ref(item)
-        if ref is not None:
+        if ref is not None and not scan_text(ref):
             pointers.append({"kind": "source", "ref": ref})
     return pointers
 

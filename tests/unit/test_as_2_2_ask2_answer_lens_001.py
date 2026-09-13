@@ -667,3 +667,47 @@ def test_ask2_legacy_matches_subordinate_when_known(tmp_path: Path) -> None:
     # Legacy is a non-authoritative substring surface; authority still Core.
     assert answer["AUTHORITY"]["source"] == "core-context-compiler"
     assert all(m["source"] == "legacy-substring" for m in legacy["matches"])
+
+
+def test_ask2_does_not_echo_secret_shaped_provenance(tmp_path: Path) -> None:
+    """AS-ASK2-F1 — NFR-004: secret-shaped provenance refs must not appear."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _empty_indexes(vault)
+    secret_ref = "AKIAIOSFODNN7EXAMPLE"
+    _wr(
+        vault / "generated" / "indexes" / "concepts.json",
+        {
+            "by_concept_id": {"secret-concept": ["secret-concept"]},
+            "by_type": {"capability": ["secret-concept"]},
+            "by_project_id": {"demo": ["secret-concept"]},
+            "by_tag": {},
+            "by_relationship_target": {},
+        },
+    )
+    _wr(
+        vault / "state" / "concepts" / "demo.json",
+        {
+            "concepts": [
+                {
+                    "concept_id": "secret-concept",
+                    "type": "capability",
+                    "project_id": "demo",
+                    "summary": "capability described without embedding the secret",
+                    "provenance": [
+                        {"source_lineage_id": "sline-honest"},
+                        {"source_id": secret_ref, "ref": secret_ref},
+                    ],
+                }
+            ]
+        },
+    )
+    answer = ask_atlas_2(
+        vault,
+        question="capability described without embedding the secret",
+        project_id="demo",
+        kinds=("concept",),
+    )
+    rendered = answer_to_json(answer)
+    assert secret_ref not in rendered
+    assert "AKIA" not in rendered
