@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-100-F1 — twin health must not treat stale signals as current
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3100-twin-health-stale-as-current`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Declared CURRENT signals with STALE freshness / stale_as_current compiled as derived. Now fail closed.
+
+Evidence: `docs/evidence/AT3-100-F1-TWIN-HEALTH-STALE-AS-CURRENT.md`
