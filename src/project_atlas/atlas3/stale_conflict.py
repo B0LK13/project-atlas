@@ -96,6 +96,8 @@ def compile_stale_conflict_intel(vault: Path | str, project_id: str) -> dict[str
             raise Atlas3Error("RECONCILE_CORRUPT", "memory reconcile must be an object")
         _reject_authority_claims(recon, label="reconcile")
         nested = recon.get("reconciliation")
+        if nested is not None and not isinstance(nested, dict):
+            raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation must be an object")
         block = nested if isinstance(nested, dict) else recon
         if not isinstance(block, dict):
             raise Atlas3Error("RECONCILE_CORRUPT", "reconciliation must be an object")
@@ -114,6 +116,8 @@ def compile_stale_conflict_intel(vault: Path | str, project_id: str) -> dict[str
             if any(str(item.get("freshness") or "") == "CURRENT" for item in memory_stale):
                 raise Atlas3Error("STALE_AS_CURRENT", "stale_memories must not be CURRENT")
         raw_conflicts = block.get("conflicts")
+        if raw_conflicts is not None and not isinstance(raw_conflicts, dict):
+            raise Atlas3Error("RECONCILE_CORRUPT", "conflicts must be an object")
         if isinstance(raw_conflicts, dict):
             _reject_authority_claims(raw_conflicts, label="conflicts")
             memory_conflicts = raw_conflicts
