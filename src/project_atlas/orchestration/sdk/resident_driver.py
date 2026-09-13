@@ -92,8 +92,8 @@ def _append_tick_log(root: Path, row: dict[str, Any]) -> None:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
-def _lock_record(path: Path) -> dict[str, Any] | None:
-    """Decode a primary-lock receipt, or None when it is not an object.
+def _json_object(path: Path) -> dict[str, Any] | None:
+    """Decode a persisted JSON object, or None when it is not an object.
 
     D146-LOCK-RECEIPT-SHAPE-HARDENING (#767): valid JSON that is not an
     object (array, number, string, null) must not escape as AttributeError
@@ -107,6 +107,10 @@ def _lock_record(path: Path) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         return None
     return data
+
+
+def _lock_record(path: Path) -> dict[str, Any] | None:
+    return _json_object(path)
 
 
 def _lock_pid(data: dict[str, Any] | None) -> int:
@@ -345,9 +349,9 @@ def _try_closed_loop(root: Path, *, now: float) -> dict[str, object] | None:
     hook.reconcile(root, now=now)
     marker = _runtime(root) / "d134-last-closed-loop.json"
     if marker.is_file():
+        prev = _json_object(marker)
         try:
-            prev = json.loads(marker.read_text(encoding="utf-8"))
-            if now - float(prev.get("at", 0)) < 20.0:
+            if prev is not None and now - float(prev.get("at", 0)) < 20.0:
                 progress = hook.progress_state(root)
                 return {
                     "paced": True,
@@ -358,7 +362,7 @@ def _try_closed_loop(root: Path, *, now: float) -> dict[str, object] | None:
                     "MISSION_GENERATION": progress.get("MISSION_GENERATION", 0),
                     "at": now,
                 }
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        except (TypeError, ValueError):
             pass
 
     items = hook.ready_work(root, capacity=1)

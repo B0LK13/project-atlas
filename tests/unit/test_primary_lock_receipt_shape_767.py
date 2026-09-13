@@ -73,3 +73,49 @@ def test_object_receipt_with_live_self_pid_still_reads(tmp_path: Path) -> None:
     assert read_primary_lock_pid(tmp_path) == os.getpid()
     release_primary_lock(tmp_path)
     assert read_primary_lock_pid(tmp_path) == 0
+
+
+class _StubClosedLoopHook:
+    def reconcile(self, root: Path, *, now: float | None = None) -> dict[str, object]:
+        return {"ok": True}
+
+    def ready_work(self, root: Path, *, capacity: int = 2) -> list[object]:
+        return []
+
+    def active_worker_count(self, root: Path) -> int:
+        return 0
+
+    def progress_state(self, root: Path) -> dict[str, object]:
+        return {
+            "MISSION_GENERATION": 1,
+            "PROGRESS_SEQUENCE": 1,
+            "EMPTY_READY_QUEUE_RECONCILIATION_COUNT": 0,
+        }
+
+    def closed_loop_tick(
+        self, root: Path, *, now: float | None = None
+    ) -> dict[str, object]:
+        return {"REAL_WORKER_DISPATCH_COUNT": 0}
+
+
+@pytest.mark.parametrize("payload", _WRONG_SHAPES)
+def test_closed_loop_marker_wrong_shape_does_not_raise(
+    tmp_path: Path, payload: object
+) -> None:
+    from project_atlas.orchestration.sdk.closed_loop_port import (
+        clear_closed_loop_hook,
+        register_closed_loop_hook,
+    )
+    from project_atlas.orchestration.sdk.resident_driver import _try_closed_loop
+
+    clear_closed_loop_hook()
+    register_closed_loop_hook(_StubClosedLoopHook())
+    marker = _runtime(tmp_path) / "d134-last-closed-loop.json"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps(payload), encoding="utf-8")
+    try:
+        result = _try_closed_loop(tmp_path, now=4000.0)
+    finally:
+        clear_closed_loop_hook()
+    assert result is not None
+    assert result.get("paced") is not True
