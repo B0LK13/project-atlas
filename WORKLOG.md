@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-015-F2 — Pulse must not compose stale or empty answers as current truth
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3015-pulse-stale-as-current`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Pulse `_from_answer` copied `status=verified` from a `freshness=STALE` lens file and treated `{}` as derived evidence. Empty answers stay UNKNOWN. STALE+verified/current fails closed (`STALE_AS_CURRENT`). Distinct from #843 project-scope bind. `ingestion.py` / `start.py` untouched.
+
+Evidence: `docs/evidence/AT3-015-F2-PULSE-STALE-AS-CURRENT.md`
