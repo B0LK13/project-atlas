@@ -231,6 +231,11 @@ def load_safe_yaml(data: bytes | str, limits: YamlSecurityLimits = DEFAULT_YAML_
         raise UnsafeConstructionError(f"unsafe YAML construction refused: {exc}") from exc
     except yaml.YAMLError as exc:
         raise MalformedYamlError(f"YAML parse failure: {exc}") from exc
+    except KeyError as exc:
+        # Standard constructor tags such as ``!!bool nope`` raise a bare
+        # ``KeyError``, not ``yaml.YAMLError``. Surface the same structured
+        # contract as other malformed YAML — never leak the constructor error.
+        raise MalformedYamlError(f"YAML constructor failure: {exc}") from exc
 
 
 # --- yamlpath locators (§7.4) ---------------------------------------------

@@ -50,6 +50,12 @@ def test_malformed_yaml_raises_structured_error() -> None:
         load_safe_yaml(_fixture_bytes("synthetic/malformed-yaml.yaml"))
 
 
+def test_bool_constructor_keyerror_is_structured() -> None:
+    """PyYAML ``!!bool nope`` raises bare KeyError; the public loader must not."""
+    with pytest.raises(MalformedYamlError, match="constructor"):
+        load_safe_yaml("atlas: !!bool nope\n")
+
+
 def test_alias_amplification_bounded() -> None:
     with pytest.raises(ResourceLimitError, match="max_node_references"):
         load_safe_yaml(_fixture_bytes("synthetic/alias-amplification.yaml"))
