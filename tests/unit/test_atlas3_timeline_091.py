@@ -59,6 +59,47 @@ def test_wall_clock_flag_fails_closed() -> None:
     assert exc.value.code == "WALL_CLOCK_AS_VALID_TIME"
 
 
+def test_string_true_wall_clock_flag_fails_closed() -> None:
+    """AT3-091-F1 — truthy string/int flags are wall-clock, not declared."""
+    from project_atlas.atlas3.timeline import _valid_key
+
+    for flag in ("true", "TRUE", "1", 1, "yes"):
+        with pytest.raises(Atlas3Error) as exc:
+            _valid_key({"wall_clock_is_valid_time": flag, "valid_from": "2026-08-01"})
+        assert exc.value.code == "WALL_CLOCK_AS_VALID_TIME"
+
+
+def test_valid_time_equal_to_observed_at_fails_closed(tmp_path: Path) -> None:
+    """AT3-091-F1 — observed_at copied into valid_time is not declared valid-time."""
+    vault = _vault(tmp_path)
+    append_event(
+        vault,
+        "harbor-api",
+        kind="commit",
+        summary="wall-clock smuggle",
+        valid_time="2026-09-13T22:00:00Z",
+        observed_at="2026-09-13T22:00:00Z",
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        compile_timeline(vault, "harbor-api")
+    assert exc.value.code == "WALL_CLOCK_AS_VALID_TIME"
+
+
+def test_declared_valid_from_without_observed_at_still_orders(tmp_path: Path) -> None:
+    """AT3-091-F1 — honest document-declared valid_from remains declared."""
+    vault = _vault(tmp_path)
+    append_event(
+        vault,
+        "harbor-api",
+        kind="commit",
+        summary="earlier",
+        valid_from="2026-08-01",
+    )
+    report = compile_timeline(vault, "harbor-api")
+    assert report["entries"][0]["temporal_status"] == "declared"
+    assert report["entries"][0]["valid_time"] == "2026-08-01"
+
+
 def test_cli_timeline(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     vault = _vault(tmp_path)
     parser = argparse.ArgumentParser()

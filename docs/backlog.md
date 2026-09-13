@@ -782,6 +782,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-100 Isolated twin health (derived signals; health != authority; estate != authorization)
 - [x] AT3-090 Isolated Atlas Home composer (Pulse+Start+twin health; UI != truth)
 - [x] AT3-091 Isolated Timeline (declared valid-time; wall-clock != valid-time)
+- [x] AT3-091-F1 Timeline refuses wall-clock / observed_at as declared valid-time (truthy flag and valid_time==observed_at fail closed; TIMELINE != TRUTH CORE)
 - [x] AT3-094 Isolated Decision Explorer (declared owner_origin; model paraphrase != owner)
 - [x] AT3-092 Isolated Truth Graph UX (declared claims/relationships; graph != authority)
 - [x] AT3-096 Isolated Mission Command Center (declared DAG/leases; no self-merge)

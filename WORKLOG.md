@@ -14915,3 +14915,25 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-091-F1 — Timeline refuses wall-clock as declared valid-time
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3091-wall-clock-not-declared`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: `_valid_key` only rejected
+`wall_clock_is_valid_time is True`. `valid_time == observed_at` and
+string/int truthy flags were labeled `temporal_status: "declared"` and
+used for timeline order.
+
+Fix: fail closed on truthy wall-clock flags and when declared valid-time
+equals `observed_at`. Honest `valid_from` without `observed_at` still
+orders as declared.
+
+Does not touch `ingestion.py` or Time Machine UX. Does not write Truth
+Core. Does not authorize merge.
+
+Evidence: `docs/evidence/AT3-091-F1-WALL-CLOCK-NOT-DECLARED.md`
+
