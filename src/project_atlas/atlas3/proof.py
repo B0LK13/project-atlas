@@ -6,6 +6,7 @@ Evidence chain: TASK → IMPLEMENTATION → TESTS → CI → IV → ADV → INTE
 
 from __future__ import annotations
 
+import json
 from typing import Any, Final
 
 from project_atlas.atlas3.contracts import (
@@ -14,8 +15,8 @@ from project_atlas.atlas3.contracts import (
     TRUTH_BOUNDARY,
     Atlas3Error,
     honesty_block,
+    require_project,
     require_vault,
-    safe_project_id,
     write_json_atomic,
 )
 
@@ -45,7 +46,21 @@ def evaluate_proof(
     tid = task_id.strip()
     if not tid or "/" in tid or "\\" in tid or tid in {".", ".."}:
         raise Atlas3Error("UNSAFE_TASK_ID", f"unsafe task id: {task_id!r}")
-    pid = safe_project_id(project_id)
+    pid = require_project(root, project_id)
+    path = root / OPS_RELATIVE / "proof" / f"{tid}.json"
+    if path.is_file():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise Atlas3Error("PROOF_CORRUPT", "proof artifact is not readable JSON") from exc
+        if not isinstance(existing, dict):
+            raise Atlas3Error("PROOF_CORRUPT", "proof artifact must be an object")
+        prior = existing.get("project_id")
+        if prior is not None and str(prior) != pid:
+            raise Atlas3Error(
+                "PROJECT_MISMATCH",
+                f"proof {tid!r} already bound to project {prior!r}",
+            )
     supplied = evidence or {}
     stages: dict[str, Any] = {}
     present = 0
@@ -92,5 +107,5 @@ def evaluate_proof(
         "honesty": honesty_block(),
         "generated": {"by": GENERATOR_ID},
     }
-    write_json_atomic(root / OPS_RELATIVE / "proof" / f"{tid}.json", report)
+    write_json_atomic(path, report)
     return report

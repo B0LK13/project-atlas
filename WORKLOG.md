@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-050-F2 — proof persist is project-bound
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3050-proof-project-scope`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+`evaluate_proof` wrote `proof/<task-id>.json` without requiring the project and overwrote foreign-project evidence. Require project existence; refuse cross-project overwrite. Does not change the documented path. Does not widen #831. `ingestion.py` untouched.
+
+Evidence: `docs/evidence/AT3-050-F2-PROOF-PROJECT-SCOPE.md`
