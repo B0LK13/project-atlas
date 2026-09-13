@@ -66,6 +66,9 @@ def _reject_authority_claims(payload: dict[str, Any], *, label: str) -> None:
         raise Atlas3Error("SECOND_CLOCK", f"{label} engine {engine!r} is not {KDIFF_PACKAGE_ID}")
     if payload.get("merge_authorization") in {"GRANTED", "granted", True}:
         raise Atlas3Error("MERGE_CLAIM_FORBIDDEN", f"{label} must not grant merge")
+    freshness = str(payload.get("freshness") or "").strip().upper()
+    if freshness == "STALE":
+        raise Atlas3Error("STALE_AS_CURRENT", f"{label} must not treat stale as current")
 
 
 def _walk_reject(payload: Any, *, label: str) -> None:
