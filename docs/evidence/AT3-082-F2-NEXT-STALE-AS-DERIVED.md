@@ -13,8 +13,9 @@ only when `status` was CURRENT/verified. A Pulse next block with
 
 ## Fix
 
-STALE plus `derived` / `verified` / `current` fails closed
-(`STALE_AS_CURRENT`). Fresh derived next still composes.
+Any `freshness=STALE` next payload fails closed (`STALE_AS_CURRENT`),
+including empty status (ADV residual on the first F2 object). Fresh
+derived next still composes.
 
 Distinct from #869 (Pulse `_from_answer`) and #845 (project-scope bind).
 Overlaps #845 on `next_honesty.py`.
