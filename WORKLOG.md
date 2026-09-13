@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-048-F4 — memory reconcile consume path fails closed
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3048-reconcile-consume-fail-closed`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+CLI memory search/context/conflicts treated non-object reconciliation as AttributeError and unreadable reconcile.json as a healthy zero-hit search. Consume now fails closed. Does not widen #832/#836/#837. `ingestion.py` untouched.
+
+Evidence: `docs/evidence/AT3-048-F4-RECONCILE-CONSUME-FAIL-CLOSED.md`

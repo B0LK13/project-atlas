@@ -13,7 +13,7 @@ from project_atlas.atlas3.causal import compile_causal_graph
 from project_atlas.atlas3.claim_nodes import compile_claim_nodes
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.conflict_unknown import compile_conflict_unknown
-from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
+from project_atlas.atlas3.contracts import Atlas3Error
 from project_atlas.atlas3.decided import compile_decided_by
 from project_atlas.atlas3.decision_explorer import compile_decision_explorer
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
@@ -46,7 +46,13 @@ from project_atlas.atlas3.memory.incremental import (
 from project_atlas.atlas3.memory.intent import extract_intent_report
 from project_atlas.atlas3.memory.lineage import build_session_lineage
 from project_atlas.atlas3.memory.providers import memory_providers
-from project_atlas.atlas3.memory.routing import assert_items_project_scope
+from project_atlas.atlas3.memory.reconcile_load import (
+    load_memory_reconcile,
+    reconciliation_block,
+    reconciliation_conflicts,
+    reconciliation_items,
+    reconciliation_stale,
+)
 from project_atlas.atlas3.memory.search import search_memory
 from project_atlas.atlas3.mission import compile_mission
 from project_atlas.atlas3.multi_project import compile_multi_project_twin
@@ -772,14 +778,11 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 if items_path is not None:
                     items = load_item_list(Path(items_path))
                 else:
-                    recon = read_json(
-                        Path(args.vault)
-                        / OPS_RELATIVE
-                        / "memory"
-                        / str(project_id)
-                        / "reconcile.json"
+                    recon = load_memory_reconcile(Path(args.vault), str(project_id))
+                    items = reconciliation_items(
+                        reconciliation_block(recon),
+                        project_id=str(project_id),
                     )
-                    items = ((recon or {}).get("reconciliation") or {}).get("items") or []
                 stale_historical = bool(getattr(args, "include_stale_historical", False))
                 freshness = str(getattr(args, "freshness", "UNKNOWN"))
                 target = getattr(args, "target_provider", None)
@@ -911,10 +914,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     as_json=True,
                 )
             if sub == "status":
-                vault = Path(args.vault)
-                recon = read_json(
-                    vault / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
-                )
+                recon = load_memory_reconcile(args.vault, args.project)
                 return _dump(
                     {
                         "providers": provider_capabilities(),
@@ -925,11 +925,9 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     as_json=True,
                 )
             if sub in {"search", "conflicts", "stale", "intent", "lineage", "honesty"}:
-                recon = read_json(
-                    Path(args.vault) / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
-                )
-                items = ((recon or {}).get("reconciliation") or {}).get("items") or []
-                assert_items_project_scope(items, project_id=args.project)
+                recon = load_memory_reconcile(args.vault, args.project)
+                block = reconciliation_block(recon)
+                items = reconciliation_items(block, project_id=args.project)
                 if sub == "lineage":
                     return _dump(
                         build_session_lineage(items, requested_project_id=args.project),
@@ -952,12 +950,10 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     )
                 if sub == "conflicts":
                     return _dump(
-                        ((recon or {}).get("reconciliation") or {}).get("conflicts")
-                        or {"conflicted_history": False, "reason": "NO_RECONCILE"},
+                        reconciliation_conflicts(block),
                         as_json=True,
                     )
-                stale = ((recon or {}).get("reconciliation") or {}).get("stale_memories") or []
-                assert_items_project_scope(stale, project_id=args.project)
+                stale = reconciliation_stale(block, project_id=args.project)
                 return _dump({"stale_count": len(stale), "items": stale}, as_json=True)
         if command == "ledger":
             sub = getattr(args, "ledger_command", "")
