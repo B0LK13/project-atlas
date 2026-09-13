@@ -803,6 +803,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [ ] AT3-057 Cursor Cloud history sync (NOT IMPLEMENTED; LOCAL_SESSION honesty)
 - [x] AT3-058 Isolated Codex fixture / structured-submission ingest (CODEX.md != ingestion; native history NOT IMPLEMENTED)
 - [ ] AT3-058 Codex native history sync (NOT IMPLEMENTED; STRUCTURED_SUBMISSION honesty)
+- [ ] AT3-CLI-F1 Memory CLI consume-path reconcile integrity (IMPLEMENTED; AWAITING IV -- merge NOT pre-authorized). `atlas memory status|honesty|search|context` used `read_json`, which returns None for both a missing file and a present-but-corrupt file, so a broken `reconcile.json` reported `reconcile_present: false` / empty healthy layers with exit 0. Missing stays missing. Existing corruption and a non-object `reconciliation` block now fail closed as `RECONCILE_CORRUPT`. Does not change `read_json` globally, `ingestion.py`, or #840/#841/#857 carriers.
 - [ ] AT3-046 Incremental live provider sync (EXTERNAL_BLOCKED; credentials / history API)
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`

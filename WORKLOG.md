@@ -14915,3 +14915,27 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-CLI-F1 — Memory CLI consume-path reconcile integrity
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3-cli-f1-reconcile-consume-fail-closed`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f` / tree `46d1989b026a2f15920ec5e1c78a106799bd1249`
+**Mode:** Isolated remediation. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+### Defect
+`read_json` returns None for missing **and** corrupt files. Memory CLI
+status/honesty/search/context treated a present-but-corrupt
+`reconcile.json` as absent (exit 0, `reconcile_present: false`, empty
+healthy honesty). A string `reconciliation` block leaked `AttributeError`.
+
+### Fix
+CLI-local `load_reconcile_artifact` / `load_reconcile_items` fail closed
+with `RECONCILE_CORRUPT`. Missing stays missing. `read_json` unchanged.
+`ingestion.py` untouched.
+
+### Validation
+See the commit message / PR for the commands actually run.
+
