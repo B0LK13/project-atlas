@@ -206,6 +206,9 @@ def verify_engineering_event(record: dict[str, Any], *, expected_project_id: str
     event_type = str(record.get("event_type") or "")
     if event_type not in EVENT_TYPES:
         raise Atlas3Error("LEDGER_SCHEMA_INVALID", f"unsupported event_type {event_type!r}")
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        raise Atlas3Error("LEDGER_SCHEMA_INVALID", "payload must be an object")
     digest = str(record.get("content_hash") or "")
     if not digest.startswith("sha256:"):
         raise Atlas3Error("LEDGER_SCHEMA_INVALID", "content_hash is required")
