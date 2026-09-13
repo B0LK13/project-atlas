@@ -22,13 +22,32 @@ PACKAGE_ID: Final[str] = "AT3-091"
 GENERATOR_ID: Final[str] = "atlas3-timeline-091"
 
 
+def _truthy_wall_clock(value: object) -> bool:
+    """Reject explicit wall-clock flags that are not the boolean False/absent.
+
+    AT3-091-F1: ``is True`` let ``\"true\"`` / ``1`` smuggle wall-clock as
+    document-declared valid-time.
+    """
+    if value is True:
+        return True
+    if isinstance(value, (int, float)) and value != 0:
+        return True
+    return isinstance(value, str) and value.strip().lower() in {"true", "1", "yes", "on"}
+
+
 def _valid_key(event: dict[str, Any]) -> str:
-    if event.get("wall_clock_is_valid_time") is True:
+    if _truthy_wall_clock(event.get("wall_clock_is_valid_time")):
         raise Atlas3Error(
             "WALL_CLOCK_AS_VALID_TIME",
             "timeline must not treat wall-clock as valid-time",
         )
     key = str(event.get("valid_time") or event.get("valid_from") or "").strip()
+    observed = str(event.get("observed_at") or "").strip()
+    if key and observed and key == observed:
+        raise Atlas3Error(
+            "WALL_CLOCK_AS_VALID_TIME",
+            "timeline must not treat observed_at as declared valid-time",
+        )
     return key
 
 
