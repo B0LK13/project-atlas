@@ -14915,3 +14915,18 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-040-F2 — planned claim is not current state
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3040-intent-not-claim`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Extractor mapped planned+claim text to claim_candidate. Planned+claim is now proposed_decision or next_step. Distinct from #847.
+
+Follow-on: `_PLANNED` no longer treats bare `after` as intent language, so present-tense "uses PostgreSQL 15 after …" stays claim_candidate.
+
+Evidence: `docs/evidence/AT3-040-F2-INTENT-NOT-CLAIM.md`

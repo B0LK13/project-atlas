@@ -98,6 +98,78 @@ def test_secret_shaped_text_fails_closed() -> None:
     assert exc.value.code == "SECRET_CONTENT"
 
 
+def test_planned_claim_is_not_current_state() -> None:
+    items = extract_items(
+        [
+            {
+                "role": "assistant",
+                "content_reference": "Migration to PostgreSQL 16 remains planned",
+                "provider": "gemini",
+                "conversation_id": "c1",
+                "message_id": "m1",
+                "content_hash": "sha256:a",
+                "project_id": "harbor-api",
+            }
+        ]
+    )
+    assert items[0]["item_type"] == "proposed_decision"
+    assert items[0]["item_type"] != "claim_candidate"
+
+
+def test_planned_should_claim_is_next_step() -> None:
+    items = extract_items(
+        [
+            {
+                "role": "assistant",
+                "content_reference": "we should migrate production postgres later",
+                "provider": "cursor",
+                "conversation_id": "c1",
+                "message_id": "m2",
+                "content_hash": "sha256:b",
+                "project_id": "harbor-api",
+            }
+        ]
+    )
+    assert items[0]["item_type"] == "next_step"
+    assert items[0]["item_type"] != "claim_candidate"
+
+
+def test_present_tense_after_is_not_planned_intent() -> None:
+    items = extract_items(
+        [
+            {
+                "role": "assistant",
+                "content_reference": (
+                    "production uses PostgreSQL 15 after the extension replacement"
+                ),
+                "provider": "chatgpt",
+                "conversation_id": "c1",
+                "message_id": "m4",
+                "content_hash": "sha256:d",
+                "project_id": "harbor-api",
+            }
+        ]
+    )
+    assert items[0]["item_type"] == "claim_candidate"
+
+
+def test_current_claim_without_plan_stays_claim() -> None:
+    items = extract_items(
+        [
+            {
+                "role": "assistant",
+                "content_reference": "production uses PostgreSQL 15",
+                "provider": "chatgpt",
+                "conversation_id": "c1",
+                "message_id": "m3",
+                "content_hash": "sha256:c",
+                "project_id": "harbor-api",
+            }
+        ]
+    )
+    assert items[0]["item_type"] == "claim_candidate"
+
+
 def test_module_does_not_touch_2x_bridges() -> None:
     root = Path(__file__).resolve().parents[2]
     source = (root / "src/project_atlas/atlas3/memory/extract.py").read_text(encoding="utf-8")
