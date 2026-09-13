@@ -88,6 +88,62 @@ def test_history_api_claim_fails_closed(tmp_path: Path) -> None:
     assert exc.value.code == "CHATGPT_HISTORY_API_CLAIMED"
 
 
+def test_mixed_mapping_nodes_fail_closed() -> None:
+    """AT3-036-F2 — mapping exports must not persist a partial valid subset."""
+    payload = json.dumps(
+        {
+            "mapping": {
+                "n1": {
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"parts": ["which datastore?"]},
+                    }
+                },
+                "n2": {
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "content": {"parts": ["PostgreSQL 16"]},
+                    }
+                },
+                "bad": "corrupt-not-an-object",
+                "also": {"message": "also-corrupt"},
+            }
+        }
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        import_chatgpt_export(payload, conversation_id="c-map", project_id="harbor-api")
+    assert exc.value.code == "CHATGPT_EXPORT_INVALID"
+
+
+def test_valid_mapping_export_still_imports() -> None:
+    """AT3-036-F2 — a well-formed mapping export remains EXPORT_ONLY ingest."""
+    payload = json.dumps(
+        {
+            "mapping": {
+                "n1": {
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"parts": ["which datastore?"]},
+                    }
+                },
+                "n2": {
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "content": {"parts": ["PostgreSQL 16"]},
+                    }
+                },
+                "empty": {"message": None},
+            }
+        }
+    )
+    envelopes = import_chatgpt_export(
+        payload, conversation_id="c-map-ok", project_id="harbor-api"
+    )
+    assert len(envelopes) == 2
+    assert envelopes[0]["import_mode"] == "EXPORT"
+    assert envelopes[0]["project_id"] == "harbor-api"
+
+
 def test_mixed_valid_and_corrupt_fails_closed(tmp_path: Path) -> None:
     path = tmp_path / "mixed.json"
     path.write_text(

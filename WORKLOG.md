@@ -14915,3 +14915,27 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-036-F2 — ChatGPT mapping mixed corrupt fail-closed
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3036-mapping-mixed-corrupt`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: a native ChatGPT `mapping` export
+with valid nodes plus a non-object node was accepted. `import_chatgpt_export`
+returned the valid subset (`envelope_count=2`). The `messages` mixed-corrupt
+case already fail-closed. `_preflight_json_payload` returned early when
+`messages`/`turns` were absent, so `parse_chat_export` skipped bad mapping
+nodes. That breaks AT3-039 `partial_persist_on_corrupt: False`.
+
+Fix: walk `mapping` in preflight. Non-object nodes and non-object `message`
+values raise `CHATGPT_EXPORT_INVALID`. `message: null` empty nodes remain
+allowed. Does not rewrite `openai_importer_fixtures.py`.
+
+Does not touch `ingestion.py`. Does not write Truth Core. Does not
+authorize merge.
+
+Evidence: `docs/evidence/AT3-036-F2-MAPPING-MIXED-CORRUPT.md`
+

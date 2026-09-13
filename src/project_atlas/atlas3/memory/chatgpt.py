@@ -29,6 +29,24 @@ def _preflight_json_payload(payload: object) -> None:
                 "CHATGPT_HISTORY_API_CLAIMED",
                 "ChatGPT fixture must not claim live_full_history_sync",
             )
+        # AT3-036-F2: native mapping exports must not skip corrupt nodes.
+        # parse_chat_export silently continues; mixed valid+corrupt must fail closed.
+        mapping = payload.get("mapping")
+        if mapping is not None:
+            if not isinstance(mapping, dict):
+                raise Atlas3Error("CHATGPT_EXPORT_INVALID", "mapping must be an object")
+            for node in mapping.values():
+                if not isinstance(node, dict):
+                    raise Atlas3Error(
+                        "CHATGPT_EXPORT_INVALID",
+                        "mapping node is not an object",
+                    )
+                message = node.get("message")
+                if message is not None and not isinstance(message, dict):
+                    raise Atlas3Error(
+                        "CHATGPT_EXPORT_INVALID",
+                        "mapping message is not an object",
+                    )
         raw = payload.get("messages")
         if raw is None:
             raw = payload.get("turns")
