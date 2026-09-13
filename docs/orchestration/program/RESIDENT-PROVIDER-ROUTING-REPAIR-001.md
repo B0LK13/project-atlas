@@ -1,7 +1,7 @@
 # Resident provider routing repair
 
-Candidate: `HEAD=7b9ace01f0bc06931f1191f8912abda1f7935953`,
-`TREE=2214d53a79094c16d96dd07a41341d3f701f1b69`.
+Candidate: `HEAD=cb8812bd323e7a84f6f94026805094325efed0c3`,
+`TREE=adc6c29c81225973a171d020144b001eefc7af6c`.
 
 ## Defect and repair
 
