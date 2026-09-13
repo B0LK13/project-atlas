@@ -29,7 +29,11 @@ def load(skill_root: Path) -> Skill:
     skill_path = skill_root / "SKILL.md"
     if not manifest_path.is_file() or not skill_path.is_file():
         raise ValueError("canonical Atlas skill or manifest is missing")
-    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    try:
+        data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError, KeyError) as exc:
+        # PyYAML ``!!bool nope`` raises KeyError, not YAMLError.
+        raise ValueError("invalid skill manifest") from exc
     if not isinstance(data, dict) or not isinstance(data.get("skill"), dict):
         raise ValueError("invalid skill manifest")
     values = data["skill"]
