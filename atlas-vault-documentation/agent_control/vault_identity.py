@@ -22,7 +22,10 @@ def read(root: Path) -> VaultIdentity:
     marker = resolved / ".atlas" / "vault.json"
     if not marker.is_file():
         raise ValueError(f"Atlas Vault identity is missing: {marker}")
-    data = json.loads(marker.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid Atlas Vault identity") from exc
     if not isinstance(data, dict) or not data.get("vault_id") or not data.get("vault_uuid"):
         raise ValueError("invalid Atlas Vault identity")
     return VaultIdentity(str(data["vault_id"]), str(data["vault_uuid"]), resolved, str(data.get("name", "Atlas Vault")))

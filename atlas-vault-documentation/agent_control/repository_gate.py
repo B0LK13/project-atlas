@@ -22,13 +22,21 @@ def validate(*, project_id: str, changed_files: list[str], receipt_path: Path | 
         if not receipt_path.is_file():
             errors.append("receipt is missing")
         else:
-            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-            if receipt.get("session", {}).get("project_id") != project_id:
-                errors.append("receipt belongs to another project")
-            if skill_sha256 and receipt.get("skill", {}).get("sha256") != skill_sha256:
-                errors.append("receipt uses an obsolete skill hash")
-            if not receipt.get("events", {}).get("validation"):
-                errors.append("receipt lacks validation evidence")
-            if not receipt.get("events", {}).get("completion"):
-                errors.append("receipt lacks completion evidence")
+            try:
+                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                errors.append("receipt is unreadable")
+                receipt = None
+            if not isinstance(receipt, dict):
+                if receipt is not None:
+                    errors.append("receipt is malformed")
+            else:
+                if receipt.get("session", {}).get("project_id") != project_id:
+                    errors.append("receipt belongs to another project")
+                if skill_sha256 and receipt.get("skill", {}).get("sha256") != skill_sha256:
+                    errors.append("receipt uses an obsolete skill hash")
+                if not receipt.get("events", {}).get("validation"):
+                    errors.append("receipt lacks validation evidence")
+                if not receipt.get("events", {}).get("completion"):
+                    errors.append("receipt lacks completion evidence")
     return {"ok": not errors, "project_id": project_id, "changed_files": changed_files, "protected_files": protected, "receipt_id": receipt.get("receipt_id") if receipt else None, "errors": errors}
