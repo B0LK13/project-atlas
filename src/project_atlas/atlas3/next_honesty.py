@@ -62,13 +62,13 @@ def _reject_authority_claims(payload: dict[str, Any], *, label: str) -> None:
         raise Atlas3Error("NEXT_IS_COMMAND", f"{label} must not emit a command")
     if payload.get("execute") is True or payload.get("auto_execute") is True:
         raise Atlas3Error("NEXT_IS_COMMAND", f"{label} must not auto-execute")
-    freshness = str(payload.get("freshness") or "")
-    status = str(payload.get("status") or "")
-    if freshness == "STALE" and status in {"CURRENT", "current", "verified"}:
+    freshness = str(payload.get("freshness") or "").strip().upper()
+    status = str(payload.get("status") or "").strip()
+    if freshness == "STALE":
         raise Atlas3Error("STALE_AS_CURRENT", f"{label} must not treat stale as current")
     if payload.get("stale_as_current") is True or payload.get("stale_is_current") is True:
         raise Atlas3Error("STALE_AS_CURRENT", f"{label} must not treat stale as current")
-    if payload.get("unverified") is True and status in {"verified", "CURRENT", "current"}:
+    if payload.get("unverified") is True and status.lower() in {"verified", "current"}:
         raise Atlas3Error("UNVERIFIED_AS_CURRENT", f"{label} must not treat unverified as current")
 
 
