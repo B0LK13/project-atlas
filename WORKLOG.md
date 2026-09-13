@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AT3-081-F3 — corrupt pulse/reconcile artifacts fail closed
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3081-corrupt-pulse-fail-closed`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+`compile_stale_conflict_intel` treated unreadable Pulse/reconcile JSON as missing and could report derived. Present corrupt files now fail closed. Does not widen #833/#835. `ingestion.py` untouched.
+
+Evidence: `docs/evidence/AT3-081-F3-CORRUPT-PULSE-FAIL-CLOSED.md`

@@ -8,6 +8,7 @@ remains NOT_GRANTED.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Final
 
@@ -16,7 +17,6 @@ from project_atlas.atlas3.contracts import (
     TRUTH_BOUNDARY,
     Atlas3Error,
     honesty_block,
-    read_json,
     require_project,
     require_vault,
 )
@@ -36,6 +36,19 @@ def _pulse_path(vault: Path, project_id: str) -> Path:
 
 def _reconcile_path(vault: Path, project_id: str) -> Path:
     return vault / OPS_RELATIVE / "memory" / project_id / "reconcile.json"
+
+
+def _read_object(path: Path, *, code: str, label: str) -> dict[str, Any] | None:
+    """Missing file is None. Present but unreadable/non-object fails closed."""
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise Atlas3Error(code, f"{label} is not readable JSON") from exc
+    if not isinstance(raw, dict):
+        raise Atlas3Error(code, f"{label} must be an object")
+    return raw
 
 
 def _reject_authority_claims(payload: dict[str, Any], *, label: str) -> None:
@@ -78,7 +91,7 @@ def compile_stale_conflict_intel(vault: Path | str, project_id: str) -> dict[str
     events = list_events(root, pid)
     stale_ledger = _stale_ledger_rows(events)
 
-    pulse = read_json(_pulse_path(root, pid))
+    pulse = _read_object(_pulse_path(root, pid), code="PULSE_CORRUPT", label="pulse artifact")
     if pulse is not None:
         if not isinstance(pulse, dict):
             raise Atlas3Error("PULSE_CORRUPT", "pulse artifact must be an object")
@@ -87,7 +100,11 @@ def compile_stale_conflict_intel(vault: Path | str, project_id: str) -> dict[str
         if questions is not None and not isinstance(questions, dict):
             raise Atlas3Error("PULSE_CORRUPT", "pulse questions must be an object")
 
-    recon = read_json(_reconcile_path(root, pid))
+    recon = _read_object(
+        _reconcile_path(root, pid),
+        code="RECONCILE_CORRUPT",
+        label="memory reconcile",
+    )
     memory_items: list[dict[str, Any]] = []
     memory_stale: list[dict[str, Any]] = []
     memory_conflicts: dict[str, Any] | None = None
