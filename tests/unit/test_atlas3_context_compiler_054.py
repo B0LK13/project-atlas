@@ -44,12 +44,13 @@ def test_capability_is_consume_only() -> None:
     assert cap["ask2_replaced"] is False
     assert cap["writes_truth_core"] is False
     assert cap["stale_as_current"] is False
+    assert cap["caller_freshness_is_not_authority"] is True
     assert cap["merge_authorization"] == "NOT_GRANTED"
 
 
 def test_current_memory_ranks_below_project_evidence() -> None:
     report = compile_memory_context(
-        [_item(text="assistant mentioned PostgreSQL 16 later")],
+        [_item(text="assistant mentioned PostgreSQL 15 later")],
         project_id="harbor-api",
         project_evidence=["harbor-api production is PostgreSQL 15"],
         freshness_requirement="CURRENT",
@@ -57,6 +58,7 @@ def test_current_memory_ranks_below_project_evidence() -> None:
     assert report["package_id"] == PACKAGE_ID
     assert report["consume_only"] is True
     assert report["stale_presented_as_current"] is False
+    assert report["caller_freshness_is_not_authority"] is True
     assert report["recent_llm_outranks_project_evidence"] is False
     assert report["write_applied"] is False
     assert report["promoted_to_truth_core"] == 0
@@ -66,6 +68,36 @@ def test_current_memory_ranks_below_project_evidence() -> None:
     ]
     assert layers["current_reconciled_memory"][0]["text"].startswith("assistant")
     assert layers["stale_memory_historical_only"] == []
+
+
+def test_forged_current_freshness_is_not_authority() -> None:
+    """AT3-054-F1: on-disk / caller CURRENT is a claim, not consume-path authority."""
+    report = compile_memory_context(
+        [_item(text="production is PostgreSQL 16", freshness="CURRENT")],
+        project_id="harbor-api",
+        project_evidence=["harbor-api production is PostgreSQL 15"],
+        include_stale_historical=True,
+        freshness_requirement="ALLOW_STALE_HISTORICAL",
+    )
+    assert report["layers"]["current_reconciled_memory"] == []
+    assert report["stale_presented_as_current"] is False
+    assert report["caller_freshness_is_not_authority"] is True
+    assert report["unproven_current_freshness_downgraded"] == 1
+    stale = report["layers"]["stale_memory_historical_only"]
+    assert stale[0]["freshness"] == "STALE"
+    assert stale[0]["claimed_freshness"] == "CURRENT"
+    assert stale[0]["caller_freshness_is_authority"] is False
+
+
+def test_unproven_current_without_evidence_is_not_current() -> None:
+    report = compile_memory_context(
+        [_item(text="production is PostgreSQL 16", freshness="CURRENT")],
+        project_id="harbor-api",
+        freshness_requirement="CURRENT",
+    )
+    assert report["layers"]["current_reconciled_memory"] == []
+    assert report["unproven_current_freshness_downgraded"] == 1
+    assert report["stale_presented_as_current"] is False
 
 
 def test_stale_is_historical_only_when_allowed() -> None:
@@ -178,6 +210,9 @@ def test_cli_capability_and_compile(
     assert report["package_id"] == PACKAGE_ID
     assert report["project_id"] == "harbor-api"
     assert report["write_applied"] is False
+    assert report["caller_freshness_is_not_authority"] is True
+    assert report["layers"]["current_reconciled_memory"] == []
+    assert report["unproven_current_freshness_downgraded"] == 1
 
 
 def test_module_does_not_touch_certified_surfaces() -> None:

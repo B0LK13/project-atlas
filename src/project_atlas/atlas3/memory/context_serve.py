@@ -49,6 +49,7 @@ def context_serve_capability() -> dict[str, Any]:
         "writes_truth_core": False,
         "promoted_to_truth_core": 0,
         "write_applied": False,
+        "caller_freshness_is_not_authority": True,
         "allowed_targets": sorted(ALLOWED_TARGETS),
         "new_cli_command": False,
         "certified_for_merge": False,
@@ -90,6 +91,8 @@ def serve_ranked_context(
     target_provider: str,
     include_stale_historical: bool = False,
     freshness_requirement: str = "UNKNOWN",
+    project_evidence: list[str] | None = None,
+    stronger_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a local ranked pack addressed to one allowed provider."""
     pid = require_memory_project(project_id)
@@ -104,6 +107,8 @@ def serve_ranked_context(
         project_id=pid,
         include_stale_historical=include_stale_historical,
         freshness_requirement=freshness_requirement,
+        project_evidence=project_evidence,
+        stronger_evidence=stronger_evidence,
     )
     if not isinstance(ranked, dict):
         raise Atlas3Error("CONTEXT_SERVE_INVALID", "ranked pack must be an object")
@@ -130,6 +135,10 @@ def serve_ranked_context(
             "unknown_stays_unknown": ranked.get("unknown_stays_unknown"),
         },
         "consume_only": True,
+        "caller_freshness_is_not_authority": True,
+        "unproven_current_freshness_downgraded": ranked.get(
+            "unproven_current_freshness_downgraded", 0
+        ),
         "local_ranked_pack": True,
         "live_provider_serve": LIVE_PROVIDER_SERVE,
         "live_full_history_sync": False,

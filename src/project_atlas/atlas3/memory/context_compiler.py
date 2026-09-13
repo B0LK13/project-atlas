@@ -3,6 +3,9 @@
 Ranks reconciled memory for later 2.x context-compiler consumption.
 Does not rewrite the certified 2.x compiler. Does not write Truth Core.
 Stale memory is never current truth. UNKNOWN stays UNKNOWN.
+
+AT3-054-F1: caller/on-disk `freshness` is not consume-path authority.
+Unproven CURRENT is recomputed via AT3-044 before ranking.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from project_atlas.atlas3.contracts import (
     honesty_block,
 )
 from project_atlas.atlas3.memory.compiler import RANK_ORDER, rank_context_layers
+from project_atlas.atlas3.memory.freshness import classify_freshness
 from project_atlas.atlas3.memory.routing import assert_items_project_scope
 
 PACKAGE_ID: Final[str] = "AT3-054"
@@ -47,6 +51,7 @@ def context_compiler_capability() -> dict[str, Any]:
         "promoted_to_truth_core": 0,
         "write_applied": False,
         "stale_as_current": False,
+        "caller_freshness_is_not_authority": True,
         "cross_project": False,
         "new_cli_command": True,
         "certified_for_merge": False,
@@ -88,6 +93,59 @@ def _reject_authority_claims(item: dict[str, Any], *, label: str) -> None:
         raise Atlas3Error("STALE_AS_CURRENT", f"{label} stale item marked current")
 
 
+def _evidence_from_project_strings(
+    project_evidence: list[str] | None,
+) -> list[dict[str, Any]]:
+    return [{"kind": "current_state", "text": str(text)} for text in project_evidence or []]
+
+
+def _merge_stronger_evidence(
+    project_evidence: list[str] | None,
+    stronger_evidence: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if stronger_evidence is not None:
+        if not isinstance(stronger_evidence, list):
+            raise Atlas3Error("FRESHNESS_INVALID", "stronger_evidence must be a list")
+        for index, row in enumerate(stronger_evidence):
+            if not isinstance(row, dict):
+                raise Atlas3Error(
+                    "FRESHNESS_INVALID",
+                    f"stronger_evidence[{index}] must be an object",
+                )
+            rows.append(row)
+    rows.extend(_evidence_from_project_strings(project_evidence))
+    return rows
+
+
+def _recompute_consume_freshness(
+    items: list[dict[str, Any]],
+    *,
+    stronger_evidence: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    """Caller freshness is not authority. Unproven CURRENT is downgraded.
+
+    AT3-054-F1 / AT3-044: STALE != CURRENT; UNKNOWN stays UNKNOWN.
+    A stamped freshness field, including on-disk reconcile.json, is a claim.
+    """
+    evidence = stronger_evidence or None
+    downgraded = 0
+    out: list[dict[str, Any]] = []
+    for item in items:
+        row = dict(item)
+        claimed = str(row.get("freshness") or "")
+        computed = classify_freshness(row, stronger_evidence=evidence)
+        if claimed == "CURRENT" and computed != "CURRENT":
+            row["freshness"] = computed
+            downgraded += 1
+        elif not claimed:
+            row["freshness"] = computed
+        row["claimed_freshness"] = claimed or None
+        row["caller_freshness_is_authority"] = False
+        out.append(row)
+    return out, downgraded
+
+
 def compile_memory_context(
     items: object,
     *,
@@ -97,6 +155,7 @@ def compile_memory_context(
     accepted_decisions: list[str] | None = None,
     include_stale_historical: bool = False,
     freshness_requirement: str = "UNKNOWN",
+    stronger_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Rank reconciled memory. Never presents stale memory as current truth."""
     freshness = freshness_requirement.strip().upper() or "UNKNOWN"
@@ -114,6 +173,11 @@ def compile_memory_context(
     pid = assert_items_project_scope(rows, project_id=project_id)
     for index, item in enumerate(rows):
         _reject_authority_claims(item, label=f"item[{index}]")
+    evidence = _merge_stronger_evidence(project_evidence, stronger_evidence)
+    rows, downgraded = _recompute_consume_freshness(
+        rows,
+        stronger_evidence=evidence,
+    )
     ranked = rank_context_layers(
         project_evidence=project_evidence,
         derived_truth=derived_truth,
@@ -157,6 +221,8 @@ def compile_memory_context(
         "unknown_count": len(unknowns),
         "unknown_stays_unknown": True,
         "stale_presented_as_current": False,
+        "caller_freshness_is_not_authority": True,
+        "unproven_current_freshness_downgraded": downgraded,
         "recent_llm_outranks_project_evidence": False,
         "consume_only": True,
         "rewrites_certified_compiler": False,
