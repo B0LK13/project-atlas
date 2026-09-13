@@ -2348,9 +2348,19 @@ def test_every_durable_reader_refuses_a_schema_invalid_document_with_a_code(
     assert e.value.code == "ENVELOPE_SCHEMA_INVALID"
 
     # checkpoint
+    # SKEW-1: a checkpoint document carrying an explicit schema_version other
+    # than the reader's is now a version statement and is refused as
+    # CHECKPOINT_VERSION_SKEW before any shape check. The shared document above
+    # says schema_version 1, so this case uses the CURRENT checkpoint version to
+    # keep testing what it always tested: a well-versioned, wrong-shape record.
+    from project_atlas.orchestration.program.continuation import (
+        CHECKPOINT_SCHEMA_VERSION,
+    )
+
     checkpoints_dir(root).mkdir(parents=True, exist_ok=True)
     (checkpoints_dir(root) / "deadbeef.checkpoint.json").write_text(
-        valid_json_wrong_shape, encoding="utf-8"
+        json.dumps({"schema_version": CHECKPOINT_SCHEMA_VERSION, "entries": []}),
+        encoding="utf-8",
     )
     with pytest.raises(CheckpointError) as c:
         list_checkpoints(root)

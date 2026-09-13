@@ -101,6 +101,19 @@ CAPSULE_NAME: Final[str] = "continuation-capsule.json"
 #: rendered text; it is never silent.
 CAPSULE_MAX_BYTES: Final[int] = 16_384
 
+#: The schema version this code writes into, and requires from, a continuation
+#: checkpoint. SKEW-1: it was ``1`` on every version up to and including
+#: 643c7ebe, while the field set under the self-digest changed underneath it
+#: (``execution_capture``, then ``capture``). A reader therefore had nothing to
+#: compare, validated an older record into the newer model, recomputed the
+#: digest over the newer field set, and reported an intact record written by an
+#: older version as "truncated or edited". Bumped to ``2`` so a version skew is a
+#: version skew: it is checked on the raw document BEFORE model validation and
+#: BEFORE the digest, and refused as ``CHECKPOINT_VERSION_SKEW`` naming both
+#: versions, in both directions. Bump it again whenever the sealed field set
+#: changes.
+CHECKPOINT_SCHEMA_VERSION: Final[Literal[2]] = 2
+
 _ID_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$")
 _REL_PATH_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$")
 _GIT_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{40}$")
@@ -943,7 +956,9 @@ class ContinuationCheckpoint(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1] = 1
+    #: See ``CHECKPOINT_SCHEMA_VERSION``. Covered by the self-digest like every
+    #: other field, and checked on the raw document before anything else.
+    schema_version: Literal[2] = CHECKPOINT_SCHEMA_VERSION
     package_id: Literal["AS-ORCH-DURABLE-CONTINUATION-001"] = PACKAGE_ID
     identity: ExecutionIdentity
     envelope_digest: str = Field(min_length=64, max_length=64)
@@ -1073,6 +1088,46 @@ def verify_checkpoint(checkpoint: ContinuationCheckpoint) -> ContinuationCheckpo
     return checkpoint
 
 
+def _check_checkpoint_version(raw: Any, *, path: Path, what: str) -> None:
+    """Refuse a checkpoint written at another schema version, before anything else.
+
+    SKEW-1. Runs on the raw document, ahead of model validation and ahead of
+    the self-digest, because both of those are defined by THIS version's field
+    set: an older record validated into the newer model picks up defaults and
+    then fails its digest ("truncated or edited"), and a newer record fails
+    validation on fields this version does not know ("malformed"). Both
+    accusations are false for an intact record from another version, and they
+    call for the opposite operator response -- a corrupt root invites a wipe,
+    a skew calls for finishing or reverting the upgrade.
+
+    Only an explicit integer ``schema_version`` that differs from
+    ``CHECKPOINT_SCHEMA_VERSION`` is a version statement. A document that is
+    not an object, that has no ``schema_version``, or whose value is not an
+    integer makes no such statement and is left to schema validation, which
+    refuses it as before. The skew refusal says what the record CLAIMS; it
+    cannot verify the record's integrity, because the digest of another
+    version's field set is not computable here. It is never launchable.
+    """
+    if not isinstance(raw, dict) or "schema_version" not in raw:
+        return
+    declared = raw["schema_version"]
+    if type(declared) is not int or declared == CHECKPOINT_SCHEMA_VERSION:
+        return
+    reader = CHECKPOINT_SCHEMA_VERSION
+    direction = "an OLDER" if declared < reader else "a NEWER"
+    raise CheckpointError(
+        f"{what} at {path} was written at checkpoint schema_version {declared} "
+        f"by {direction} version of this package, and this reader understands "
+        f"schema_version {reader} (writer_schema_version={declared}, "
+        f"reader_schema_version={reader}). This is version skew, not evidence "
+        "of truncation or tampering: the record's integrity cannot be checked "
+        "across versions, so nothing proceeds from it. Finish or revert the "
+        "upgrade, or reconcile the task explicitly; do not wipe the state root "
+        "on the strength of this refusal.",
+        code="CHECKPOINT_VERSION_SKEW",
+    )
+
+
 def persist_checkpoint(
     root: Path, checkpoint: ContinuationCheckpoint
 ) -> ContinuationCheckpoint:
@@ -1123,6 +1178,10 @@ def load_checkpoint(
             f"checkpoint for {task_id} at {path} is unreadable: {exc}",
             code="CHECKPOINT_UNREADABLE",
         ) from exc
+    # SKEW-1: before validation and before the digest, and regardless of
+    # ``verify`` -- a record from another version must block a write exactly as
+    # a corrupt one does, rather than be overwritten by it.
+    _check_checkpoint_version(raw, path=path, what=f"checkpoint for {task_id}")
     try:
         checkpoint = ContinuationCheckpoint.model_validate(raw)
     except CheckpointError:
@@ -1156,6 +1215,7 @@ def list_checkpoints(
                 f"checkpoint at {path} is unreadable: {exc}",
                 code="CHECKPOINT_UNREADABLE",
             ) from exc
+        _check_checkpoint_version(raw, path=path, what="checkpoint")
         checkpoint = read_durable(
             ContinuationCheckpoint,
             raw,

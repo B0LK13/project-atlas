@@ -1,0 +1,51 @@
+{
+  "acceptance": [
+    {
+      "argv": [],
+      "check_id": "skew-done-out",
+      "description": "skew-done.txt exists",
+      "kind": "FILE_EXISTS",
+      "path": "skew-done.txt",
+      "pattern": null,
+      "timeout_seconds": 300
+    }
+  ],
+  "allowed_actions": [],
+  "allowed_paths": [
+    "skew-done.txt"
+  ],
+  "approval_reference": "SKEW-1 fixture written by 643c7ebe",
+  "approved_by": "fixture-operator",
+  "budgets": {
+    "max_attempts": 3,
+    "max_estimated_cost_usd": 0.0,
+    "max_launches": 3,
+    "max_model_calls": 0,
+    "max_wall_seconds": 1800
+  },
+  "candidate_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "candidate_tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "capabilities_required": [
+    "IMPLEMENT"
+  ],
+  "checkpoint_policy": {
+    "checkpoint_after_each_step": true,
+    "steps": []
+  },
+  "created_at": "2026-09-13T00:00:00.000Z",
+  "deadline_utc": null,
+  "depends_on": [],
+  "fallback_task_ids": [],
+  "forbidden_actions": [],
+  "forbidden_paths": [],
+  "merge_authorized": false,
+  "model_backed_dispatch": false,
+  "objective": "fixture task skew-done",
+  "package_id": "AS-ORCH-DURABLE-CONTINUATION-001",
+  "profile_ref": "impl",
+  "program_id": "fixture-program",
+  "replay_class": "IDEMPOTENT_MUTATION",
+  "schema_version": 1,
+  "task_id": "skew-done",
+  "worker_id": "fixture-worker-01"
+}
