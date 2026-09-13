@@ -40,6 +40,34 @@ def test_adv_nul_suffix_fails_closed() -> None:
     assert exc.value.code == "ADV_ID_INVALID"
 
 
+def test_iv_zwsp_suffix_fails_closed() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        bind_independent_verification(
+            candidate_head=_HEAD,
+            candidate_tree=_TREE,
+            observed_head=_HEAD,
+            observed_tree=_TREE,
+            iv_result="PASS",
+            verifier_id="implementer\u200b",
+            package_id="AT3-021",
+        )
+    assert exc.value.code == "VERIFIER_ID_INVALID"
+
+
+def test_iv_homoglyph_implementer_fails_closed() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        bind_independent_verification(
+            candidate_head=_HEAD,
+            candidate_tree=_TREE,
+            observed_head=_HEAD,
+            observed_tree=_TREE,
+            iv_result="PASS",
+            verifier_id="\u0456mplementer",
+            package_id="AT3-021",
+        )
+    assert exc.value.code == "VERIFIER_ID_INVALID"
+
+
 def test_plain_forbidden_ids_still_fail() -> None:
     with pytest.raises(Atlas3Error) as exc:
         bind_independent_verification(

@@ -14927,4 +14927,6 @@ Evidence: the test module's own docstring, which carries the boundary statement.
 
 `implementer\\x00` / `model\\x00` bound IV/ADV because the forbidden-actor check compared the full NUL-suffixed string. Control characters now fail closed.
 
+Follow-on: ZWSP/format characters and non-ASCII homoglyphs (`implementer\\u200b`, Cyrillic i) also fail closed. Actor ids must be ASCII tokens.
+
 Evidence: `docs/evidence/AT3-051-F1-ACTOR-ID-CONTROL-CHARS.md`

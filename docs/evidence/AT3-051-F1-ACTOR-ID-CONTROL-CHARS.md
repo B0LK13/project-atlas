@@ -13,8 +13,9 @@ string (with NUL) and never matched `implementer` / `model`.
 
 ## Fix
 
-IV and ADV actor ids containing any C0 control character (including NUL)
-fail closed (`VERIFIER_ID_INVALID` / `ADV_ID_INVALID`) before the
-forbidden-name check. Plain `implementer` / `model` still fail as before.
+IV and ADV actor ids containing any C0/format/control character (including
+NUL and ZWSP) fail closed (`VERIFIER_ID_INVALID` / `ADV_ID_INVALID`)
+before the forbidden-name check. Actor ids must also be ASCII tokens so
+homoglyphs cannot bind. Plain `implementer` / `model` still fail as before.
 
 Does not grant merge or security certification.

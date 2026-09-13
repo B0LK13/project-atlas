@@ -8,6 +8,7 @@ Never writes Truth Core. MERGE_AUTHORIZATION remains NOT_GRANTED.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any, Final
 
 from project_atlas.atlas3.contracts import TRUTH_BOUNDARY, Atlas3Error, honesty_block
@@ -15,7 +16,9 @@ from project_atlas.atlas3.contracts import TRUTH_BOUNDARY, Atlas3Error, honesty_
 PACKAGE_ID: Final[str] = "AT3-051"
 GENERATOR_ID: Final[str] = "atlas3-iv-bind-051"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_ACTOR_RE = re.compile(r"^[A-Za-z0-9._:-]+$")
 _FORBIDDEN_VERIFIERS = frozenset({"implementer", "self", "same-agent", "model"})
+_FORMAT_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co"})
 
 
 def _sha(value: str, *, field: str) -> str:
@@ -39,14 +42,22 @@ def bind_independent_verification(
     pkg = package_id.strip()
     if not pkg:
         raise Atlas3Error("PACKAGE_REQUIRED", "package_id is required")
-    if any(ord(char) < 32 for char in verifier_id):
+    if any(
+        unicodedata.category(char) in _FORMAT_CATEGORIES or ord(char) == 127
+        for char in verifier_id
+    ):
         raise Atlas3Error(
             "VERIFIER_ID_INVALID",
-            "verifier_id must not contain control characters",
+            "verifier_id must not contain control or format characters",
         )
     verifier = verifier_id.strip()
     if not verifier:
         raise Atlas3Error("VERIFIER_REQUIRED", "verifier_id is required")
+    if _ACTOR_RE.fullmatch(verifier) is None:
+        raise Atlas3Error(
+            "VERIFIER_ID_INVALID",
+            "verifier_id must be an ASCII token",
+        )
     if verifier.lower() in _FORBIDDEN_VERIFIERS:
         raise Atlas3Error("IMPLEMENTER_IS_VERIFIER", "IMPLEMENTER != VERIFIER")
     cand_head = _sha(candidate_head, field="candidate_head")
