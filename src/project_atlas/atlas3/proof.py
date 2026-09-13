@@ -46,6 +46,8 @@ def evaluate_proof(
     if not tid or "/" in tid or "\\" in tid or tid in {".", ".."}:
         raise Atlas3Error("UNSAFE_TASK_ID", f"unsafe task id: {task_id!r}")
     pid = safe_project_id(project_id)
+    if evidence is not None and not isinstance(evidence, dict):
+        raise Atlas3Error("PROOF_EVIDENCE_INVALID", "evidence must be an object")
     supplied = evidence or {}
     stages: dict[str, Any] = {}
     present = 0
