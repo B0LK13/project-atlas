@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,7 +23,7 @@ def _ledger_path(vault: Path) -> Path:
     return vault / "generated" / "ops" / "atlas3" / "ledger" / "harbor-api.jsonl"
 
 
-def _read_ledger_rows(vault: Path) -> list[dict]:
+def _read_ledger_rows(vault: Path) -> list[dict[str, Any]]:
     path = _ledger_path(vault)
     lines = path.read_text(encoding="utf-8").splitlines()
     return [json.loads(line) for line in lines if line.strip()]
@@ -253,3 +254,88 @@ def test_identical_replay_collapsed_on_read(tmp_path: Path) -> None:
     )
     rows = list_events(vault, "harbor-api")
     assert len(rows) == 1
+
+
+def test_directory_at_ledger_path_fail_closed(tmp_path: Path) -> None:
+    """AT3-014-F2 — a directory at the ledger identity is not an empty ledger."""
+    vault = _vault(tmp_path)
+    path = _ledger_path(vault)
+    path.mkdir(parents=True)
+    with pytest.raises(Atlas3Error) as exc:
+        list_events(vault, "harbor-api")
+    assert exc.value.code == "LEDGER_CORRUPT"
+    with pytest.raises(Atlas3Error) as query_exc:
+        query_events(vault, project_id="harbor-api")
+    assert query_exc.value.code == "LEDGER_CORRUPT"
+
+
+def test_planted_symlink_at_ledger_path_fail_closed(tmp_path: Path) -> None:
+    """AT3-014-F2 — a symlink must not be consumed as the project ledger."""
+    vault = _vault(tmp_path)
+    planted = tmp_path / "planted.jsonl"
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="planted-as-current",
+    )
+    planted.write_text(json.dumps(event, sort_keys=True) + "\n", encoding="utf-8")
+    path = _ledger_path(vault)
+    path.parent.mkdir(parents=True)
+    path.symlink_to(planted.resolve())
+    with pytest.raises(Atlas3Error) as exc:
+        list_events(vault, "harbor-api")
+    assert exc.value.code == "LEDGER_CORRUPT"
+    assert planted.read_text(encoding="utf-8").count("\n") == 1
+
+
+def test_append_directory_fail_closed_not_oserror(tmp_path: Path) -> None:
+    """AT3-014-F2 — append must not leak IsADirectoryError."""
+    vault = _vault(tmp_path)
+    path = _ledger_path(vault)
+    path.mkdir(parents=True)
+    with pytest.raises(Atlas3Error) as exc:
+        append_event(
+            vault,
+            "harbor-api",
+            event_type="TEST_PASSED",
+            source_plane="engineering",
+            summary="dir",
+        )
+    assert exc.value.code == "LEDGER_CORRUPT"
+    assert path.is_dir()
+
+
+def test_append_symlink_does_not_write_through(tmp_path: Path) -> None:
+    """AT3-014-F2 — append must not write through a planted symlink."""
+    vault = _vault(tmp_path)
+    planted = tmp_path / "planted.jsonl"
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="planted-as-current",
+    )
+    before = json.dumps(event, sort_keys=True) + "\n"
+    planted.write_text(before, encoding="utf-8")
+    path = _ledger_path(vault)
+    path.parent.mkdir(parents=True)
+    path.symlink_to(planted.resolve())
+    with pytest.raises(Atlas3Error) as exc:
+        append_event(
+            vault,
+            "harbor-api",
+            event_type="TEST_FAILED",
+            source_plane="engineering",
+            summary="wrote-through-planted-link",
+        )
+    assert exc.value.code == "LEDGER_CORRUPT"
+    assert planted.read_text(encoding="utf-8") == before
+    assert path.is_symlink()
+
+
+def test_missing_ledger_still_empty(tmp_path: Path) -> None:
+    """AT3-014-F2 — an absent ledger remains an empty derived store."""
+    vault = _vault(tmp_path)
+    assert list_events(vault, "harbor-api") == []
+    assert not _ledger_path(vault).exists()
