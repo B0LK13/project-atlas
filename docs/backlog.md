@@ -1,5 +1,14 @@
 # Executable Backlog
 
+## Local supervisor takeover — TAKEOVER-001
+
+- [x] Implement F-01 explicit containment and F-02 restart identity refusal in an isolated successor.
+- [x] Enforce resident/queue/restart process ownership and actual-dispatch continuation checks.
+- [x] Add bounded complete/revoked/uncertain end-to-end fixtures and operator procedure.
+- [ ] Bind independent acceptance and non-editable installation evidence to the final candidate in the external takeover dossier.
+
+Source implementation is not live activation. See `docs/orchestration/program/LOCAL-TAKEOVER-001.md`.
+
 ## Epic A — Repository foundation
 
 - [x] A-001 Create `pyproject.toml`

@@ -61,6 +61,7 @@ from project_atlas.orchestration.program.decisions import (
     withdraw_decision,
 )
 from project_atlas.orchestration.program.loader import load_program
+from project_atlas.orchestration.program.path_safety import checked_path, trusted_root
 from project_atlas.orchestration.program.reconciliation import reconcile_root
 from project_atlas.orchestration.program.resident import (
     _RESTART_CRITERIA,
@@ -77,6 +78,8 @@ from project_atlas.orchestration.program.resident import (
     _restart_witness_path,
     _take_restart_witness,
     _unverifiable_restart_verdict,
+    _validate_restart_identity,
+    _validate_restart_witness_current,
     clear_pause,
     dispatcher_status,
     read_heartbeat,
@@ -101,7 +104,18 @@ def _root(args: argparse.Namespace) -> Path:
             "--state-root is required for continuation commands",
             code="STATE_ROOT_REQUIRED",
         )
-    return Path(root).expanduser().resolve()
+    return checked_path(Path(root).expanduser(), root=_governed_root(args))
+
+
+def _governed_root(args: argparse.Namespace) -> Path:
+    root = (
+        getattr(args, "governed_root", None)
+        or getattr(args, "state_root", None)
+        or getattr(args, "queue_root", None)
+    )
+    if root is None:
+        raise ContinuationError("an explicit root is required", code="STATE_ROOT_REQUIRED")
+    return trusted_root(Path(root).expanduser())
 
 
 def _queue_root(args: argparse.Namespace) -> Path:
@@ -112,7 +126,7 @@ def _queue_root(args: argparse.Namespace) -> Path:
             "operator-admitted queue and from nowhere else",
             code="QUEUE_ROOT_REQUIRED",
         )
-    return Path(queue_root).expanduser().resolve()
+    return checked_path(Path(queue_root).expanduser(), root=_governed_root(args))
 
 
 # ------------------------------------------------------------------- queue
@@ -122,11 +136,11 @@ def cmd_queue(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     queue_root = _queue_root(args)
     action = args.action
     if action == "list":
-        queue = load_queue(queue_root)
+        queue = load_queue(queue_root, governed_root=_governed_root(args))
         rows = []
         for entry in sorted(queue.entries.values(), key=lambda e: e.program_id):
             try:
-                verify_entry(entry)
+                verify_entry(entry, governed_root=_governed_root(args))
                 pin = "MATCHES_ADMITTED_BYTES"
             except ContinuationError as exc:
                 pin = f"REFUSED: {getattr(exc, 'code', 'QUEUE_ERROR')}"
@@ -143,8 +157,8 @@ def cmd_queue(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "error": "admit requires --program, --admitted-by and --reference",
                 "code": "ADMIT_ARGS_MISSING",
             }, EXIT_USAGE
-        program_path = Path(args.program).expanduser().resolve()
-        loaded = load_program(program_path)
+        program_path = checked_path(Path(args.program).expanduser(), root=_governed_root(args))
+        loaded = load_program(program_path, governed_root=_governed_root(args))
         if not getattr(args, "state_root", None):
             # D-2: this used to fall back to the program file's own directory.
             # Under a hardened deployment that directory is mounted READ-ONLY
@@ -167,7 +181,7 @@ def cmd_queue(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 ),
                 "code": "ADMIT_STATE_ROOT_REQUIRED",
             }, EXIT_USAGE
-        state_root = Path(args.state_root).expanduser().resolve()
+        state_root = _root(args)
         entry = admit(
             queue_root,
             program_path=program_path,
@@ -176,6 +190,7 @@ def cmd_queue(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             admitted_by=args.admitted_by,
             reference=args.reference,
             note=args.note or "",
+            governed_root=_governed_root(args),
         )
         # A sleeping dispatcher should see this without waiting a full tick.
         request_wake(state_root, reason=f"admitted {entry.program_id}")
@@ -195,7 +210,9 @@ def cmd_queue(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "error": "withdraw requires --program-id",
                 "code": "WITHDRAW_ARGS_MISSING",
             }, EXIT_USAGE
-        entry = withdraw(queue_root, args.program_id, note=args.note or "")
+        entry = withdraw(
+            queue_root, args.program_id, note=args.note or "", governed_root=_governed_root(args)
+        )
         return {"withdrawn": entry.model_dump(mode="json")}, EXIT_OK
     return {"error": f"unknown queue action {action}"}, EXIT_USAGE
 
@@ -224,15 +241,13 @@ def cmd_dispatcher(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         request_stop(root, requested_by=args.requested_by or "operator")
         return {
             "stop_requested": True,
-            "note": "Honoured at the next tick boundary; a running program is "
-            "not interrupted.",
+            "note": "Honoured at the next tick boundary; a running program is not interrupted.",
         }, EXIT_OK
     if action == "drain":
         request_drain(root, requested_by=args.requested_by or "operator")
         return {
             "drain_requested": True,
-            "note": "The current program finishes, nothing new starts, then the "
-            "dispatcher exits.",
+            "note": "The current program finishes, nothing new starts, then the dispatcher exits.",
         }, EXIT_OK
     if action == "wake":
         request_wake(root, reason=args.requested_by or "operator")
@@ -246,10 +261,11 @@ def cmd_dispatcher(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         dispatcher = ResidentDispatcher(
             root=root,
             queue_root=queue_root,
+            governed_root=_governed_root(args),
             checkout=Path(args.checkout).expanduser().resolve()
             if getattr(args, "checkout", None)
             else None,
-            registry_root=Path(args.registry).expanduser().resolve()
+            registry_root=checked_path(Path(args.registry).expanduser())
             if getattr(args, "registry", None)
             else None,
             tick_seconds=float(args.tick_seconds),
@@ -313,9 +329,7 @@ _RESTART_MAX_WAIT_SECONDS = 600.0
 _RESTART_POLL_SECONDS = 0.1
 
 
-def _restart_refusal(
-    code: str, error: str, **extra: Any
-) -> tuple[dict[str, Any], int]:
+def _restart_refusal(code: str, error: str, **extra: Any) -> tuple[dict[str, Any], int]:
     return {
         "performed": False,
         "code": code,
@@ -347,13 +361,9 @@ def _write_restart_verdict(
         {
             "restart_verdict": verdict,
             "evidence": evidence,
-            "witness_session_id": (
-                witness.dispatcher_session_id if witness is not None else None
-            ),
+            "witness_session_id": (witness.dispatcher_session_id if witness is not None else None),
             "witness_digest": (
-                digest_payload(witness.model_dump(mode="json"))
-                if witness is not None
-                else None
+                digest_payload(witness.model_dump(mode="json")) if witness is not None else None
             ),
             "verified_at": utc_now(),
             "model_backed_dispatch": "DISABLED",
@@ -366,6 +376,33 @@ def _all_pass(verdict: dict[str, str]) -> bool:
 
 
 def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
+    """Serialize operator restarts; a contender must not start a second child."""
+    from project_atlas.orchestration.program.process_lock import (
+        ProcessLockError,
+        exclusive_process_lock,
+    )
+    from project_atlas.orchestration.program.resident import dispatcher_dir
+
+    # Preserve argument/identity refusals without making even a lock file.
+    if getattr(args, "mode", None) != "supervised" or _read_restart_command(root) is None:
+        return _cmd_restart_impl(args, root)
+    beat = read_heartbeat(root)
+    if beat is None:
+        return _cmd_restart_impl(args, root)
+    try:
+        _validate_restart_identity(beat.pid, beat.process_start_identity)
+    except DispatcherError as exc:
+        return _restart_refusal(exc.code, str(exc), stopped=False, started=False)
+    try:
+        with exclusive_process_lock(dispatcher_dir(root) / "restart.lock"):
+            return _cmd_restart_impl(args, root)
+    except ProcessLockError as exc:
+        return _restart_refusal(
+            "RESTART_ALREADY_IN_PROGRESS", str(exc), stopped=False, started=False
+        )
+
+
+def _cmd_restart_impl(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
     requested_mode = getattr(args, "mode", None) or "delegate"
     mode: Literal["delegate", "supervised"]
     if requested_mode == "delegate":
@@ -389,9 +426,7 @@ def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], 
             "code": "RESTART_WAIT_SECONDS_OUT_OF_BOUNDS",
         }, EXIT_USAGE
     queue_root = (
-        Path(args.queue_root).expanduser().resolve()
-        if getattr(args, "queue_root", None)
-        else None
+        _queue_root(args) if getattr(args, "queue_root", None) else None
     )
 
     command: tuple[str, ...] | None = None
@@ -412,7 +447,9 @@ def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], 
 
     # ---- PRE
     try:
-        witness = _take_restart_witness(root, mode=mode, queue_root=queue_root)
+        witness = _take_restart_witness(
+            root, mode=mode, queue_root=queue_root, governed_root=_governed_root(args)
+        )
     except DispatcherError as exc:
         if exc.code != "RESTART_IDENTITY_UNVERIFIABLE":
             raise
@@ -459,6 +496,10 @@ def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], 
         "signal_sent": False,
     }
     if witness.alive_at_witness:
+        try:
+            _validate_restart_witness_current(root, witness)
+        except DispatcherError as exc:
+            return _restart_refusal(exc.code, str(exc), stopped=False, started=False)
         request_drain(root, requested_by=args.requested_by or "operator:restart")
         request_wake(root, reason="restart: drain requested")
         stop["drain_requested"] = True
@@ -482,6 +523,12 @@ def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], 
     else:
         stop["drain_requested"] = False
         stop["exited"] = True
+
+    # F-02: draining/waiting may have outlived the PID ownership observation.
+    try:
+        _validate_restart_witness_current(root, witness)
+    except DispatcherError as exc:
+        return _restart_refusal(exc.code, str(exc), stopped=False, started=False)
 
     flags = 0
     if os.name == "nt":
@@ -532,7 +579,9 @@ def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], 
     start["exit_status_so_far"] = proc.poll()
 
     # ---- POST
-    verdict, evidence = _evaluate_restart(root, witness, queue_root=queue_root)
+    verdict, evidence = _evaluate_restart(
+        root, witness, queue_root=queue_root, governed_root=_governed_root(args)
+    )
     verdict_path = _write_restart_verdict(root, witness, verdict, evidence)
     return {
         "performed": True,
@@ -553,13 +602,9 @@ def _cmd_restart(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], 
     }, (EXIT_OK if _all_pass(verdict) else EXIT_ERROR)
 
 
-def _cmd_restart_verify(
-    args: argparse.Namespace, root: Path
-) -> tuple[dict[str, Any], int]:
+def _cmd_restart_verify(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
     queue_root = (
-        Path(args.queue_root).expanduser().resolve()
-        if getattr(args, "queue_root", None)
-        else None
+        _queue_root(args) if getattr(args, "queue_root", None) else None
     )
     witness: RestartWitness | None
     try:
@@ -574,7 +619,9 @@ def _cmd_restart_verify(
     if witness is None:
         verdict, evidence = _unverifiable_restart_verdict(why)
     else:
-        verdict, evidence = _evaluate_restart(root, witness, queue_root=queue_root)
+        verdict, evidence = _evaluate_restart(
+            root, witness, queue_root=queue_root, governed_root=_governed_root(args)
+        )
     verdict_path = _write_restart_verdict(root, witness, verdict, evidence)
     return {
         "restart_verdict": verdict,
@@ -592,12 +639,13 @@ def _cmd_restart_verify(
 def cmd_capsule(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root = _root(args)
     queue_root = (
-        Path(args.queue_root).expanduser().resolve()
-        if getattr(args, "queue_root", None)
-        else None
+        _queue_root(args) if getattr(args, "queue_root", None) else None
     )
     capsule = build_capsule(
-        root, for_worker_id=args.worker_id or "unassigned", queue_root=queue_root
+        root,
+        for_worker_id=args.worker_id or "unassigned",
+        queue_root=queue_root,
+        governed_root=_governed_root(args),
     )
     written = persist_capsule(root, capsule)
     rendered = render_capsule(capsule)
@@ -644,9 +692,7 @@ def cmd_checkpoint(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     if args.action == "list":
         return {
             "state_root": str(root),
-            "checkpoints": [
-                c.model_dump(mode="json") for c in list_checkpoints(root)
-            ],
+            "checkpoints": [c.model_dump(mode="json") for c in list_checkpoints(root)],
         }, EXIT_OK
     if args.action == "show":
         if not args.task:
@@ -671,12 +717,15 @@ def cmd_continuation(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         # a task with no checkpoint whose program is recorded COMPLETE is a
         # lost record, and the two surfaces must reach the same disposition.
         queue_root = (
-            Path(args.queue_root).expanduser().resolve()
+            _queue_root(args)
             if getattr(args, "queue_root", None)
             else None
         )
         verdicts = reconcile_root(
-            root, our_worker_id=args.worker_id or "unassigned", queue_root=queue_root
+            root,
+            our_worker_id=args.worker_id or "unassigned",
+            queue_root=queue_root,
+            governed_root=_governed_root(args),
         )
         return {
             "state_root": str(root),
@@ -780,9 +829,7 @@ def cmd_decisions(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return {"error": f"unknown decisions action {args.action}"}, EXIT_USAGE
 
 
-CONTINUATION_HANDLERS: dict[
-    str, Any
-] = {
+CONTINUATION_HANDLERS: dict[str, Any] = {
     "queue": cmd_queue,
     "dispatcher": cmd_dispatcher,
     "capsule": cmd_capsule,
@@ -855,6 +902,12 @@ def register_continuation_commands(
                 help="Which operation to perform.",
             )
         child.add_argument("--queue-root", type=Path, default=None)
+        child.add_argument(
+            "--governed-root",
+            type=Path,
+            default=None,
+            help="Explicit boundary containing state, queue, programs and workspaces",
+        )
         child.add_argument("--program", type=Path, default=None)
         child.add_argument("--program-id", default=None)
         child.add_argument("--task", default=None)
@@ -866,9 +919,7 @@ def register_continuation_commands(
         child.add_argument("--decision-id", default=None)
         child.add_argument("--answered-by", default=None)
         child.add_argument("--answer", default=None)
-        child.add_argument(
-            "--status", default=None, choices=[s.value for s in DecisionStatus]
-        )
+        child.add_argument("--status", default=None, choices=[s.value for s in DecisionStatus])
         child.add_argument("--checkout", type=Path, default=None)
         child.add_argument("--registry", type=Path, default=None)
         child.add_argument("--tick-seconds", type=float, default=5.0)

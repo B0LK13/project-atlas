@@ -421,6 +421,19 @@ def project_checkpoints(
             # one the moment a projection legitimately carried a higher
             # sequence.
             continue
+        # TAKEOVER-001: a boundary snapshot is not an execution. Keep never
+        # dispatched work as an envelope; otherwise an uncertain replay class
+        # turns an ordinary pause into a fictitious interrupted execution.
+        if attempt is None and previous is None and record.state not in _DONE | _STUCK:
+            continue
+        # Preserve first-hand uncertainty instead of laundering it through a
+        # weaker boundary projection after dispatch was refused.
+        if previous is not None and (
+            previous.envelope_digest != envelope.digest()
+            or previous.uncertainty
+            or any(effect.confirmed is not True for effect in previous.external_effects)
+        ):
+            continue
         sequence = (previous.sequence + 1) if previous is not None else 1
 
         terminal = record.state in _DONE or record.state in _STUCK

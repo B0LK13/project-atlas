@@ -72,6 +72,7 @@ from project_atlas.orchestration.program.models import (
     ProgramTask,
     WorkProgram,
 )
+from project_atlas.orchestration.program.path_safety import checked_path, child_path
 from project_atlas.orchestration.program.store import state_dir, write_json_atomic
 
 PACKAGE_ID: Final[Literal["AS-ORCH-DURABLE-CONTINUATION-001"]] = (
@@ -689,11 +690,11 @@ def validate_envelope_for_dispatch(
 
 
 def envelopes_dir(root: Path) -> Path:
-    return state_dir(root) / ENVELOPES_DIR
+    return child_path(state_dir(root), ENVELOPES_DIR)
 
 
 def checkpoints_dir(root: Path) -> Path:
-    return state_dir(root) / CHECKPOINTS_DIR
+    return child_path(state_dir(root), CHECKPOINTS_DIR)
 
 
 def _safe_name(value: str, suffix: str) -> str:
@@ -718,11 +719,11 @@ def load_envelope(root: Path, task_id: str) -> TaskEnvelope | None:
     recorded" and "the record of authority is corrupt" are different facts and
     only the first of them is safe to treat as an absence.
     """
-    path = envelopes_dir(root) / _safe_name(task_id, ".envelope.json")
+    path = child_path(envelopes_dir(root), _safe_name(task_id, ".envelope.json"))
     if not path.is_file():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise EnvelopeError(
             f"envelope for {task_id} at {path} is unreadable: {exc}",
@@ -749,9 +750,9 @@ def list_envelopes(root: Path) -> tuple[TaskEnvelope, ...]:
     if not directory.is_dir():
         return ()
     found: list[TaskEnvelope] = []
-    for path in sorted(directory.glob("*.envelope.json")):
+    for path in sorted(checked_path(directory, root=root).glob("*.envelope.json")):
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise EnvelopeError(
                 f"envelope at {path} is unreadable: {exc}", code="ENVELOPE_UNREADABLE"
@@ -1168,11 +1169,11 @@ def load_checkpoint(
     reading the previous sequence -- because a corrupt record must still block
     a write rather than be overwritten by it.
     """
-    path = checkpoints_dir(root) / _safe_name(task_id, ".checkpoint.json")
+    path = child_path(checkpoints_dir(root), _safe_name(task_id, ".checkpoint.json"))
     if not path.is_file():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise CheckpointError(
             f"checkpoint for {task_id} at {path} is unreadable: {exc}",
@@ -1207,9 +1208,9 @@ def list_checkpoints(
     if not directory.is_dir():
         return ()
     found: list[ContinuationCheckpoint] = []
-    for path in sorted(directory.glob("*.checkpoint.json")):
+    for path in sorted(checked_path(directory, root=root).glob("*.checkpoint.json")):
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise CheckpointError(
                 f"checkpoint at {path} is unreadable: {exc}",
@@ -1228,11 +1229,11 @@ def list_checkpoints(
     return tuple(sorted(found, key=lambda item: item.identity.task_id))
 
 
-def file_sha256(path: Path) -> tuple[str, int]:
+def file_sha256(path: Path, *, governed_root: Path | None = None) -> tuple[str, int]:
     """Digest and size of one file, streamed."""
     digest = hashlib.sha256()
     total = 0
-    with path.open("rb") as handle:
+    with checked_path(path, root=governed_root).open("rb") as handle:
         while True:
             chunk = handle.read(1 << 16)
             if not chunk:
@@ -1243,7 +1244,7 @@ def file_sha256(path: Path) -> tuple[str, int]:
 
 
 def artifact_record(path: Path, *, relative_to: Path | None = None) -> ArtifactRecord:
-    sha, size = file_sha256(path)
+    sha, size = file_sha256(path, governed_root=relative_to)
     shown = str(path.relative_to(relative_to)) if relative_to else str(path)
     return ArtifactRecord(path=shown, sha256=sha, bytes=size)
 

@@ -238,6 +238,7 @@ def assign(
     program_path: Path,
     assigned_by: str,
     allow_runtime_substitution: bool = False,
+    governed_root: Path | None = None,
 ) -> tuple[EnrolledAgent, LoadedProgram]:
     """Assign an approved program to an enrolled agent.
 
@@ -254,7 +255,7 @@ def assign(
             f"agent {agent_id} is {agent.status.value} and cannot be assigned work",
             code="AGENT_NOT_ACTIVE",
         )
-    loaded = load_program(program_path)
+    loaded = load_program(program_path, governed_root=governed_root)
     # Prove the binding resolves before recording it.
     bind(agent, loaded, allow_runtime_substitution=allow_runtime_substitution)
 

@@ -50,6 +50,7 @@ from project_atlas.orchestration.program.loader import (
     profile_digest,
 )
 from project_atlas.orchestration.program.models import ProgramError
+from project_atlas.orchestration.program.path_safety import checked_path, trusted_root
 from project_atlas.orchestration.program.profiles import (
     UNENFORCED_MODES,
     AdapterKind,
@@ -72,7 +73,7 @@ EXIT_USAGE = 2
 def _state_root(args: argparse.Namespace, loaded: LoadedProgram) -> Path:
     explicit = getattr(args, "state_root", None)
     if explicit:
-        return Path(explicit).expanduser().resolve()
+        return checked_path(Path(explicit).expanduser(), root=loaded.governed_root)
     return loaded.source_path.parent
 
 
@@ -92,7 +93,7 @@ def _enrolled_for(
     registry_arg = getattr(args, "registry", None)
     if not registry_arg:
         return (), None
-    root = Path(registry_arg).expanduser().resolve()
+    root = trusted_root(Path(registry_arg).expanduser())
     registry = load_registry(root)
     roles = set(loaded.profiles.profiles)
     agents = tuple(
@@ -104,13 +105,14 @@ def _enrolled_for(
 
 
 def _supervisor(args: argparse.Namespace) -> ProgramSupervisor:
-    loaded = load_program(Path(args.program))
+    loaded = load_program(Path(args.program), governed_root=getattr(args, "governed_root", None))
     agents, registry_root = _enrolled_for(args, loaded)
     return ProgramSupervisor(
         loaded,
         state_root=_state_root(args, loaded),
         enrolled_agents=agents,
         registry_root=registry_root,
+        governed_root=getattr(args, "governed_root", None),
     )
 
 
@@ -122,7 +124,7 @@ def run_validate(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     own declaration. A program that validates is not thereby a safe one, and
     saying so here is cheaper than discovering it later.
     """
-    loaded = load_program(Path(args.program))
+    loaded = load_program(Path(args.program), governed_root=getattr(args, "governed_root", None))
     tasks: list[dict[str, Any]] = []
     warnings: list[str] = []
     for task in loaded.program.tasks:
@@ -244,7 +246,9 @@ def run_runtimes(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 def run_credentials(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     """Which account each profile will actually authenticate as. No values."""
-    return credential_report(load_program(Path(args.program))), EXIT_OK
+    return credential_report(load_program(
+        Path(args.program), governed_root=getattr(args, "governed_root", None)
+    )), EXIT_OK
 
 
 def run_capabilities(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -267,7 +271,7 @@ def run_handoff(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 
 def run_events(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
-    loaded = load_program(Path(args.program))
+    loaded = load_program(Path(args.program), governed_root=getattr(args, "governed_root", None))
     root = _state_root(args, loaded)
     rows = read_events(root, limit=int(getattr(args, "limit", 50) or 50))
     return {"program_id": loaded.program.program_id, "events": rows}, EXIT_OK
@@ -278,7 +282,7 @@ def run_events(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 def run_control(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     """The stable read-only contract, or one governed action request."""
-    loaded = load_program(Path(args.program))
+    loaded = load_program(Path(args.program), governed_root=getattr(args, "governed_root", None))
     root = _state_root(args, loaded)
     action = getattr(args, "action", None)
     if not action:
@@ -306,7 +310,7 @@ def run_control(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     action = str(getattr(args, "service_action", ""))
     program_path = Path(args.program)
-    loaded = load_program(program_path)
+    loaded = load_program(program_path, governed_root=getattr(args, "governed_root", None))
     root = _state_root(args, loaded)
     registry = getattr(args, "registry", None)
     registry_root = Path(registry).expanduser().resolve() if registry else None
@@ -346,7 +350,7 @@ def run_service(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 
 def _registry_root(args: argparse.Namespace) -> Path:
-    return Path(args.registry).expanduser().resolve()
+    return trusted_root(Path(args.registry).expanduser())
 
 
 def run_agent_enroll(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -410,6 +414,7 @@ def run_agent_assign(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         agent_id=str(args.agent_id),
         program_path=Path(args.program),
         assigned_by=str(args.assigned_by),
+        governed_root=getattr(args, "governed_root", None),
         allow_runtime_substitution=bool(
             getattr(args, "allow_runtime_substitution", False)
         ),
@@ -485,7 +490,8 @@ def run_agent_launch(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         raise EnrollmentError(
             f"agent {agent.agent_id} has no assigned program", code="NO_ASSIGNMENT"
         )
-    loaded = load_program(Path(agent.assigned_program))
+    loaded = load_program(Path(agent.assigned_program),
+                          governed_root=getattr(args, "governed_root", None))
     supervisor = ProgramSupervisor(
         loaded,
         state_root=Path(
@@ -595,6 +601,7 @@ def register_program_parser(
     ):
         child = sub.add_parser(name, help=help_text)
         if name in _PROGRAM_SCOPED:
+            child.add_argument("--governed-root", type=Path, default=None)
             child.add_argument(
                 "--program",
                 required=True,
@@ -773,6 +780,7 @@ def register_agent_parser(
     )
     assign_cmd.add_argument("--agent-id", required=True)
     assign_cmd.add_argument("--program", required=True, type=Path)
+    assign_cmd.add_argument("--governed-root", type=Path, default=None)
     assign_cmd.add_argument("--assigned-by", required=True)
     assign_cmd.add_argument(
         "--allow-runtime-substitution",
@@ -804,6 +812,7 @@ def register_agent_parser(
     )
     launch_cmd.add_argument("--agent-id", required=True)
     launch_cmd.add_argument("--state-root", type=Path, default=None)
+    launch_cmd.add_argument("--governed-root", type=Path, default=None)
     return parser
 
 

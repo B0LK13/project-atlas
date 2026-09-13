@@ -426,6 +426,7 @@ def test_service_run_refuses_assignment_to_a_different_program(tmp_path: Path) -
         agent_id="svc-agent",
         program_path=other,
         assigned_by="test",
+        governed_root=tmp_path,
     )
 
     with pytest.raises(service.ServiceError) as excinfo:

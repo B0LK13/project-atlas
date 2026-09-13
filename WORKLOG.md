@@ -14961,6 +14961,45 @@ package produces and there is no code path that sets it otherwise. INT-013's
 `EXTERNAL_BLOCKED` state is unchanged and the demonstration preserves it in the
 contract's `executable_when`.
 
+## 2026-09-13 — ATLAS-END-TO-END-IMPLEMENTATION-TAKEOVER-001
+
+Own session: `codex-takeover-001`; isolated successor of
+`e3b375588d013f1e5552adcb872201633ba1e4ef` /
+`aa8562ba08cf3c8e1dd07fb7300ebd309cf8e81f`. Preserved original worktrees,
+historical evidence and the live pilot. The initial writer/process check found
+the pilot and no overlapping implementation writer; no pilot action was taken.
+
+Implemented F-01 explicit filesystem containment (separate scoped implementer)
+and F-02 restart identity refusal/rechecks (coordinator). Added OS-owned resident,
+queue and restart exclusion. Zero-model integration exposed a further real
+dispatch gap: uncertain/expired/contradictory continuation was only checked by
+read lenses. Actual dispatch now validates the envelope and reconciliation;
+projection preserves stronger uncertainty and does not invent an execution
+checkpoint for a task that never ran. Partial-task step resume is explicitly
+unsupported, not replayed as a fresh task.
+
+Development evidence includes red-before/green-after F-01/F-02 checks, three
+real-process complete/revoked/uncertain fixtures, and a broad program regression
+run (394 passed, 3 integration failures, 1 skipped). The three failures were
+resolved with explicit fixture boundaries and truthful no-attempt expectations;
+the focused correction/authority run passed 21 tests. Ruff and strict mypy
+passed (468 source files). These results describe the evolving working tree,
+not certification of the frozen predecessor or the eventual candidate.
+
+Final clean-candidate regression, independent acceptance, non-editable wheel
+installation, exact HEAD/TREE, source/import hashes, raw commands and SHA256SUMS
+are recorded externally under
+`/home/gebruiker/.cache/atlas-r-deploy/takeover-001-PHD3JHPQ/`.
+See `docs/orchestration/program/LOCAL-TAKEOVER-001.md` for the operator contract.
+The independent verifier did not author either repair. No successful final
+verification is asserted before its candidate-specific evidence exists.
+
+Governed documentation used the approved local spool in this isolated checkout:
+session `AS-20260913T102201Z-codex-takeover-001-project-atlas-1bc5657c`,
+implementation event `AE-20260913T102606Z-project-atlas-10d64237`.
+Shared-Vault synchronization/strict receipt remains separate. No service
+installation, activation, privilege change, paid worker, push or merge occurred.
+
 Evidence: `docs/orchestration/taskcontract/demo/evidence/` (11 raw files),
 `docs/orchestration/taskcontract/demo/snapshot/` (the item text and digest the
 run observed).

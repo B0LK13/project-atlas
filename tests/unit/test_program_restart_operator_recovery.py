@@ -194,6 +194,8 @@ def owned() -> Iterator[_Owned]:
 
 def _cli(*args: str) -> tuple[dict[str, Any], int]:
     """The CLI in a fresh interpreter: its JSON object and its exit status."""
+    if "--state-root" in args and "--governed-root" not in args:
+        args = (*args, "--governed-root", str(Path(args[args.index("--state-root") + 1]).parent))
     completed = subprocess.run(
         [sys.executable, "-m", CLI, *args],
         capture_output=True,
@@ -207,6 +209,8 @@ def _cli(*args: str) -> tuple[dict[str, Any], int]:
 
 
 def _in_process(*args: str) -> tuple[dict[str, Any], int]:
+    if "--state-root" in args and "--governed-root" not in args:
+        args = (*args, "--governed-root", str(Path(args[args.index("--state-root") + 1]).parent))
     return dispatch_cli(_build_parser().parse_args(list(args)))
 
 
@@ -295,6 +299,7 @@ def _admit(queue_root: Path, program: Path, state_root: Path) -> None:
         state_root=state_root,
         admitted_by="fixture-operator",
         reference="operator recovery test",
+        governed_root=queue_root.parent,
     )
 
 
@@ -311,6 +316,8 @@ def _dispatcher_argv(
         str(root),
         "--queue-root",
         str(queue),
+        "--governed-root",
+        str(queue.parent),
         "--checkout",
         str(checkout),
         "--action",
@@ -671,14 +678,14 @@ def test_T5_a_pid_reused_by_an_unrelated_process_is_not_mistaken_for_the_dispatc
         _Live(root, queue, stranger.pid, "linux:0-not-this-process", "dispatcher.outgoing.fixture"),
         owned,
     )
-    assert payload["stop"]["alive_at_witness"] is False
-    assert payload["stop"]["drain_requested"] is False
-    assert payload["stop"]["signal_sent"] is False
+    assert payload["code"] == "RESTART_IDENTITY_UNVERIFIABLE"
+    assert payload["started"] is False
+    assert payload["stopped"] is False
     # The stranger was neither waited on as the dispatcher nor touched.
     assert pid_is_alive(stranger.pid)
     assert process_start_identity(stranger.pid) == owned.identity_of(stranger.pid)
-    assert payload["restart_verdict"] == ALL_PASS, payload["evidence"]
-    assert code == 0
+    assert "restart_verdict" not in payload
+    assert code != 0
 
 
 # =============================================================== T6
@@ -969,6 +976,7 @@ def test_T10_discrimination_gate_each_mutation_flips_exactly_its_criterion(
     resident.ResidentDispatcher(
         root=root,
         queue_root=queue,
+        governed_root=tmp_path,
         checkout=checkout,
         tick_seconds=0.5,
         wake_quantum_seconds=0.1,

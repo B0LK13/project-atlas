@@ -51,6 +51,12 @@ from project_atlas.orchestration.program.continuation import (
     load_envelope,
 )
 from project_atlas.orchestration.program.models import ProgramError
+from project_atlas.orchestration.program.path_safety import (
+    ContainmentError,
+    checked_path,
+    child_path,
+    trusted_root,
+)
 from project_atlas.orchestration.program.recovery import Liveness
 
 
@@ -170,7 +176,9 @@ def _unconfirmed_effects(checkpoint: ContinuationCheckpoint) -> tuple[str, ...]:
 _MAX_PRIOR_EXECUTION_EVIDENCE: Final[int] = 8
 
 
-def completed_program_task_ids(queue_root: Path | None) -> frozenset[str]:
+def completed_program_task_ids(
+    queue_root: Path | None, *, governed_root: Path | None = None
+) -> frozenset[str]:
     """Task ids whose owning program the approved-work queue records COMPLETE.
 
     Consulted only when a task's own records cannot answer, because the records
@@ -185,11 +193,14 @@ def completed_program_task_ids(queue_root: Path | None) -> frozenset[str]:
     from project_atlas.orchestration.program.approved_queue import (
         QueueEntryStatus,
         load_queue,
+        verify_entry,
     )
     from project_atlas.orchestration.program.loader import load_program
 
     try:
-        queue = load_queue(queue_root)
+        queue = load_queue(queue_root, governed_root=governed_root)
+    except ContainmentError:
+        raise
     except Exception:
         return frozenset()
     owned: set[str] = set()
@@ -197,7 +208,11 @@ def completed_program_task_ids(queue_root: Path | None) -> frozenset[str]:
         if entry.status is not QueueEntryStatus.COMPLETE:
             continue
         try:
-            loaded = load_program(Path(entry.program_path))
+            boundary = governed_root or queue_root
+            verify_entry(entry, governed_root=boundary)
+            loaded = load_program(Path(entry.program_path), governed_root=boundary)
+        except ContainmentError:
+            raise
         except Exception:
             # An admitted program whose file moved cannot tell us what it owns.
             # Silence here is correct: we lose the cross-check, not the record.
@@ -212,6 +227,7 @@ def prior_execution_evidence(
     *,
     queue_root: Path | None = None,
     completed_elsewhere: frozenset[str] | None = None,
+    governed_root: Path | None = None,
 ) -> tuple[str, ...]:
     """Every durable trace that this task was executed before, from any root.
 
@@ -237,6 +253,8 @@ def prior_execution_evidence(
     from project_atlas.orchestration.autonomy.models import NodeState
     from project_atlas.orchestration.program.store import evidence_dir, load_state
 
+    if governed_root is not None:
+        roots = tuple(checked_path(root, root=governed_root) for root in roots)
     found: list[str] = []
     for root in roots:
         try:
@@ -251,7 +269,8 @@ def prior_execution_evidence(
             record.attempts > 0
             or record.launches > 0
             or record.last_attempt_id is not None
-            or record.state is not NodeState.DISCOVERED
+            # Eligibility alone is not execution (TAKEOVER-001 pause/resume).
+            or record.state not in {NodeState.DISCOVERED, NodeState.READY}
         ):
             found.append(
                 f"state.json under {root} records task {task_id} in state "
@@ -266,12 +285,12 @@ def prior_execution_evidence(
                 f"(phase {attempt.phase.value}, started {attempt.started_at})"
             )
             for name in attempt.evidence_paths:
-                if (evidence_dir(root) / name).is_file():
+                if child_path(evidence_dir(root), name).is_file():
                     found.append(f"evidence file {name} present under {root}")
     completed = (
         completed_elsewhere
         if completed_elsewhere is not None
-        else completed_program_task_ids(queue_root)
+        else completed_program_task_ids(queue_root, governed_root=governed_root)
     )
     if task_id in completed:
         found.append(
@@ -580,6 +599,7 @@ def reconcile_root(
     our_worker_id: str,
     now: datetime | None = None,
     queue_root: Path | None = None,
+    governed_root: Path | None = None,
 ) -> tuple[ReconciliationVerdict, ...]:
     """Reconcile every task that has an envelope under one state root.
 
@@ -590,7 +610,11 @@ def reconcile_root(
     """
     from project_atlas.orchestration.program.continuation import list_envelopes
 
-    completed = completed_program_task_ids(queue_root)
+    boundary = trusted_root(governed_root or root)
+    root = checked_path(root, root=boundary)
+    if queue_root is not None:
+        queue_root = checked_path(queue_root, root=boundary)
+    completed = completed_program_task_ids(queue_root, governed_root=boundary)
     verdicts: list[ReconciliationVerdict] = []
     for envelope in list_envelopes(root):
         try:
@@ -627,8 +651,14 @@ def reconcile_one(
     our_worker_id: str,
     now: datetime | None = None,
     queue_root: Path | None = None,
+    governed_root: Path | None = None,
 ) -> ReconciliationVerdict:
     """Reconcile a single task, by id."""
+    boundary = trusted_root(governed_root or root)
+    root = checked_path(root, root=boundary)
+    if queue_root is not None:
+        queue_root = checked_path(queue_root, root=boundary)
+    completed = completed_program_task_ids(queue_root, governed_root=boundary)
     envelope = load_envelope(root, task_id)
     if envelope is None:
         raise ReconciliationError(
@@ -651,5 +681,7 @@ def reconcile_one(
         checkpoint=checkpoint,
         our_worker_id=our_worker_id,
         now=now,
-        prior_execution=prior_execution_evidence((root,), task_id, queue_root=queue_root),
+        prior_execution=prior_execution_evidence(
+            (root,), task_id, completed_elsewhere=completed, governed_root=boundary,
+        ),
     )

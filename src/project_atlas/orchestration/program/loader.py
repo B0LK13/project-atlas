@@ -35,6 +35,7 @@ from project_atlas.orchestration.program.models import (
     ProgramTask,
     WorkProgram,
 )
+from project_atlas.orchestration.program.path_safety import checked_path, child_path, trusted_root
 from project_atlas.orchestration.program.profiles import (
     AgentProfile,
     ProfileSet,
@@ -76,6 +77,7 @@ class LoadedProgram:
     effective: dict[str, AgentProfile]
     #: Effective verifier profile per task that declares one.
     verifiers: dict[str, AgentProfile]
+    governed_root: Path | None = None
 
     def effective_profile(self, task_id: str) -> AgentProfile:
         profile = self.effective.get(task_id)
@@ -122,13 +124,14 @@ def profile_digest(profile: AgentProfile) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def load_program(path: Path) -> LoadedProgram:
+def load_program(path: Path, *, governed_root: Path | None = None) -> LoadedProgram:
     """Read, validate and fully resolve a program file. Fails closed."""
-    source = path.expanduser().resolve()
+    boundary = trusted_root(governed_root or path.absolute().parent)
+    source = checked_path(path, root=boundary)
     if not source.is_file():
         raise ProgramLoadError(f"program file not found: {source}", code="FILE_MISSING")
     try:
-        size = source.stat().st_size
+        size = checked_path(source, root=boundary).stat().st_size
     except OSError as exc:
         raise ProgramLoadError(
             f"cannot stat program file {source}: {exc}", code="FILE_UNREADABLE"
@@ -139,7 +142,7 @@ def load_program(path: Path) -> LoadedProgram:
             code="FILE_TOO_LARGE",
         )
     try:
-        raw = json.loads(source.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(source, root=boundary).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ProgramLoadError(
             f"program file {source} is not readable JSON: {exc}",
@@ -189,11 +192,12 @@ def load_program(path: Path) -> LoadedProgram:
             code="PROGRAM_INVALID",
         ) from exc
 
-    workspace = Path(program.workspace_root).expanduser()
+    workspace = Path(program.workspace_root)
     if not workspace.is_absolute():
-        workspace = (source.parent / workspace).resolve()
+        workspace = child_path(source.parent, program.workspace_root)
     else:
-        workspace = workspace.resolve()
+        workspace = checked_path(workspace, root=boundary)
+    workspace = checked_path(workspace, root=boundary)
     if not workspace.is_dir():
         raise ProgramLoadError(
             f"workspace_root {workspace} is not a directory",
@@ -221,6 +225,7 @@ def load_program(path: Path) -> LoadedProgram:
         digest=program_digest(raw),
         effective=effective,
         verifiers=verifiers,
+        governed_root=boundary,
     )
 
 

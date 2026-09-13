@@ -166,7 +166,7 @@ def test_UPGRADE_a_record_from_an_older_version_is_VERSION_SKEW_not_DIGEST_MISMA
         list_checkpoints(root)
     _assert_skew(listed.value, writer=1, reader=CHECKPOINT_SCHEMA_VERSION)
 
-    verdict = reconcile_one(root, task_id, our_worker_id=WORKER)
+    verdict = reconcile_one(root, task_id, governed_root=tmp_path, our_worker_id=WORKER)
     assert verdict.disposition is Disposition.FAIL_CLOSED
     assert verdict.launchable is False
     assert verdict.evidence == ("CHECKPOINT_VERSION_SKEW",)
@@ -246,7 +246,7 @@ def test_ROLLBACK_a_record_from_a_newer_version_is_VERSION_SKEW_not_MALFORMED(
         _assert_skew(caught.value, writer=newer, reader=CHECKPOINT_SCHEMA_VERSION)
         assert caught.value.code != "CHECKPOINT_MALFORMED"
 
-    verdicts = reconcile_root(root, our_worker_id=WORKER)
+    verdicts = reconcile_root(root, governed_root=tmp_path, our_worker_id=WORKER)
     assert [(v.disposition, v.launchable, v.evidence) for v in verdicts] == [
         (Disposition.FAIL_CLOSED, False, ("CHECKPOINT_VERSION_SKEW",))
     ]
@@ -288,7 +288,7 @@ def test_a_genuinely_edited_record_at_the_current_version_is_still_DIGEST_MISMAT
     with pytest.raises(CheckpointError) as caught:
         load_checkpoint(root, "edited-task")
     assert caught.value.code == "CHECKPOINT_DIGEST_MISMATCH"
-    verdict = reconcile_one(root, "edited-task", our_worker_id=WORKER)
+    verdict = reconcile_one(root, "edited-task", governed_root=tmp_path, our_worker_id=WORKER)
     assert verdict.disposition is Disposition.FAIL_CLOSED
     assert verdict.evidence == ("CHECKPOINT_DIGEST_MISMATCH",)
     assert verdict.launchable is False
@@ -301,7 +301,7 @@ def test_a_same_version_terminal_record_is_still_ALREADY_COMPLETE(tmp_path: Path
     sealed = persist_checkpoint(root, _current_checkpoint(envelope, terminal=True))
     assert sealed.schema_version == CHECKPOINT_SCHEMA_VERSION
     for _ in range(2):
-        verdict = reconcile_one(root, "done-task", our_worker_id=WORKER)
+        verdict = reconcile_one(root, "done-task", governed_root=tmp_path, our_worker_id=WORKER)
         assert verdict.disposition is Disposition.ALREADY_COMPLETE
         assert verdict.launchable is False
 
@@ -326,11 +326,11 @@ def test_a_skewed_record_is_never_launchable_counted_against_a_launchable_contro
     skewed_launchable = sum(
         verdict.launchable
         for _ in range(passes)
-        for verdict in reconcile_root(skewed, our_worker_id=WORKER)
+        for verdict in reconcile_root(skewed, governed_root=tmp_path, our_worker_id=WORKER)
     )
     skewed_codes = {
         verdict.task_id: verdict.evidence
-        for verdict in reconcile_root(skewed, our_worker_id=WORKER)
+        for verdict in reconcile_root(skewed, governed_root=tmp_path, our_worker_id=WORKER)
     }
     assert skewed_launchable == 0
     assert skewed_codes == {
@@ -348,14 +348,15 @@ def test_a_skewed_record_is_never_launchable_counted_against_a_launchable_contro
         resealed = seal_checkpoint(ContinuationCheckpoint.model_validate(raw))
         write_json_atomic(path, resealed.model_dump(mode="json"))
     control_verdicts = {
-        verdict.task_id: verdict for verdict in reconcile_root(control, our_worker_id=WORKER)
+        verdict.task_id: verdict
+        for verdict in reconcile_root(control, governed_root=tmp_path, our_worker_id=WORKER)
     }
     assert control_verdicts["skew-done"].disposition is Disposition.ALREADY_COMPLETE
     assert control_verdicts["skew-open"].disposition is Disposition.RESTART_FROM_TOP
     control_launchable = sum(
         verdict.launchable
         for _ in range(passes)
-        for verdict in reconcile_root(control, our_worker_id=WORKER)
+        for verdict in reconcile_root(control, governed_root=tmp_path, our_worker_id=WORKER)
     )
     assert control_launchable == passes, "the control must be launchable, or the zero is vacuous"
 
@@ -363,7 +364,7 @@ def test_a_skewed_record_is_never_launchable_counted_against_a_launchable_contro
 def test_the_capsule_reports_a_skewed_record_as_fail_closed(tmp_path: Path) -> None:
     root = tmp_path / "state"
     _install_v1_fixture(root)
-    capsule = build_capsule(root, for_worker_id=WORKER)
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id=WORKER)
     rows = {task.task_id: task for task in capsule.tasks}
     assert set(rows) == {"skew-done", "skew-open"}
     for row in rows.values():

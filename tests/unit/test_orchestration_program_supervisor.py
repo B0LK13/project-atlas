@@ -1327,7 +1327,7 @@ def test_overlapping_mutation_surfaces_are_not_run_alongside_each_other(
         ],
     ) if (tmp_path / "other").mkdir(exist_ok=True) is None else None
     assert distinct is not None
-    loaded2 = load_program(distinct)
+    loaded2 = load_program(distinct, governed_root=tmp_path)
     nodes2 = tuple(
         task.to_work_node(base_pin=loaded2.program.base_pin)
         for task in loaded2.program.tasks

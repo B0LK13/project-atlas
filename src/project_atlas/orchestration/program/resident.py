@@ -78,15 +78,23 @@ from project_atlas.orchestration.program.continuation_projection import (
 from project_atlas.orchestration.program.decisions import (
     DecisionKind,
     blocked_task_ids,
+    decisions_dir,
     raise_decision,
 )
-from project_atlas.orchestration.program.enrollment import AgentStatus, load_registry
+from project_atlas.orchestration.program.enrollment import AgentStatus, load_registry, registry_path
 from project_atlas.orchestration.program.loader import (
     LoadedProgram,
     ProgramLoadError,
     load_program,
 )
 from project_atlas.orchestration.program.models import ProgramError, ProgramStopReason
+from project_atlas.orchestration.program.path_safety import (
+    ContainmentError,
+    check_children,
+    checked_path,
+    child_path,
+    trusted_root,
+)
 from project_atlas.orchestration.program.store import (
     append_event,
     load_state,
@@ -244,11 +252,11 @@ class TickResult:
 
 
 def dispatcher_dir(root: Path) -> Path:
-    return state_dir(root) / DISPATCHER_DIR
+    return child_path(state_dir(root), DISPATCHER_DIR)
 
 
 def heartbeat_path(root: Path) -> Path:
-    return dispatcher_dir(root) / HEARTBEAT_NAME
+    return child_path(dispatcher_dir(root), HEARTBEAT_NAME)
 
 
 def read_heartbeat(root: Path) -> Heartbeat | None:
@@ -258,7 +266,7 @@ def read_heartbeat(root: Path) -> Heartbeat | None:
     import json
 
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise DispatcherError(
             f"dispatcher heartbeat at {path} is unreadable: {exc}",
@@ -281,17 +289,17 @@ def request_wake(root: Path, *, reason: str = "new approved work") -> Path:
     instruction: it shortens a sleep, it does not decide what runs. A wake for
     a queue with nothing runnable simply produces one more idle tick.
     """
-    target = dispatcher_dir(root) / WAKE_NAME
+    target = child_path(dispatcher_dir(root), WAKE_NAME)
     return write_json_atomic(target, {"at": utc_now(), "reason": reason})
 
 
 def consume_wake(root: Path) -> bool:
     """Take the wake if one is pending. Once-only, like every other signal here."""
-    target = dispatcher_dir(root) / WAKE_NAME
+    target = child_path(dispatcher_dir(root), WAKE_NAME)
     if not target.is_file():
         return False
     try:
-        target.unlink()
+        checked_path(target, root=root).unlink()
     except OSError:
         return False
     return True
@@ -306,22 +314,22 @@ def request_pause(root: Path, *, requested_by: str) -> Path:
 
 
 def clear_pause(root: Path) -> bool:
-    target = dispatcher_dir(root) / PAUSE_NAME
+    target = child_path(dispatcher_dir(root), PAUSE_NAME)
     if not target.is_file():
         return False
-    target.unlink()
+    checked_path(target, root=root).unlink()
     return True
 
 
 def pause_requested(root: Path) -> dict[str, Any] | None:
     """The pause record, re-read from disk every tick. None when not paused."""
-    target = dispatcher_dir(root) / PAUSE_NAME
+    target = child_path(dispatcher_dir(root), PAUSE_NAME)
     if not target.is_file():
         return None
     import json
 
     try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(target, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         # A torn pause record still means somebody asked for a pause. Failing
         # closed here means honouring it, not ignoring it.
@@ -353,7 +361,7 @@ def clear_signals(root: Path) -> None:
     """
     for name in (STOP_NAME, DRAIN_NAME, WAKE_NAME):
         try:
-            (dispatcher_dir(root) / name).unlink(missing_ok=True)
+            child_path(dispatcher_dir(root), name).unlink(missing_ok=True)
         except OSError:
             continue
 
@@ -395,6 +403,7 @@ class ResidentDispatcher:
         queue_root: Path,
         checkout: Path | None = None,
         registry_root: Path | None = None,
+        governed_root: Path | None = None,
         tick_seconds: float = 5.0,
         wake_quantum_seconds: float = 0.5,
         clock: Callable[[], float] = time.monotonic,
@@ -411,10 +420,11 @@ class ResidentDispatcher:
                 "tick interval must be at least one wake quantum",
                 code="DISPATCHER_BAD_TICK",
             )
-        self.root = root.resolve()
-        self.queue_root = queue_root.resolve()
+        self.governed_root = trusted_root(governed_root or root)
+        self.root = checked_path(root, root=self.governed_root)
+        self.queue_root = checked_path(queue_root, root=self.governed_root)
         self.checkout = (checkout or Path.cwd()).resolve()
-        self.registry_root = registry_root
+        self.registry_root = trusted_root(registry_root) if registry_root is not None else None
         self.tick_seconds = tick_seconds
         self.wake_quantum_seconds = wake_quantum_seconds
         self._clock = clock
@@ -489,8 +499,8 @@ class ResidentDispatcher:
         notes: list[str] = []
         for entry in queue.runnable():
             try:
-                verify_entry(entry)
-            except QueueError as exc:
+                verify_entry(entry, governed_root=self.governed_root)
+            except (QueueError, ContainmentError) as exc:
                 notes.append(f"{entry.program_id}: skipped -- {exc}")
                 continue
             return entry, notes
@@ -513,8 +523,8 @@ class ResidentDispatcher:
             return result
 
         try:
-            queue = load_queue(self.queue_root)
-        except QueueError as exc:
+            queue = load_queue(self.queue_root, governed_root=self.governed_root)
+        except (QueueError, ContainmentError) as exc:
             result.state = DispatcherState.WAITING_ON_WORK
             code = getattr(exc, "code", "APPROVED_QUEUE_ERROR")
             result.queue_status = "UNREADABLE"
@@ -552,13 +562,17 @@ class ResidentDispatcher:
 
     def _run_entry(self, entry: QueueEntry, result: TickResult) -> SupervisorReport | None:
         """Run one finite program to its stop reason, then settle the queue."""
-        state_root = Path(entry.state_root)
         try:
-            loaded = load_program(Path(entry.program_path))
-        except ProgramLoadError as exc:
+            verify_entry(entry, governed_root=self.governed_root)
+            state_root = checked_path(Path(entry.state_root), root=self.governed_root)
+            loaded = load_program(Path(entry.program_path), governed_root=self.governed_root)
+            if loaded.program.program_id != entry.program_id:
+                raise QueueError("queue program id mismatch", code="QUEUE_PROGRAM_MISMATCH")
+        except (ProgramLoadError, QueueError, ContainmentError) as exc:
             update_entry(
                 self.queue_root,
                 entry.program_id,
+                governed_root=self.governed_root,
                 status=QueueEntryStatus.QUARANTINED,
                 last_stop_reason="PROGRAM_UNLOADABLE",
                 note=str(exc),
@@ -566,6 +580,7 @@ class ResidentDispatcher:
             result.notes.append(f"{entry.program_id}: quarantined -- {exc}")
             return None
 
+        check_children(decisions_dir(state_root), root=state_root)
         skip = blocked_task_ids(state_root)
         if skip:
             result.notes.append(
@@ -576,7 +591,7 @@ class ResidentDispatcher:
         # An envelope per approved task, BEFORE anything launches. A task with
         # no recorded authority is a task a replacement session cannot
         # reconstruct, and the moment to write it is before the work, not after.
-        head, tree = _git_revision(loaded.workspace)
+        head, tree = _git_revision(checked_path(loaded.workspace, root=self.governed_root))
         materialise_envelopes(
             loaded,
             state_root,
@@ -601,11 +616,13 @@ class ResidentDispatcher:
                 state_root=state_root,
                 enrolled_agents=enrolled,
                 registry_root=self.registry_root,
+                governed_root=self.governed_root,
             )
         )
         update_entry(
             self.queue_root,
             entry.program_id,
+            governed_root=self.governed_root,
             status=QueueEntryStatus.RUNNING,
             increment_runs=True,
         )
@@ -635,6 +652,7 @@ class ResidentDispatcher:
             update_entry(
                 self.queue_root,
                 entry.program_id,
+                governed_root=self.governed_root,
                 status=QueueEntryStatus.QUARANTINED,
                 last_stop_reason=code,
                 note=str(exc),
@@ -722,6 +740,7 @@ class ResidentDispatcher:
             update_entry(
                 self.queue_root,
                 entry.program_id,
+                governed_root=self.governed_root,
                 status=QueueEntryStatus.COMPLETE,
                 last_stop_reason=stop.value,
             )
@@ -739,6 +758,7 @@ class ResidentDispatcher:
             update_entry(
                 self.queue_root,
                 entry.program_id,
+                governed_root=self.governed_root,
                 status=QueueEntryStatus.QUARANTINED,
                 last_stop_reason=stop.value,
             )
@@ -755,6 +775,7 @@ class ResidentDispatcher:
         update_entry(
             self.queue_root,
             entry.program_id,
+            governed_root=self.governed_root,
             status=QueueEntryStatus.PENDING,
             last_stop_reason=stop.value,
         )
@@ -789,6 +810,7 @@ class ResidentDispatcher:
             f"launches_this_run={report.launches_this_run}",
             f"total_launches={report.launches}",
         )
+        check_children(decisions_dir(state_root), root=state_root)
         blocking = self._blocking_task_ids(state_root)
         handled = 0
         for task_id in blocking:
@@ -898,6 +920,7 @@ class ResidentDispatcher:
         if self.registry_root is None:
             return ()
         try:
+            checked_path(registry_path(self.registry_root), root=self.registry_root)
             registry = load_registry(self.registry_root)
         except Exception:
             return ()
@@ -937,6 +960,29 @@ class ResidentDispatcher:
     # ------------------------------------------------------------------- run
 
     def run(
+        self,
+        *,
+        max_ticks: int | None = None,
+        max_seconds: float | None = None,
+        exit_when_drained: bool = False,
+    ) -> DispatcherStopReason:
+        """Own the resident root before clearing signals or publishing state."""
+        from project_atlas.orchestration.program.process_lock import (
+            ProcessLockError,
+            exclusive_process_lock,
+        )
+
+        try:
+            with (
+                exclusive_process_lock(dispatcher_dir(self.root) / "resident.lock"),
+                exclusive_process_lock(self.queue_root / "resident-queue.lock"),
+            ):
+                return self._run_owned(max_ticks=max_ticks, max_seconds=max_seconds,
+                                       exit_when_drained=exit_when_drained)
+        except ProcessLockError as exc:
+            raise DispatcherError(str(exc), code="DISPATCHER_DOUBLE_START") from exc
+
+    def _run_owned(
         self,
         *,
         max_ticks: int | None = None,
@@ -1170,15 +1216,15 @@ class RestartWitness(BaseModel):
 
 
 def _restart_witness_path(root: Path) -> Path:
-    return dispatcher_dir(root) / _RESTART_WITNESS_NAME
+    return checked_path(dispatcher_dir(root) / _RESTART_WITNESS_NAME, root=root)
 
 
 def _restart_verdict_path(root: Path) -> Path:
-    return dispatcher_dir(root) / _RESTART_VERDICT_NAME
+    return checked_path(dispatcher_dir(root) / _RESTART_VERDICT_NAME, root=root)
 
 
 def _restart_command_path(root: Path) -> Path:
-    return dispatcher_dir(root) / _RESTART_COMMAND_NAME
+    return checked_path(dispatcher_dir(root) / _RESTART_COMMAND_NAME, root=root)
 
 
 def write_restart_witness(root: Path, witness: RestartWitness) -> Path:
@@ -1263,6 +1309,7 @@ def _take_restart_witness(
     *,
     mode: Literal["delegate", "supervised"],
     queue_root: Path | None,
+    governed_root: Path | None = None,
 ) -> RestartWitness:
     """Build the witness from durable state. Read-only; raises on anything unusable.
 
@@ -1287,6 +1334,9 @@ def _take_restart_witness(
             "and alive=None is not a yes",
             code="RESTART_IDENTITY_UNVERIFIABLE",
         )
+    # F-02: status False also means PID reuse, not just process exit. A
+    # replacement must not be launched under that ambiguous ownership record.
+    _validate_restart_identity(beat.pid, beat.process_start_identity)
     checkpoints = list_checkpoints(root)
     current = beat.current_program_id
     terminal = tuple(
@@ -1303,7 +1353,8 @@ def _take_restart_witness(
         if not item.terminal and (current is None or item.program_id == current)
     }
     verdicts = reconcile_root(
-        root, our_worker_id=_RESTART_WORKER_ID, queue_root=queue_root
+        root, our_worker_id=_RESTART_WORKER_ID, queue_root=queue_root,
+        governed_root=governed_root,
     )
     reconcile_required = tuple(
         sorted(
@@ -1344,6 +1395,38 @@ def _take_restart_witness(
     )
 
 
+def _validate_restart_identity(pid: int, identity: str) -> None:
+    """F-02: permit a proven exit or a matching process, never a live stranger."""
+    from project_atlas.orchestration.program.adapters.base import pid_is_alive
+
+    if not identity or identity == "unknown":
+        raise DispatcherError(
+            "restart requires a recorded process start identity",
+            code="RESTART_IDENTITY_UNVERIFIABLE",
+        )
+    if pid_is_alive(pid):
+        live = process_start_identity(pid)
+        if not live or live == "unknown" or live != identity:
+            raise DispatcherError(
+                f"pid {pid} does not have the outgoing dispatcher's identity; "
+                "restart refused without launch or process intervention",
+                code="RESTART_IDENTITY_UNVERIFIABLE",
+            )
+
+
+def _validate_restart_witness_current(root: Path, witness: RestartWitness) -> None:
+    """Do not drain or replace a dispatcher that appeared after PRE (F-02)."""
+    beat = read_heartbeat(root)
+    if beat is None or (
+        beat.dispatcher_session_id, beat.pid, beat.process_start_identity
+    ) != (witness.dispatcher_session_id, witness.pid, witness.process_start_identity):
+        raise DispatcherError(
+            "dispatcher identity changed after the restart witness",
+            code="RESTART_IDENTITY_UNVERIFIABLE",
+        )
+    _validate_restart_identity(witness.pid, witness.process_start_identity)
+
+
 def _step_index(steps: tuple[str, ...], step: str | None) -> int:
     """-1 for no step yet, -2 for a step the envelope does not know."""
     if step is None:
@@ -1373,6 +1456,7 @@ def _evaluate_restart(
     witness: RestartWitness,
     *,
     queue_root: Path | None = None,
+    governed_root: Path | None = None,
 ) -> tuple[dict[str, str], dict[str, list[str]]]:
     """Judge the current state against the witness: four independent codes.
 
@@ -1411,7 +1495,8 @@ def _evaluate_restart(
         verdicts = {
             item.task_id: item
             for item in reconcile_root(
-                root, our_worker_id=_RESTART_WORKER_ID, queue_root=effective_queue
+                root, our_worker_id=_RESTART_WORKER_ID, queue_root=effective_queue,
+                governed_root=governed_root,
             )
         }
         verdict_error = ""

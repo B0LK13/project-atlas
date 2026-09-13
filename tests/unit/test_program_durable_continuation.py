@@ -64,6 +64,7 @@ from project_atlas.orchestration.program.continuation import (
     list_checkpoints,
     list_envelopes,
     load_checkpoint,
+    load_envelope,
     persist_checkpoint,
     persist_envelope,
     utc_now,
@@ -477,7 +478,7 @@ def test_a_crash_during_an_uncertain_mutation_is_never_replayed(
         )
         assert all(not r["launchable"] for r in again["verdicts"])
 
-    capsule = build_capsule(root, for_worker_id="fixture-worker-01")
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id="fixture-worker-01")
     task = next(t for t in capsule.tasks if t.task_id == "unc-task")
     assert "Do not relaunch it." in task.next_action
 
@@ -498,7 +499,9 @@ def test_MUTATION_dropping_the_unconfirmed_receipt_check_would_permit_a_replay(
     checkpoint = _checkpoint(envelope, pid=None, identity=None, root=root)
     persist_checkpoint(root, checkpoint)
 
-    verdict = reconcile_one(root, "mut-task", our_worker_id=envelope.worker_id)
+    verdict = reconcile_one(
+        root, "mut-task", governed_root=tmp_path, our_worker_id=envelope.worker_id
+    )
     assert verdict.disposition is Disposition.RESTART_FROM_TOP
     assert verdict.launchable is True
 
@@ -517,7 +520,9 @@ def test_MUTATION_dropping_the_unconfirmed_receipt_check_would_permit_a_replay(
         ),
     )
     persist_checkpoint(root, with_receipt)
-    blocked = reconcile_one(root, "mut-task", our_worker_id=envelope.worker_id)
+    blocked = reconcile_one(
+        root, "mut-task", governed_root=tmp_path, our_worker_id=envelope.worker_id
+    )
     assert blocked.disposition is Disposition.RECONCILE_REQUIRED
     assert blocked.launchable is False
 
@@ -536,9 +541,9 @@ def test_completed_work_survives_two_restarts_with_zero_new_launches(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
 
-    loaded = load_program(program)
+    loaded = load_program(program, governed_root=tmp_path)
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id=loaded.program.program_id,
         state_root=state_root,
@@ -546,26 +551,30 @@ def test_completed_work_survives_two_restarts_with_zero_new_launches(
         reference="test (4)",
     )
 
-    first = _dispatcher(state_root, queue_root)
+    first = _dispatcher(state_root, queue_root, governed_root=tmp_path)
     first_result = first.tick()
     assert first_result.report is not None
     assert first_result.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
     assert first_result.launched == 1, "the first run must actually do the work"
     launches_after_first = first_result.report.launches
 
-    entry = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    entry = approved_queue.load_queue(queue_root, governed_root=tmp_path).entries[
+        "continuation-program"
+    ]
     assert entry.status is approved_queue.QueueEntryStatus.COMPLETE
 
     # Two further restarts, each a brand-new dispatcher object with a new
     # session id -- the "replacement session" case, twice.
     for restart in (1, 2):
-        again = _dispatcher(state_root, queue_root)
+        again = _dispatcher(state_root, queue_root, governed_root=tmp_path)
         result = again.tick()
         assert result.state is DispatcherState.IDLE_EMPTY_QUEUE, (restart, result.notes)
         assert result.launched == 0, restart
         assert result.report is None, restart
 
-    final = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    final = approved_queue.load_queue(queue_root, governed_root=tmp_path).entries[
+        "continuation-program"
+    ]
     assert final.runs == 1, "COMPLETED_REPLAY_COUNT must be zero"
     state = _load_state(state_root)
     assert state.total_launches == launches_after_first
@@ -602,7 +611,7 @@ def test_a_terminal_completed_checkpoint_is_never_replayed_by_reconciliation(
     # that fires once is not the same as one that holds.
     for restart in (1, 2):
         verdict = reconcile_one(
-            root, "finished-task", our_worker_id=envelope.worker_id
+            root, "finished-task", governed_root=tmp_path, our_worker_id=envelope.worker_id
         )
         assert verdict.disposition is Disposition.ALREADY_COMPLETE, restart
         assert verdict.launchable is False, restart
@@ -611,7 +620,9 @@ def test_a_terminal_completed_checkpoint_is_never_replayed_by_reconciliation(
 
     # And a different worker arriving fresh gets the same answer -- completion
     # is a property of the work, not of who is asking.
-    other = reconcile_one(root, "finished-task", our_worker_id="some-other-worker")
+    other = reconcile_one(
+        root, "finished-task", governed_root=tmp_path, our_worker_id="some-other-worker"
+    )
     assert other.disposition is Disposition.ALREADY_COMPLETE
     assert other.launchable is False
 
@@ -630,7 +641,9 @@ def test_MUTATION_a_completed_task_whose_terminal_seal_is_dropped_becomes_replay
     envelope = _envelope("almost-task", replay=ReplayClass.IDEMPOTENT_MUTATION)
     persist_envelope(root, envelope)
     persist_checkpoint(root, _checkpoint(envelope, terminal=False, root=root))
-    verdict = reconcile_one(root, "almost-task", our_worker_id=envelope.worker_id)
+    verdict = reconcile_one(
+        root, "almost-task", governed_root=tmp_path, our_worker_id=envelope.worker_id
+    )
     assert verdict.disposition is Disposition.RESTART_FROM_TOP
     assert verdict.launchable is True
 
@@ -645,7 +658,7 @@ def test_a_completed_queue_entry_cannot_be_returned_to_a_runnable_status(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=tmp_path / "state",
@@ -653,12 +666,15 @@ def test_a_completed_queue_entry_cannot_be_returned_to_a_runnable_status(
         reference="ref",
     )
     approved_queue.update_entry(
-        queue_root, "continuation-program", status=approved_queue.QueueEntryStatus.COMPLETE
+        queue_root,
+        "continuation-program",
+        governed_root=tmp_path,
+        status=approved_queue.QueueEntryStatus.COMPLETE,
     )
     with pytest.raises(approved_queue.QueueError) as caught:
         approved_queue.update_entry(
             queue_root,
-            "continuation-program",
+            "continuation-program", governed_root=tmp_path,
             status=approved_queue.QueueEntryStatus.PENDING,
         )
     assert caught.value.code == "QUEUE_COMPLETE_IS_TERMINAL"
@@ -784,6 +800,7 @@ def test_an_empty_queue_produces_efficient_waiting_not_a_spin_or_an_exit(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     dispatcher = ResidentDispatcher(
+        governed_root=tmp_path,
         root=state_root,
         queue_root=queue_root,
         checkout=tmp_path,
@@ -820,6 +837,7 @@ def test_the_dispatcher_refuses_a_zero_wake_quantum(tmp_path: Path) -> None:
     """A zero quantum is a spin loop by construction, so it is refused."""
     with pytest.raises(resident.DispatcherError) as caught:
         ResidentDispatcher(
+        governed_root=tmp_path,
             root=tmp_path / "s",
             queue_root=tmp_path,
             wake_quantum_seconds=0.0,
@@ -841,7 +859,9 @@ def test_admitting_approved_work_wakes_the_dispatcher_and_launches_exactly_once(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
 
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
 
     # Idle first: nothing admitted, nothing launched.
     idle = dispatcher.tick()
@@ -858,7 +878,7 @@ def test_admitting_approved_work_wakes_the_dispatcher_and_launches_exactly_once(
 
     # Admission is the operator act; it also requests a wake.
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -896,7 +916,7 @@ def test_pause_blocks_new_dispatch_reports_in_flight_work_and_resume_continues(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -904,7 +924,9 @@ def test_pause_blocks_new_dispatch_reports_in_flight_work_and_resume_continues(
         reference="test (8)",
     )
 
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     resident.request_pause(state_root, requested_by="operator:test")
 
     paused = dispatcher.tick()
@@ -949,7 +971,9 @@ def test_a_pause_record_survives_a_dispatcher_restart(tmp_path: Path) -> None:
     queue_root.mkdir()
     resident.request_pause(state_root, requested_by="operator:test")
     resident.request_stop(state_root, requested_by="operator:test")
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     reason = dispatcher.run(max_ticks=2)
     assert reason is not DispatcherStopReason.OPERATOR_STOP, (
         "a stale stop must not end the next run"
@@ -990,7 +1014,7 @@ def test_a_suspended_worker_launches_nothing(tmp_path: Path) -> None:
     from project_atlas.orchestration.program.supervisor import ProgramSupervisor
 
     report = ProgramSupervisor(
-        load_program(program),
+        load_program(program, governed_root=tmp_path), governed_root=tmp_path,
         state_root=state_root,
         registry_root=registry,
         sleeper=lambda _s: None,
@@ -1006,7 +1030,7 @@ def test_a_mismatched_head_refuses_dispatch_before_anything_launches(
     """(9)/(12) An envelope approved against other code confers nothing."""
     program_file = _program_file(tmp_path, tmp_path / "ws", tasks=[_task("head-task")])
     (tmp_path / "ws").mkdir(exist_ok=True)
-    loaded = load_program(program_file)
+    loaded = load_program(program_file, governed_root=tmp_path)
     envelope = _envelope(
         "head-task",
         replay=ReplayClass.IDEMPOTENT_MUTATION,
@@ -1029,7 +1053,7 @@ def test_an_envelope_for_a_task_outside_the_approved_program_confers_nothing(
     """(9) A duplicate or invented task id is not approved work."""
     (tmp_path / "ws").mkdir()
     program_file = _program_file(tmp_path, tmp_path / "ws", tasks=[_task("real-task")])
-    loaded = load_program(program_file)
+    loaded = load_program(program_file, governed_root=tmp_path)
     envelope = _envelope(
         "invented-task",
         replay=ReplayClass.IDEMPOTENT_MUTATION,
@@ -1084,7 +1108,9 @@ def test_a_corrupt_checkpoint_fails_closed_and_is_never_repaired(
         load_checkpoint(root, "corrupt-task")
     assert caught.value.code == "CHECKPOINT_DIGEST_MISMATCH"
 
-    verdict = reconcile_one(root, "corrupt-task", our_worker_id=envelope.worker_id)
+    verdict = reconcile_one(
+        root, "corrupt-task", governed_root=tmp_path, our_worker_id=envelope.worker_id
+    )
     assert verdict.disposition is Disposition.FAIL_CLOSED
     assert verdict.launchable is False
 
@@ -1099,7 +1125,7 @@ def test_a_corrupt_checkpoint_fails_closed_and_is_never_repaired(
 
     # And the capsule still lists the task -- omitting it would assert it does
     # not exist.
-    capsule = build_capsule(root, for_worker_id=envelope.worker_id)
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id=envelope.worker_id)
     assert [t.task_id for t in capsule.tasks] == ["corrupt-task"]
     assert capsule.tasks[0].disposition is Disposition.FAIL_CLOSED
     assert "must not be repaired automatically" in capsule.tasks[0].next_action
@@ -1116,7 +1142,9 @@ def test_an_unexpired_lease_held_by_another_worker_fails_closed(
         root,
         _checkpoint(envelope, lease=_lease("other-worker-99"), root=root),
     )
-    verdict = reconcile_one(root, "leased-task", our_worker_id="fixture-worker-01")
+    verdict = reconcile_one(
+        root, "leased-task", governed_root=tmp_path, our_worker_id="fixture-worker-01"
+    )
     assert verdict.disposition is Disposition.LEASE_HELD_ELSEWHERE
     assert verdict.launchable is False
 
@@ -1136,7 +1164,9 @@ def test_a_stale_lease_is_reacquirable_only_after_expiry_and_an_identity_check(
             root=root,
         ),
     )
-    verdict = reconcile_one(root, "stale-task", our_worker_id="fixture-worker-01")
+    verdict = reconcile_one(
+        root, "stale-task", governed_root=tmp_path, our_worker_id="fixture-worker-01"
+    )
     assert verdict.disposition is Disposition.RESTART_FROM_TOP
     assert any("expired at" in item for item in verdict.evidence), verdict.evidence
 
@@ -1166,7 +1196,9 @@ def test_a_checkpoint_written_under_a_different_envelope_fails_closed(
     persist_checkpoint(root, _checkpoint(envelope, root=root))
     widened = envelope.model_copy(update={"allowed_paths": ("drift-task.txt", "extra/")})
     persist_envelope(root, widened)
-    verdict = reconcile_one(root, "drift-task", our_worker_id=envelope.worker_id)
+    verdict = reconcile_one(
+        root, "drift-task", governed_root=tmp_path, our_worker_id=envelope.worker_id
+    )
     assert verdict.disposition is Disposition.FAIL_CLOSED
     assert "authority for this work changed mid-flight" in verdict.reason
 
@@ -1258,7 +1290,7 @@ def test_budget_and_authority_are_rechecked_immediately_before_dispatch(
     """(12) Each condition that can become true mid-run is checked at dispatch."""
     (tmp_path / "ws").mkdir()
     program_file = _program_file(tmp_path, tmp_path / "ws", tasks=[_task("budget-task")])
-    loaded = load_program(program_file)
+    loaded = load_program(program_file, governed_root=tmp_path)
     envelope = _envelope(
         "budget-task",
         replay=ReplayClass.IDEMPOTENT_MUTATION,
@@ -1344,7 +1376,7 @@ def test_an_admitted_program_whose_bytes_changed_is_refused(tmp_path: Path) -> N
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -1355,7 +1387,9 @@ def test_an_admitted_program_whose_bytes_changed_is_refused(tmp_path: Path) -> N
     _program_file(
         tmp_path, workspace, tasks=[_task("pin-one"), _task("smuggled-two")]
     )
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     result = dispatcher.tick()
     assert result.state is DispatcherState.IDLE_EMPTY_QUEUE
     assert result.launched == 0
@@ -1378,9 +1412,13 @@ def test_a_corrupt_queue_is_reported_and_never_looks_like_an_empty_one(
     state_root = tmp_path / "state"
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
-    approved_queue.queue_path(queue_root).write_text("{not json", encoding="utf-8")
+    approved_queue.queue_path(queue_root, governed_root=tmp_path).write_text(
+        "{not json", encoding="utf-8"
+    )
 
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     result = dispatcher.tick()
 
     assert result.state is DispatcherState.WAITING_ON_WORK
@@ -1422,7 +1460,10 @@ def test_the_existing_finite_program_behaviour_is_unchanged(tmp_path: Path) -> N
     )
     state_root = tmp_path / "state"
     report = ProgramSupervisor(
-        load_program(program), state_root=state_root, sleeper=lambda _s: None
+        load_program(program, governed_root=tmp_path),
+        governed_root=tmp_path,
+        state_root=state_root,
+        sleeper=lambda _s: None,
     ).start()
     assert report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
     assert report.complete is True
@@ -1486,7 +1527,7 @@ def test_the_whole_layer_makes_zero_model_calls_and_opens_no_socket(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -1504,12 +1545,16 @@ def test_the_whole_layer_makes_zero_model_calls_and_opens_no_socket(
     monkeypatch.setattr(socket, "socket", _BannedSocket)
     monkeypatch.setattr(socket, "create_connection", _BannedSocket)
 
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     result = dispatcher.tick()
     assert result.report is not None
     assert result.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
-    build_capsule(state_root, for_worker_id="fixture-worker-01", queue_root=queue_root)
-    reconcile_root(state_root, our_worker_id="fixture-worker-01")
+    build_capsule(
+        state_root, governed_root=tmp_path, for_worker_id="fixture-worker-01", queue_root=queue_root
+    )
+    reconcile_root(state_root, governed_root=tmp_path, our_worker_id="fixture-worker-01")
     assert opened == []
 
     beat = read_heartbeat(state_root)
@@ -1518,7 +1563,7 @@ def test_the_whole_layer_makes_zero_model_calls_and_opens_no_socket(
     assert beat.model_backed_dispatch == "DISABLED"
 
     # The adapter that actually ran is the labelled local fixture, not a runtime.
-    loaded = load_program(program)
+    loaded = load_program(program, governed_root=tmp_path)
     profile = loaded.effective_profile("zero-one")
     assert profile.adapter.value == "local-command"
     assert profile.adapter_options["argv"][1] == str(FIXTURE_WORKER)
@@ -1548,7 +1593,7 @@ def test_the_capsule_is_bounded_and_announces_every_truncation(
             f"many-{index:03d}", replay=ReplayClass.IDEMPOTENT_MUTATION
         )
         persist_envelope(root, envelope)
-    capsule = build_capsule(root, for_worker_id="fixture-worker-01")
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id="fixture-worker-01")
     assert capsule.truncated is True
     assert capsule.truncation_note
     rendered = render_capsule(capsule)
@@ -1563,7 +1608,7 @@ def test_the_capsule_never_reads_a_transcript_and_grants_nothing(
     root = tmp_path / "state"
     envelope = _envelope("grant-task", replay=ReplayClass.IDEMPOTENT_MUTATION)
     persist_envelope(root, envelope)
-    capsule = build_capsule(root, for_worker_id="fixture-worker-01")
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id="fixture-worker-01")
     assert capsule.merge_authorized is False
     assert capsule.model_backed_dispatch == "DISABLED"
     rendered = render_capsule(capsule)
@@ -1592,7 +1637,7 @@ def test_the_operator_commands_all_answer(tmp_path: Path) -> None:
     admitted = _cli(
         "program",
         "queue",
-        "--queue-root",
+        "--governed-root", str(tmp_path), "--queue-root",
         str(queue_root),
         "--state-root",
         str(state_root),
@@ -1607,7 +1652,16 @@ def test_the_operator_commands_all_answer(tmp_path: Path) -> None:
     )
     assert admitted["admitted"]["program_id"] == "continuation-program"
 
-    listed = _cli("program", "queue", "--queue-root", str(queue_root), "--action", "list")
+    listed = _cli(
+        "program",
+        "queue",
+        "--governed-root",
+        str(tmp_path),
+        "--queue-root",
+        str(queue_root),
+        "--action",
+        "list",
+    )
     assert listed["entries"][0]["pin_check"] == "MATCHES_ADMITTED_BYTES"
 
     run = _cli(
@@ -1615,7 +1669,7 @@ def test_the_operator_commands_all_answer(tmp_path: Path) -> None:
         "dispatcher",
         "--state-root",
         str(state_root),
-        "--queue-root",
+        "--governed-root", str(tmp_path), "--queue-root",
         str(queue_root),
         "--action",
         "run",
@@ -1802,7 +1856,7 @@ def test_a_dispatcher_run_leaves_a_capsule_a_replacement_session_can_use(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -1810,7 +1864,9 @@ def test_a_dispatcher_run_leaves_a_capsule_a_replacement_session_can_use(
         reference="projection",
     )
 
-    first = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    first = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     ran = first.tick()
     assert ran.report is not None
     assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
@@ -1826,7 +1882,7 @@ def test_a_dispatcher_run_leaves_a_capsule_a_replacement_session_can_use(
 
     # And the capsule a replacement session reads is not empty.
     capsule = build_capsule(
-        state_root, for_worker_id="agent-one", queue_root=queue_root
+        state_root, governed_root=tmp_path, for_worker_id="agent-one", queue_root=queue_root
     )
     assert [t.task_id for t in capsule.tasks] == ["proj-a", "proj-b"]
     for task in capsule.tasks:
@@ -1841,10 +1897,15 @@ def test_a_dispatcher_run_leaves_a_capsule_a_replacement_session_can_use(
     assert len(rendered.encode("utf-8")) <= CAPSULE_MAX_BYTES
 
     # A replacement dispatcher, new session id, launches nothing.
-    second = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    second = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     assert second.session_id != first.session_id
     assert second.tick().launched == 0
-    assert reconcile_root(state_root, our_worker_id="agent-one")[0].launchable is False
+    assert (
+        reconcile_root(state_root, governed_root=tmp_path, our_worker_id="agent-one")[0].launchable
+        is False
+    )
 
 
 def test_the_default_replay_class_is_the_cautious_one() -> None:
@@ -1883,7 +1944,7 @@ def test_materialising_envelopes_twice_does_not_move_the_authority(
     workspace = tmp_path / "ws"
     workspace.mkdir()
     program = _program_file(tmp_path, workspace, tasks=[_task("idem-a")])
-    loaded = load_program(program)
+    loaded = load_program(program, governed_root=tmp_path)
     state_root = tmp_path / "state"
 
     first = materialise_envelopes(
@@ -1923,14 +1984,16 @@ def test_a_projection_never_overwrites_an_unreadable_checkpoint(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
         admitted_by="op",
         reference="ref",
     )
-    _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05).tick()
+    _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    ).tick()
 
     path = next(checkpoints_dir(state_root).glob("*.checkpoint.json"))
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -1938,7 +2001,7 @@ def test_a_projection_never_overwrites_an_unreadable_checkpoint(
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     before = path.read_bytes()
 
-    loaded = load_program(program)
+    loaded = load_program(program, governed_root=tmp_path)
     state = load_state(state_root)
     assert state is not None
     written = project_checkpoints(
@@ -1988,7 +2051,7 @@ def test_pause_survives_a_restart_and_still_withholds_an_ELIGIBLE_task(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -1998,14 +2061,18 @@ def test_pause_survives_a_restart_and_still_withholds_an_ELIGIBLE_task(
 
     resident.request_pause(state_root, requested_by="operator:test")
 
-    first = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    first = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     paused = first.tick()
     assert paused.state is DispatcherState.PAUSED
     assert paused.launched == 0
 
     # RESTART: a brand-new dispatcher object with its own session id, which is
     # what `clear_signals` runs against.
-    second = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    second = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     assert second.session_id != first.session_id
     reason = second.run(max_ticks=2)
     assert reason is not DispatcherStopReason.OPERATOR_STOP
@@ -2014,7 +2081,9 @@ def test_pause_survives_a_restart_and_still_withholds_an_ELIGIBLE_task(
 
     # The work was eligible the whole time: the entry never left a runnable
     # status, so nothing but pause was withholding it.
-    entry = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    entry = approved_queue.load_queue(queue_root, governed_root=tmp_path).entries[
+        "continuation-program"
+    ]
     assert entry.status in approved_queue.RUNNABLE_STATUSES, entry.status
     assert entry.runs == 0, "pause must withhold before the program is ever run"
     assert not (workspace / "pr-one.txt").exists()
@@ -2052,7 +2121,7 @@ def test_process_ownership_and_cleanup_on_the_REAL_dispatch_route(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -2061,7 +2130,9 @@ def test_process_ownership_and_cleanup_on_the_REAL_dispatch_route(
     )
     before = _child_pids()
 
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     ran = dispatcher.tick()
     assert ran.report is not None
     assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
@@ -2122,7 +2193,7 @@ def test_a_real_dispatcher_run_records_a_LIVE_task_not_only_completed_ones(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=state_root,
@@ -2130,7 +2201,9 @@ def test_a_real_dispatcher_run_records_a_LIVE_task_not_only_completed_ones(
         reference="live task",
     )
 
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     with _fixture_mode("claim-only"):
         ran = dispatcher.tick()
     assert ran.report is not None
@@ -2141,7 +2214,7 @@ def test_a_real_dispatcher_run_records_a_LIVE_task_not_only_completed_ones(
     assert not (workspace / "live-a.txt").exists()
 
     capsule = build_capsule(
-        state_root, for_worker_id="agent-one", queue_root=queue_root
+        state_root, governed_root=tmp_path, for_worker_id="agent-one", queue_root=queue_root
     )
     by_id = {t.task_id: t for t in capsule.tasks}
     assert sorted(by_id) == ["live-a", "live-b"], sorted(by_id)
@@ -2154,9 +2227,11 @@ def test_a_real_dispatcher_run_records_a_LIVE_task_not_only_completed_ones(
     # live-b never ran and must not be presented as if it had.
     assert by_id["live-b"].last_completed_step is None
     checkpoint_b = load_checkpoint(state_root, "live-b")
-    assert checkpoint_b is not None
-    assert checkpoint_b.terminal is False
-    assert checkpoint_b.consumed_budget.launches == 0
+    # TAKEOVER-001: no attempt means an envelope, not an invented execution
+    # checkpoint that would quarantine a legitimate pause/resume.
+    assert checkpoint_b is None
+    assert load_envelope(state_root, "live-b") is not None
+    assert by_id["live-b"].disposition is Disposition.START_FRESH
 
     rendered = render_capsule(capsule)
     assert "live-a" in rendered and "live-b" in rendered
@@ -2236,14 +2311,16 @@ def test_a_capsule_spans_every_admitted_programs_state_root(tmp_path: Path) -> N
 
     # The split: admitted against one root, dispatcher run against another.
     approved_queue.admit(
-        queue_root,
+        queue_root, governed_root=tmp_path,
         program_path=program,
         program_id="continuation-program",
         state_root=program_state,
         admitted_by="fixture-operator",
         reference="F1",
     )
-    dispatcher = _dispatcher(dispatcher_root, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        dispatcher_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     ran = dispatcher.tick()
     assert ran.report is not None
     assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
@@ -2254,7 +2331,7 @@ def test_a_capsule_spans_every_admitted_programs_state_root(tmp_path: Path) -> N
     assert list_envelopes(dispatcher_root) == ()
 
     capsule = build_capsule(
-        dispatcher_root, for_worker_id="agent-one", queue_root=queue_root
+        dispatcher_root, governed_root=tmp_path, for_worker_id="agent-one", queue_root=queue_root
     )
     # ONE capsule carries both halves: the dispatcher's health AND the tasks.
     assert capsule.dispatcher, "the heartbeat lives under the dispatcher root"
@@ -2280,7 +2357,7 @@ def test_an_empty_capsule_says_which_roots_it_actually_looked_in(
     one root to offer, and it must say so rather than implying it searched.
     """
     root = tmp_path / "state"
-    capsule = build_capsule(root, for_worker_id="nobody")
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id="nobody")
     assert capsule.tasks == ()
     assert capsule.state_roots_scanned == (str(root.resolve()),)
     assert "re-run with --queue-root" in capsule.root_split_note
@@ -2328,13 +2405,13 @@ def test_every_durable_reader_refuses_a_schema_invalid_document_with_a_code(
     # queue
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
-    approved_queue.queue_path(queue_root).write_text(
+    approved_queue.queue_path(queue_root, governed_root=tmp_path).write_text(
         '{"schema_version":1,"package_id":"AS-ORCH-DURABLE-CONTINUATION-001",'
         '"entries":[]}',
         encoding="utf-8",
     )
     with pytest.raises(approved_queue.QueueError) as q:
-        approved_queue.load_queue(queue_root)
+        approved_queue.load_queue(queue_root, governed_root=tmp_path)
     assert q.value.code == "QUEUE_SCHEMA_INVALID"
     assert "entries" in str(q.value)
 
@@ -2411,12 +2488,12 @@ def test_an_unreadable_queue_stops_the_run_instead_of_burning_its_tick_budget(
         state_root = tmp_path / f"{name}-state"
         queue_root = tmp_path / f"{name}-queue"
         queue_root.mkdir()
-        queue_file = approved_queue.queue_path(queue_root)
+        queue_file = approved_queue.queue_path(queue_root, governed_root=tmp_path)
         queue_file.write_text(content, encoding="utf-8")
         before = queue_file.read_bytes()
 
         dispatcher = _dispatcher(
-            state_root, queue_root, tick_seconds=0.5, quantum=0.05
+            state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
         )
         reason = dispatcher.run(max_ticks=5)
 
@@ -2458,7 +2535,9 @@ def test_an_unreadable_queue_is_distinguishable_from_an_empty_one_AT_THE_CLI(
     corrupt_state = tmp_path / "corrupt-state"
     corrupt_queue = tmp_path / "corrupt-queue"
     corrupt_queue.mkdir()
-    approved_queue.queue_path(corrupt_queue).write_text("{not json", encoding="utf-8")
+    approved_queue.queue_path(corrupt_queue, governed_root=tmp_path).write_text(
+        "{not json", encoding="utf-8"
+    )
 
     empty_state = tmp_path / "empty-state"
     empty_queue = tmp_path / "empty-queue"
@@ -2467,11 +2546,28 @@ def test_an_unreadable_queue_is_distinguishable_from_an_empty_one_AT_THE_CLI(
     def _run(state: Path, queue: Path) -> tuple[dict[str, Any], int]:
         completed = subprocess.run(
             [
-                sys.executable, "-m", CLI, "program", "dispatcher",
-                "--state-root", str(state), "--queue-root", str(queue),
-                "--action", "run", "--max-ticks", "1", "--tick-seconds", "1",
+                sys.executable,
+                "-m",
+                CLI,
+                "program",
+                "dispatcher",
+                "--state-root",
+                str(state),
+                "--governed-root",
+                str(tmp_path),
+                "--queue-root",
+                str(queue),
+                "--action",
+                "run",
+                "--max-ticks",
+                "1",
+                "--tick-seconds",
+                "1",
             ],
-            capture_output=True, text=True, timeout=120, check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
         )
         return json.loads(completed.stdout), completed.returncode
 
@@ -2488,7 +2584,7 @@ def test_an_unreadable_queue_is_distinguishable_from_an_empty_one_AT_THE_CLI(
     # 2. a machine-readable code and an error naming the path and the parse fault
     assert corrupt["code"] == "QUEUE_UNREADABLE"
     assert "unreadable" in corrupt["error"]
-    assert str(approved_queue.queue_path(corrupt_queue)) in corrupt["error"]
+    assert str(approved_queue.queue_path(corrupt_queue, governed_root=tmp_path)) in corrupt["error"]
     assert "code" not in empty and "error" not in empty
     # 3. process exit status
     assert corrupt_rc == EXIT_ERROR_CODE, corrupt_rc
@@ -2554,10 +2650,11 @@ def test_D5_an_active_assigned_enrolment_dispatches_on_the_RESIDENT_path(
     _enrol(registry, program, agent_id="agent-one", workspace=workspace)
 
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="D5",
     )
     dispatcher = ResidentDispatcher(
+        governed_root=tmp_path,
         root=state_root, queue_root=queue_root,
         checkout=Path(__file__).resolve().parents[2],
         registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
@@ -2622,10 +2719,11 @@ def test_D5_negatives_no_usable_enrolment_dispatches_NOTHING(
     # "missing": nothing enrolled
 
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference=scenario,
     )
     dispatcher = ResidentDispatcher(
+        governed_root=tmp_path,
         root=state_root, queue_root=queue_root,
         checkout=Path(__file__).resolve().parents[2],
         registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
@@ -2661,11 +2759,12 @@ def test_D5_authority_withdrawn_between_dispatches_stops_the_next_one(
     registry = tmp_path / "registry"
     _enrol(registry, program, agent_id="agent-one", workspace=workspace)
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="authority",
     )
 
     dispatcher = ResidentDispatcher(
+        governed_root=tmp_path,
         root=state_root, queue_root=queue_root,
         checkout=Path(__file__).resolve().parents[2],
         registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
@@ -2722,17 +2821,19 @@ def test_D3_a_program_the_supervisor_REFUSES_quarantines_instead_of_killing(
     queue_root.mkdir()
     for path, pid in ((first, "continuation-program"), (second, "second-program")):
         approved_queue.admit(
-            queue_root, program_path=path, program_id=pid,
+            queue_root, governed_root=tmp_path, program_path=path, program_id=pid,
             state_root=shared_state, admitted_by="op", reference="D3",
         )
 
-    dispatcher = _dispatcher(shared_state, queue_root, tick_seconds=0.5, quantum=0.05)
+    dispatcher = _dispatcher(
+        shared_state, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    )
     # THE ASSERTION: run() completes. Before the repair this raised out of the
     # loop and the process exited non-zero.
     reason = dispatcher.run(max_ticks=4)
     assert reason is not DispatcherStopReason.FATAL_ERROR
 
-    entries = approved_queue.load_queue(queue_root).entries
+    entries = approved_queue.load_queue(queue_root, governed_root=tmp_path).entries
     quarantined = [
         e for e in entries.values()
         if e.status is approved_queue.QueueEntryStatus.QUARANTINED
@@ -2782,19 +2883,23 @@ def test_D4_a_runnable_entry_that_cannot_progress_does_not_spin(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="D4",
     )
 
     tick = 0.4
-    dispatcher = _dispatcher(state_root, queue_root, tick_seconds=tick, quantum=0.05)
+    dispatcher = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=tick, quantum=0.05
+    )
     started = time.monotonic()
     dispatcher.run(max_ticks=4)
     elapsed = time.monotonic() - started
 
     # The entry stayed runnable and nothing was ever launched -- i.e. this is
     # genuinely the spin condition and not an idle queue.
-    entry = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    entry = approved_queue.load_queue(queue_root, governed_root=tmp_path).entries[
+        "continuation-program"
+    ]
     assert entry.status in approved_queue.RUNNABLE_STATUSES, entry.status
     assert dispatcher._launches == 0
     assert not (workspace / "gated-one.txt").exists()
@@ -2817,11 +2922,12 @@ def test_the_resident_path_leaves_no_test_owned_processes(tmp_path: Path) -> Non
     registry = tmp_path / "registry"
     _enrol(registry, program, agent_id="agent-one", workspace=workspace)
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="leak",
     )
     before = _child_pids()
     dispatcher = ResidentDispatcher(
+        governed_root=tmp_path,
         root=state_root, queue_root=queue_root,
         checkout=Path(__file__).resolve().parents[2],
         registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
@@ -2846,17 +2952,18 @@ def test_the_resident_path_gives_the_capsule_ACTUAL_task_records(
     registry = tmp_path / "registry"
     _enrol(registry, program, agent_id="agent-one", workspace=workspace)
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="capsule",
     )
     ResidentDispatcher(
+        governed_root=tmp_path,
         root=state_root, queue_root=queue_root,
         checkout=Path(__file__).resolve().parents[2],
         registry_root=registry, tick_seconds=0.5, wake_quantum_seconds=0.05,
     ).tick()
 
     capsule = build_capsule(
-        state_root, for_worker_id="agent-one", queue_root=queue_root
+        state_root, governed_root=tmp_path, for_worker_id="agent-one", queue_root=queue_root
     )
     assert [t.task_id for t in capsule.tasks] == ["cap-one"]
     assert capsule.tasks[0].disposition is Disposition.ALREADY_COMPLETE
@@ -2880,7 +2987,7 @@ def test_D2_admit_refuses_to_default_the_state_root(tmp_path: Path) -> None:
     queue_root.mkdir()
     completed = subprocess.run(
         [sys.executable, "-m", CLI, "program", "queue",
-         "--queue-root", str(queue_root), "--action", "admit",
+         "--governed-root", str(tmp_path), "--queue-root", str(queue_root), "--action", "admit",
          "--program", str(program), "--admitted-by", "op",
          "--reference", "D2 no state root"],
         capture_output=True, text=True, timeout=120, check=False,
@@ -2888,7 +2995,7 @@ def test_D2_admit_refuses_to_default_the_state_root(tmp_path: Path) -> None:
     payload = json.loads(completed.stdout)
     assert payload["code"] == "ADMIT_STATE_ROOT_REQUIRED", payload
     assert completed.returncode == 2, completed.returncode
-    assert approved_queue.load_queue(queue_root).entries == {}
+    assert approved_queue.load_queue(queue_root, governed_root=tmp_path).entries == {}
 
 
 def test_D6_a_stale_envelope_must_not_shadow_a_COMPLETED_record(
@@ -2934,7 +3041,7 @@ def test_D6_a_stale_envelope_must_not_shadow_a_COMPLETED_record(
     )
     program = _program_file(tmp_path, workspace, tasks=[_task("shadowed")])
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=program_root, admitted_by="op", reference="D6",
     )
 
@@ -2946,7 +3053,10 @@ def test_D6_a_stale_envelope_must_not_shadow_a_COMPLETED_record(
     assert load_checkpoint(program_root, "shadowed") is not None
 
     capsule = build_capsule(
-        dispatcher_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+        dispatcher_root,
+        governed_root=tmp_path,
+        for_worker_id=envelope.worker_id,
+        queue_root=queue_root,
     )
     task = next(t for t in capsule.tasks if t.task_id == "shadowed")
 
@@ -3037,16 +3147,16 @@ def test_a_LOST_record_whose_program_is_COMPLETE_fails_closed(
         ),
     )
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="REQ-1",
     )
     approved_queue.update_entry(
-        queue_root, "continuation-program",
+        queue_root, "continuation-program", governed_root=tmp_path,
         status=approved_queue.QueueEntryStatus.COMPLETE,
     )
 
     intact = build_capsule(
-        state_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+        state_root, governed_root=tmp_path, for_worker_id=envelope.worker_id, queue_root=queue_root
     ).tasks[0]
     assert intact.disposition is Disposition.ALREADY_COMPLETE
     assert intact.launchable is False
@@ -3056,7 +3166,7 @@ def test_a_LOST_record_whose_program_is_COMPLETE_fails_closed(
         path.unlink()
 
     lost = build_capsule(
-        state_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+        state_root, governed_root=tmp_path, for_worker_id=envelope.worker_id, queue_root=queue_root
     ).tasks[0]
     assert lost.disposition is Disposition.RECONCILE_REQUIRED, lost.disposition
     assert lost.launchable is False, "a lost record must never read as launchable"
@@ -3089,13 +3199,13 @@ def test_the_lost_record_override_does_NOT_fire_for_work_that_never_ran(
     )
     persist_envelope(state_root, envelope)
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="control",
     )
     # entry stays PENDING -- the program has not completed
 
     task = build_capsule(
-        state_root, for_worker_id=envelope.worker_id, queue_root=queue_root
+        state_root, governed_root=tmp_path, for_worker_id=envelope.worker_id, queue_root=queue_root
     ).tasks[0]
     assert task.disposition is Disposition.START_FRESH, task.disposition
     assert task.launchable is True, "never-run work must stay startable"
@@ -3131,10 +3241,12 @@ def test_G4_empty_execution_capture_says_nobody_looked_not_nothing_happened(
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="G4",
     )
-    ran = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05).tick()
+    ran = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    ).tick()
     assert ran.report is not None
     assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
 
@@ -3179,7 +3291,7 @@ def test_G4_empty_execution_capture_says_nobody_looked_not_nothing_happened(
     assert "workspace diff" in checkpoint.capture.changed_files.reason
 
     capsule = build_capsule(
-        state_root, for_worker_id="agent-one", queue_root=queue_root
+        state_root, governed_root=tmp_path, for_worker_id="agent-one", queue_root=queue_root
     )
     task = next(t for t in capsule.tasks if t.task_id == "g4-one")
     assert task.execution_capture == "OBSERVED"
@@ -3218,7 +3330,7 @@ def test_G4_a_writer_that_DID_observe_is_not_mislabelled(tmp_path: Path) -> None
     )
     persist_checkpoint(root, checkpoint)
 
-    capsule = build_capsule(root, for_worker_id=envelope.worker_id)
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id=envelope.worker_id)
     task = next(t for t in capsule.tasks if t.task_id == "observed-one")
     assert task.execution_capture == "OBSERVED"
     rendered = render_capsule(capsule)
@@ -3233,10 +3345,12 @@ def _dispatcher(
     state_root: Path,
     queue_root: Path,
     *,
+    governed_root: Path,
     tick_seconds: float = 1.0,
     quantum: float = 0.1,
 ) -> ResidentDispatcher:
     return ResidentDispatcher(
+        governed_root=governed_root,
         root=state_root,
         queue_root=queue_root,
         checkout=Path(__file__).resolve().parents[2],
@@ -3300,14 +3414,18 @@ def _run_one_program(tmp_path: Path, task_id: str) -> tuple[Path, Path, Path, Pa
     queue_root = tmp_path / "queue"
     queue_root.mkdir()
     approved_queue.admit(
-        queue_root, program_path=program, program_id="continuation-program",
+        queue_root, governed_root=tmp_path, program_path=program, program_id="continuation-program",
         state_root=state_root, admitted_by="op", reference="closure-001",
     )
-    ran = _dispatcher(state_root, queue_root, tick_seconds=0.5, quantum=0.05).tick()
+    ran = _dispatcher(
+        state_root, queue_root, governed_root=tmp_path, tick_seconds=0.5, quantum=0.05
+    ).tick()
     assert ran.report is not None
     assert ran.report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
     assert (workspace / f"{task_id}.txt").is_file(), "fixture must have written"
-    entry = approved_queue.load_queue(queue_root).entries["continuation-program"]
+    entry = approved_queue.load_queue(queue_root, governed_root=tmp_path).entries[
+        "continuation-program"
+    ]
     assert entry.status is approved_queue.QueueEntryStatus.COMPLETE
     return workspace, state_root, queue_root, program
 
@@ -3325,14 +3443,14 @@ def test_R1_a_lost_checkpoint_with_a_recorded_attempt_is_quarantined_even_withou
     made from every durable record that remembers the task, not from one.
     """
     _, state_root, _queue_root, _ = _run_one_program(tmp_path, "r1-lost")
-    intact = build_capsule(state_root, for_worker_id="agent-one").tasks[0]
+    intact = build_capsule(state_root, governed_root=tmp_path, for_worker_id="agent-one").tasks[0]
     assert intact.disposition is Disposition.ALREADY_COMPLETE
 
     for path in checkpoints_dir(state_root).glob("*.checkpoint.json"):
         path.unlink()
 
     # No --queue-root at all: the only witness left is state.json.
-    capsule = build_capsule(state_root, for_worker_id="agent-one")
+    capsule = build_capsule(state_root, governed_root=tmp_path, for_worker_id="agent-one")
     task = capsule.tasks[0]
     assert task.disposition is Disposition.RECONCILE_REQUIRED, task.disposition
     assert task.launchable is False, "a lost record must never read as launchable"
@@ -3346,7 +3464,9 @@ def test_R1_a_lost_checkpoint_with_a_recorded_attempt_is_quarantined_even_withou
 
     # ONE decision: the reconcile command reaches the same disposition from
     # the same records, so a replacement session cannot be told two things.
-    verdict = reconcile_one(state_root, "r1-lost", our_worker_id="agent-one")
+    verdict = reconcile_one(
+        state_root, "r1-lost", governed_root=tmp_path, our_worker_id="agent-one"
+    )
     assert verdict.disposition is task.disposition
     assert verdict.launchable is False
     assert verdict.reason == task.reason
@@ -3413,7 +3533,9 @@ def test_R2_the_complete_rendered_capsule_is_consistent_when_the_queue_says_COMP
     for path in checkpoints_dir(state_root).glob("*.checkpoint.json"):
         path.unlink()
 
-    capsule = build_capsule(state_root, for_worker_id="agent-one", queue_root=queue_root)
+    capsule = build_capsule(
+        state_root, governed_root=tmp_path, for_worker_id="agent-one", queue_root=queue_root
+    )
     rendered = render_capsule(capsule)
     assert "by_status" in rendered and "'COMPLETE'" in rendered
     assert "START_FRESH" not in rendered
@@ -3422,14 +3544,25 @@ def test_R2_the_complete_rendered_capsule_is_consistent_when_the_queue_says_COMP
     assert "[RECONCILE_REQUIRED] r2-lost" in rendered
     assert "queue records the program owning r2-lost as COMPLETE" in rendered
 
-    (verdict,) = reconcile_root(state_root, our_worker_id="agent-one", queue_root=queue_root)
+    (verdict,) = reconcile_root(
+        state_root, governed_root=tmp_path, our_worker_id="agent-one", queue_root=queue_root
+    )
     assert verdict.disposition is Disposition.RECONCILE_REQUIRED
     assert verdict.reason == capsule.tasks[0].reason
 
     payload = _cli(
-        "program", "continuation", "--action", "reconcile",
-        "--state-root", str(state_root), "--queue-root", str(queue_root),
-        "--worker-id", "agent-one",
+        "program",
+        "continuation",
+        "--action",
+        "reconcile",
+        "--state-root",
+        str(state_root),
+        "--governed-root",
+        str(tmp_path),
+        "--queue-root",
+        str(queue_root),
+        "--worker-id",
+        "agent-one",
     )
     (row,) = payload["verdicts"]
     assert row["disposition"] == "RECONCILE_REQUIRED"
@@ -3448,7 +3581,7 @@ def test_G4a_a_checkpoint_with_no_capture_statement_still_renders_NOT_CAPTURED(
     persist_envelope(root, envelope)
     persist_checkpoint(root, _checkpoint(envelope, root=root))
 
-    capsule = build_capsule(root, for_worker_id=envelope.worker_id)
+    capsule = build_capsule(root, governed_root=tmp_path, for_worker_id=envelope.worker_id)
     task = capsule.tasks[0]
     assert task.execution_capture == "NOT_CAPTURED"
     assert set(task.capture) == {"commands", "artifacts", "changed_files"}
@@ -3475,7 +3608,7 @@ def test_G4b_capture_is_UNAVAILABLE_with_a_scoped_reason_and_nothing_is_reconstr
     workspace, state_root, _queue_root, program = _run_one_program(tmp_path, "g4-gone")
     state = _load_state(state_root)
     attempt = state.attempts[state.tasks["g4-gone"].last_attempt_id]
-    task = load_program(program).program.tasks[0]
+    task = load_program(program, governed_root=tmp_path).program.tasks[0]
 
     # Control first: with the records intact both fields are available.
     commands, statement = _capture_commands(state_root, attempt)

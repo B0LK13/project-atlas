@@ -36,6 +36,7 @@ from project_atlas.orchestration.program.models import (
     ProgramError,
     ProgramStopReason,
 )
+from project_atlas.orchestration.program.path_safety import checked_path, child_path
 
 STATE_NAME: Final[str] = "state.json"
 EVENTS_NAME: Final[str] = "events.jsonl"
@@ -205,23 +206,23 @@ class ProgramStateRecord(BaseModel):
 
 def state_dir(root: Path) -> Path:
     """Program state directory for a supervisor root."""
-    return root / DEFAULT_STATE_RELATIVE
+    return child_path(root, DEFAULT_STATE_RELATIVE)
 
 
 def state_path(root: Path) -> Path:
-    return state_dir(root) / STATE_NAME
+    return child_path(state_dir(root), STATE_NAME)
 
 
 def events_path(root: Path) -> Path:
-    return state_dir(root) / EVENTS_NAME
+    return child_path(state_dir(root), EVENTS_NAME)
 
 
 def evidence_dir(root: Path) -> Path:
-    return state_dir(root) / EVIDENCE_DIR
+    return child_path(state_dir(root), EVIDENCE_DIR)
 
 
 def launches_dir(root: Path) -> Path:
-    return state_dir(root) / LAUNCHES_DIR
+    return child_path(state_dir(root), LAUNCHES_DIR)
 
 
 def _launch_name(attempt_id: str) -> str:
@@ -336,11 +337,11 @@ def load_launch_intent(root: Path, attempt_id: str) -> dict[str, Any] | None:
 
     Same rule as ``load_launch``: None means "never recorded", never "gone".
     """
-    path = launches_dir(root) / _launch_intent_name(attempt_id)
+    path = child_path(launches_dir(root), _launch_intent_name(attempt_id))
     if not path.is_file():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(raw, dict) or raw.get("attempt_id") != attempt_id:
@@ -354,11 +355,11 @@ def load_launch(root: Path, attempt_id: str) -> dict[str, Any] | None:
     None means "never recorded", which is NOT the same as "the process is
     gone". Callers must not collapse the two.
     """
-    path = launches_dir(root) / _launch_name(attempt_id)
+    path = child_path(launches_dir(root), _launch_name(attempt_id))
     if not path.is_file():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         # A torn or unreadable record is not evidence of absence either.
         return None
@@ -405,7 +406,7 @@ def clear_launch(root: Path, attempt_id: str) -> None:
         launches_dir(root) / _launch_name(attempt_id),
     ):
         try:
-            path.unlink(missing_ok=True)
+            checked_path(path, root=root).unlink(missing_ok=True)
         except OSError:
             continue
 
@@ -430,7 +431,7 @@ def _sync_directory(directory: Path) -> None:
     not be established is reported, never assumed.
     """
     try:
-        fd = os.open(str(directory), os.O_RDONLY | os.O_DIRECTORY)
+        fd = os.open(str(checked_path(directory)), os.O_RDONLY | os.O_DIRECTORY)
     except OSError as exc:
         raise StoreError(
             f"cannot open {directory} to synchronise the rename: {exc}",
@@ -447,7 +448,7 @@ def _sync_directory(directory: Path) -> None:
         os.close(fd)
 
 
-def _write_atomic(target: Path, text: str) -> None:
+def _write_atomic(target: Path, text: str, *, governed_root: Path | None = None) -> None:
     """Write, fsync, rename, fsync the directory. A torn state file is not a state file.
 
     Three claims, kept separate because they are established separately:
@@ -470,11 +471,17 @@ def _write_atomic(target: Path, text: str) -> None:
     every other refusal in this package. The temp file is removed on a failed
     write; the target is never touched until the temp file is complete.
     """
-    target.parent.mkdir(parents=True, exist_ok=True)
+    target = checked_path(target, root=governed_root)
+    boundary = governed_root or target.parent
+    checked_path(target.parent, root=boundary).mkdir(parents=True, exist_ok=True)
     tmp = target.with_name(target.name + ".tmp")
     data = text.encode("utf-8")
     try:
-        fd = os.open(str(tmp), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+        fd = os.open(
+            str(checked_path(tmp, root=boundary)),
+            os.O_CREAT | os.O_WRONLY | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
     except OSError as exc:
         raise StoreError(
             f"cannot create {tmp.name} beside {target.name}: {exc}",
@@ -491,16 +498,16 @@ def _write_atomic(target: Path, text: str) -> None:
         os.fsync(fd)
     except OSError as exc:
         os.close(fd)
-        tmp.unlink(missing_ok=True)
+        checked_path(tmp, root=boundary).unlink(missing_ok=True)
         raise StoreError(
             f"writing {tmp.name} failed before it replaced {target.name}: {exc}",
             code="STATE_WRITE_FAILED",
         ) from exc
     os.close(fd)
     try:
-        os.replace(tmp, target)
+        os.replace(checked_path(tmp, root=boundary), checked_path(target, root=boundary))
     except OSError as exc:
-        tmp.unlink(missing_ok=True)
+        checked_path(tmp, root=boundary).unlink(missing_ok=True)
         raise StoreError(
             f"renaming {tmp.name} over {target.name} failed: {exc}",
             code="STATE_WRITE_FAILED",
@@ -509,7 +516,9 @@ def _write_atomic(target: Path, text: str) -> None:
         _sync_directory(target.parent)
 
 
-def write_json_atomic(target: Path, payload: dict[str, Any]) -> Path:
+def write_json_atomic(
+    target: Path, payload: dict[str, Any], *, governed_root: Path | None = None
+) -> Path:
     """Public atomic JSON write, for the durable continuation layer.
 
     The continuation checkpoints, the approved-work queue manifest and the
@@ -519,7 +528,8 @@ def write_json_atomic(target: Path, payload: dict[str, Any]) -> Path:
     Exposed rather than copied.
     """
     _write_atomic(
-        target, json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
+        target, json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
+        governed_root=governed_root,
     )
     return target
 
@@ -529,7 +539,7 @@ def load_state(root: Path) -> ProgramStateRecord | None:
     if not path.is_file():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise StoreError(
             f"program state at {path} is unreadable: {exc}",
@@ -554,10 +564,13 @@ def append_event(root: Path, name: str, payload: dict[str, Any]) -> None:
     is a checkpoint that was never taken.
     """
     path = events_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    checked_path(path.parent, root=root).mkdir(parents=True, exist_ok=True)
     row = {"at": _utc_now(), "event": name, **payload}
     line = json.dumps(row, sort_keys=True, default=str) + "\n"
-    fd = os.open(str(path), os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
+    fd = os.open(
+        str(checked_path(path, root=root)),
+        os.O_CREAT | os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600,
+    )
     try:
         os.write(fd, line.encode("utf-8"))
         os.fsync(fd)
@@ -570,7 +583,7 @@ def read_events(root: Path, *, limit: int | None = None) -> list[dict[str, Any]]
     if not path.is_file():
         return []
     rows: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as handle:
+    with checked_path(path, root=root).open("r", encoding="utf-8") as handle:
         for line in handle:
             text = line.strip()
             if not text:
@@ -591,13 +604,9 @@ def read_events(root: Path, *, limit: int | None = None) -> list[dict[str, Any]]
 
 def write_evidence(root: Path, relative_name: str, payload: dict[str, Any]) -> Path:
     """Write one evidence document under the program's evidence directory."""
-    base = evidence_dir(root).resolve()
-    target = (evidence_dir(root) / relative_name).resolve()
-    if not target.is_relative_to(base):
-        raise StoreError(
-            "evidence path escapes the program evidence directory",
-            code="EVIDENCE_PATH_ESCAPE",
-        )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    _write_atomic(target, json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n")
+    target = child_path(evidence_dir(root), relative_name)
+    _write_atomic(
+        target, json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
+        governed_root=root,
+    )
     return target

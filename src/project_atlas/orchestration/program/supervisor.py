@@ -79,6 +79,7 @@ from project_atlas.orchestration.program.enrollment import (
     EnrolledAgent,
     bind,
     load_registry,
+    registry_path,
 )
 from project_atlas.orchestration.program.loader import LoadedProgram, profile_digest
 from project_atlas.orchestration.program.models import (
@@ -90,6 +91,7 @@ from project_atlas.orchestration.program.models import (
     ProgramStopReason,
     ProgramTask,
 )
+from project_atlas.orchestration.program.path_safety import checked_path, child_path, trusted_root
 from project_atlas.orchestration.program.profiles import (
     AdapterKind,
     AgentProfile,
@@ -316,6 +318,7 @@ class ProgramSupervisor:
         sleeper: Callable[[float], None] = time.sleep,
         enrolled_agents: Sequence[EnrolledAgent] = (),
         registry_root: Path | None = None,
+        governed_root: Path | None = None,
     ) -> None:
         if enrolled_agents:
             loaded = _apply_enrollments(loaded, enrolled_agents)
@@ -325,14 +328,18 @@ class ProgramSupervisor:
         #: An agent suspended, retired or un-granted while a long program runs
         #: must not get one more task because the supervisor cached its
         #: permissions at launch.
-        self.registry_root = registry_root
+        self.registry_root = trusted_root(registry_root) if registry_root is not None else None
+        self.governed_root = trusted_root(
+            governed_root or loaded.governed_root or loaded.source_path.parent
+        )
+        checked_path(loaded.source_path, root=self.governed_root)
         self.loaded = loaded
         self.program = loaded.program
-        self.workspace = loaded.workspace
+        self._workspace = checked_path(loaded.workspace, root=self.governed_root)
         # Program state lives beside the workspace, not inside it, so a
         # worker's own diff can never contain the supervisor's checkpoints and
         # a task cannot accidentally (or deliberately) rewrite its own record.
-        self.root = (state_root or loaded.source_path.parent).resolve()
+        self.root = checked_path(state_root or loaded.source_path.parent, root=self.governed_root)
         self.adapters: dict[str, RuntimeAdapter] = dict(
             adapters if adapters is not None else build_default_adapters(loaded)
         )
@@ -350,6 +357,11 @@ class ProgramSupervisor:
         self._max_concurrent_observed = 0
 
     # ------------------------------------------------------------- ownership
+
+    @property
+    def workspace(self) -> Path:
+        """F01: revalidate the pinned workspace before each runtime use."""
+        return checked_path(self._workspace, root=self.governed_root)
 
     @property
     def lock_root(self) -> Path:
@@ -1210,6 +1222,7 @@ class ProgramSupervisor:
 
     def _submit(self, running: RunningWork) -> None:
         """Hand one launched worker to a thread. Nothing shared goes with it."""
+        checked_path(running.request.workspace, root=self.workspace)
         if self._executor is None:
             self._executor = ThreadPoolExecutor(
                 max_workers=self.program.limits.max_concurrent_workers,
@@ -1556,6 +1569,7 @@ class ProgramSupervisor:
         if self.registry_root is None:
             return None
         try:
+            checked_path(registry_path(self.registry_root), root=self.registry_root)
             registry = load_registry(self.registry_root)
         except ProgramError as exc:
             return f"the agent roster could not be read: {exc}"
@@ -1981,12 +1995,7 @@ class ProgramSupervisor:
     ) -> AdapterRequest:
         workspace = self.workspace
         if profile.workspace.working_subdir != ".":
-            workspace = (workspace / profile.workspace.working_subdir).resolve()
-            if not workspace.is_relative_to(self.workspace.resolve()):
-                raise SupervisorError(
-                    "profile working_subdir escapes the workspace",
-                    code="WORKSPACE_ESCAPE",
-                )
+            workspace = child_path(workspace, profile.workspace.working_subdir)
         timeout = min(
             self.program.limits.max_task_seconds, profile.limits.max_seconds
         )
@@ -2061,6 +2070,45 @@ class ProgramSupervisor:
 
         return record
 
+    def _continuation_refusal(
+        self, task_id: str, worker_id: str, state: ProgramStateRecord
+    ) -> str | None:
+        from project_atlas.orchestration.program.continuation import (
+            ConsumedBudget,
+            load_checkpoint,
+            load_envelope,
+            validate_envelope_for_dispatch,
+        )
+        from project_atlas.orchestration.program.reconciliation import Disposition, reconcile_one
+        from project_atlas.orchestration.program.resident import _git_revision
+
+        try:
+            envelope = load_envelope(self.root, task_id)
+            checkpoint = load_checkpoint(self.root, task_id)
+            if envelope is None:
+                if checkpoint is not None:
+                    return "ENVELOPE_MISSING: checkpoint has no remaining authority"
+                return None  # finite programs without the continuation layer
+            head, tree = _git_revision(self.workspace)
+            consumed = checkpoint.consumed_budget if checkpoint else ConsumedBudget()
+            record = state.tasks[task_id]
+            consumed = consumed.model_copy(update={
+                "attempts": max(consumed.attempts, record.attempts),
+                "launches": max(consumed.launches, record.launches),
+            })
+            validate_envelope_for_dispatch(envelope, program=self.program,
+                observed_head=head or self.program.base_pin,
+                observed_tree=tree or self.program.base_pin, consumed=consumed)
+            verdict = reconcile_one(self.root, task_id, our_worker_id=worker_id,
+                                    governed_root=self.governed_root)
+            if not verdict.launchable:
+                return f"{verdict.disposition.value}: {verdict.reason}"
+            if verdict.disposition is Disposition.RESUME_AT_NEXT_STEP:
+                return "CONTINUATION_STEP_RESUME_UNSUPPORTED: no step execution adapter is bound"
+        except ProgramError as exc:
+            return f"{exc.code}: {exc}"
+        return None
+
     def _begin_dispatch(
         self,
         state: ProgramStateRecord,
@@ -2110,6 +2158,18 @@ class ProgramSupervisor:
                 {"task_id": task.task_id, "agent_id": profile.agent_id},
             )
             return None
+
+        # TAKEOVER-001: continuation evidence must gate the REAL launch route,
+        # not only the read-only operator lens.
+        if not verifying:
+            continuation_refusal = self._continuation_refusal(task.task_id, profile.agent_id, state)
+            if continuation_refusal is not None:
+                append_event(self.root, "CONTINUATION_DISPATCH_REFUSED",
+                             {"task_id": task.task_id, "reason": continuation_refusal})
+                self._transition(state, task.task_id, NodeState.OWNER_HELD,
+                                 reason=continuation_refusal[:512])
+                result.stop_reason = ProgramStopReason.OWNER_DECISION_REQUIRED
+                return None
 
         try:
             adapter.preflight(profile)

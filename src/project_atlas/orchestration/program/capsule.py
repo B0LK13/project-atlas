@@ -49,7 +49,14 @@ from project_atlas.orchestration.program.continuation import (
 )
 from project_atlas.orchestration.program.decisions import (
     DecisionStatus,
+    decisions_dir,
     list_decisions,
+)
+from project_atlas.orchestration.program.path_safety import (
+    ContainmentError,
+    check_children,
+    checked_path,
+    trusted_root,
 )
 from project_atlas.orchestration.program.reconciliation import (
     Disposition,
@@ -218,7 +225,9 @@ def _next_action(view: _TaskView) -> str:
     return f"Start task {view.envelope.task_id}{first}."
 
 
-def _scan_roots(root: Path, queue_root: Path | None) -> tuple[Path, ...]:
+def _scan_roots(
+    root: Path, queue_root: Path | None, *, governed_root: Path | None = None
+) -> tuple[Path, ...]:
     """Every state root a capsule for this dispatcher must look in.
 
     The dispatcher publishes its heartbeat under its OWN root -- the one given
@@ -234,16 +243,19 @@ def _scan_roots(root: Path, queue_root: Path | None) -> tuple[Path, ...]:
     surface a replacement session has; it must not be able to report emptiness
     that is really a lookup in the wrong place.
     """
-    roots: list[Path] = [root.resolve()]
+    boundary = trusted_root(governed_root or root)
+    roots: list[Path] = [checked_path(root, root=boundary)]
     if queue_root is None:
         return tuple(roots)
     try:
-        queue = load_queue(queue_root)
+        queue = load_queue(queue_root, governed_root=boundary)
+    except ContainmentError:
+        raise
     except Exception:
         # An unreadable queue does not get to hide the dispatcher's own root.
         return tuple(roots)
     for entry in sorted(queue.entries.values(), key=lambda e: e.program_id):
-        candidate = Path(entry.state_root).resolve()
+        candidate = checked_path(Path(entry.state_root), root=boundary)
         if candidate not in roots:
             roots.append(candidate)
     return tuple(roots)
@@ -318,9 +330,14 @@ def build_capsule(
     *,
     for_worker_id: str,
     queue_root: Path | None = None,
+    governed_root: Path | None = None,
 ) -> ContinuationCapsule:
     """Generate a capsule from durable state. Reads no conversation."""
-    scan_roots = _scan_roots(root, queue_root)
+    boundary = trusted_root(governed_root or root)
+    root = checked_path(root, root=boundary)
+    if queue_root is not None:
+        queue_root = checked_path(queue_root, root=boundary)
+    scan_roots = _scan_roots(root, queue_root, governed_root=boundary)
     views: list[_TaskView] = []
     # D-6. One task, one view -- but WHICH record wins is decided by evidence,
     # not by scan order.
@@ -351,13 +368,13 @@ def build_capsule(
     # same function and the same inputs ``atlas program continuation --action
     # reconcile`` uses, so the capsule and the reconcile command cannot
     # disagree about one task. The evidence is gathered once per task.
-    completed = completed_program_task_ids(queue_root)
+    completed = completed_program_task_ids(queue_root, governed_root=boundary)
     evidence_cache: dict[str, tuple[str, ...]] = {}
 
     def prior_execution_for(task_id: str) -> tuple[str, ...]:
         if task_id not in evidence_cache:
             evidence_cache[task_id] = prior_execution_evidence(
-                scan_roots, task_id, completed_elsewhere=completed
+                scan_roots, task_id, completed_elsewhere=completed, governed_root=boundary
             )
         return evidence_cache[task_id]
 
@@ -487,6 +504,7 @@ def build_capsule(
     # from every scanned root for the same reason the tasks are.
     decisions_all: list[Any] = []
     for scan_root in scan_roots:
+        check_children(decisions_dir(scan_root), root=boundary)
         decisions_all.extend(list_decisions(scan_root, status=DecisionStatus.OPEN))
     decisions = tuple(
         sorted(decisions_all, key=lambda d: (d.task_id, d.decision_id))
@@ -525,7 +543,7 @@ def build_capsule(
 
     queue_view: dict[str, Any] = {}
     if queue_root is not None:
-        queue = load_queue(queue_root)
+        queue = load_queue(queue_root, governed_root=boundary)
         queue_view = {
             "admitted": len(queue.entries),
             "runnable": [e.program_id for e in queue.runnable()],
@@ -539,7 +557,7 @@ def build_capsule(
             },
         }
 
-    own_root = root.resolve()
+    own_root = checked_path(root, root=boundary)
     elsewhere = sorted(
         {t.state_root for t in tasks if Path(t.state_root) != own_root}
     )

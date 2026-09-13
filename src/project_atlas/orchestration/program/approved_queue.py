@@ -39,6 +39,12 @@ from project_atlas.orchestration.program.continuation import (
     read_durable,
     utc_now,
 )
+from project_atlas.orchestration.program.path_safety import (
+    ContainmentError,
+    checked_path,
+    child_path,
+    trusted_root,
+)
 from project_atlas.orchestration.program.store import write_json_atomic
 
 QUEUE_NAME: Final[str] = "approved-work-queue.json"
@@ -126,23 +132,27 @@ class ApprovedWorkQueue(BaseModel):
         )
 
 
-def queue_path(queue_root: Path) -> Path:
-    return queue_root / QUEUE_NAME
+def queue_path(queue_root: Path, *, governed_root: Path | None = None) -> Path:
+    root = checked_path(queue_root, root=governed_root or queue_root)
+    return child_path(root, QUEUE_NAME)
 
 
-def load_queue(queue_root: Path) -> ApprovedWorkQueue:
+def load_queue(
+    queue_root: Path, *, governed_root: Path | None = None
+) -> ApprovedWorkQueue:
     """Read the queue. A missing queue is empty; an unreadable one is an error."""
-    path = queue_path(queue_root)
+    boundary = trusted_root(governed_root or queue_root)
+    path = queue_path(queue_root, governed_root=boundary)
     if not path.is_file():
         return ApprovedWorkQueue()
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=boundary).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise QueueError(
             f"approved work queue at {path} is unreadable: {exc}",
             code="QUEUE_UNREADABLE",
         ) from exc
-    return read_durable(
+    queue = read_durable(
         ApprovedWorkQueue,
         raw,
         path=path,
@@ -150,11 +160,22 @@ def load_queue(queue_root: Path) -> ApprovedWorkQueue:
         code="QUEUE_SCHEMA_INVALID",
         what="approved work queue",
     )
+    for key, entry in queue.entries.items():
+        if key != entry.program_id:
+            raise QueueError("queue key does not match program id", code="QUEUE_SCHEMA_INVALID")
+        validate_entry_paths(entry, governed_root=boundary)
+    return queue
 
 
-def persist_queue(queue_root: Path, queue: ApprovedWorkQueue) -> Path:
+def persist_queue(
+    queue_root: Path, queue: ApprovedWorkQueue, *, governed_root: Path | None = None
+) -> Path:
+    boundary = trusted_root(governed_root or queue_root)
+    path = queue_path(queue_root, governed_root=boundary)
+    for entry in queue.entries.values():
+        validate_entry_paths(entry, governed_root=boundary)
     queue.updated_at = utc_now()
-    return write_json_atomic(queue_path(queue_root), queue.model_dump(mode="json"))
+    return write_json_atomic(path, queue.model_dump(mode="json"), governed_root=boundary)
 
 
 def admit(
@@ -166,6 +187,7 @@ def admit(
     admitted_by: str,
     reference: str,
     note: str = "",
+    governed_root: Path | None = None,
 ) -> QueueEntry:
     """Admit one approved program, pinned to its current bytes.
 
@@ -175,13 +197,16 @@ def admit(
     digest pin exists to prevent -- doing it through this function instead of
     through the filesystem would not make it a different act.
     """
-    resolved = program_path.resolve()
+    boundary = trusted_root(governed_root or queue_root)
+    queue_path(queue_root, governed_root=boundary)
+    resolved = checked_path(program_path, root=boundary)
+    state_root = checked_path(state_root, root=boundary)
     if not resolved.is_file():
         raise QueueError(
             f"program file {resolved} does not exist", code="QUEUE_PROGRAM_MISSING"
         )
-    sha, _size = file_sha256(resolved)
-    queue = load_queue(queue_root)
+    sha, _size = file_sha256(resolved, governed_root=boundary)
+    queue = load_queue(queue_root, governed_root=boundary)
     existing = queue.entries.get(program_id)
     if existing is not None and existing.status is not QueueEntryStatus.WITHDRAWN:
         raise QueueError(
@@ -193,25 +218,34 @@ def admit(
         program_id=program_id,
         program_path=str(resolved),
         program_sha256=sha,
-        state_root=str(state_root.resolve()),
+        state_root=str(state_root),
         admitted_by=admitted_by,
         reference=reference,
         note=note,
     )
     queue.entries[program_id] = entry
-    persist_queue(queue_root, queue)
+    persist_queue(queue_root, queue, governed_root=boundary)
     return entry
 
 
-def verify_entry(entry: QueueEntry) -> None:
+def validate_entry_paths(entry: QueueEntry, *, governed_root: Path) -> None:
+    """Queue data cannot establish its own trusted state/program boundary."""
+    checked_path(Path(entry.program_path), root=governed_root)
+    checked_path(Path(entry.state_root), root=governed_root)
+
+
+def verify_entry(entry: QueueEntry, *, governed_root: Path | None = None) -> None:
     """Refuse an entry whose file is gone or no longer the admitted bytes."""
-    path = Path(entry.program_path)
+    if governed_root is None:
+        raise ContainmentError("entry verification requires an explicit governed root")
+    validate_entry_paths(entry, governed_root=governed_root)
+    path = checked_path(Path(entry.program_path), root=governed_root)
     if not path.is_file():
         raise QueueError(
             f"admitted program {entry.program_id} is missing from {path}",
             code="QUEUE_PROGRAM_MISSING",
         )
-    sha, _size = file_sha256(path)
+    sha, _size = file_sha256(path, governed_root=governed_root)
     if sha != entry.program_sha256:
         raise QueueError(
             f"admitted program {entry.program_id} at {path} no longer matches "
@@ -229,6 +263,7 @@ def update_entry(
     last_stop_reason: str | None = None,
     increment_runs: bool = False,
     note: str | None = None,
+    governed_root: Path | None = None,
 ) -> QueueEntry:
     """Apply one bookkeeping change to an entry, atomically.
 
@@ -237,7 +272,7 @@ def update_entry(
     behaviour the dispatcher is required not to have, and the queue is where it
     would have to be permitted for that to happen.
     """
-    queue = load_queue(queue_root)
+    queue = load_queue(queue_root, governed_root=governed_root)
     entry = queue.entries.get(program_id)
     if entry is None:
         raise QueueError(
@@ -264,15 +299,19 @@ def update_entry(
     if note is not None:
         entry.note = note
     queue.entries[program_id] = entry
-    persist_queue(queue_root, queue)
+    persist_queue(queue_root, queue, governed_root=governed_root)
     return entry
 
 
-def withdraw(queue_root: Path, program_id: str, *, note: str = "") -> QueueEntry:
+def withdraw(
+    queue_root: Path, program_id: str, *, note: str = "",
+    governed_root: Path | None = None,
+) -> QueueEntry:
     """Operator withdrawal. Kept as a record, never deleted."""
     return update_entry(
         queue_root,
         program_id,
         status=QueueEntryStatus.WITHDRAWN,
         note=note or "withdrawn by operator",
+        governed_root=governed_root,
     )
