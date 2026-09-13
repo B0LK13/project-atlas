@@ -219,7 +219,10 @@ def _validate_okf_concept_note(vault: Path, path: Path, errors: list[str]) -> No
         if not isinstance(frontmatter, dict):
             raise ValueError("frontmatter must be an object")
         validate_record(frontmatter, "concept-record")
-    except (ValueError, yaml.YAMLError, SchemaValidationError) as exc:
+    except (ValueError, yaml.YAMLError, SchemaValidationError, KeyError) as exc:
+        # PyYAML ``!!bool nope`` (and similar constructor tags) raise
+        # KeyError, not YAMLError. Record the structured invalid-note
+        # finding — do not leak the constructor error out of validate().
         errors.append(f"invalid OKF concept note {relative}: {exc}")
         return
     resource = frontmatter.get("resource")
