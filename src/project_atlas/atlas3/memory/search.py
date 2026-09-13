@@ -34,18 +34,27 @@ def search_memory(
     project_id: str | None = None,
 ) -> dict[str, Any]:
     scan_or_raise(query)
+    if not isinstance(items, list):
+        raise Atlas3Error("SEARCH_INVALID", "items must be a list")
     if project_id is not None:
         assert_items_project_scope(items, project_id=project_id)
     else:
-        scoped = {str(item.get("project_id") or "") for item in items if isinstance(item, dict)}
-        scoped.discard("")
+        scoped: set[str] = set()
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise Atlas3Error("SEARCH_INVALID", f"item {index} is not an object")
+            item_pid = item.get("project_id")
+            if item_pid is None or str(item_pid).strip() == "":
+                raise Atlas3Error(
+                    "PROJECT_MISMATCH",
+                    f"item {index} missing project_id under governed routing",
+                )
+            scoped.add(str(item_pid))
         if len(scoped) > 1:
             raise Atlas3Error(
                 "PROJECT_MISMATCH",
                 f"mixed-project memory search: {sorted(scoped)}",
             )
-    if not isinstance(items, list):
-        raise Atlas3Error("SEARCH_INVALID", "items must be a list")
     needle = query.strip().lower()
     tokens = [part for part in needle.split() if part]
     hits: list[dict[str, Any]] = []
@@ -63,6 +72,7 @@ def search_memory(
                     "text": item.get("text"),
                     "provider": item.get("provider"),
                     "freshness": item.get("freshness"),
+                    "project_id": item.get("project_id"),
                     "source_content_hash": item.get("source_content_hash"),
                     "conversation_id": item.get("conversation_id"),
                     "authority": item.get("authority", "NON_CANONICAL"),
