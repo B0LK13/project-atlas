@@ -82,5 +82,13 @@ def search_memory(
 def persist_search(vault: Any, project_id: str, result: dict[str, Any]) -> dict[str, Any]:
     root = require_vault(vault)
     pid = require_project(root, project_id)
+    if not isinstance(result, dict):
+        raise Atlas3Error("SEARCH_INVALID", "search result must be an object")
+    result_pid = result.get("project_id")
+    if result_pid is not None and str(result_pid).strip() != "" and str(result_pid) != pid:
+        raise Atlas3Error(
+            "PROJECT_MISMATCH",
+            f"result project_id {result_pid!r} != requested {pid!r}",
+        )
     write_json_atomic(root / OPS_RELATIVE / "memory" / pid / "search.json", result)
     return result
