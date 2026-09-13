@@ -17,7 +17,6 @@ and never anything a worker wrote.
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from typing import Any, Final
@@ -31,7 +30,9 @@ from project_atlas.orchestration.program.adapters.base import (
     run_child_to_completion,
 )
 from project_atlas.orchestration.program.models import ExecutionConfidence, FailureClass
+from project_atlas.orchestration.program.path_safety import child_path, trusted_root
 from project_atlas.orchestration.program.profiles import AdapterKind, AgentProfile
+from project_atlas.orchestration.program.store import write_json_atomic
 
 ADAPTER_ID: Final[str] = AdapterKind.LOCAL_COMMAND.value
 FIXTURE_LABEL: Final[str] = "FIXTURE"
@@ -85,7 +86,7 @@ class LocalCommandAdapter:
             )
 
     def _marker_path(self, request: AdapterRequest) -> Path:
-        return request.evidence_dir / f"{request.attempt_id}.started"
+        return child_path(request.evidence_dir, f"{request.attempt_id}.started")
 
     def probe_run_started(self, request: AdapterRequest) -> bool | None:
         """The marker is written before the child is spawned, so its presence
@@ -94,21 +95,20 @@ class LocalCommandAdapter:
 
     def run(self, request: AdapterRequest) -> AdapterOutcome:
         started = time.monotonic()
-        request.evidence_dir.mkdir(parents=True, exist_ok=True)
+        workspace = trusted_root(request.workspace)
+        directory = trusted_root(request.evidence_dir)
         marker = self._marker_path(request)
-        marker.write_text(
-            json.dumps(
-                {
-                    "label": FIXTURE_LABEL,
-                    "attempt_id": request.attempt_id,
-                    "task_id": request.task_id,
-                    "session_id": request.session_id,
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
+        # Validate every planned evidence sink before any child launch.
+        transcript = child_path(directory, f"{request.attempt_id}.transcript.json")
+        directory.mkdir(parents=True, exist_ok=True)
+        write_json_atomic(
+            marker,
+            {
+                "label": FIXTURE_LABEL,
+                "attempt_id": request.attempt_id,
+                "task_id": request.task_id,
+                "session_id": request.session_id,
+            },
         )
 
         env = build_child_env(
@@ -118,14 +118,14 @@ class LocalCommandAdapter:
                 _ATTEMPT_ENV: str(request.attempt_number),
                 _TASK_ENV: request.task_id,
                 _SESSION_ENV: request.session_id or "",
-                _WORKSPACE_ENV: str(request.workspace),
+                _WORKSPACE_ENV: str(workspace),
                 **dict(request.extra_env),
             },
         )
 
         exit_status, stdout, stderr, pid, identity, terminal = run_child_to_completion(
             self._argv,
-            cwd=request.workspace,
+            cwd=trusted_root(workspace),
             env=env,
             stdin_text=None,
             timeout_seconds=request.timeout_seconds,
@@ -135,7 +135,6 @@ class LocalCommandAdapter:
         )
         duration = time.monotonic() - started
 
-        transcript = request.evidence_dir / f"{request.attempt_id}.transcript.json"
         payload: dict[str, Any] = {
             "label": FIXTURE_LABEL,
             "adapter": ADAPTER_ID,
@@ -145,9 +144,7 @@ class LocalCommandAdapter:
             "stdout": stdout[-16_384:],
             "stderr": stderr[-16_384:],
         }
-        transcript.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        write_json_atomic(transcript, payload)
 
         if terminal in {"cancelled", "timeout"}:
             confidence = ExecutionConfidence.UNCERTAIN

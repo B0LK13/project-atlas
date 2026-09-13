@@ -15011,6 +15011,25 @@ The demo now counts terminal checkpoints rather than all checkpoints. Refusal
 diagnostics retain the containment code and explicitly identify digest mismatch.
 Final acceptance belongs to the next exact candidate, not this intermediate one.
 
+Independent verification of `3faf318cf930708382d449f0c9beb43d6090c93c`
+reported 41/48 checks passing and withheld acceptance: decision and transcript
+leaves still allowed outside reads, and three workspace refusals lacked a
+structured code. All reported conditions were retained and repaired centrally.
+Additional bounded review reproduced local fixture evidence-leaf writes, SDK
+pause-directory writes/leaf reads and a service-identity leaf read. Repairs now
+guard those actual reader/writer boundaries, not only capsule/dispatcher callers.
+Local-command validates every planned evidence sink before launch and writes
+through the guarded atomic writer. Projection also validates workspace and
+artifact leaves; no outside command is imported as captured execution.
+
+Focused dirty-tree regression passed 141 containment/continuation/demo checks;
+the later local-fixture set passed 61 checks and pause/host/control set passed
+95 checks. SDK-lock/process visibility and final exact-candidate verification
+follow in the external dossier. The independent report remains separate from
+the additional implementer's review. Non-fixture Codex/Claude runtime behavior,
+including source-only evidence-sink observations, is not accepted by this
+zero-model delivery; model dispatch stays disabled. No service action was taken.
+
 Evidence: `docs/orchestration/taskcontract/demo/evidence/` (11 raw files),
 `docs/orchestration/taskcontract/demo/snapshot/` (the item text and digest the
 run observed).

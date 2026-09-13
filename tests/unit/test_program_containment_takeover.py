@@ -468,3 +468,155 @@ def test_registry_leaf_link_is_refused_by_operator_reader(tmp_path: Path) -> Non
     with pytest.raises(ContainmentError):
         load_registry(registry)
     assert outside.read_bytes() == before
+
+
+@pytest.mark.parametrize("reader", ["load", "list", "answer", "withdraw", "blocked"])
+def test_decision_leaf_link_is_refused_at_shared_boundary(tmp_path: Path, reader: str) -> None:
+    from project_atlas.orchestration.program import decisions
+
+    root = tmp_path / "governed"
+    request, created = decisions.raise_decision(
+        root, program_id="fixture", task_id="task", kind=decisions.DecisionKind.PERMISSION,
+        subject="fixture", question="fixture permission", requested_action="nothing",
+        worker_id="fixture", session_id="fixture-session",
+    )
+    assert created
+    target = decisions._path_for(root, request.decision_id)
+    outside = tmp_path / "outside.json"
+    target.rename(outside)
+    target.symlink_to(outside)
+    before = outside.read_bytes()
+    with pytest.raises(ContainmentError):
+        if reader == "load":
+            decisions.load_decision(root, request.decision_id)
+        elif reader == "list":
+            decisions.list_decisions(root)
+        elif reader == "answer":
+            decisions.record_answer(root, request.decision_id, answered_by="fixture", answer="no")
+        elif reader == "withdraw":
+            decisions.withdraw_decision(root, request.decision_id, reason="fixture")
+        else:
+            decisions.blocked_task_ids(root)
+    assert outside.read_bytes() == before
+
+
+def test_command_projection_refuses_transcript_leaf_link(tmp_path: Path) -> None:
+    from project_atlas.orchestration.program.continuation_projection import _capture_commands
+    from project_atlas.orchestration.program.store import AttemptRecord, evidence_dir
+
+    root = tmp_path / "governed"
+    directory = evidence_dir(root)
+    directory.mkdir(parents=True)
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"argv": ["NEVER_OBSERVED_COMMAND"], "exit_status": 0}')
+    (directory / "fixture.transcript.json").symlink_to(outside)
+    attempt = AttemptRecord(
+        attempt_id="fixture", task_id="task", attempt_number=1, idempotency_key="fixture",
+        profile_id="fixture", agent_id="fixture", adapter="local-command",
+        profile_digest="0" * 64, base_pin="0" * 40,
+        evidence_paths=("fixture.transcript.json",),
+    )
+    with pytest.raises(ContainmentError):
+        _capture_commands(root, attempt)
+
+
+@pytest.mark.parametrize("outside", [False, True])
+def test_artifact_projection_refuses_planted_link(tmp_path: Path, outside: bool) -> None:
+    from project_atlas.orchestration.program.continuation_projection import _capture_artifacts
+    from project_atlas.orchestration.program.models import AcceptanceCheck, AcceptanceKind
+    from project_atlas.orchestration.program.store import AttemptRecord
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = (tmp_path if outside else workspace) / "source.txt"
+    target.write_text("fixture")
+    (workspace / "result.txt").symlink_to(target)
+    task = load_program(_program(tmp_path, workspace)).program.tasks[0]
+    task = task.model_copy(update={"acceptance": (AcceptanceCheck(
+        check_id="result", kind=AcceptanceKind.FILE_EXISTS, path="result.txt",
+        description="fixture artifact",
+    ),)})
+    attempt = AttemptRecord(
+        attempt_id="fixture", task_id=task.task_id, attempt_number=1, idempotency_key="fixture",
+        profile_id="fixture", agent_id="fixture", adapter="local-command",
+        profile_digest="0" * 64, base_pin="0" * 40,
+        acceptance_detail=({"check_id": "result", "passed": True},),
+    )
+    with pytest.raises(ContainmentError):
+        _capture_artifacts(task, attempt, workspace)
+    assert target.read_text() == "fixture"
+
+
+@pytest.mark.parametrize("suffix", [".started", ".transcript.json"])
+def test_local_fixture_leaf_link_refuses_before_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, suffix: str
+) -> None:
+    from project_atlas.orchestration.program.adapters import local_command
+    from project_atlas.orchestration.program.adapters.base import AdapterRequest
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    loaded = load_program(_program(tmp_path, workspace))
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("preserve this fixture")
+    (evidence / ("known-attempt" + suffix)).symlink_to(outside)
+    request = AdapterRequest(
+        program_id="fixture", task_id="fixture-task", attempt_id="known-attempt",
+        attempt_number=1, idempotency_key="fixture", instruction="fixture",
+        workspace=workspace, profile=loaded.effective_profile("fixture-task"),
+        session_id="fixture", resume_session_id=None, timeout_seconds=1, evidence_dir=evidence,
+    )
+
+    def forbidden_child(*args: object, **kwargs: object) -> None:
+        pytest.fail("a planted evidence leaf reached the child-launch boundary")
+
+    monkeypatch.setattr(local_command, "run_child_to_completion", forbidden_child)
+    with pytest.raises(ContainmentError):
+        local_command.LocalCommandAdapter((sys.executable, "-c", "pass")).run(request)
+    assert outside.read_text() == "preserve this fixture"
+
+
+def test_pause_leaf_link_is_not_read_as_operator_authority(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk import host
+
+    root = tmp_path / "governed"
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"program_id":"fixture","requested_by":"foreign"}')
+    target = host.host_state_dir(store.state_dir(root)) / host.SUPERVISOR_PAUSE_NAME
+    target.parent.mkdir(parents=True)
+    target.symlink_to(outside)
+    with pytest.raises(ContainmentError):
+        host.read_supervisor_pause(store.state_dir(root), program_id="fixture")
+
+
+def test_control_pause_refuses_linked_host_directory_without_outside_write(tmp_path: Path) -> None:
+    from project_atlas.orchestration.program import control
+    from project_atlas.orchestration.sdk import host
+
+    root = tmp_path / "governed"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    store.persist_state(root, store.ProgramStateRecord(
+        program_id="fixture", program_digest="a" * 64, base_pin="b" * 40
+    ))
+    target = host.host_state_dir(store.state_dir(root))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ContainmentError):
+        control.pause(root, requested_by="fixture")
+    assert list(outside.iterdir()) == []
+
+
+def test_service_identity_link_is_refused_without_service_action(tmp_path: Path) -> None:
+    from project_atlas.orchestration.program import service
+
+    root = tmp_path / "governed"
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"pid":0,"program_id":"foreign","program_path":"fixture"}')
+    target = service.identity_path(root)
+    target.parent.mkdir(parents=True)
+    target.symlink_to(outside)
+    with pytest.raises(ContainmentError):
+        service.read_identity(root)

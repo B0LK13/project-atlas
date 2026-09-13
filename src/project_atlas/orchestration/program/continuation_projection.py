@@ -71,6 +71,7 @@ from project_atlas.orchestration.program.models import (
     ExecutionConfidence,
     ProgramTask,
 )
+from project_atlas.orchestration.program.path_safety import checked_path, child_path, trusted_root
 from project_atlas.orchestration.program.store import (
     AttemptRecord,
     ProgramStateRecord,
@@ -124,8 +125,11 @@ def _capture_commands(
             f"{attempt.attempt_id}; the supervisor did not observe its command line"
         )
     name = names[0]
+    # ContainmentError is a ValueError: do not demote it to an unavailable
+    # optional capture. A planted transcript link requires fail-closed recovery.
+    target = child_path(evidence_dir(root), name)
     try:
-        payload = json.loads((evidence_dir(root) / name).read_text(encoding="utf-8"))
+        payload = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return (), _unavailable(
             f"transcript {name} for attempt {attempt.attempt_id} is unreadable "
@@ -171,7 +175,7 @@ def _capture_commands(
 def _sha256_of(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     size = 0
-    with path.open("rb") as handle:
+    with checked_path(path).open("rb") as handle:
         while True:
             chunk = handle.read(_HASH_CHUNK)
             if not chunk:
@@ -218,13 +222,13 @@ def _capture_artifacts(
             "no passed FILE_EXISTS or FILE_MATCHES acceptance check names a path; "
             "the supervisor observed no artifact path for this task"
         )
-    base = workspace.resolve()
+    base = trusted_root(workspace)
     records: list[ArtifactRecord] = []
     missing: list[str] = []
     for check in candidates:
         relative = check.path or ""
-        target = (base / relative).resolve()
-        if not target.is_relative_to(base) or not target.is_file():
+        target = child_path(base, relative)
+        if not target.is_file():
             missing.append(relative)
             continue
         try:
@@ -392,6 +396,9 @@ def project_checkpoints(
     projects, and a projection that disagreed with its source would be a second
     opinion nobody asked for.
     """
+    worktree = checked_path(
+        worktree, root=loaded.governed_root or loaded.source_path.parent
+    )
     written: list[ContinuationCheckpoint] = []
     for task in loaded.program.tasks:
         envelope = load_envelope(root, task.task_id)

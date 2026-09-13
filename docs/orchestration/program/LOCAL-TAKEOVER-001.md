@@ -11,6 +11,7 @@ document or transferred from the predecessor.
 | Requirement | Enforcement and executable evidence |
 | --- | --- |
 | F-01 containment | `path_safety`, guarded queue/loader/store/continuation/capsule/reconciliation and workspace checks; `test_program_containment_takeover.py` |
+| Equivalent evidence paths | Shared decision, registry, SDK pause/stop/lock and service-identity helpers; guarded local-command marker/transcript writes and projection reads |
 | F-02 ownership | Restart rejects an unknown/reused PID before witness/ACT, rechecks the witness at drain/start boundaries; `test_program_pid_reuse_takeover.py` and restart regression |
 | Concurrent ownership | Kernel locks for resident state, queue, and operator restart, released on exit without deleting lock inodes; `test_program_dispatcher_lock_takeover.py` |
 | Current authority | Absolute registry binding, fresh enrollment checks and envelope validation on actual dispatch; enrollment/authority regression and revoked demonstration |
@@ -83,6 +84,10 @@ is labelled fault injection, never an observed external incident.
 - Proven local runtime support is the bounded `local-command` fixture adapter.
   Generated instruction files are not runtime compatibility evidence. Codex,
   Claude, IDE and remote model execution require separate acceptance.
+  Bounded source review also identified evidence-path concerns in non-fixture
+  adapters. They are not part of this accepted runtime profile; keep model
+  dispatch disabled and require sink-specific repairs and zero-model negative
+  probes before any separate real-runtime acceptance.
 - Pause/restart continues between tasks. A checkpoint requesting an adapter
   to resume inside a task is refused unless that execution path is implemented;
   this delivery does not invent a step-resume adapter or replay a partial task.

@@ -52,7 +52,15 @@ def no_window_creationflags() -> int:
 
 
 def host_state_dir(root: Path) -> Path:
-    return root / STATE_DIR_RELATIVE
+    from project_atlas.orchestration.program.path_safety import child_path
+
+    return child_path(root, STATE_DIR_RELATIVE)
+
+
+def _host_file(root: Path, name: str) -> Path:
+    from project_atlas.orchestration.program.path_safety import child_path
+
+    return child_path(host_state_dir(root), name)
 
 
 def write_host_identity(
@@ -74,9 +82,9 @@ def write_host_identity(
         "merge_authorized": False,
         "execution_authorized": False,
     }
-    target = store / "supervisor-host.json"
+    target = _host_file(root, "supervisor-host.json")
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (store / "supervisor.pid").write_text(f"{pid}\n", encoding="utf-8")
+    _host_file(root, "supervisor.pid").write_text(f"{pid}\n", encoding="utf-8")
     return target
 
 
@@ -124,7 +132,7 @@ def detach_governor_service(
         )
     log_dir = host_state_dir(root)
     log_dir.mkdir(parents=True, exist_ok=True)
-    log = (log_dir / "supervisor.stdout.log").open("a", encoding="utf-8")
+    log = _host_file(root, "supervisor.stdout.log").open("a", encoding="utf-8")
     proc = subprocess.Popen(
         args,
         cwd=str(root),
@@ -138,28 +146,23 @@ def detach_governor_service(
 
 
 def stop_requested(root: Path) -> bool:
-    return (host_state_dir(root) / SUPERVISOR_STOP_NAME).is_file()
+    return _host_file(root, SUPERVISOR_STOP_NAME).is_file()
 
 
 def _write_atomic_text(path: Path, content: str) -> None:
-    """Replace ``path`` atomically via same-directory temp + os.replace."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
-    try:
-        tmp.write_text(content, encoding="utf-8")
-        os.replace(tmp, path)
-    finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
+    """Use the shared guarded atomic writer for pause/stop evidence."""
+    from project_atlas.orchestration.program.store import _write_atomic
+
+    _write_atomic(path, content)
 
 
 def request_supervisor_stop(root: Path) -> None:
-    path = host_state_dir(root) / SUPERVISOR_STOP_NAME
+    path = _host_file(root, SUPERVISOR_STOP_NAME)
     _write_atomic_text(path, "stop\n")
 
 
 def clear_supervisor_stop(root: Path) -> None:
-    path = host_state_dir(root) / SUPERVISOR_STOP_NAME
+    path = _host_file(root, SUPERVISOR_STOP_NAME)
     if path.is_file():
         path.unlink()
 
@@ -184,7 +187,7 @@ def request_supervisor_pause(
     so the program id travels with it and is checked on read, rather than the
     mere existence of a path being treated as consent.
     """
-    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    path = _host_file(root, SUPERVISOR_PAUSE_NAME)
     _write_atomic_text(
         path,
         json.dumps(
@@ -200,7 +203,7 @@ def request_supervisor_pause(
 
 
 def clear_supervisor_pause(root: Path) -> None:
-    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    path = _host_file(root, SUPERVISOR_PAUSE_NAME)
     if path.is_file():
         path.unlink()
 
@@ -213,7 +216,7 @@ def read_supervisor_pause(root: Path, *, program_id: str) -> dict[str, str] | No
     so a file nobody can parse must never be able to halt an unrelated program
     forever. A stop sentinel is the opposite case and keeps its own semantics.
     """
-    path = host_state_dir(root) / SUPERVISOR_PAUSE_NAME
+    path = _host_file(root, SUPERVISOR_PAUSE_NAME)
     if not path.is_file():
         return None
     try:
@@ -305,7 +308,7 @@ class SupervisorLockRecord:
 
 
 def read_supervisor_lock_pid(root: Path) -> int:
-    path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
+    path = _host_file(root, SUPERVISOR_LOCK_NAME)
     record = _read_lock_record(path)
     if record is None or record == "corrupt":
         return 0
@@ -398,7 +401,7 @@ def acquire_supervisor_lock(root: Path, *, instance_id: str | None = None) -> bo
     Same exact instance may re-enter idempotently when the same token is supplied
     or when this process still holds the remembered token for ``root``.
     """
-    path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
+    path = _host_file(root, SUPERVISOR_LOCK_NAME)
     path.parent.mkdir(parents=True, exist_ok=True)
     me = os.getpid()
     # Omitting instance_id always mints a fresh instance token so two contenders
@@ -438,7 +441,7 @@ def acquire_supervisor_lock(root: Path, *, instance_id: str | None = None) -> bo
 
 def release_supervisor_lock(root: Path, *, instance_id: str | None = None) -> None:
     """Release only when this exact supervisor instance owns the lock."""
-    path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
+    path = _host_file(root, SUPERVISOR_LOCK_NAME)
     if not path.is_file():
         _forget_held_instance(root, instance_id)
         return

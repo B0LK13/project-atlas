@@ -92,15 +92,21 @@ def _utc_now() -> str:
 
 
 def service_dir(root: Path) -> Path:
-    return state_dir(root) / SERVICE_DIR
+    from project_atlas.orchestration.program.path_safety import child_path
+
+    return child_path(state_dir(root), SERVICE_DIR)
 
 
 def identity_path(root: Path) -> Path:
-    return service_dir(root) / IDENTITY_NAME
+    from project_atlas.orchestration.program.path_safety import child_path
+
+    return child_path(service_dir(root), IDENTITY_NAME)
 
 
 def log_path(root: Path) -> Path:
-    return service_dir(root) / LOG_NAME
+    from project_atlas.orchestration.program.path_safety import child_path
+
+    return child_path(service_dir(root), LOG_NAME)
 
 
 def _bound_agents(loaded: LoadedProgram, registry_root: Path) -> tuple[Any, ...]:

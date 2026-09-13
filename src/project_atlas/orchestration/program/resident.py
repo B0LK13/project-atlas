@@ -569,6 +569,9 @@ class ResidentDispatcher:
             if loaded.program.program_id != entry.program_id:
                 raise QueueError("queue program id mismatch", code="QUEUE_PROGRAM_MISMATCH")
         except (ProgramLoadError, QueueError, ContainmentError) as exc:
+            result.state = DispatcherState.WAITING_ON_WORK
+            result.queue_error = str(exc)
+            result.queue_error_code = exc.code
             update_entry(
                 self.queue_root,
                 entry.program_id,

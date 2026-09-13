@@ -43,6 +43,7 @@ from project_atlas.orchestration.program.continuation import (
     read_durable,
     utc_now,
 )
+from project_atlas.orchestration.program.path_safety import checked_path, child_path
 from project_atlas.orchestration.program.store import state_dir, write_json_atomic
 
 DECISIONS_DIR: Final[str] = "decisions"
@@ -128,7 +129,7 @@ class DecisionRequest(BaseModel):
 
 
 def decisions_dir(root: Path) -> Path:
-    return state_dir(root) / DECISIONS_DIR
+    return child_path(state_dir(root), DECISIONS_DIR)
 
 
 def decision_id_for(
@@ -154,7 +155,7 @@ def decision_id_for(
 
 def _path_for(root: Path, decision_id: str) -> Path:
     name = hashlib.sha256(decision_id.encode("utf-8")).hexdigest() + ".decision.json"
-    return decisions_dir(root) / name
+    return child_path(decisions_dir(root), name)
 
 
 def load_decision(root: Path, decision_id: str) -> DecisionRequest | None:
@@ -162,7 +163,7 @@ def load_decision(root: Path, decision_id: str) -> DecisionRequest | None:
     if not path.is_file():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise DecisionError(
             f"decision {decision_id} at {path} is unreadable: {exc}",
@@ -284,7 +285,7 @@ def list_decisions(
     found: list[DecisionRequest] = []
     for path in sorted(directory.glob("*.decision.json")):
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            raw = json.loads(checked_path(path, root=root).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise DecisionError(
                 f"decision at {path} is unreadable: {exc}", code="DECISION_UNREADABLE"
