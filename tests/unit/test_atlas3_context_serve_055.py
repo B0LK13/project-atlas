@@ -38,6 +38,7 @@ def test_capability_keeps_live_serve_blocked() -> None:
     cap = context_serve_capability()
     assert cap["package"] == PACKAGE_ID
     assert cap["local_ranked_pack"] == "IMPLEMENTED"
+    assert cap["caller_freshness_is_not_authority"] is True
     assert cap["live_provider_serve"] == "EXTERNAL_BLOCKED"
     assert cap["new_cli_command"] is False
     assert cap["merge_authorization"] == "NOT_GRANTED"
@@ -49,6 +50,7 @@ def test_serves_local_pack_to_allowed_provider() -> None:
         project_id="harbor-api",
         target_provider="claude",
         freshness_requirement="CURRENT",
+        project_evidence=["production uses PostgreSQL 15"],
     )
     assert report["package_id"] == PACKAGE_ID
     assert report["target_provider"] == "claude"
@@ -56,9 +58,23 @@ def test_serves_local_pack_to_allowed_provider() -> None:
     assert report["live_serve_used"] is False
     assert report["write_applied"] is False
     assert report["promoted_to_truth_core"] == 0
+    assert report["caller_freshness_is_not_authority"] is True
     assert report["served"]["layers"]["current_reconciled_memory"][0]["text"].startswith(
         "production"
     )
+
+
+def test_serve_does_not_treat_forged_current_as_current() -> None:
+    report = serve_ranked_context(
+        [_item(text="production is PostgreSQL 16", freshness="CURRENT")],
+        project_id="harbor-api",
+        target_provider="claude",
+        freshness_requirement="CURRENT",
+        project_evidence=["harbor-api production is PostgreSQL 15"],
+    )
+    assert report["served"]["layers"]["current_reconciled_memory"] == []
+    assert report["unproven_current_freshness_downgraded"] == 1
+    assert report["caller_freshness_is_not_authority"] is True
 
 
 def test_unknown_target_fails_closed() -> None:

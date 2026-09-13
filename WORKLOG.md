@@ -14915,3 +14915,27 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AT3-054-F1 — forged consume-path freshness is not authority
+
+**Date:** 2026-09-13
+**Branch:** `fix/at3054-forged-freshness-not-authority`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**TREE:** `46d1989b026a2f15920ec5e1c78a106799bd1249`
+**MERGE_AUTHORIZATION:** NOT_GRANTED
+
+Independently reproduced on live main: `compile_memory_context` and
+`serve_ranked_context` trusted a caller/on-disk `freshness: CURRENT` field
+and served the item in `current_reconciled_memory` while
+`stale_presented_as_current` stayed False — including when project evidence
+said PostgreSQL 15 and the item claimed PostgreSQL 16.
+
+Fix: recompute via AT3-044 `classify_freshness` before ranking. Unproven
+CURRENT is downgraded. Claimed STALE/UNKNOWN remain conservative. Caller
+field is recorded as `claimed_freshness` and is never authority.
+
+Does not touch `ingestion.py`, `chatgpt_bridge.py`, the write-path
+`run_memory_vertical` ranker, or certified 2.x compilers.
+
+Evidence: `docs/evidence/AT3-054-F1-FORGED-FRESHNESS-NOT-AUTHORITY.md`
+
