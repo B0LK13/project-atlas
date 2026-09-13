@@ -19,6 +19,7 @@ from project_atlas.atlas3.memory.cursor import import_cursor_export
 from project_atlas.atlas3.memory.extract import extract_items
 from project_atlas.atlas3.memory.gemini import import_gemini_export
 from project_atlas.atlas3.memory.normalize import normalize_turns
+from project_atlas.atlas3.memory.privacy import scan_or_raise
 from project_atlas.atlas3.memory.reconcile import reconcile_memories
 from project_atlas.atlas3.memory.routing import (
     assert_items_project_scope,
@@ -59,6 +60,11 @@ def run_memory_vertical(
     root = require_vault(vault)
     pid = require_project(root, project_id)
     assert_items_project_scope(provider_items, project_id=pid)
+    scan_or_raise(
+        current_state_text,
+        *[str(item.get("text") or "") for item in provider_items],
+        *[str(item.get("text") or "") for item in stronger_evidence],
+    )
     reconciled = reconcile_memories(
         provider_items,
         stronger_evidence=stronger_evidence,
@@ -71,6 +77,7 @@ def run_memory_vertical(
         accepted_decisions=[
             str(item.get("text"))
             for item in reconciled["owner_decisions"]
+            if str(item.get("freshness") or "") != "STALE"
         ],
         reconciled_items=reconciled["items"],
         include_stale_historical=False,

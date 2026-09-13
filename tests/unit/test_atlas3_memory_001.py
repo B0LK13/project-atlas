@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from project_atlas.atlas3.contracts import OPS_RELATIVE, read_json
 from project_atlas.atlas3.memory.chatgpt import chatgpt_capability, import_chatgpt_export
 from project_atlas.atlas3.memory.compiler import next_agent_must_not_claim_pg16
 from project_atlas.atlas3.memory.connector import provider_capabilities
@@ -105,3 +106,33 @@ def test_postgres_cross_llm_fixture(tmp_path: Path) -> None:
     assert report["search"]["transcript_dump"] is False
     assert report["search"]["hit_count"] >= 1
     assert report["chatgpt_bridge_replaced"] is False
+    assert (
+        "PostgreSQL 16"
+        not in " ".join(report["context_compiler"]["layers"]["accepted_decisions"])
+    )
+
+
+def test_stale_owner_decision_is_not_accepted_and_persisted(tmp_path: Path) -> None:
+    """AT3-D192-PIPE-F1 — STALE owner text must not mint accepted_decisions."""
+    vault = _vault(tmp_path)
+    report = run_memory_vertical(
+        vault,
+        "harbor-api",
+        provider_items=[
+            {
+                "text": "Owner decided production is PostgreSQL 16",
+                "item_type": "confirmed_owner_decision",
+                "project_id": "harbor-api",
+                "provider": "cursor",
+                "authority": "NON_CANONICAL",
+            }
+        ],
+        stronger_evidence=[{"kind": "deployment", "text": "PostgreSQL 15"}],
+        current_state_text="PostgreSQL 15",
+    )
+    assert report["reconciliation"]["items"][0]["freshness"] == "STALE"
+    assert report["context_compiler"]["layers"]["accepted_decisions"] == []
+    persisted = read_json(vault / OPS_RELATIVE / "memory" / "harbor-api" / "reconcile.json")
+    assert persisted is not None
+    assert persisted["context_compiler"]["layers"]["accepted_decisions"] == []
+    assert persisted["promoted_to_truth_core"] == 0
