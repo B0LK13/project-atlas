@@ -253,3 +253,58 @@ def test_identical_replay_collapsed_on_read(tmp_path: Path) -> None:
     )
     rows = list_events(vault, "harbor-api")
     assert len(rows) == 1
+
+
+def test_append_rejects_tampered_content_hash_and_writes_nothing(tmp_path: Path) -> None:
+    """AT3-014-F1 — verify_engineering_event runs before ledger write."""
+    vault = _vault(tmp_path)
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="unit ok",
+    )
+    event["content_hash"] = "sha256:" + "f" * 64
+    with pytest.raises(Atlas3Error) as exc:
+        append_event(vault, "harbor-api", event)
+    assert exc.value.code == "CONTENT_HASH_MISMATCH"
+    assert not _ledger_path(vault).exists()
+
+
+def test_append_rejects_tampered_hash_on_existing_ledger_without_new_row(
+    tmp_path: Path,
+) -> None:
+    """AT3-014-F1 — a poisoned append must not add a row to an existing ledger."""
+    vault = _vault(tmp_path)
+    valid = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="already landed",
+    )
+    append_event(vault, "harbor-api", valid)
+    before = _ledger_path(vault).read_bytes()
+    tampered = dict(valid)
+    tampered["content_hash"] = "sha256:" + "f" * 64
+    with pytest.raises(Atlas3Error) as exc:
+        append_event(vault, "harbor-api", tampered)
+    assert exc.value.code == "CONTENT_HASH_MISMATCH"
+    assert _ledger_path(vault).read_bytes() == before
+    assert len(list_events(vault, "harbor-api")) == 1
+
+
+def test_append_accepts_normalized_engineering_event(tmp_path: Path) -> None:
+    """AT3-014-F1 — a valid normalize_engineering_event still appends."""
+    vault = _vault(tmp_path)
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="unit ok",
+    )
+    result = append_event(vault, "harbor-api", event)
+    assert result["idempotency"] == "appended"
+    rows = list_events(vault, "harbor-api")
+    assert len(rows) == 1
+    assert rows[0]["content_hash"] == event["content_hash"]
+    assert rows[0]["event_id"] == event["event_id"]
