@@ -129,10 +129,16 @@ def consumed_events_path(root: Path) -> Path:
 
 
 def _atomic_write(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        tmp.replace(path)
+    except OSError as exc:
+        raise SdkRuntimeError(
+            f"observer-state-unwritable:{type(exc).__name__}:{path}",
+            code="OBSERVER_WRITE_FAILED",
+        ) from exc
 
 
 def load_observer_registry(root: Path) -> ObserverRegistry:

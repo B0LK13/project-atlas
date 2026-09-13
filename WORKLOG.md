@@ -14915,3 +14915,16 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## OBSERVER-PERSIST-WRITE-ERROR-BOUNDARY
+
+**Date:** 2026-09-13
+**Branch:** `fix/observer-persist-write-error-boundary`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Mode:** Night-cycle autonomous remediation. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+Contain raw OSError from external-observer persist writes. Reads already
+failed closed. Does not grant merge.
+
