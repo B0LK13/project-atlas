@@ -67,6 +67,13 @@ class CompatibilityAnchor:
 def default_anchor_path(repo_root: Path | None = None) -> Path:
     """Resolve the shipped compatibility-anchor.json path."""
     if repo_root is None:
+        # Prefer the anchor shipped as package data (present in installed
+        # distributions); fall back to the repository-root layout for
+        # editable/source checkouts. Installations previously missed the
+        # repo-root docs/ data entirely (see REPAIR-RECORD-016, D1).
+        packaged = Path(__file__).resolve().parent / "data" / RELATIVE_ANCHOR_PATH
+        if packaged.is_file():
+            return packaged.resolve()
         # src/project_atlas/compat_anchor.py → repo root
         repo_root = Path(__file__).resolve().parents[2]
     return (repo_root / RELATIVE_ANCHOR_PATH).resolve()
