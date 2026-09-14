@@ -17,6 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Final
+from urllib.parse import urlsplit, urlunsplit
 
 PACKAGE_ID: Final[str] = "ATLAS-GOLDEN-ESTATE-SKILL-001"
 SKILL_ID: Final[str] = "atlas-golden-estate-curator"
@@ -284,6 +285,10 @@ def _secret_hit(path: Path) -> dict[str, str] | None:
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["GIT_OPTIONAL_LOCKS"] = "0"
+    # Operator/process GIT_DIR must not retarget inventory at a foreign tree.
+    env.pop("GIT_DIR", None)
+    env.pop("GIT_WORK_TREE", None)
+    env.pop("GIT_COMMON_DIR", None)
     return subprocess.run(
         ["git", "--no-optional-locks", "-C", str(root), *args],
         check=False,
@@ -293,9 +298,53 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _is_git_repo(path: Path) -> bool:
-    exists = _safe_exists(path / ".git")
-    return bool(exists)
+def _redact_remote_url(url: str) -> str:
+    """Return a remote locator with userinfo stripped. Never echo credentials."""
+    text = url.strip()
+    if "://" in text:
+        parts = urlsplit(text)
+        if parts.username is not None or parts.password is not None:
+            host = parts.hostname or ""
+            if parts.port:
+                host = f"{host}:{parts.port}"
+            return urlunsplit((parts.scheme, host, parts.path, parts.query, parts.fragment))
+        return text
+    at = text.rfind("@")
+    if at > 0 and ":" in text[:at]:
+        return "redacted-userinfo@" + text[at + 1 :]
+    return text
+
+
+def _gitdir_target(project: Path) -> Path | None:
+    """The .git file/dir/link, or None if absent."""
+    marker = project / ".git"
+    st = _safe_lstat(marker)
+    if st is None:
+        return None
+    if stat.S_ISREG(st.st_mode):
+        text = _read_text_limited(marker)
+        if text is None:
+            return None
+        line = text.strip()
+        if line.lower().startswith("gitdir:"):
+            target = Path(line.split(":", 1)[1].strip())
+            if not target.is_absolute():
+                target = marker.parent / target
+            return target
+        return None
+    return marker
+
+
+def _contained_git_repo(project: Path, source_root: Path) -> bool:
+    """True only when git metadata resolves inside the scanned source root."""
+    target = _gitdir_target(project)
+    if target is None:
+        return False
+    return not _escapes(target, source_root)
+
+
+def _is_git_repo(path: Path, source_root: Path) -> bool:
+    return _contained_git_repo(path, source_root)
 
 
 def _dirty(path: Path) -> bool:
@@ -308,7 +357,9 @@ def _remote_url(path: Path) -> str | None:
     if result.returncode != 0:
         return None
     url = result.stdout.strip()
-    return url or None
+    if not url:
+        return None
+    return _redact_remote_url(url)
 
 
 def _walk_projects(root: Path) -> list[dict[str, Any]]:
@@ -372,7 +423,17 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
                 generated.append(report_relpath(current, root))
             return
 
-        git_here = _is_git_repo(current)
+        git_here = _is_git_repo(current, root)
+        git_marker = current / ".git"
+        git_st = _safe_lstat(git_marker)
+        if git_st is not None and not git_here:
+            exclusions.append(
+                {
+                    "path": report_relpath(git_marker, root),
+                    "reason": "GITDIR_ESCAPE",
+                    "action": "fail_closed_skip_git",
+                }
+            )
         marker = current / ".atlas-project.yaml"
         readme = current / "README.md"
         signals = current / ".atlas-estate" / "signals"

@@ -12,7 +12,7 @@ if str(SKILL) not in sys.path:
     sys.path.insert(0, str(SKILL))
 
 from curator import CuratorError, curate, main, reject_mutation  # noqa: E402
-from estate import fingerprint  # noqa: E402
+from estate import _git, _init_repo, fingerprint  # noqa: E402
 
 
 @pytest.mark.parametrize(
@@ -117,3 +117,77 @@ def json_blob(report: dict) -> str:
     import json
 
     return json.dumps(report)
+
+
+TOKEN = "ghp_HUNT2200_NOT_A_REAL_TOKEN_9f3c1e"
+
+
+def test_remote_userinfo_is_redacted_from_inventory(tmp_path: Path) -> None:
+    estate = tmp_path / "estate"
+    project = estate / "leaky-remote"
+    _init_repo(project, readme="# Remote\n")
+    _git(
+        project,
+        "remote",
+        "add",
+        "origin",
+        f"https://owner:{TOKEN}@github.com/example/hunt-estate.git",
+    )
+    output = tmp_path / "remote-leak.json"
+    report = curate(estate, output=output)
+    blob = json_blob(report) + output.read_text(encoding="utf-8")
+    assert TOKEN not in blob
+    item = next(row for row in report["inventory"] if row["name"] == "leaky-remote")
+    assert item["git"] is True
+    assert item["remote"] == "https://github.com/example/hunt-estate.git"
+
+
+def test_gitdir_symlink_escape_does_not_read_foreign_remote(tmp_path: Path) -> None:
+    victim = tmp_path / "victim"
+    _init_repo(victim, readme="# Victim\n")
+    (victim / "dirty.txt").write_text("outside\n", encoding="utf-8")
+    _git(
+        victim,
+        "remote",
+        "add",
+        "origin",
+        f"https://bot:{TOKEN}@github.com/example/victim.git",
+    )
+    estate = tmp_path / "estate"
+    hollow = estate / "hollow"
+    hollow.mkdir(parents=True)
+    (hollow / "README.md").write_text("# Hollow\n", encoding="utf-8")
+    (hollow / ".git").symlink_to(victim / ".git")
+    output = tmp_path / "gitdir-escape.json"
+    report = curate(estate, output=output)
+    blob = json_blob(report) + output.read_text(encoding="utf-8")
+    assert TOKEN not in blob
+    assert any(item["reason"] == "GITDIR_ESCAPE" for item in report["exclusions"])
+    item = next(row for row in report["inventory"] if row["name"] == "hollow")
+    assert item["git"] is False
+    assert item["remote"] is None
+    assert item["dirty_worktree"] is False
+    assert (victim / "dirty.txt").read_text(encoding="utf-8") == "outside\n"
+
+
+def test_gitdir_file_pointer_escape_does_not_read_foreign_remote(tmp_path: Path) -> None:
+    victim = tmp_path / "victim"
+    _init_repo(victim, readme="# Victim\n")
+    _git(
+        victim,
+        "remote",
+        "add",
+        "origin",
+        f"https://bot:{TOKEN}@github.com/example/victim.git",
+    )
+    estate = tmp_path / "estate"
+    hollow = estate / "hollow2"
+    hollow.mkdir(parents=True)
+    (hollow / "README.md").write_text("# Hollow2\n", encoding="utf-8")
+    (hollow / ".git").write_text(f"gitdir: {victim / '.git'}\n", encoding="utf-8")
+    report = curate(estate, output=tmp_path / "gitdir-file.json")
+    assert TOKEN not in json_blob(report)
+    assert any(item["reason"] == "GITDIR_ESCAPE" for item in report["exclusions"])
+    item = next(row for row in report["inventory"] if row["name"] == "hollow2")
+    assert item["git"] is False
+    assert item["remote"] is None
