@@ -18,7 +18,7 @@ external or owner gate has not been satisfied.
 | Real development with an authorized provider | OPEN | No valid Prime provider grant; no inference executed | Owner grants provider and records bounded usage |
 | Native useful Prime children | PARTIAL | Version-pinned host admission broker and TypeScript hook tested; no real-provider child | Authorized real-provider run creates at least two useful children |
 | Child budget/resource reconciliation | PARTIAL | Reservation/commit/release journal and slot tests | Reconcile real provider usage across parent/children |
-| Continuation after completion/test failure/verdict | PASS | Atlas supervisor continuation and repair fixtures | Re-run against real Prime task |
+| Continuation after completion/test failure/verdict | PARTIAL | Atlas supervisor continuation and repair fixtures; no real Prime task completed | Re-run against real Prime task |
 | Studio/terminal disconnect | PARTIAL | Public daemon resident/reconnect contract proven model-free | Detached real development run and later readback |
 | Worker/kernel crash recovery | PARTIAL | Upstream client-owned recovery proven; Atlas credential-bound route not enabled | Credential broker supplies non-persistent mission capability |
 | Bridge/daemon/supervisor recovery and replay | PASS | Cursor, generation, snapshot and no-blind-replay tests | None for model-free contract |
