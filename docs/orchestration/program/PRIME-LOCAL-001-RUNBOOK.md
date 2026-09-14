@@ -51,6 +51,10 @@ runtime mounts must be narrower.
 Also set `adapter_options.runtime_manifest` to the manifest produced by the
 pinned install. Preflight verifies its exact `upstream_sha` and
 `source_commit_verified` flag before any daemon or RPC launch.
+Every executable Prime profile must also name `adapter_options.provider` and
+the profile-level `model`; implicit selection from personal Prime config is
+refused. This identifies the intended provider without claiming that its
+credentials or inference capability are available.
 Atlas writes the task intent and lease before calling the adapter. Prime's
 RPC prompt response is only an acceptance/queueing ACK. Only the observed
 `agent_end` event is reported as terminal execution; Atlas acceptance still

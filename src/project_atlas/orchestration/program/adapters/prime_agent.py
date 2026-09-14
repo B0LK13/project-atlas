@@ -1056,10 +1056,16 @@ class PrimeExecutorAdapter:
         resolved = self._resolve()
         _validate_runtime_manifest(profile, self.upstream_sha, resolved)
         _validate_sandbox_argv(sandbox_argv)
+        provider = profile.adapter_options.get("provider")
+        if not isinstance(provider, str) or not provider.strip() or not profile.model:
+            raise AdapterUnavailableError(
+                "Prime requires an explicit provider and model in the Atlas profile; "
+                "implicit personal runtime configuration is refused",
+                code="PROVIDER_SELECTION_REQUIRED",
+            )
         inference_mode = profile.adapter_options.get("inference_mode")
         if inference_mode in LOCAL_ONLY_MODES:
             endpoint = profile.adapter_options.get("local_endpoint")
-            provider = profile.adapter_options.get("provider")
             if (
                 not isinstance(endpoint, str)
                 or not isinstance(provider, str)

@@ -257,14 +257,16 @@ server.close()
     )
     profile = {
         "agent_id": "prime-fixture-agent",
-        "adapter": "prime-agent",
-        "credential": "NOT_APPLICABLE",
-        "capabilities": ["IMPLEMENT"],
+            "adapter": "prime-agent",
+            "credential": "NOT_APPLICABLE",
+            "capabilities": ["IMPLEMENT"],
+            "model": "fixture-model",
         "allowed_mutation_prefixes": ["prime-output.txt"],
         "limits": {"max_attempts": 1, "max_seconds": 30},
         "adapter_options": {
-            "executable": str(fake),
-            "daemon_socket": str(tmp_path / "prime.sock"),
+                "executable": str(fake),
+                "daemon_socket": str(tmp_path / "prime.sock"),
+                "provider": "fixture-provider",
                 # This control-plane fixture uses the same minimum isolation
                 # contract as the production adapter.  A pass-through shell
                 # wrapper would prove transport only while leaving the fake
