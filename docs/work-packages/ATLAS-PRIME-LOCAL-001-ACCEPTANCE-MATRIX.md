@@ -71,3 +71,15 @@ the pinned runtime with the regenerated admission patch, the sandbox probe
 denied 4/4, and the runtime-side admission regression passed 5/5 on the
 faux provider. The full repository collection is 6200 tests; no incomplete
 full-suite run is represented as green.
+
+## Package status
+
+CLOSE-IMPLEMENTATION-GAPS is closed on this candidate via the acceptance
+route above (matrix + independent review PASS + supervisor acceptance). The
+final handoff — candidate identity, accepted scope, reusable evidence, open
+tasks with their missing conditions and resume triggers, and the grant
+ledger — is recorded in
+`docs/work-packages/ATLAS-PRIME-CANDIDATE-HANDOFF-001.md`. Product-level
+items (real-model toolcall, real child delegation, coding task, CI,
+canonical knowledge receipt, deployment) remain open per their matrix rows;
+agent-IV PASS is not the separately required human gate.
