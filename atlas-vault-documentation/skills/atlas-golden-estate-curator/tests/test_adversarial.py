@@ -142,6 +142,25 @@ def test_remote_userinfo_is_redacted_from_inventory(tmp_path: Path) -> None:
     assert item["remote"] == "https://github.com/example/hunt-estate.git"
 
 
+def test_extra_slash_remote_userinfo_is_redacted(tmp_path: Path) -> None:
+    estate = tmp_path / "estate"
+    project = estate / "slash-remote"
+    _init_repo(project, readme="# Slash remote\n")
+    _git(
+        project,
+        "remote",
+        "add",
+        "origin",
+        f"https:///owner:{TOKEN}@github.com/example/slash-estate.git",
+    )
+    report = curate(estate, output=tmp_path / "slash-remote.json")
+    blob = json_blob(report)
+    assert TOKEN not in blob
+    item = next(row for row in report["inventory"] if row["name"] == "slash-remote")
+    assert "owner:" not in (item["remote"] or "")
+    assert TOKEN not in (item["remote"] or "")
+
+
 def test_gitdir_symlink_escape_does_not_read_foreign_remote(tmp_path: Path) -> None:
     victim = tmp_path / "victim"
     _init_repo(victim, readme="# Victim\n")

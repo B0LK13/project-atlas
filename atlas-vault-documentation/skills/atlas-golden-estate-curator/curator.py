@@ -298,17 +298,26 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+_SCHEME_USERINFO_RE = re.compile(r":///*[^/@]*@")
+
+
 def _redact_remote_url(url: str) -> str:
-    """Return a remote locator with userinfo stripped. Never echo credentials."""
+    """Return a remote locator with userinfo stripped. Never echo credentials.
+
+    ``urlsplit`` misses extra-slash authority forms that git still stores
+    (``https:///user:token@host``). Those are stripped with a scheme-userinfo
+    regex before the scp-like fallback.
+    """
     text = url.strip()
     if "://" in text:
-        parts = urlsplit(text)
+        cleaned = _SCHEME_USERINFO_RE.sub("://", text, count=1)
+        parts = urlsplit(cleaned)
         if parts.username is not None or parts.password is not None:
             host = parts.hostname or ""
             if parts.port:
                 host = f"{host}:{parts.port}"
             return urlunsplit((parts.scheme, host, parts.path, parts.query, parts.fragment))
-        return text
+        return cleaned
     at = text.rfind("@")
     if at > 0 and ":" in text[:at]:
         return "redacted-userinfo@" + text[at + 1 :]
