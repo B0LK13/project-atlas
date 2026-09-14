@@ -119,3 +119,11 @@ tree SHA binding captured by the Atlas adapter.
 The adapter's launch probe recognizes a non-empty journal only when every
 record is valid and bound to the same mission, task, and attempt. An empty,
 malformed, or foreign journal remains UNKNOWN rather than authorizing a replay.
+
+Post-fix remeasurement for candidate commit `7da4b1c2e1ba95281e7d37ab4995536947f15c8c`:
+the Prime adapter and supervisor-focused suite passed 67 tests, Ruff and
+Mypy passed, and the network-isolated model-free smoke passed 14/14 tests.
+The adapter test also directly rejected an existing `/bin/true` pass-through
+wrapper after validating the runtime manifest. These results are bound to this
+candidate commit; they do not promote the earlier model-free evidence to
+real-provider, child-execution, or deployment evidence.
