@@ -1433,6 +1433,13 @@ class ProgramSupervisor:
                 self.program.limits.max_attempts_per_task, profile.limits.max_attempts
             )
             if record.attempts >= budget:
+                # The task is terminal for scheduling: its lease must be
+                # released, or the durable projection keeps an ACTIVE row for
+                # this agent and every later grant for the same agent is
+                # rejected FOREIGN_WORKER -- one failed task starves the whole
+                # program. Found by the autonomous 009 queue (q09 blocked,
+                # q13 deferred indefinitely).
+                self._release_lease(state, task.task_id)
                 self._transition(
                     state,
                     task.task_id,
