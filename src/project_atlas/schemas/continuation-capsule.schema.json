@@ -1,0 +1,307 @@
+{
+  "$defs": {
+    "CapsuleTask": {
+      "additionalProperties": false,
+      "description": "One task, as a replacement session needs to see it.",
+      "properties": {
+        "allowed_paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Paths",
+          "type": "array"
+        },
+        "artifacts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Artifacts",
+          "type": "array"
+        },
+        "blockers": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Blockers",
+          "type": "array"
+        },
+        "budget_remaining": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Budget Remaining",
+          "type": "object"
+        },
+        "candidate_head": {
+          "default": "",
+          "title": "Candidate Head",
+          "type": "string"
+        },
+        "candidate_tree": {
+          "default": "",
+          "title": "Candidate Tree",
+          "type": "string"
+        },
+        "capture": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Capture",
+          "type": "object"
+        },
+        "commands": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Commands",
+          "type": "array"
+        },
+        "deadline_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deadline Utc"
+        },
+        "disposition": {
+          "$ref": "#/$defs/Disposition"
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "execution_capture": {
+          "default": "NOT_CAPTURED",
+          "title": "Execution Capture",
+          "type": "string"
+        },
+        "forbidden_actions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Actions",
+          "type": "array"
+        },
+        "forbidden_paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Paths",
+          "type": "array"
+        },
+        "last_completed_step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Completed Step"
+        },
+        "launchable": {
+          "default": false,
+          "title": "Launchable",
+          "type": "boolean"
+        },
+        "next_action": {
+          "title": "Next Action",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "replay_class": {
+          "title": "Replay Class",
+          "type": "string"
+        },
+        "resume_step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resume Step"
+        },
+        "state_root": {
+          "title": "State Root",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "uncertainty": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Uncertainty",
+          "type": "array"
+        }
+      },
+      "required": [
+        "task_id",
+        "state_root",
+        "disposition",
+        "replay_class",
+        "reason",
+        "next_action"
+      ],
+      "title": "CapsuleTask",
+      "type": "object"
+    },
+    "Disposition": {
+      "description": "What a replacement session may do with one task, after reconciliation.",
+      "enum": [
+        "START_FRESH",
+        "RESTART_FROM_TOP",
+        "RESUME_AT_NEXT_STEP",
+        "WORKER_STILL_RUNNING",
+        "ALREADY_COMPLETE",
+        "RECONCILE_REQUIRED",
+        "HUMAN_DECISION_REQUIRED",
+        "LEASE_HELD_ELSEWHERE",
+        "FAIL_CLOSED"
+      ],
+      "title": "Disposition",
+      "type": "string"
+    }
+  },
+  "$id": "https://project-atlas.local/schemas/continuation-capsule.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-ORCH-DURABLE-CONTINUATION-001. What a replacement session resumes from. Generated from durable files only; contains no conversation history. Bounded, and every truncation is announced. CAPSULE_GENERATED != AUTHORITY_GRANTED.",
+  "properties": {
+    "dispatcher": {
+      "additionalProperties": true,
+      "title": "Dispatcher",
+      "type": "object"
+    },
+    "for_worker_id": {
+      "title": "For Worker Id",
+      "type": "string"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "merge_authorized": {
+      "const": false,
+      "default": false,
+      "title": "Merge Authorized",
+      "type": "boolean"
+    },
+    "model_backed_dispatch": {
+      "default": "DISABLED",
+      "enum": [
+        "DISABLED",
+        "ENABLED"
+      ],
+      "title": "Model Backed Dispatch",
+      "type": "string"
+    },
+    "open_decisions": {
+      "default": [],
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Open Decisions",
+      "type": "array"
+    },
+    "package_id": {
+      "const": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "default": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "queue": {
+      "additionalProperties": true,
+      "title": "Queue",
+      "type": "object"
+    },
+    "root_split_note": {
+      "default": "",
+      "title": "Root Split Note",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "state_root": {
+      "title": "State Root",
+      "type": "string"
+    },
+    "state_roots_scanned": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "State Roots Scanned",
+      "type": "array"
+    },
+    "tasks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CapsuleTask"
+      },
+      "title": "Tasks",
+      "type": "array"
+    },
+    "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "truncation_note": {
+      "default": "",
+      "title": "Truncation Note",
+      "type": "string"
+    },
+    "truth_boundary": {
+      "default": "PROGRAM_APPROVAL != MERGE_AUTHORIZATION / CHECKPOINT_PRESENT != WORK_COMPLETE / CAPSULE_GENERATED != AUTHORITY_GRANTED / DECLARED_REPLAY_CLASS != OBSERVED_OUTCOME / RESUMABLE != SAFE_TO_REPEAT",
+      "title": "Truth Boundary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "state_root",
+    "for_worker_id"
+  ],
+  "title": "Bounded Continuation Capsule",
+  "type": "object"
+}

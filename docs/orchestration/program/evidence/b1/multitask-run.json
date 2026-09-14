@@ -1,0 +1,45 @@
+{
+  "cycles_run": 4,
+  "enrolled_agents_bound": [],
+  "estimated_cost_note": "client-side estimate reported by the runtime; not billed spend",
+  "estimated_cost_usd": 0.0,
+  "execution_authorized": false,
+  "launches_this_run": 3,
+  "max_concurrent_workers_observed": 1,
+  "merge_authorized": false,
+  "notifications": [
+    {
+      "detail": {
+        "tasks": [
+          "alpha",
+          "beta",
+          "gamma"
+        ]
+      },
+      "kind": "PROGRAM_COMPLETE",
+      "message": "every task in the approved program reached an accepted state"
+    }
+  ],
+  "program_complete": true,
+  "program_id": "B1-MULTI",
+  "stop_reason": "PROGRAM_COMPLETE",
+  "tasks_dispatched": [
+    {
+      "cycle": 1,
+      "mode": "NEW",
+      "task_id": "alpha"
+    },
+    {
+      "cycle": 2,
+      "mode": "NEW",
+      "task_id": "beta"
+    },
+    {
+      "cycle": 3,
+      "mode": "NEW",
+      "task_id": "gamma"
+    }
+  ],
+  "total_launches": 3,
+  "truth_boundary": "PROGRAM_APPROVAL != MERGE_AUTHORIZATION / WORKER_REPORTED_COMPLETION != ACCEPTANCE / ACCEPTANCE != INDEPENDENT_VERIFICATION / TASK_COMPLETE != PROGRAM_COMPLETE / ADAPTER_EXIT_ZERO != ACCEPTANCE_PASSED / ESTIMATED_COST != BILLED_SPEND"
+}

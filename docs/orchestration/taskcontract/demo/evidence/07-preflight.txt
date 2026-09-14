@@ -1,0 +1,24 @@
+========================================================================
+ATLAS program preflight   BLOCKED
+========================================================================
+program   /home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/docs/orchestration/taskcontract/demo/program.v1.json
+id        INT-013-BOUNDED-PILOT
+state     /home/gebruiker/.cache/atlas-taskcontract-demo/state
+registry  /home/gebruiker/.cache/atlas-taskcontract-demo/registry
+
+1 error(s)  1 warning(s)  0 unknown  4 ok
+
+--- ERROR ---
+  [registry.exists] no agent registry at /home/gebruiker/.cache/atlas-taskcontract-demo/registry/.atlas/orchestration/program/agents.json
+
+--- WARNING ---
+  [workspace.clean] workspace has uncommitted changes before the run
+
+--- OK ---
+  [workspace.base_pin] base_pin matches HEAD
+  [state.fresh] no prior program state in this state-root
+  [acceptance.executable] INT-013-BOUNDED-PILOT/pilot-test: /home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.venv/bin/python
+  [acceptance.expected_artifact] INT-013-BOUNDED-PILOT/pilot-file-present: tests/integration/test_int_013_bounded_multi_project_pilot.py (already present; absence before the first run is expected)
+
+A clean preflight GRANTS NOTHING: it is not execution authority
+and does not replace the supervisor's checks at dispatch.

@@ -1,0 +1,13 @@
+{
+  "current": {
+    "binding_digest": "64aa3bbed2df5c8e5328b9ad7a3dce50ef7e4245b362d62cc922cf3d60a96b3e",
+    "contract_digest": "8ce532d2f16940014d3bbcd0e7a2ab28b15d7191d25843a6906d89801815dcd3"
+  },
+  "grants": "NOTHING. A fresh report is not approval; a stale one is not evidence.",
+  "reasons": [
+    "the contract changed since this report: c5c31425f69a15fee1a2657f29c4bed93822066d93fbbe90d31b276ff3797266 -> 8ce532d2f16940014d3bbcd0e7a2ab28b15d7191d25843a6906d89801815dcd3"
+  ],
+  "report_contract_id": "INT-013-BOUNDED-PILOT",
+  "stale": true,
+  "verdict_of_stale_report_is_not_current": true
+}

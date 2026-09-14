@@ -135,6 +135,7 @@ def test_all_expected_schemas_available() -> None:
         "sync-production-plan",
         "sync-queue-dry-run",
         "sync-receipts-dry-run",
+        "task-context-packet",
         "task-directive",
         "twin-fixture-scenario",
         "twin-production-projection",

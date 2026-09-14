@@ -1,0 +1,231 @@
+{
+  "$defs": {
+    "DispatcherState": {
+      "description": "What the dispatcher is doing right now. Published, not inferred.",
+      "enum": [
+        "STARTING",
+        "RUNNING_PROGRAM",
+        "WAITING_ON_WORK",
+        "IDLE_EMPTY_QUEUE",
+        "PAUSED",
+        "DRAINING",
+        "STOPPED"
+      ],
+      "title": "DispatcherState",
+      "type": "string"
+    },
+    "DispatcherStopReason": {
+      "description": "Why the resident loop ended. Always published before exit.",
+      "enum": [
+        "OPERATOR_STOP",
+        "OPERATOR_DRAIN",
+        "TICK_BUDGET_REACHED",
+        "DEADLINE_REACHED",
+        "QUEUE_DRAINED",
+        "QUEUE_UNREADABLE",
+        "FATAL_ERROR"
+      ],
+      "title": "DispatcherStopReason",
+      "type": "string"
+    }
+  },
+  "$id": "https://project-atlas.local/schemas/continuation-dispatcher-heartbeat.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-ORCH-DURABLE-CONTINUATION-001. Published health of the model-free resident dispatcher: pid PAIRED with its process start identity, the revision it is running, state, pause state and terminal reason. model_calls is always 0.",
+  "properties": {
+    "beat_at": {
+      "title": "Beat At",
+      "type": "string"
+    },
+    "current_program_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Current Program Id"
+    },
+    "dispatcher_session_id": {
+      "maxLength": 190,
+      "minLength": 1,
+      "title": "Dispatcher Session Id",
+      "type": "string"
+    },
+    "hostname": {
+      "default": "",
+      "maxLength": 256,
+      "title": "Hostname",
+      "type": "string"
+    },
+    "last_program_stop_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Program Stop Reason"
+    },
+    "launches": {
+      "default": 0,
+      "maximum": 1000000,
+      "minimum": 0,
+      "title": "Launches",
+      "type": "integer"
+    },
+    "model_backed_dispatch": {
+      "default": "DISABLED",
+      "enum": [
+        "DISABLED",
+        "ENABLED"
+      ],
+      "title": "Model Backed Dispatch",
+      "type": "string"
+    },
+    "model_calls": {
+      "default": 0,
+      "maximum": 1000000,
+      "minimum": 0,
+      "title": "Model Calls",
+      "type": "integer"
+    },
+    "package_id": {
+      "const": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "default": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "pause_requested_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pause Requested By"
+    },
+    "paused": {
+      "default": false,
+      "title": "Paused",
+      "type": "boolean"
+    },
+    "pid": {
+      "maximum": 2147483647,
+      "minimum": 0,
+      "title": "Pid",
+      "type": "integer"
+    },
+    "process_start_identity": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Process Start Identity",
+      "type": "string"
+    },
+    "programs_started": {
+      "default": 0,
+      "maximum": 1000000,
+      "minimum": 0,
+      "title": "Programs Started",
+      "type": "integer"
+    },
+    "queue_error": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Queue Error"
+    },
+    "queue_error_code": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Queue Error Code"
+    },
+    "queue_status": {
+      "default": "UNKNOWN",
+      "title": "Queue Status",
+      "type": "string"
+    },
+    "revision_head": {
+      "default": "",
+      "maxLength": 64,
+      "title": "Revision Head",
+      "type": "string"
+    },
+    "revision_tree": {
+      "default": "",
+      "maxLength": 64,
+      "title": "Revision Tree",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "started_at": {
+      "title": "Started At",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/DispatcherState",
+      "default": "STARTING"
+    },
+    "terminal_reason": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DispatcherStopReason"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "ticks": {
+      "default": 0,
+      "maximum": 1000000000,
+      "minimum": 0,
+      "title": "Ticks",
+      "type": "integer"
+    },
+    "truth_boundary": {
+      "default": "PROGRAM_APPROVAL != MERGE_AUTHORIZATION / CHECKPOINT_PRESENT != WORK_COMPLETE / CAPSULE_GENERATED != AUTHORITY_GRANTED / DECLARED_REPLAY_CLASS != OBSERVED_OUTCOME / RESUMABLE != SAFE_TO_REPEAT",
+      "title": "Truth Boundary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dispatcher_session_id",
+    "pid",
+    "process_start_identity",
+    "started_at"
+  ],
+  "title": "Resident Dispatcher Heartbeat",
+  "type": "object"
+}

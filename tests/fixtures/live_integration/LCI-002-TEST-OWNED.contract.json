@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-TASK-CONTRACT-001",
+  "contract_id": "LCI-002-TEST-OWNED",
+  "contract_version": 1,
+  "source": {
+    "source_path": "tests/fixtures/live_integration/LCI-002-TEST-OWNED.source.md",
+    "item_id": "LCI-002-TEST-OWNED",
+    "item_digest": "testdigest0000000000000000000000000000000000000000000000000001",
+    "source_revision": "fixture",
+    "title": "Controlled live-integration positive-path task (test-owned)"
+  },
+  "objective": "Prove taskcontract+context+readiness live wiring on a test-owned task.",
+  "observable_outcome": "Review package references live contract digest and context packet identity.",
+  "scope": [
+    "tests/fixtures/live_integration/",
+    "src/project_atlas/orchestration/live_integration/"
+  ],
+  "exclusions": [
+    "No real backlog mutation",
+    "No launch authorization",
+    "No clearing EXTERNAL_BLOCKED on INT-013"
+  ],
+  "owner": "integration-test",
+  "authorization_references": [
+    {
+      "kind": "OWNER_GATE",
+      "reference": "tests/fixtures/live_integration/owner-gate.fixture",
+      "note": "verified pointer only; does not grant launch"
+    }
+  ],
+  "depends_on": ["LCI-DEP-SATISFIED"],
+  "executable_when": [
+    "dependency LCI-DEP-SATISFIED observed YES",
+    "enrollment provides local-command IMPLEMENT"
+  ],
+  "repository": "project-atlas",
+  "base_pin": "80280bfe13c77708cada7af17215acdaff3725e4",
+  "mutation_paths": [
+    "tests/fixtures/live_integration/",
+    "src/project_atlas/orchestration/live_integration/"
+  ],
+  "expected_output_paths": [
+    "tests/fixtures/live_integration/review-package.out.json"
+  ],
+  "runtime": {
+    "adapter": "local-command",
+    "capabilities": ["IMPLEMENT"],
+    "adapter_min_version": null,
+    "constraints": ["network off", "zero model calls"]
+  },
+  "context": [
+    {
+      "source_id": "api",
+      "path": "src/api.py",
+      "why": "Named interface under the test-owned workspace",
+      "digest": null
+    },
+    {
+      "source_id": "arch",
+      "path": "docs/architecture.md",
+      "why": "Architecture note for freshness checks",
+      "digest": null
+    }
+  ],
+  "requirements": [
+    {
+      "requirement_id": "LCI-R1",
+      "statement": "Controlled chain emits a review package with matching contract digest.",
+      "verification": "AUTOMATED",
+      "check_ids": ["lci-review-present"],
+      "review_note": ""
+    }
+  ],
+  "acceptance": [
+    {
+      "check_id": "lci-review-present",
+      "description": "review package artifact path exists",
+      "kind": "FILE_EXISTS",
+      "path": "tests/fixtures/live_integration/review-package.out.json",
+      "pattern": null,
+      "argv": [],
+      "timeout_seconds": 60
+    }
+  ],
+  "limits": {
+    "max_task_launches": 1,
+    "max_attempts_per_task": 1,
+    "max_task_seconds": 600,
+    "max_concurrent_workers": 1
+  },
+  "budget": {
+    "max_estimated_cost_usd": 1.0,
+    "enforced_by": "not enforceable in this integration candidate",
+    "not_enforced": ["account spending limit", "billed spend"]
+  },
+  "evidence": {
+    "evidence_paths": ["tests/fixtures/live_integration/"],
+    "handover_conditions": ["independent review still required"]
+  },
+  "execution_authorized": false,
+  "merge_authorized": false
+}

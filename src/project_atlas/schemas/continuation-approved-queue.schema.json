@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "QueueEntry": {
+      "additionalProperties": false,
+      "description": "One admitted program, pinned to the bytes that were admitted.",
+      "properties": {
+        "admitted_at": {
+          "title": "Admitted At",
+          "type": "string"
+        },
+        "admitted_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Admitted By",
+          "type": "string"
+        },
+        "last_run_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Run At"
+        },
+        "last_stop_reason": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Stop Reason"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 1024,
+          "title": "Note",
+          "type": "string"
+        },
+        "program_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Program Id",
+          "type": "string"
+        },
+        "program_path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Program Path",
+          "type": "string"
+        },
+        "program_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Program Sha256",
+          "type": "string"
+        },
+        "reference": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Reference",
+          "type": "string"
+        },
+        "runs": {
+          "default": 0,
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Runs",
+          "type": "integer"
+        },
+        "state_root": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "State Root",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/QueueEntryStatus",
+          "default": "PENDING"
+        }
+      },
+      "required": [
+        "program_id",
+        "program_path",
+        "program_sha256",
+        "state_root",
+        "admitted_by",
+        "reference"
+      ],
+      "title": "QueueEntry",
+      "type": "object"
+    },
+    "QueueEntryStatus": {
+      "description": "Where one admitted program stands.\n\n``COMPLETE`` is terminal and is what stops a finished program from being\nrestarted. ``QUARANTINED`` is its opposite in the same way ``UNCERTAIN`` is\nthe opposite of ``CONFIRMED``: something happened that nobody has resolved,\nand the dispatcher must not touch it until a person does.",
+      "enum": [
+        "PENDING",
+        "RUNNING",
+        "COMPLETE",
+        "QUARANTINED",
+        "WITHDRAWN"
+      ],
+      "title": "QueueEntryStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://project-atlas.local/schemas/continuation-approved-queue.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-ORCH-DURABLE-CONTINUATION-001. The only source of work for the resident dispatcher. Each entry pins the sha256 of the program file as admitted; an entry whose file no longer matches is refused rather than run. COMPLETE is terminal.",
+  "properties": {
+    "entries": {
+      "additionalProperties": {
+        "$ref": "#/$defs/QueueEntry"
+      },
+      "title": "Entries",
+      "type": "object"
+    },
+    "merge_authorized": {
+      "const": false,
+      "default": false,
+      "title": "Merge Authorized",
+      "type": "boolean"
+    },
+    "package_id": {
+      "const": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "default": "AS-ORCH-DURABLE-CONTINUATION-001",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "title": "Approved Work Queue",
+  "type": "object"
+}

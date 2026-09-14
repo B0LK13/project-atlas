@@ -51,7 +51,11 @@ from project_atlas.orchestration.autonomy.models import (
     TrustedAnchorRecord,
     WorkNode,
 )
-from project_atlas.orchestration.autonomy.overlap import overlap_gate, would_overlap
+from project_atlas.orchestration.autonomy.overlap import (
+    overlap_gate,
+    surfaces_overlap,
+    would_overlap,
+)
 from project_atlas.orchestration.autonomy.owner_gates import (
     OwnerGateError,
     classify_requested_action,
@@ -443,6 +447,39 @@ def test_overlap_gate_blocks_shared_surface() -> None:
     decision = overlap_gate((left, right.model_copy(update={"state": NodeState.ACTIVE})))
     assert decision.parallel_execution is False
     assert "shared" in decision.conflict_surfaces
+
+
+def test_overlap_treats_prefix_containment_as_conflict() -> None:
+    """P1-3: src vs src/child.txt is unsafe parallel mutation."""
+    left = _node("PKG-A", state=NodeState.LEASED, surface="one", paths=("src",))
+    right = _node(
+        "PKG-B",
+        state=NodeState.ACTIVE,
+        surface="two",
+        semantic="SEMANTIC_B",
+        paths=("src/child.txt",),
+    )
+    assert surfaces_overlap(left, right)
+    decision = overlap_gate((left, right))
+    assert decision.parallel_execution is False
+
+
+def test_overlap_normalizes_dot_segments() -> None:
+    """P1-NEW-2: src/. / src/./child.txt is the same surface as src/child.txt."""
+    left = _node(
+        "PKG-A",
+        state=NodeState.LEASED,
+        surface="one",
+        paths=("src/./child.txt",),
+    )
+    right = _node(
+        "PKG-B",
+        state=NodeState.ACTIVE,
+        surface="two",
+        semantic="SEMANTIC_B",
+        paths=("src/child.txt",),
+    )
+    assert surfaces_overlap(left, right)
 
 
 def test_overlap_allows_disjoint_surfaces() -> None:

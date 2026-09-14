@@ -1,0 +1,110 @@
+{
+  "after": {
+    "digest": "8ce532d2f16940014d3bbcd0e7a2ab28b15d7191d25843a6906d89801815dcd3",
+    "version": 2
+  },
+  "axes": {
+    "acceptance": {
+      "checks": {
+        "added": [
+          "orphan-check"
+        ],
+        "changed": {},
+        "removed": []
+      },
+      "requirements": {
+        "added": [],
+        "changed": {
+          "INT013-R1-PILOT-PASSES": {
+            "after": "[AUTOMATED] The bounded pilot test runs unskipped and passes, exercising two independent fixture projects through init/discover/ingest/build-indexes/build-portfolio plus AS-XPROJ-001/002/003 in one run. <- pilot-file-present",
+            "before": "[AUTOMATED] The bounded pilot test runs unskipped and passes, exercising two independent fixture projects through init/discover/ingest/build-indexes/build-portfolio plus AS-XPROJ-001/002/003 in one run. <- pilot-test, pilot-file-present"
+          }
+        },
+        "removed": []
+      }
+    },
+    "authorization": {
+      "owner": null,
+      "references": {
+        "added": [],
+        "changed": {},
+        "removed": []
+      }
+    },
+    "base_pin": {
+      "after": "80280bfe13c77708cada7af17215acdaff3725e4",
+      "before": "80280bfe13c77708cada7af17215acdaff3725e4",
+      "changed": false
+    },
+    "binding": {
+      "after_digest": "9e851f2f0135e55e523b139195d85c7f91a8dbbff4833b24f2d069b6aa3e0c5c",
+      "before_digest": "64aa3bbed2df5c8e5328b9ad7a3dce50ef7e4245b362d62cc922cf3d60a96b3e",
+      "changed": true
+    },
+    "context": {
+      "added": [],
+      "changed": {},
+      "removed": []
+    },
+    "limits": {
+      "after": {
+        "max_attempts_per_task": 2,
+        "max_concurrent_workers": 1,
+        "max_task_launches": 2,
+        "max_task_seconds": 2400
+      },
+      "before": {
+        "max_attempts_per_task": 2,
+        "max_concurrent_workers": 1,
+        "max_task_launches": 2,
+        "max_task_seconds": 2400
+      },
+      "changed": false
+    },
+    "scope": {
+      "exclusions": {
+        "added": [],
+        "removed": []
+      },
+      "expected_output_paths": {
+        "added": [
+          "docs/xproj-report.md"
+        ],
+        "removed": [
+          "tests/integration/test_int_013_bounded_multi_project_pilot.py"
+        ]
+      },
+      "mutation_paths": {
+        "added": [],
+        "removed": []
+      },
+      "objective_changed": false,
+      "observable_outcome_changed": false,
+      "scope": {
+        "added": [
+          "and the xproj derivation itself"
+        ],
+        "removed": []
+      }
+    }
+  },
+  "before": {
+    "digest": "c5c31425f69a15fee1a2657f29c4bed93822066d93fbbe90d31b276ff3797266",
+    "version": 1
+  },
+  "changed_axes": [
+    "acceptance",
+    "binding",
+    "scope"
+  ],
+  "contract_id": "INT-013-BOUNDED-PILOT",
+  "grants": "NOTHING. A diff reports what moved; re-approval is a human act and an earlier launch approval does not survive an invalidating change.",
+  "identical": false,
+  "prior_approval_still_describes_this_work": false,
+  "schema": "atlas.taskcontract.diff/1",
+  "why_not": [
+    "acceptance changed",
+    "scope changed",
+    "deployment binding changed"
+  ]
+}

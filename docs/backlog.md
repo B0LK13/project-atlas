@@ -1,5 +1,24 @@
 # Executable Backlog
 
+## Executable durable continuation — completion-002
+
+- [x] Implement approved step execution, actual interrupted read-only recovery and observed final-acceptance reconciliation.
+- [x] Integrate current authority, bounded worker context, durable consumption and actual approved fallback execution.
+- [ ] Freeze and independently verify one full candidate, including negative controls and all original execution requirements.
+- [ ] Bind a noneditable installation and deployment/operator dossier to that exact candidate.
+- [ ] Obtain strict governed receipt through the authorized documentation pipeline; local spool capture is not completion.
+
+See `docs/orchestration/program/DURABLE-EXECUTION-002.md`. Local fixture support is not live activation or provider-runtime acceptance.
+
+## Local supervisor takeover — TAKEOVER-001
+
+- [x] Implement F-01 explicit containment and F-02 restart identity refusal in an isolated successor.
+- [x] Enforce resident/queue/restart process ownership and actual-dispatch continuation checks.
+- [x] Add bounded complete/revoked/uncertain end-to-end fixtures and operator procedure.
+- [ ] Bind independent acceptance and non-editable installation evidence to the final candidate in the external takeover dossier.
+
+Source implementation is not live activation. See `docs/orchestration/program/LOCAL-TAKEOVER-001.md`.
+
 ## Epic A — Repository foundation
 
 - [x] A-001 Create `pyproject.toml`

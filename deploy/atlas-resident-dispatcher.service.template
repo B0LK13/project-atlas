@@ -1,0 +1,125 @@
+# ============================================================================
+# NOT_INSTALLED.
+#
+# This file is a reviewed TEMPLATE. It is not installed, not enabled, and not
+# running. Nothing in this repository installs it: installation needs root and
+# an account this process was not authorized to create, and a template that
+# claimed otherwise would be the kind of claim this package exists to refuse.
+#
+# What is NOT proven because it is not installed:
+#   SYSTEM_SERVICE = NOT_INSTALLED
+#   REBOOT_RECOVERY = NOT_VERIFIED   (a real reboot is the only proof)
+#   TERMINAL_CLOSURE_SURVIVAL = NOT_VERIFIED at the service level
+#
+# Every placeholder in <ANGLE BRACKETS> is an operator decision.
+# ============================================================================
+
+[Unit]
+Description=Atlas resident dispatcher (model-free, AS-ORCH-DURABLE-CONTINUATION-001)
+Documentation=file://<ATLAS_ROOT>/checkout/docs/orchestration/program/DURABLE-CONTINUATION.md
+After=network-online.target local-fs.target
+Wants=local-fs.target
+
+# Bounded restart policy. These MUST be in [Unit]: systemd ignores them in
+# [Service] and the cap then never applies.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+
+# --- least privilege -------------------------------------------------------
+# A dedicated unprivileged account that owns the paths below and nothing else.
+# It must NOT be the operator's own login account: the dispatcher runs
+# unattended, and an unattended process holding a human's credentials is a
+# credential with no owner watching it.
+User=<ATLAS_SERVICE_USER>
+Group=<ATLAS_SERVICE_GROUP>
+UMask=0027
+
+# --- the pinned revision ---------------------------------------------------
+# A NON-EDITABLE install into a dedicated environment. An editable install
+# resolves through a working tree, so "which code is running" becomes a
+# question about somebody's checkout rather than a recorded revision. The
+# dispatcher publishes revision_head/revision_tree in its heartbeat; after a
+# restart, confirm they are the revision you pinned.
+WorkingDirectory=<ATLAS_ROOT>/checkout
+Environment=PATH=<ATLAS_ROOT>/env/bin:/usr/bin:/bin
+# Deliberately NOT set: PYTHONPATH. It shadows the pinned install and has
+# already caused one deployment to run code nobody had recorded.
+# ATLAS_ROOT is the explicit trusted boundary for sibling state/queue/programs/
+# worktrees, NOT a guessed common ancestor. It must not be / or this account's
+# home directory; every component must be free of symlinks/reparse points.
+# This unquoted template requires an absolute path without whitespace or
+# systemd/sed expansion characters; /srv/atlas is the example in the procedure.
+
+ExecStart=<ATLAS_ROOT>/env/bin/python -m project_atlas.orchestration.program.cli \
+    program dispatcher \
+    --governed-root <ATLAS_ROOT> \
+    --state-root <ATLAS_ROOT>/state \
+    --queue-root <ATLAS_ROOT>/queue \
+    --checkout <ATLAS_ROOT>/checkout \
+    --registry <ATLAS_ROOT>/registry \
+    --action run \
+    --tick-seconds 5
+
+# This submits a drain REQUEST; it does not wait for observed exit. Consequently
+# ExecStop alone is NOT proof of a graceful in-flight shutdown. Before enabling
+# this unit with work admitted, review a bounded identity-aware wait hook or
+# explicitly drain and observe exit before stopping the unit. TimeoutStopSec
+# does not turn this short-lived request command into that wait hook.
+ExecStop=<ATLAS_ROOT>/env/bin/python -m project_atlas.orchestration.program.cli \
+    program dispatcher --governed-root <ATLAS_ROOT> --state-root <ATLAS_ROOT>/state \
+    --action drain --requested-by systemd
+TimeoutStopSec=900
+KillSignal=SIGTERM
+
+# --- restart policy --------------------------------------------------------
+# on-failure, not always: a clean OPERATOR_DRAIN or OPERATOR_STOP is a decision
+# and restarting through it would override the person who made it.
+Restart=on-failure
+RestartSec=30
+# StartLimitIntervalSec / StartLimitBurst are NOT here. systemd accepts them
+# only in [Unit]; in [Service] it logs "Unknown key ... ignoring" and the rate
+# limit silently does not apply -- leaving Restart=on-failure with no cap, which
+# is an unbounded restart loop for anything that fails every time (a queue that
+# cannot be read, for instance, now correctly exits non-zero). See [Unit] above.
+#
+# Found by an independent verifier running systemd-analyze on an instantiated
+# copy, and reproduced here: the guard the template is most careful about was
+# the one that would not have fired.
+
+# --- sandbox ---------------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+
+# The only writable paths. Database, leases and locks must be on LOCAL storage,
+# never SMB; SMB is for manifests, events and immutable evidence only.
+ReadWritePaths=<ATLAS_ROOT>/state <ATLAS_ROOT>/queue <ATLAS_ROOT>/worktrees <ATLAS_ROOT>/logs <ATLAS_ROOT>/artifacts
+ReadOnlyPaths=<ATLAS_ROOT>/checkout <ATLAS_ROOT>/env <ATLAS_ROOT>/programs <ATLAS_ROOT>/registry
+
+# The dispatcher is model-free. The following network denial is INACTIVE while
+# commented; this template is not evidence of OS-enforced zero network. An
+# operator may enable denial for a reviewed local-only workload. Any exception
+# for another adapter needs separate authorization and review.
+# IPAddressDeny=any
+
+# --- secrets ---------------------------------------------------------------
+# No credential value appears here, and none may be added. Secrets do not go in
+# prompts, manifests, logs or artifacts. If a runtime ever needs one, use
+# systemd credentials (LoadCredential=) so the value never enters the unit file
+# or the environment of a child that logs its own environment.
+
+[Install]
+WantedBy=multi-user.target

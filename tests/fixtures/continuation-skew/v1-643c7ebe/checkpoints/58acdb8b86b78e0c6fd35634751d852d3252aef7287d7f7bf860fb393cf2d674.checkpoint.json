@@ -1,0 +1,60 @@
+{
+  "artifacts": [],
+  "blockers": [],
+  "capture": {
+    "artifacts": {
+      "reason": "no per-field capture statement was recorded by the writer",
+      "source": "",
+      "status": "CAPTURE_UNAVAILABLE"
+    },
+    "changed_files": {
+      "reason": "no per-field capture statement was recorded by the writer",
+      "source": "",
+      "status": "CAPTURE_UNAVAILABLE"
+    },
+    "commands": {
+      "reason": "no per-field capture statement was recorded by the writer",
+      "source": "",
+      "status": "CAPTURE_UNAVAILABLE"
+    }
+  },
+  "changed_files": [],
+  "commands": [],
+  "consumed_budget": {
+    "attempts": 0,
+    "estimated_cost_usd": 0.0,
+    "launches": 0,
+    "model_calls": 0,
+    "wall_seconds": 0.0
+  },
+  "deadline_utc": null,
+  "envelope_digest": "8697b5471f9359198ec7a1d1154bf12b7cb658c6e5e6145d47d10a248504ec5a",
+  "execution_capture": "NOT_CAPTURED",
+  "external_effects": [],
+  "git_branch": "",
+  "git_dirty": false,
+  "git_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "git_tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "identity": {
+    "attempt_id": "skew-open.attempt.1",
+    "session_id": "session.1",
+    "task_id": "skew-open",
+    "worker_id": "fixture-worker-01"
+  },
+  "last_completed_step": null,
+  "lease": null,
+  "next_action": "reconcile skew-open before any dispatch",
+  "package_id": "AS-ORCH-DURABLE-CONTINUATION-001",
+  "process_pid": null,
+  "process_start_identity": null,
+  "program_id": "fixture-program",
+  "recorded_at": "2026-09-13T00:00:01.000Z",
+  "replay_class": "IDEMPOTENT_MUTATION",
+  "schema_version": 1,
+  "self_digest": "24e262a67ac58a3fe7f0d128c1234619eac7cc97d4f68334d4325d78841cf1f1",
+  "sequence": 1,
+  "terminal": false,
+  "truth_boundary": "PROGRAM_APPROVAL != MERGE_AUTHORIZATION / CHECKPOINT_PRESENT != WORK_COMPLETE / CAPSULE_GENERATED != AUTHORITY_GRANTED / DECLARED_REPLAY_CLASS != OBSERVED_OUTCOME / RESUMABLE != SAFE_TO_REPEAT",
+  "uncertainty": [],
+  "worktree_path": "/fixture/worktree"
+}

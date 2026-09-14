@@ -1,0 +1,24 @@
+supervisor pid 878697
+worker pid 878705
+supervisor SIGKILLed
+ORPHAN WORKER STILL ALIVE: pid 878705
+--- durable attempt record ---
+  phase=ADAPTER_INVOKED process_pid=None start_identity=None
+--- reconcile ---
+{
+  "interrupted_attempts": [
+    {
+      "attempt_id": "B1-REPRO.hangs.run.1.b5f60175",
+      "confidence": null,
+      "phase": "ADAPTER_INVOKED",
+      "reason": "the worker was launched, is gone, recorded no outcome, and the local-command adapter cannot resume a session; its external effect is unknown",
+      "recovery_action": "NEEDS_RECONCILIATION",
+      "runtime_session_id": "42140e37-49ad-461f-921e-4ab72a7e6065",
+      "task_id": "hangs"
+    }
+  ],
+  "merge_authorized": false,
+  "program_id": "B1-REPRO",
+  "resolved": null
+}
+orphan cleaned up

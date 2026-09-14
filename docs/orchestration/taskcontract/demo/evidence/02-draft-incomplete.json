@@ -1,0 +1,77 @@
+{
+  "complete": false,
+  "conflicts": [],
+  "grants": "NOTHING. A draft is a proposal; a complete contract is still not execution authority.",
+  "missing": [
+    {
+      "field": "owner",
+      "question": "Who is accountable for this task's result?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "repository",
+      "question": "Which repository does the work happen in?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "base_pin",
+      "question": "Which commit is the work based on (a full 40-char sha)?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "mutation_paths",
+      "question": "Which paths may the worker change?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "runtime",
+      "question": "Which adapter runs it, and with which capabilities?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "requirements",
+      "question": "What must be observably true when this is done?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "acceptance",
+      "question": "Which checks decide each requirement?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "limits",
+      "question": "What bounds the attempt: launches, attempts, seconds?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "budget",
+      "question": "What is the cost ceiling, and what actually enforces it?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    },
+    {
+      "field": "observable_outcome",
+      "question": "What is true at the end that is not true now?",
+      "why_not_inferred": "no declared source states it, and guessing it would look reviewed"
+    }
+  ],
+  "payload": {
+    "contract_id": "CONTRACT-INT-013",
+    "contract_version": 1,
+    "depends_on": [],
+    "executable_when": [
+      "blocker resolved: declared blocker language in title (external_blocked): Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate"
+    ],
+    "objective": "Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026",
+    "scope": [
+      "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+      "WORKLOG.md"
+    ],
+    "source": {
+      "item_digest": "54ba22388093de15e27b3442e1859f9063680fe3a800a32b2e2588f5d961813e",
+      "item_id": "INT-013",
+      "source_path": "docs/backlog.md",
+      "source_revision": null,
+      "title": "Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026"
+    }
+  }
+}

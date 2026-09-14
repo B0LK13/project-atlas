@@ -1,0 +1,120 @@
+{
+  "_what_this_is": "DEMONSTRATION operator input for AS-TASK-CONTRACT-001. Every value here is a decision a person makes; none of it is inferred from backlog prose. It approves nothing.",
+  "objective": "Run the bounded, fixture-backed multi-project integration pilot as an ongoing regression, without claiming authentic INT-013.",
+  "observable_outcome": "The bounded pilot test runs unskipped and passes against committed fixture projects, and no project's own vault content is modified by any xproj operation.",
+  "scope": [
+    "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+    "WORKLOG.md"
+  ],
+  "exclusions": [
+    "authentic INT-013 against owner-provided project roots",
+    "any change to a project's own vault content",
+    "clearing the EXTERNAL_BLOCKED state"
+  ],
+  "owner": "wesley",
+  "repository": "project-atlas",
+  "base_pin": "80280bfe13c77708cada7af17215acdaff3725e4",
+  "mutation_paths": [
+    "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+    "WORKLOG.md"
+  ],
+  "expected_output_paths": [
+    "tests/integration/test_int_013_bounded_multi_project_pilot.py"
+  ],
+  "runtime": {
+    "adapter": "local-command",
+    "capabilities": [
+      "IMPLEMENT"
+    ],
+    "constraints": [
+      "no network access during the pilot run"
+    ]
+  },
+  "requirements": [
+    {
+      "requirement_id": "INT013-R1-PILOT-PASSES",
+      "statement": "The bounded pilot test runs unskipped and passes, exercising two independent fixture projects through init/discover/ingest/build-indexes/build-portfolio plus AS-XPROJ-001/002/003 in one run.",
+      "verification": "AUTOMATED",
+      "check_ids": [
+        "pilot-test",
+        "pilot-file-present"
+      ]
+    },
+    {
+      "requirement_id": "INT013-R2-NO-AUTHORITY-MERGE",
+      "statement": "Neither project's own vault content is modified by any xproj operation.",
+      "verification": "HUMAN_REVIEW",
+      "review_note": "the diff of each fixture project's vault directory across the pilot run"
+    },
+    {
+      "requirement_id": "INT013-R3-BOUNDED-SCOPE",
+      "statement": "Every xproj-derived output stays under its documented derived-only location.",
+      "verification": "NO_CHECK_AVAILABLE"
+    }
+  ],
+  "acceptance": [
+    {
+      "check_id": "pilot-test",
+      "kind": "COMMAND",
+      "description": "the bounded multi-project pilot passes unskipped",
+      "argv": [
+        "python3",
+        "-m",
+        "pytest",
+        "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "check_id": "pilot-file-present",
+      "kind": "FILE_EXISTS",
+      "description": "supporting evidence: the pilot test file is present",
+      "path": "tests/integration/test_int_013_bounded_multi_project_pilot.py"
+    }
+  ],
+  "limits": {
+    "max_task_launches": 2,
+    "max_attempts_per_task": 2,
+    "max_task_seconds": 2400,
+    "max_concurrent_workers": 1
+  },
+  "budget": {
+    "max_estimated_cost_usd": 5.0,
+    "enforced_by": "runtime per-launch flag; the local-command adapter reports no cost",
+    "not_enforced": [
+      "account spending limit",
+      "billed spend"
+    ]
+  },
+  "context": [
+    {
+      "source_id": "pilot-test",
+      "path": "tests/integration/test_int_013_bounded_multi_project_pilot.py",
+      "why": "the test that defines what the bounded pilot means"
+    },
+    {
+      "source_id": "acceptance-contract",
+      "path": "docs/origination-acceptance-contracts.yaml",
+      "why": "the human-authored scope and success criteria this contract restates"
+    }
+  ],
+  "evidence": {
+    "evidence_paths": [
+      "WORKLOG.md"
+    ],
+    "handover_conditions": [
+      "INT013-R2 reviewed by a person",
+      "INT013-R3 remains unverified and is reported as such"
+    ]
+  },
+  "authorization_references": [
+    {
+      "kind": "PROGRAM_APPROVAL",
+      "reference": "docs/origination-acceptance-contracts.yaml#INT-013",
+      "note": "widens evidence, never authority; the EXTERNAL_BLOCKED state stands"
+    }
+  ],
+  "_scope_note": "taken verbatim from the human-authored acceptance contract's proposed_scope, so `task draft` reports no conflict between them"
+}

@@ -1,0 +1,32 @@
+Re-measured on the combined PR #801 candidate (integration-004), not carried
+over from an earlier revision.
+
+Code measured: tree 2df84a573167bde2228f6c793eb743082212e412
+  = 4c7661d0 + d43a6dff + cd99d835 + ec169e65 + 97b60285
+(the integration commit that carries this file adds documentation only, so the
+ code under test is exactly that tree)
+
+$ python -m pytest \
+    tests/unit/test_program_authority_verifier_binding.py \
+    tests/unit/test_orchestration_program_concurrency.py \
+    tests/unit/test_as_orch_d095_audit_provenance.py \
+    tests/unit/test_program_budget_exhaustion_classification.py \
+    tests/unit/test_taskcontract_authority_and_evidence.py \
+    --no-cov
+
+....s...........................................................         [100%]
+63 passed, 1 skipped in 7.52s
+
+Unchanged against the predecessor evidence (63 passed / 1 skipped), so the
+combined candidate does not regress these suites. Note the taskcontract suite is
+MODIFIED by d43a6dff and its test count is unchanged, which is why the total
+still matches.
+
+This candidate additionally introduces one authority suite that did not exist
+when the predecessor evidence was taken:
+
+$ python -m pytest tests/unit/test_program_authority_through_the_enrollment_filter.py --no-cov
+6 passed in 0.71s
+
+The previous version of this file recorded only a bare summary with no command,
+which nobody else could reproduce. The command is now part of the evidence.

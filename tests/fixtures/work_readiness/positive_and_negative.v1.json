@@ -1,0 +1,202 @@
+{
+  "schema": "work-readiness-fixture-bundle.v1",
+  "package_id": "AS-WORK-READINESS-001",
+  "missing_integrations": [
+    "AS-TASK-CONTRACT-001 live ContractPort (PR not on main)",
+    "program supervisor enrollment/claim live ports (PR #797)",
+    "ATLAS-EXECUTION-QUALITY-LOOP-001 live ResultPort"
+  ],
+  "contracts": [
+    {
+      "task_id": "WR-READY-001",
+      "contract_id": "tc-wr-ready-001",
+      "digest": "digest-ready-aaa",
+      "valid": true,
+      "objective": "Ship a prepared ready task",
+      "expected_result": "Projection selects this task",
+      "mutation_paths": ["src/project_atlas/orchestration/work_readiness/"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": ["DEP-DONE-001"],
+      "authorization_ref": "registry://verified/auth/wr-ready-001",
+      "priority": 10,
+      "limits": {"launches_remaining": 3}
+    },
+    {
+      "task_id": "WR-READY-002",
+      "contract_id": "tc-wr-ready-002",
+      "digest": "digest-ready-bbb",
+      "valid": true,
+      "objective": "Second ready task with lower priority",
+      "expected_result": "Ranks after WR-READY-001",
+      "mutation_paths": ["docs/orchestration/work-readiness/"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": ["DEP-DONE-001"],
+      "authorization_ref": "registry://verified/auth/wr-ready-002",
+      "priority": 5,
+      "limits": {"launches_remaining": 2}
+    },
+    {
+      "task_id": "WR-BLOCKED-DEP",
+      "contract_id": "tc-wr-blocked-dep",
+      "digest": "digest-blocked-dep",
+      "valid": true,
+      "objective": "Blocked by missing dependency",
+      "expected_result": "Excluded from selection",
+      "mutation_paths": ["src/other/blocked_dep.py"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": ["DEP-MISSING-001"],
+      "authorization_ref": "registry://verified/auth/blocked-dep",
+      "priority": 99
+    },
+    {
+      "task_id": "WR-BLOCKED-DEP-2",
+      "contract_id": "tc-wr-blocked-dep-2",
+      "digest": "digest-blocked-dep-2",
+      "valid": true,
+      "objective": "Also blocked by same missing dependency",
+      "expected_result": "Shares blocker impact with WR-BLOCKED-DEP",
+      "mutation_paths": ["src/other/blocked_dep2.py"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": ["DEP-MISSING-001"],
+      "authorization_ref": "registry://verified/auth/blocked-dep-2",
+      "priority": 50
+    },
+    {
+      "task_id": "WR-CLAIMED",
+      "contract_id": "tc-wr-claimed",
+      "digest": "digest-claimed",
+      "valid": true,
+      "objective": "Already claimed by another agent",
+      "expected_result": "Not offered to second executor",
+      "mutation_paths": ["src/claimed/only.py"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": [],
+      "authorization_ref": "registry://verified/auth/claimed",
+      "priority": 80
+    },
+    {
+      "task_id": "WR-OVERLAP",
+      "contract_id": "tc-wr-overlap",
+      "digest": "digest-overlap",
+      "valid": true,
+      "objective": "Overlaps mutation with an active foreign claim",
+      "expected_result": "Mutation conflict blocks concurrent offer",
+      "mutation_paths": ["src/claimed/only.py"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": ["DEP-DONE-001"],
+      "authorization_ref": "registry://verified/auth/overlap",
+      "priority": 70
+    },
+    {
+      "task_id": "WR-AWAIT-AUTH",
+      "contract_id": "tc-wr-await-auth",
+      "digest": "digest-await-auth",
+      "valid": true,
+      "objective": "Technically ready but no authorization_ref",
+      "expected_result": "CONTENT_READY_AWAITING_AUTHORIZATION",
+      "mutation_paths": ["src/await_auth/only.py"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": ["DEP-DONE-001"],
+      "authorization_ref": null,
+      "priority": 60
+    },
+    {
+      "task_id": "WR-EXIT-NOT-DONE",
+      "contract_id": "tc-wr-exit-not-done",
+      "digest": "digest-exit",
+      "valid": true,
+      "objective": "Worker exit 0 but acceptance failed",
+      "expected_result": "Not lifecycle complete",
+      "mutation_paths": ["src/exit_fail/only.py"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": [],
+      "authorization_ref": "registry://verified/auth/exit",
+      "priority": 40
+    },
+    {
+      "task_id": "WR-NO-RUNTIME",
+      "contract_id": "tc-wr-no-runtime",
+      "digest": "digest-no-runtime",
+      "valid": true,
+      "objective": "Needs unavailable adapter",
+      "expected_result": "MISSING_RUNTIME_CAPACITY",
+      "mutation_paths": ["src/noruntime/only.py"],
+      "required_adapter": "cursor",
+      "required_capabilities": ["execute"],
+      "dependencies": [],
+      "authorization_ref": "registry://verified/auth/noruntime",
+      "priority": 30
+    },
+    {
+      "task_id": "WR-STALE-CONTRACT",
+      "contract_id": "tc-wr-stale",
+      "digest": "digest-stale",
+      "valid": false,
+      "objective": "Invalid contract",
+      "expected_result": "MISSING_OR_STALE_CONTRACT",
+      "mutation_paths": ["src/stale/only.py"],
+      "required_adapter": "codex",
+      "required_capabilities": ["execute"],
+      "dependencies": [],
+      "authorization_ref": "registry://verified/auth/stale",
+      "priority": 20
+    }
+  ],
+  "claims": [
+    {
+      "lease_id": "lease-claimed-1",
+      "agent_id": "agent-alpha",
+      "task_or_package_id": "WR-CLAIMED",
+      "mutation_paths": ["src/claimed/only.py"],
+      "status": "ACTIVE"
+    }
+  ],
+  "enrollment": [
+    {
+      "agent_id": "agent-codex-1",
+      "adapter": "codex",
+      "status": "ACTIVE",
+      "capabilities": ["execute", "review"]
+    },
+    {
+      "agent_id": "agent-claude-suspended",
+      "adapter": "claude",
+      "status": "SUSPENDED",
+      "capabilities": ["execute"]
+    }
+  ],
+  "results": [
+    {
+      "task_id": "WR-EXIT-NOT-DONE",
+      "worker_exit_zero": true,
+      "acceptance_passed": false,
+      "review_complete": false,
+      "evidence_ref": "evidence://exit-not-done"
+    }
+  ],
+  "dependencies": [
+    {
+      "node_id": "DEP-DONE-001",
+      "status": "YES",
+      "evidence": "fixture: completed"
+    },
+    {
+      "node_id": "DEP-MISSING-001",
+      "status": "NO",
+      "evidence": "fixture: component review pending"
+    },
+    {
+      "node_id": "DEP-UNKNOWN-001",
+      "status": "UNKNOWN",
+      "evidence": null
+    }
+  ]
+}

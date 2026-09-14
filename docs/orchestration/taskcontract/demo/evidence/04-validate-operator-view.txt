@@ -1,0 +1,52 @@
+========================================================================
+TASK CONTRACT  INT-013-BOUNDED-PILOT v1   READY_WITH_WARNINGS
+========================================================================
+objective   Run the bounded, fixture-backed multi-project integration pilot as an ongoing regression, without claiming authentic INT-013.
+done means  The bounded pilot test runs unskipped and passes against committed fixture projects, and no project's own vault content is modified by any xproj operation.
+owner       wesley
+source      docs/backlog.md#INT-013
+
+scope:
+  + tests/integration/test_int_013_bounded_multi_project_pilot.py
+  + WORKLOG.md
+  - authentic INT-013 against owner-provided project roots
+  - any change to a project's own vault content
+  - clearing the EXTERNAL_BLOCKED state
+
+writes:
+  tests/integration/test_int_013_bounded_multi_project_pilot.py
+  WORKLOG.md
+
+requirements and what judges them:
+  INT013-R1-PILOT-PASSES   AUTOMATED            pilot-test, pilot-file-present
+  INT013-R2-NO-AUTHORITY-MERGE HUMAN_REVIEW         -
+  INT013-R3-BOUNDED-SCOPE  NO_CHECK_AVAILABLE   -
+
+limits      2 attempt(s), 2400s, 1 worker(s)
+budget      5.0 (enforced by runtime per-launch flag; the local-command adapter reports no cost)
+
+dimensions:
+  structurally_valid         PASS
+  content_complete           PASS
+  preconditions_checked      PASS
+  execution_authorization    NOT_DEMONSTRATED
+  acceptance_outcome         NOT_EVALUATED
+
+0 error(s)  2 warning(s)  6 unknown  1 ok
+
+--- WARNING ---
+  [content.requirement_human_review] requirement INT013-R2-NO-AUTHORITY-MERGE needs human review; no check can close it and acceptance passing does not either
+  [acceptance.executable_bare] check pilot-test names the bare executable 'python3'. It resolves here (to /usr/bin/python3), which says nothing about the worker's environment. The binding pins '/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.venv/bin/python'; use it.
+
+--- UNKNOWN ---
+  [content.requirement_no_check_available] requirement INT013-R3-BOUNDED-SCOPE has no suitable check yet; it is recorded as unverified rather than covered by a weaker one
+  [content.budget_not_enforced] the contract records limits it cannot enforce: account spending limit; billed spend
+  [runtime.version_unpinned] no minimum runtime version is required, so the version the worker will actually run is not constrained by this contract
+  [runtime.constraint_unverified] constraint 'no network access during the pilot run' is recorded but not checkable from here
+  [authorization.reference_manual] PROGRAM_APPROVAL reference 'docs/origination-acceptance-contracts.yaml#INT-013' must be followed by a human; this tool cannot resolve it
+  [authorization.not_checkable] no registry to ask without --program, so authorization stays NOT_DEMONSTRATED
+
+next action:
+  Contract content is ready. Execution authorization is not demonstrated: assign an ACTIVE agent to the rendered program.
+
+A valid contract is not execution authority and proves nothing about the result.

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "schema": "compatibility-anchor",
+  "snapshot_id": "atlas-1.0.0-compat",
+  "package_version": "1.0.0",
+  "tag": "v1.0.0",
+  "tag_commit": "bb0957c47b5e2976b5cf358342cf89dffe6e6a55",
+  "software_freeze_head": "f4079813025dd882e0e3608ab7ad5b3b17f95bd9",
+  "software_freeze_tree": "feb0441a13e391812ae07a1a8eb27b0de1061469",
+  "release_certified": true,
+  "pilot_mode": "FIXTURE_ONLY_OWNER_WAIVER",
+  "authentic_estate_pilot_passed": false,
+  "one_dot_oh_wins_conflicts": true,
+  "invariants": [
+    "ingestion._promote remains sole canonical write boundary",
+    "AS-ID-001 lineage locks and ambiguity fail-closed",
+    "agent-event quarantine before canonical projection",
+    "secrets.scan_text metadata-only"
+  ],
+  "adr_manifest": [
+    "ADR-001",
+    "ADR-008",
+    "ADR-010"
+  ],
+  "generated": {
+    "by": "project-atlas"
+  }
+}

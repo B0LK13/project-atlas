@@ -14915,3 +14915,216 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-TASK-CONTRACT-001 — backlog item to reviewable task contract
+
+**Plan**: one versionable contract as the single structured source for the
+worker instruction, the program configuration and the acceptance checks, so a
+changed path changes everywhere or nowhere. Reuse rather than rebuild: intake
+is `origination.sources.eligible_work_items`, the task/acceptance/profile models
+and `load_program` come from `orchestration.program`, authorization is read
+through `program.enrollment`. No second scheduler, registry, authorization
+system or backlog database.
+
+**Commands**: `atlas task {sources,draft,validate,render,review,diff,verify}`,
+registered additively in `cli.py` (18 insertions, 0 deletions) on the same seam
+as `program`/`agent`. `docs/orchestration/taskcontract/demo/run-demo.sh` runs
+the whole flow against this repository's own INT-013, read-only.
+
+**Results**: 29 targeted tests, hermetic, zero model calls. The demonstration's
+generated program is accepted by the official `atlas program validate`
+(`valid: true`), and AS-PREFLIGHT-001 independently reports
+`acceptance.executable` OK because `render` substituted the binding's absolute
+interpreter for the contract's bare `python3`. Two tools reached
+"authorization not demonstrated" without either being told by the other. The
+blocked example exits 3 on six concrete errors.
+
+**Two findings the tests produced, not the design**: a path written into a
+prose field is a second copy that will drift when the structured field moves
+(now `content.path_repeated_in_prose`, a WARNING because text matching cannot
+tell a duplicate from a legitimate mention); and `review_note` reaches the
+worker verbatim, so it counts as prose for that check — the first version of
+the heuristic missed it and a test caught it.
+
+**What this does NOT do**: it does not judge whether a check is a good check.
+A `COMMAND` that exits 0 unconditionally passes validation; nothing here reads
+what a command does. It does not detect dependency cycles spanning several
+contracts — `WorkProgram`'s own validator does that when they are rendered into
+one program, and a second implementation would be a second answer that can
+disagree. `execution_authorization: DEMONSTRATED` describes one moment and is
+not a standing grant: the supervisor re-checks status, role and assignment
+immediately before every dispatch, and that check is the authoritative one.
+
+**Not claimed**: no receipt issued, no independent verification, nothing merged,
+no worker run. `acceptance_outcome` is `NOT_EVALUATED` in every report this
+package produces and there is no code path that sets it otherwise. INT-013's
+`EXTERNAL_BLOCKED` state is unchanged and the demonstration preserves it in the
+contract's `executable_when`.
+
+## 2026-09-13 — ATLAS-END-TO-END-IMPLEMENTATION-TAKEOVER-001
+
+Own session: `codex-takeover-001`; isolated successor of
+`e3b375588d013f1e5552adcb872201633ba1e4ef` /
+`aa8562ba08cf3c8e1dd07fb7300ebd309cf8e81f`. Preserved original worktrees,
+historical evidence and the live pilot. The initial writer/process check found
+the pilot and no overlapping implementation writer; no pilot action was taken.
+
+Implemented F-01 explicit filesystem containment (separate scoped implementer)
+and F-02 restart identity refusal/rechecks (coordinator). Added OS-owned resident,
+queue and restart exclusion. Zero-model integration exposed a further real
+dispatch gap: uncertain/expired/contradictory continuation was only checked by
+read lenses. Actual dispatch now validates the envelope and reconciliation;
+projection preserves stronger uncertainty and does not invent an execution
+checkpoint for a task that never ran. Partial-task step resume is explicitly
+unsupported, not replayed as a fresh task.
+
+Development evidence includes red-before/green-after F-01/F-02 checks, three
+real-process complete/revoked/uncertain fixtures, and a broad program regression
+run (394 passed, 3 integration failures, 1 skipped). The three failures were
+resolved with explicit fixture boundaries and truthful no-attempt expectations;
+the focused correction/authority run passed 21 tests. Ruff and strict mypy
+passed (468 source files). These results describe the evolving working tree,
+not certification of the frozen predecessor or the eventual candidate.
+
+Final clean-candidate regression, independent acceptance, non-editable wheel
+installation, exact HEAD/TREE, source/import hashes, raw commands and SHA256SUMS
+are recorded externally under
+`/home/gebruiker/.cache/atlas-r-deploy/takeover-001-PHD3JHPQ/`.
+See `docs/orchestration/program/LOCAL-TAKEOVER-001.md` for the operator contract.
+The independent verifier did not author either repair. No successful final
+verification is asserted before its candidate-specific evidence exists.
+
+Governed documentation used the approved local spool in this isolated checkout:
+session `AS-20260913T102201Z-codex-takeover-001-project-atlas-1bc5657c`,
+implementation event `AE-20260913T102606Z-project-atlas-10d64237`.
+Shared-Vault synchronization/strict receipt remains separate. No service
+installation, activation, privilege change, paid worker, push or merge occurred.
+
+The first clean local candidate `036566ea60d6998dad02439d844258221ca3ac7f`
+passed 415 relevant regressions (one pre-existing unreachable-path skip), a
+non-editable source/wheel/install byte comparison and all three installed demos.
+Its evidence remains separately preserved. Review then reproduced an operator
+registry leaf-symlink read bypass outside the dispatch-only guards. The shared
+registry path now rejects that link for every reader; a red/green regression
+and the focused containment/authority/demo run (65 passed) verify the repair.
+The demo now counts terminal checkpoints rather than all checkpoints. Refusal
+diagnostics retain the containment code and explicitly identify digest mismatch.
+Final acceptance belongs to the next exact candidate, not this intermediate one.
+
+Independent verification of `3faf318cf930708382d449f0c9beb43d6090c93c`
+reported 41/48 checks passing and withheld acceptance: decision and transcript
+leaves still allowed outside reads, and three workspace refusals lacked a
+structured code. All reported conditions were retained and repaired centrally.
+Additional bounded review reproduced local fixture evidence-leaf writes, SDK
+pause-directory writes/leaf reads and a service-identity leaf read. Repairs now
+guard those actual reader/writer boundaries, not only capsule/dispatcher callers.
+Local-command validates every planned evidence sink before launch and writes
+through the guarded atomic writer. Projection also validates workspace and
+artifact leaves; no outside command is imported as captured execution.
+
+Focused dirty-tree regression passed 141 containment/continuation/demo checks;
+the later local-fixture set passed 61 checks and pause/host/control set passed
+95 checks. SDK-lock/process visibility and final exact-candidate verification
+follow in the external dossier. The independent report remains separate from
+the additional implementer's review. Non-fixture Codex/Claude runtime behavior,
+including source-only evidence-sink observations, is not accepted by this
+zero-model delivery; model dispatch stays disabled. No service action was taken.
+
+The third frozen candidate `24b3d286c09cb4335d4ad6d291ca75f2cf831c8a`
+passed 465 coordinator regressions (one existing skip), but independent
+acceptance again correctly remained closed. Expanded negative controls exposed
+two missing zero-model runtime guards and two pre-planted hardlink write paths.
+No model was called: the independent probes intercepted runtime entry. The
+resident now rejects non-fixture profiles and enrollment substitutions before
+supervisor construction, and the shared path guard rejects multiply linked
+regular files before temporary truncation or event append. The original failed
+evidence is retained; safety acceptance is bound only to the next verified pin.
+
+Evidence: `docs/orchestration/taskcontract/demo/evidence/` (11 raw files),
+`docs/orchestration/taskcontract/demo/snapshot/` (the item text and digest the
+run observed).
+
+## 2026-09-13 — Durable execution completion-002 (in progress)
+
+Coordinator `codex-continuation-002`, successor branch
+`takeover/continuation-completion-002`, parent HEAD
+`0b82d7d184150af4b59c13a7bbd9119ac369fbfa` / TREE
+`4a3d514ea20aefc6ddfe97aebb2bde9ab76436f4`. The separately sealed predecessor,
+original e3b37558 candidate and live pilot remain untouched.
+
+The full-design audit found that a resume disposition was not actual step
+execution. Implemented explicit approved local-command execution steps with
+controller-owned intent/completion checkpoints, pause/next-step dispatch,
+actual interrupted read-only recovery and final-acceptance reconciliation.
+Fresh controller processes demonstrate FIRST once, SECOND once and subsequent
+zero launches; unknown mutating effects remain unlaunchable. Measured and fixed
+changed-program authority, verifier deadline, remaining wall-time and actual
+fallback integration gaps. Workers receive bounded current continuation data;
+actual command history remains sourced from observations. Unknown current Git
+revision now refuses unless an explicit fixture-only exception is approved and
+labelled as not observed Git/package provenance.
+
+Independent verifier Maxwell supplied execution-level findings IV-STEP-01
+(last-step seal recovery) and IV-STEP-02 (weaker checkpoint wall consumption).
+Both received targeted source repairs and coordinator regression checks; no
+independent final acceptance is claimed yet. Avicenna separately supplied
+documentation/service-command boundary and schema-2 rollback preparation work.
+Source/component ownership remained separate; no additional agents were started.
+
+Evidence is retained under
+`/home/gebruiker/.cache/atlas-r-deploy/continuation-completion-002-NCrqj3B3/`.
+The latest complete candidate and outcomes will be in its manifest/handoff,
+not inferred from this parent pin. Earlier dirty-source regression: 212 passed,
+one existing skip; native execution tests and independent preliminary reports
+retain their separate exact source snapshots and RED/GREEN results. Full
+pre-freeze regression is running at this entry; installation and acceptance
+checkboxes remain open. No service installation/activation, paid worker, reboot,
+privilege change, push or merge occurred. Governance events are pending in the
+approved local spool and are not a strict receipt.
+
+### 2026-09-13 — continuation-002 independent contradiction repairs
+
+Coordinator: codex-continuation-002. C1 HEAD
+`a6e91c5a0ae43c5372511826a74ce56835ff0f04`, TREE
+`7f80ca0d614f1d3001b035768f6adb14f639f167` was independently NOT ACCEPTED for
+IV-STEP-03/04/05; its source, wheel, runtime and raw failures remain preserved.
+Native discriminators reproduced seven failures plus one valid positive on
+C1. Repair requires agreement between read-only launch, intent, checkpoint and
+attempt identities, preserves first-hand interrupted checkpoints on refusal,
+and validates each prefix step's accepted durable receipt and transcript before
+final reconciliation. Exactly exhausted wall time refuses final checks; pause
+retains its no-new-dispatch semantics and permits settlement of completed work.
+
+Fresh native suite: 25 passed. Full program/continuation and installed-demo
+integration suite: 466 passed, one existing skip in 190.91 seconds. Repository
+ruff passed; mypy passed all 471 source files. Exact dirty source/provenance and
+RED/GREEN logs are in `continuation-completion-002-NCrqj3B3/evidence/c2-*` and
+`iv-*`; these are coordinator measurements, not independent acceptance.
+The standalone installed within-task demo is prepared in
+`scripts/atlas_continuation_execution_demo.py`. The next exact frozen candidate
+still requires its new noneditable installation, actual demo runs and fresh
+independent verdict. No source tests or earlier passes imply activation.
+
+### 2026-09-13 — continuation-002 current enrollment binding closure
+
+C2 HEAD `f96af0d03172e163f632fe783ccb9f28b8574e6d`, TREE
+`01e32ce3dd92dc2294e726a95708649cc49827a0` passed 466 tests plus one skip from
+its noneditable installation and all five installed demonstrations. Independent
+original-proof-9 expansion nevertheless found ignored registry workspace
+bindings. C2 remains unaccepted; preserve its wheel, runtime, source and results.
+
+Coordinator reproduced 13 workspace/alias failures with two valid controls,
+then repaired initial binding, registration alias refusal and current
+implementer/verifier workspace validation. In the same fresh-authority branch,
+six measured failures showed stale narrowing/runtime profiles and new active
+duplicate-role claims being ignored; current dispatch now withholds those
+changed bindings. Principal/key inconsistency already refused, and metadata-only
+description changes retain correct execution. Focused authority/enrollment
+regression: 46 passed, one existing skip in 11.82 seconds. Repository-root Ruff
+and mypy pass. A first parent-directory mypy invocation omitted project import
+overrides and is retained as a command-context issue, not a new product defect.
+
+Evidence: continuation-completion-002-NCrqj3B3/evidence/enrollment-*. Exact next
+candidate installation/full regression and independent C3 acceptance are still
+required; no prior candidate pass is transferred. Source repair owner remains
+codex-continuation-002, verifier remains the existing Maxwell session.
