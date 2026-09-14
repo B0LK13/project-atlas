@@ -324,16 +324,20 @@ def _pending_review_count(vault: Path, project_id: str) -> tuple[int, bool]:
     )
 
 
-def _conflict_count(vault: Path, project_id: str) -> int:
+def _conflict_count(vault: Path, project_id: str) -> tuple[int, bool]:
     """Count unresolved conflicts for one project only.
 
     Cross-project files and foreign entries must never bleed. Prefer the
     isolated ``review/conflicts/<project>.json`` surface. A stale unknown
-    lens must not inflate a live zero.
+    lens must not inflate a live zero. A present-but-unreadable scoped
+    file must not fall back to the unknown lens either
+    (AS-ROADMAP-UNREADABLE-PENDING-FALLBACK-001).
     """
     live: list[int] = []
     review_path = vault / "review" / "conflicts" / f"{project_id}.json"
+    review_present = review_path.is_file()
     review = _read_json(review_path)
+    scoped_unreadable = review_present and review is None
     if review is not None:
         entries = review.get("entries")
         if isinstance(entries, list):
@@ -362,17 +366,19 @@ def _conflict_count(vault: Path, project_id: str) -> int:
         live.append(scoped)
 
     if live:
-        return max(live)
+        return max(live), scoped_unreadable
+    if scoped_unreadable:
+        return 0, True
 
     unknown = _load_lens(vault, "unknown", project_id)
     if not unknown:
-        return 0
+        return 0, False
     raw = unknown.get("unresolved_conflicts")
     if isinstance(raw, int):
-        return raw
+        return raw, False
     if isinstance(raw, list):
-        return len(raw)
-    return 0
+        return len(raw), False
+    return 0, False
 
 
 def _normalize_item(
@@ -873,7 +879,7 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             item["critical_path"] = False
 
     pending_reviews, pending_unreadable = _pending_review_count(vault, project_id)
-    conflicts = _conflict_count(vault, project_id)
+    conflicts, conflicts_unreadable = _conflict_count(vault, project_id)
     extra_blockers: list[dict[str, Any]] = []
     if pending_reviews:
         extra_blockers.append(
@@ -911,6 +917,8 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
         unknowns.append("pending reviews")
     if pending_unreadable:
         unknowns.append("pending_queue=unreadable")
+    if conflicts_unreadable:
+        unknowns.append("conflicts_queue=unreadable")
     if conflicts:
         unknowns.append("unresolved conflicts")
     if unknown_lens and unknown_lens.get("status") == "unknown":
@@ -998,6 +1006,11 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
                 if pending_unreadable
                 else []
             ),
+            *(
+                ["conflicts-queue-unreadable; no unknown-lens fallback"]
+                if conflicts_unreadable
+                else []
+            ),
         ],
         "lifecycle_vocabulary": list(LIFECYCLES),
         "progress_vocabulary": list(ITEM_STATUSES),
@@ -1013,6 +1026,7 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "implemented_eq_verified": False,
             "multiple_critical_paths": multiple_critical_paths,
             "pending_queue_unreadable": pending_unreadable,
+            "conflicts_queue_unreadable": conflicts_unreadable,
             "dogfood_local_vault_executed": False,
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",

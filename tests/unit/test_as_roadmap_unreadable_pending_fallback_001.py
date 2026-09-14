@@ -77,3 +77,22 @@ def test_missing_scoped_pending_still_uses_global_owner_scope(tmp_path: Path) ->
     assert lens["pending_reviews"] == 1
     assert "pending_queue=unreadable" not in lens["unknowns"]
     assert lens["honesty"]["pending_queue_unreadable"] is False
+
+
+def test_unreadable_scoped_conflicts_do_not_use_unknown_lens(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(vault, "harbor-api")
+    scoped = vault / "review" / "conflicts" / "harbor-api.json"
+    scoped.parent.mkdir(parents=True)
+    scoped.write_text("{broken", encoding="utf-8")
+    answers = vault / "generated" / "answers"
+    answers.mkdir(parents=True)
+    (answers / "ans-unknown-harbor-api.json").write_text(
+        json.dumps({"unresolved_conflicts": 9, "status": "unknown"}),
+        encoding="utf-8",
+    )
+    lens = build_roadmap_lens(vault, "harbor-api")
+    assert lens["unresolved_conflicts"] == 0
+    assert "conflicts_queue=unreadable" in lens["unknowns"]
+    assert lens["honesty"]["conflicts_queue_unreadable"] is True
+    assert any("conflicts-queue-unreadable" in note for note in lens["notes"])
