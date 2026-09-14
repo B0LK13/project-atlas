@@ -1,6 +1,7 @@
 """Runtime adapters for AS-ORCH-PROGRAM-SUPERVISOR-001.
 
-``claude-code`` is the real runtime. ``local-command`` is a labelled fixture.
+``claude-code`` and ``prime-agent`` are real-runtime seams. ``local-command``
+is a labelled fixture.
 A run through the fixture proves supervisor behaviour and nothing about
 real-runtime compatibility.
 """
@@ -23,9 +24,16 @@ from project_atlas.orchestration.program.adapters.local_command import (
     FIXTURE_LABEL,
     LocalCommandAdapter,
 )
+from project_atlas.orchestration.program.adapters.prime_agent import (
+    PRIME_UPSTREAM_SHA,
+    PrimeExecutorAdapter,
+    PrimeFrameError,
+    PrimeFrameParser,
+)
 
 __all__ = [
     "FIXTURE_LABEL",
+    "PRIME_UPSTREAM_SHA",
     "AdapterCapabilities",
     "AdapterError",
     "AdapterOutcome",
@@ -34,6 +42,9 @@ __all__ = [
     "ClaudeCodeAdapter",
     "CodexAdapter",
     "LocalCommandAdapter",
+    "PrimeExecutorAdapter",
+    "PrimeFrameError",
+    "PrimeFrameParser",
     "RuntimeAdapter",
     "build_child_env",
     "version_at_least",

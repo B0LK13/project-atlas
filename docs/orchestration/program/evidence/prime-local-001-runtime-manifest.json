@@ -1,0 +1,34 @@
+{
+  "adapter_version": "prime-agent-atlas-adapter-v1",
+  "build_id": "beta-28-g5d25a44bd-dirty",
+  "compatibility_patches": [
+    {
+      "id": "prime-agent-5d25a44-atlas-child-admission-v1",
+      "sha256": "01dc22bfeff1d8a1458225eda8552f95abe74fad5ccd2d175586342c34420865"
+    }
+  ],
+  "config_hash": "not-configured",
+  "executable": {
+    "path": "/home/gebruiker/prime-local-001-runtime/prime-agent.sh",
+    "sha256": "0ceef94210da44aa2cb232fb18fd215c5a25caf7b652531856c5a90af01df09d"
+  },
+  "kernel": {
+    "mode": "managed-by-prime-agent",
+    "python_env": "PRIME_AGENT_KERNEL_PYTHON",
+    "python_executable": null,
+    "python_version": null,
+    "runtime_validation": "deferred-to-prime-kernel-start"
+  },
+  "lockfile_sha256": "409e354743d7e56af2bbc6276675e0dfc3699fb29e6247a2a352692963052f3f",
+  "node_version": "v22.23.2",
+  "package_version": "0.9.4",
+  "provider_validation": "not-run",
+  "real_model_validation": "not-run",
+  "session_paths": {
+    "coding_agent_dir": "external-mission-config",
+    "session_dir": "external-mission-sessions"
+  },
+  "source_commit_verified": true,
+  "source_repository": "https://github.com/PrimeIntellect-ai/prime-agent.git",
+  "upstream_sha": "5d25a44bd22e1c1fe8321e141cd6c3932563d14c"
+}

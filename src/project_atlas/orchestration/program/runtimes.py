@@ -34,6 +34,7 @@ from project_atlas.orchestration.program.adapters.local_command import (
     FIXTURE_LABEL,
     LocalCommandAdapter,
 )
+from project_atlas.orchestration.program.adapters.prime_agent import PrimeExecutorAdapter
 from project_atlas.orchestration.program.profiles import AdapterKind
 
 
@@ -119,6 +120,8 @@ def _executable_for(adapter: AdapterKind) -> str | None:
         return "claude"
     if adapter is AdapterKind.CODEX:
         return "codex"
+    if adapter is AdapterKind.PRIME_AGENT:
+        return "prime-agent"
     return None
 
 
@@ -127,6 +130,8 @@ def _adapter_for(adapter: AdapterKind) -> RuntimeAdapter:
         return ClaudeCodeAdapter()
     if adapter is AdapterKind.CODEX:
         return CodexAdapter()
+    if adapter is AdapterKind.PRIME_AGENT:
+        return PrimeExecutorAdapter()
     return LocalCommandAdapter(("/bin/true",))
 
 
@@ -170,6 +175,32 @@ def describe(adapter: AdapterKind) -> RuntimeSupport:
                 "prefers ANTHROPIC_API_KEY over a logged-in subscription when "
                 "both are present",
             ),
+        )
+
+    if adapter is AdapterKind.PRIME_AGENT:
+        return RuntimeSupport(
+            adapter=adapter,
+            executable=executable,
+            installed=installed,
+            version=capabilities.version if capabilities else None,
+            capabilities=capabilities,
+            unsupported=(
+                *UNIVERSALLY_UNSUPPORTED,
+                "pre-assigned session ids in ordinary client-owned RPC",
+                "a provider-independent cost estimate",
+                "recursive child admission by prompting alone",
+            ),
+            runtime_enforced=(
+                "strict LF JSONL RPC framing",
+                "Prime daemon/client lifecycle semantics",
+            ),
+            notes=(
+                "source runtime is pinned by the Atlas profile and manifest",
+                "ordinary headless RPC is client-owned; resident daemon routing "
+                "must be proven before detached execution is claimed",
+                "model-free support is not real-provider or inference proof",
+            ),
+            tier=SupportTier.FIXTURE_ONLY,
         )
 
     if adapter is AdapterKind.CODEX:

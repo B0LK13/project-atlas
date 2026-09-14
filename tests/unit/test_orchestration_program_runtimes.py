@@ -687,6 +687,7 @@ def test_there_is_no_generic_adapter_and_the_reason_is_stated() -> None:
         "claude-code",
         "codex",
         "local-command",
+        "prime-agent",
     }
 
 

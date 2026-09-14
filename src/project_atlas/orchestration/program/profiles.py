@@ -56,6 +56,7 @@ class AdapterKind(StrEnum):
 
     CLAUDE_CODE = "claude-code"
     CODEX = "codex"
+    PRIME_AGENT = "prime-agent"
     LOCAL_COMMAND = "local-command"
 
 

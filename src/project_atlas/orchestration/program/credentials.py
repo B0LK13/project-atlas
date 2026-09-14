@@ -48,6 +48,12 @@ _CREDENTIAL_NAMES: Final[dict[AdapterKind, tuple[str, ...]]] = {
         "CODEX_HOME",
         "CODEX_API_KEY",
     ),
+    AdapterKind.PRIME_AGENT: (
+        "PRIME_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "PRIME_AGENT_CODING_AGENT_DIR",
+    ),
     AdapterKind.LOCAL_COMMAND: (),
 }
 
@@ -62,6 +68,10 @@ _PRECEDENCE: Final[dict[AdapterKind, str]] = {
         "codex uses its own stored login under CODEX_HOME (default ~/.codex). "
         "This package does not forward an Anthropic key to it and refuses a "
         "profile that declares one"
+    ),
+    AdapterKind.PRIME_AGENT: (
+        "Prime uses only provider variables explicitly allow-listed by the "
+        "Atlas profile; no personal Prime config or auth file is imported"
     ),
     AdapterKind.LOCAL_COMMAND: "no credential of any kind; it runs a fixed argv",
 }

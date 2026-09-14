@@ -73,6 +73,7 @@ from project_atlas.orchestration.program.adapters.claude_code import (
 )
 from project_atlas.orchestration.program.adapters.codex import CodexAdapter
 from project_atlas.orchestration.program.adapters.local_command import LocalCommandAdapter
+from project_atlas.orchestration.program.adapters.prime_agent import PrimeExecutorAdapter
 from project_atlas.orchestration.program.enrollment import (
     AgentRegistry,
     AgentStatus,
@@ -266,6 +267,21 @@ def _build_adapter(profile: AgentProfile) -> RuntimeAdapter:
         return ClaudeCodeAdapter()
     if profile.adapter is AdapterKind.CODEX:
         return CodexAdapter()
+    if profile.adapter is AdapterKind.PRIME_AGENT:
+        return PrimeExecutorAdapter(
+            str(profile.adapter_options.get("executable", "prime-agent")),
+            upstream_sha=str(
+                profile.adapter_options.get(
+                    "upstream_sha",
+                    "5d25a44bd22e1c1fe8321e141cd6c3932563d14c",
+                )
+            ),
+            daemon_socket=(
+                Path(str(profile.adapter_options["daemon_socket"]))
+                if profile.adapter_options.get("daemon_socket")
+                else None
+            ),
+        )
     if profile.adapter is AdapterKind.LOCAL_COMMAND:
         return LocalCommandAdapter(profile.command_argv())
     raise SupervisorError(  # pragma: no cover - the enum is closed

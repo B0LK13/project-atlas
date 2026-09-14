@@ -21,6 +21,7 @@ is a test that asserts reading the view leaves the state file byte-identical.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
@@ -46,6 +47,7 @@ from project_atlas.orchestration.program.store import (
     ProgramStateRecord,
     TaskRecord,
     append_event,
+    evidence_dir,
     load_state,
     persist_state,
     read_events,
@@ -104,6 +106,36 @@ class ControlError(ProgramError):
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _runtime_metadata(root: Path, attempt: Any) -> dict[str, Any] | None:
+    """Expose non-secret adapter identity from an evidence-owned metadata file."""
+    for relative in attempt.evidence_paths:
+        if not isinstance(relative, str) or not relative.endswith(".prime-daemon.json"):
+            continue
+        candidate = (evidence_dir(root) / relative).resolve()
+        try:
+            candidate.relative_to(evidence_dir(root).resolve())
+            document = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if not isinstance(document, dict):
+            continue
+        fields = (
+            "candidate_sha",
+            "tree_sha",
+            "prime_session_id",
+            "prime_active_session_id",
+            "daemon_process_start_identity",
+            "server_capabilities",
+            "schema_revision",
+            "worker_generation",
+            "last_event_cursor",
+            "child_registry",
+            "child_registry_journal",
+        )
+        return {key: document.get(key) for key in fields}
+    return None
 
 
 def control_view(
@@ -165,6 +197,11 @@ def control_view(
                         ),
                         "acceptance_passed": attempt.acceptance_passed,
                         "runtime_session_id": attempt.runtime_session_id,
+                        "adapter": attempt.adapter,
+                        "usage": dict(attempt.usage),
+                        "estimated_cost_usd": attempt.estimated_cost_usd,
+                        "evidence_paths": list(attempt.evidence_paths),
+                        "runtime_metadata": _runtime_metadata(root, attempt),
                         "policy_denials": attempt.policy_denials,
                         "started_at": attempt.started_at,
                         "ended_at": attempt.ended_at,

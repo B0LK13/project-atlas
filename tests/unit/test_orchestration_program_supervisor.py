@@ -8,6 +8,7 @@ with a real agent runtime. FIXTURE_RUN != REAL_RUNTIME_COMPATIBILITY.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -19,6 +20,7 @@ import pytest
 
 from project_atlas.orchestration.autonomy.models import NodeState, OwnerGateKind
 from project_atlas.orchestration.program.adapters.base import version_at_least
+from project_atlas.orchestration.program.adapters.prime_agent import PRIME_UPSTREAM_SHA
 from project_atlas.orchestration.program.loader import ProgramLoadError, load_program
 from project_atlas.orchestration.program.models import (
     AttemptPhase,
@@ -191,6 +193,124 @@ def _supervisor(program_path: Path, tmp_path: Path) -> ProgramSupervisor:
     return ProgramSupervisor(
         loaded, state_root=tmp_path / "state", sleeper=lambda _seconds: None
     )
+
+
+def test_prime_adapter_runs_through_the_atlas_supervisor_vertical_slice(
+    tmp_path: Path,
+) -> None:
+    """Control-plane proof only: the daemon is a protocol fixture, not a model."""
+    workspace = _make_workspace(tmp_path)
+    fake = tmp_path / "prime-daemon-fixture.py"
+    fake.write_text(
+        """#!/usr/bin/env python3
+import argparse, json, os, socket
+parser = argparse.ArgumentParser()
+parser.add_argument('--daemon-socket', required=True)
+parser.add_argument('--cwd', required=True)
+args, _ = parser.parse_known_args()
+if os.path.exists(args.daemon_socket): os.unlink(args.daemon_socket)
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(args.daemon_socket); server.listen(4)
+while True:
+    connection, _ = server.accept()
+    with connection, connection.makefile('rb') as reader:
+        try:
+            connection.sendall((json.dumps({'type':'daemon_hello','protocol':{'name':'prime-agent.daemon','version':7},'serverCapabilities':['attach_snapshot','event_sequence']})+'\\n').encode())
+        except BrokenPipeError:
+            continue
+        saw_command = False
+        for raw in reader:
+            saw_command = True
+            envelope = json.loads(raw)
+            command = envelope['command']
+            data = None
+            if command['type'] == 'create': data = {'activeSessionId':'fixture-session'}
+            elif command['type'] == 'prompt_and_wait':
+                open(os.path.join(args.cwd, 'prime-output.txt'), 'w').write('accepted by Atlas\\n')
+            elif command['type'] == 'get_last_assistant_text':
+                data = {'text':'fixture execution complete'}
+            response = {
+                'type':'response', 'id':envelope['id'],
+                'command':command['type'], 'success':True,
+            }
+            if data is not None: response['data'] = data
+            connection.sendall((json.dumps(response)+'\\n').encode())
+    if saw_command: break
+server.close()
+""",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    wrapper = tmp_path / "sandbox-wrapper.sh"
+    wrapper.write_text("#!/bin/sh\nexec \"$@\"\n", encoding="utf-8")
+    wrapper.chmod(0o755)
+    runtime_manifest = tmp_path / "prime-runtime-manifest.json"
+    runtime_manifest.write_text(
+        json.dumps(
+            {
+                "upstream_sha": PRIME_UPSTREAM_SHA,
+                "source_commit_verified": True,
+                "executable": {
+                    "path": str(fake.resolve()),
+                    "sha256": hashlib.sha256(fake.read_bytes()).hexdigest(),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    profile = {
+        "agent_id": "prime-fixture-agent",
+        "adapter": "prime-agent",
+        "credential": "NOT_APPLICABLE",
+        "capabilities": ["IMPLEMENT"],
+        "allowed_mutation_prefixes": ["prime-output.txt"],
+        "limits": {"max_attempts": 1, "max_seconds": 30},
+        "adapter_options": {
+            "executable": str(fake),
+            "daemon_socket": str(tmp_path / "prime.sock"),
+            "sandbox_argv": [str(wrapper)],
+            "runtime_manifest": str(runtime_manifest),
+        },
+    }
+    program = _write_program(
+        tmp_path,
+        workspace,
+        tasks=[
+            _task(
+                "prime-task",
+                output="prime-output.txt",
+                iv=True,
+                verifier="verifier",
+            )
+        ],
+        profiles={
+            "implementer": profile,
+            "verifier": _profile(
+                profile_id="verifier",
+                agent_id="prime-independent-verifier",
+                capabilities=("VERIFY",),
+            ),
+        },
+        program_id="prime-supervisor-slice",
+    )
+
+    report = _supervisor(program, tmp_path).start()
+
+    assert report.complete is True
+    assert report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    state = load_state(tmp_path / "state")
+    assert state is not None
+    assert state.tasks["prime-task"].state is NodeState.CERTIFIED
+    assert state.tasks["prime-task"].verified_by_agent_id == "prime-independent-verifier"
+    assert (workspace / "prime-output.txt").read_text(encoding="utf-8") == (
+        "accepted by Atlas\n"
+    )
+    evidence_dir = tmp_path / "state" / ".atlas" / "orchestration" / "program" / "evidence"
+    metadata = next(evidence_dir.glob("*.prime-daemon.json"))
+    metadata_payload = json.loads(metadata.read_text(encoding="utf-8"))
+    assert metadata_payload["parent_task_id"] is None
+    assert metadata_payload["child_registry"] == []
+    assert metadata_payload["client_id"].endswith(f":{metadata_payload['attempt_id']}")
 
 
 
