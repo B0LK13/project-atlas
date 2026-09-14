@@ -27,6 +27,8 @@ MARKER = ".atlas-project.yaml"
 _NON_AUTHENTIC_FRAGMENTS: tuple[str, ...] = (
     "/tests/fixtures/",
     "\\tests\\fixtures\\",
+    "/fixtures/demo/",
+    "\\fixtures\\demo\\",
     "/fixtures/pilots/",
     "\\fixtures\\pilots\\",
     "/pilot-f407981-clean/",
