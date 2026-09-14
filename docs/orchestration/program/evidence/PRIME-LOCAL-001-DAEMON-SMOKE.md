@@ -80,8 +80,10 @@ without being persisted in command evidence.
 The host's available `bwrap` harness was also exercised with read-only system
 mounts, a writable disposable workspace mount, and no home-directory mount;
 the scope probe could read the workspace and could not read `/home/gebruiker/.ssh`.
-Prime profiles still have to provide their complete reviewed `sandbox_argv`;
-the presence of `bwrap` alone is not treated as a security grant.
+The adapter now fails closed unless the resolved launcher is `/usr/bin/bwrap`
+with the required namespace, process-lifetime, temporary-filesystem, and
+mount/chdir controls. A pass-through wrapper such as `/bin/true` is rejected
+by preflight; the presence of `bwrap` alone is not treated as a security grant.
 
 The Atlas supervisor vertical-slice test also passes with a disposable v7
 daemon fixture: Atlas creates the lease and dispatch intent, the Prime adapter

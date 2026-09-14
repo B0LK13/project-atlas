@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import socket
 import threading
@@ -254,6 +255,40 @@ def test_preflight_requires_a_source_bound_runtime_manifest(tmp_path: Path) -> N
     )
 
     with pytest.raises(AdapterUnavailableError, match="runtime_manifest"):
+        PrimeExecutorAdapter(str(fake)).preflight(profile)
+
+
+def test_preflight_rejects_a_non_isolating_existing_wrapper(tmp_path: Path) -> None:
+    fake = tmp_path / "prime-agent"
+    fake.write_text("#!/bin/sh\n", encoding="utf-8")
+    fake.chmod(0o755)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "upstream_sha": PRIME_UPSTREAM_SHA,
+                "source_commit_verified": True,
+                "executable": {
+                    "path": str(fake.resolve()),
+                    "sha256": hashlib.sha256(fake.read_bytes()).hexdigest(),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    profile = AgentProfile(
+        profile_id="prime",
+        agent_id="prime-agent",
+        adapter=AdapterKind.PRIME_AGENT,
+        capabilities=("IMPLEMENT",),
+        credential="NOT_APPLICABLE",
+        adapter_options={
+            "sandbox_argv": ["/bin/true"],
+            "runtime_manifest": str(manifest),
+        },
+    )
+
+    with pytest.raises(AdapterUnavailableError, match="Bubblewrap"):
         PrimeExecutorAdapter(str(fake)).preflight(profile)
 
 

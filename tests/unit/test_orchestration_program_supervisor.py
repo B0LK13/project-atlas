@@ -241,9 +241,6 @@ server.close()
         encoding="utf-8",
     )
     fake.chmod(0o755)
-    wrapper = tmp_path / "sandbox-wrapper.sh"
-    wrapper.write_text("#!/bin/sh\nexec \"$@\"\n", encoding="utf-8")
-    wrapper.chmod(0o755)
     runtime_manifest = tmp_path / "prime-runtime-manifest.json"
     runtime_manifest.write_text(
         json.dumps(
@@ -268,7 +265,43 @@ server.close()
         "adapter_options": {
             "executable": str(fake),
             "daemon_socket": str(tmp_path / "prime.sock"),
-            "sandbox_argv": [str(wrapper)],
+                # This control-plane fixture uses the same minimum isolation
+                # contract as the production adapter.  A pass-through shell
+                # wrapper would prove transport only while leaving the fake
+                # worker unsandboxed, so keep the fixture honest with the
+                # supported Bubblewrap launcher and narrowly scoped mounts.
+                "sandbox_argv": [
+                    "/usr/bin/bwrap",
+                    "--die-with-parent",
+                    "--new-session",
+                    "--unshare-all",
+                    "--proc",
+                    "/proc",
+                    "--dev",
+                    "/dev",
+                    "--tmpfs",
+                    "/tmp",
+                    "--ro-bind",
+                    "/usr",
+                    "/usr",
+                    "--ro-bind",
+                    "/bin",
+                    "/bin",
+                    "--ro-bind",
+                    "/lib",
+                    "/lib",
+                    "--ro-bind",
+                    "/lib64",
+                    "/lib64",
+                    "--ro-bind",
+                    "/etc",
+                    "/etc",
+                    "--bind",
+                    str(tmp_path),
+                    str(tmp_path),
+                    "--chdir",
+                    str(workspace),
+                ],
             "runtime_manifest": str(runtime_manifest),
         },
     }

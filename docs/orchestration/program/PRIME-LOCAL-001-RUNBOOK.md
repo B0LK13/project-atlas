@@ -38,9 +38,13 @@ The Prime-focused checks remain separately identifiable from this full suite.
 
 Use `adapter: "prime-agent"` in an Atlas profile and set
 `adapter_options.executable` to the pinned runner or release executable and
-`adapter_options.sandbox_argv` to the approved external sandbox wrapper.
-Prime preflight refuses to run without that wrapper; a worktree alone is not
-accepted as isolation.
+`adapter_options.sandbox_argv` to the reviewed Bubblewrap launch profile.
+On the unattended Linux path, Prime preflight requires the resolved launcher
+to be `/usr/bin/bwrap` and requires `--die-with-parent`, `--new-session`,
+`--unshare-all`, `--proc`, `--dev`, `--tmpfs`, `--ro-bind`, and `--chdir`.
+Arbitrary existing executables (including pass-through shell wrappers) are
+rejected; a worktree alone is not accepted as isolation. Deployment may add
+stricter mounts and limits, but may not remove this minimum contract.
 Also set `adapter_options.runtime_manifest` to the manifest produced by the
 pinned install. Preflight verifies its exact `upstream_sha` and
 `source_commit_verified` flag before any daemon or RPC launch.

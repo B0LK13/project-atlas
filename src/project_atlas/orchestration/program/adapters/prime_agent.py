@@ -49,6 +49,19 @@ PRIME_UPSTREAM_SHA: Final[str] = (
 DEFAULT_EXECUTABLE: Final[str] = "prime-agent"
 DEFAULT_MAX_FRAME_BYTES: Final[int] = 512 * 1024
 LOCAL_ONLY_MODES: Final[frozenset[str]] = frozenset({"local-only"})
+SUPPORTED_SANDBOX_LAUNCHER: Final[str] = "/usr/bin/bwrap"
+REQUIRED_BWRAP_OPTIONS: Final[frozenset[str]] = frozenset(
+    {
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-all",
+        "--proc",
+        "--dev",
+        "--tmpfs",
+        "--ro-bind",
+        "--chdir",
+    }
+)
 CHILD_ADMISSION_PATCH_ID: Final[str] = (
     "prime-agent-5d25a44-atlas-child-admission-v1"
 )
@@ -501,6 +514,32 @@ def _validate_runtime_manifest(
         raise AdapterUnavailableError(
             "Prime executable hash does not match runtime_manifest",
             code="RUNTIME_EXECUTABLE_MISMATCH",
+        )
+
+
+def _validate_sandbox_argv(sandbox_argv: list[str] | tuple[str, ...]) -> None:
+    """Require a concrete Linux sandbox with the minimum isolation controls.
+
+    Merely naming an executable is not an isolation boundary: ``/bin/true``
+    and a shell wrapper both satisfy that check while leaving Prime with the
+    supervisor's host authority. The supported unattended Linux profile is
+    Bubblewrap with namespace, lifecycle, scoped-mount, and working-directory
+    controls present in the actual argv. Deployment may add stricter mounts,
+    but it cannot remove these controls.
+    """
+    launcher = Path(shutil.which(sandbox_argv[0]) or sandbox_argv[0]).resolve()
+    if launcher != Path(SUPPORTED_SANDBOX_LAUNCHER):
+        raise AdapterUnavailableError(
+            "Prime unattended execution requires the approved Bubblewrap launcher",
+            code="UNAPPROVED_ISOLATION_WRAPPER",
+        )
+    options = set(sandbox_argv[1:])
+    missing = sorted(REQUIRED_BWRAP_OPTIONS - options)
+    if missing:
+        raise AdapterUnavailableError(
+            "Prime Bubblewrap sandbox is missing required isolation options: "
+            + ", ".join(missing),
+            code="INCOMPLETE_ISOLATION_CONFIGURATION",
         )
 
 
@@ -975,6 +1014,7 @@ class PrimeExecutorAdapter:
                 )
         resolved = self._resolve()
         _validate_runtime_manifest(profile, self.upstream_sha, resolved)
+        _validate_sandbox_argv(sandbox_argv)
         inference_mode = profile.adapter_options.get("inference_mode")
         if inference_mode in LOCAL_ONLY_MODES:
             endpoint = profile.adapter_options.get("local_endpoint")
