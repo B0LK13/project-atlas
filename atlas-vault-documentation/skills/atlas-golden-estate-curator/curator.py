@@ -18,7 +18,7 @@ import sys
 import unicodedata
 from pathlib import Path
 from typing import Any, Final
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 PACKAGE_ID: Final[str] = "ATLAS-GOLDEN-ESTATE-SKILL-001"
 SKILL_ID: Final[str] = "atlas-golden-estate-curator"
@@ -300,30 +300,36 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 _SCHEME_USERINFO_RE = re.compile(r":///*[^/@]*@")
-_CREDENTIAL_AT_RE = re.compile(r"[^/@:\s]+:[^/@\s]+@")
+_CREDENTIAL_AT_RE = re.compile(r"[^/@\s]*:[^/@\s]+@")
+_TOKENISH_RE = re.compile(
+    r"(?i)(ghp_|github_pat_|xox[baprs]-|sk-[a-z0-9_-]{8,}|glpat-|gho_|ghu_)"
+)
+_COLON_LOOKALIKES = ("\u2236", "\ua789", "\u02d0", "\uff1a")
 
 
 def _redact_remote_url(url: str) -> str:
     """Return a remote locator with userinfo stripped. Never echo credentials.
 
-    Always removes ``user:secret@`` (including before a later ``://``). Extra
-    slashes and NFKC-lookalike separators are normalized. ``urlsplit``
-    ValueError must never escape with the raw URL in the message.
+    Fail closed: leftover token-shaped text after stripping is replaced, not
+    copied onto inventory. ``urlsplit`` ValueError never escapes with the URL.
     """
     text = unicodedata.normalize("NFKC", url.strip())
+    for lookalike in _COLON_LOOKALIKES:
+        text = text.replace(lookalike, ":")
+    text = unquote(text)
     text = _CREDENTIAL_AT_RE.sub("", text)
-    if "://" in text:
-        cleaned = _SCHEME_USERINFO_RE.sub("://", text, count=1)
-        try:
-            parts = urlsplit(cleaned)
-        except ValueError:
-            return "redacted-invalid-remote"
-        if parts.username is not None or parts.password is not None:
-            host = parts.hostname or ""
-            if parts.port:
-                host = f"{host}:{parts.port}"
-            return urlunsplit((parts.scheme, host, parts.path, parts.query, parts.fragment))
-        return cleaned
+    text = _SCHEME_USERINFO_RE.sub("://", text, count=1)
+    if _TOKENISH_RE.search(text) or re.search(r":[^/@\s]{8,}@", text):
+        return "redacted-secret-shaped-remote"
+    try:
+        parts = urlsplit(text) if "://" in text else None
+    except ValueError:
+        return "redacted-invalid-remote"
+    if parts is not None and (parts.username is not None or parts.password is not None):
+        host = parts.hostname or ""
+        if parts.port:
+            host = f"{host}:{parts.port}"
+        return urlunsplit((parts.scheme, host, parts.path, parts.query, parts.fragment))
     at = text.rfind("@")
     if at > 0 and ":" in text[:at]:
         return "redacted-userinfo@" + text[at + 1 :]

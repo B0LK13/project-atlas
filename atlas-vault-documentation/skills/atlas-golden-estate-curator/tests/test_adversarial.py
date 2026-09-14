@@ -248,3 +248,26 @@ def test_fullwidth_at_userinfo_does_not_crash_or_echo(tmp_path: Path) -> None:
     assert TOKEN not in blob
     item = next(row for row in report["inventory"] if row["name"] == "fullwidth")
     assert TOKEN not in (item["remote"] or "")
+
+
+def test_empty_user_prescheme_token_is_not_echoed(tmp_path: Path) -> None:
+    estate = tmp_path / "estate"
+    project = estate / "emptyuser"
+    _init_repo(project, readme="# Empty user\n")
+    _git(
+        project,
+        "remote",
+        "add",
+        "origin",
+        f":{TOKEN}@https://github.com/example/empty.git",
+    )
+    report = curate(estate, output=tmp_path / "emptyuser.json")
+    blob = json_blob(report)
+    assert TOKEN not in blob
+    item = next(row for row in report["inventory"] if row["name"] == "emptyuser")
+    assert TOKEN not in (item["remote"] or "")
+    assert item["remote"] in {
+        "https://github.com/example/empty.git",
+        "redacted-secret-shaped-remote",
+        "redacted-userinfo@https://github.com/example/empty.git",
+    }
