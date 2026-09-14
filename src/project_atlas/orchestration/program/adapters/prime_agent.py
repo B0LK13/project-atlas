@@ -822,6 +822,51 @@ def _validate_sandbox_argv(sandbox_argv: list[str] | tuple[str, ...]) -> None:
             )
 
 
+def _resolve_trusted_policy(profile: AgentProfile, workspace: Path | None) -> Path | None:
+    """Validate the optional trusted-policy binding and resolve its path.
+
+    ``policy_path`` binds a policy file the worker must never be able to
+    rewrite, so it has to live OUTSIDE the worker-writable workspace; a path
+    inside the resolved workspace is refused, mirroring the evidence-path
+    containment style (resolve both ends, reject ``is_relative_to``). The
+    workspace half needs the mission workspace, which only exists at dispatch:
+    ``preflight`` passes ``None`` and validates the static shape, ``run``
+    re-validates against ``request.workspace`` before anything is started.
+
+    Returns the resolved path, or ``None`` when the profile configures no
+    policy — honest absence, not invention.
+    """
+    raw = profile.adapter_options.get("policy_path")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw:
+        raise AdapterUnavailableError(
+            "adapter_options.policy_path must name a trusted policy file",
+            code="TRUSTED_POLICY_INVALID",
+        )
+    resolved = Path(raw).resolve()
+    if not resolved.is_file():
+        raise AdapterUnavailableError(
+            "trusted policy file is missing or is not a regular file",
+            code="TRUSTED_POLICY_UNREADABLE",
+        )
+    try:
+        with resolved.open("rb"):
+            pass
+    except OSError as exc:
+        raise AdapterUnavailableError(
+            "trusted policy file is not readable",
+            code="TRUSTED_POLICY_UNREADABLE",
+        ) from exc
+    if workspace is not None and resolved.is_relative_to(workspace.resolve()):
+        raise AdapterUnavailableError(
+            "trusted policy file must live outside the worker-writable "
+            "workspace; refusing a policy path inside the resolved workspace",
+            code="TRUSTED_POLICY_CONTAINMENT_REFUSAL",
+        )
+    return resolved
+
+
 class PrimeDaemonClient:
     """Small client for Prime's public daemon protocol.
 
@@ -1339,6 +1384,10 @@ class PrimeExecutorAdapter:
         resolved = self._resolve()
         _validate_runtime_manifest(profile, self.upstream_sha, resolved)
         _validate_sandbox_argv(sandbox_argv)
+        # Trusted-policy static half: readability and regular-file shape. The
+        # workspace-containment half needs the mission workspace, which only
+        # exists at dispatch, so `run` re-validates before launch.
+        _resolve_trusted_policy(profile, None)
         provider = profile.adapter_options.get("provider")
         if not isinstance(provider, str) or not provider.strip() or not profile.model:
             raise AdapterUnavailableError(
@@ -1553,9 +1602,20 @@ class PrimeExecutorAdapter:
 
     def _run_resident(self, request: AdapterRequest) -> AdapterOutcome:
         started = time.monotonic()
+        # Full trusted-policy validation happens here, before any side effect:
+        # this is the first point that knows the resolved mission workspace, and
+        # containment is what makes the binding meaningful. The hash is what
+        # the attempt metadata records; absent configuration stays absent.
+        policy_path = _resolve_trusted_policy(request.profile, request.workspace)
+        policy_hash = (
+            hashlib.sha256(policy_path.read_bytes()).hexdigest()
+            if policy_path is not None
+            else None
+        )
         request.evidence_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = request.evidence_dir / f"{request.attempt_id}.prime-daemon.jsonl"
         metadata_path = request.evidence_dir / f"{request.attempt_id}.prime-daemon.json"
+        capture_path = request.evidence_dir / "prime-knowledge-capture.jsonl"
         env = build_child_env(request.profile, extra=dict(request.extra_env))
         agent_dir = request.evidence_dir / "prime-config"
         session_dir = request.evidence_dir / "prime-sessions"
@@ -1628,6 +1688,11 @@ class PrimeExecutorAdapter:
         estimated_cost_usd: float | None = None
         active_session_id: str | None = request.resume_session_id
         failure: FailureClass | None = None
+        # Defaults the finally-block capture event can read even when an
+        # uncaught exception propagates; the try/except arms overwrite them on
+        # every path that reaches the outcome, so behaviour is unchanged.
+        terminal = "adapter_error"
+        confidence = ExecutionConfidence.FAILED
         try:
             daemon_pid = self._ensure_daemon(
                 request,
@@ -1752,7 +1817,9 @@ class PrimeExecutorAdapter:
                         "daemon_process_start_identity": daemon_process_start_identity,
                         "last_event_cursor": client.last_event_cursor,
                         "lease_fencing_identity": None,
-                        "policy_hash": None,
+                        # Bound trusted-policy digest, or None when the profile
+                        # configures no policy: honest absence, not invention.
+                        "policy_hash": policy_hash,
                         "deadline_seconds": request.timeout_seconds,
                         "budget_reserved": None,
                         "budget_consumed": None,
@@ -1773,6 +1840,36 @@ class PrimeExecutorAdapter:
                 + "\n",
                 encoding="utf-8",
             )
+            # Knowledge capture is LOCAL EVIDENCE ONLY, never a canonical
+            # receipt: sync_state says so explicitly and the Knowledge Plane
+            # receipt row stays OPEN. Ordering is derived from the journaled
+            # transcript (event_seq), not wall clock, matching this module's
+            # timestamp-free evidence; the write stays inside evidence_dir.
+            capture_event = {
+                "event_id": f"KE-{request.attempt_id}",
+                "recorded_at": None,
+                "event_seq": len(client.records),
+                "adapter": ADAPTER_ID,
+                "mission_id": request.program_id,
+                "task_id": request.task_id,
+                "attempt_id": request.attempt_id,
+                "candidate_sha": candidate_sha,
+                "tree_sha": tree_sha,
+                "workspace_identity": str(request.workspace.resolve()),
+                "prime_session_id": request.resume_session_id,
+                "prime_active_session_id": active_session_id,
+                "outcome": terminal,
+                "stop_reason": failure.value if failure is not None else None,
+                "sync_state": "pending_local_evidence_not_canonical",
+            }
+            capture_path.touch(mode=0o600, exist_ok=True)
+            os.chmod(capture_path, 0o600)
+            with capture_path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(capture_event, ensure_ascii=False, sort_keys=True) + "\n"
+                )
+                stream.flush()
+                os.fsync(stream.fileno())
             client.close()
             if broker is not None:
                 broker.close()
@@ -1791,7 +1888,7 @@ class PrimeExecutorAdapter:
             usage=usage,
             estimated_cost_usd=estimated_cost_usd,
             evidence=tuple(
-                [transcript_path.name, metadata_path.name]
+                [transcript_path.name, metadata_path.name, capture_path.name]
                 + ([broker.journal_path.name] if broker is not None else [])
             ),
             failure_class=failure,
