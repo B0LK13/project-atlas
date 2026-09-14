@@ -222,20 +222,29 @@ def _load_portfolio_freshness(vault: Path) -> dict[str, str]:
 
 def _load_unresolved_claim_conflicts(
     vault: Path,
-) -> tuple[dict[str, list[str]], dict[str, dict[str, Any]]]:
-    """Map claim_id → conflict_ids and conflict_id → unresolved record metadata."""
+) -> tuple[dict[str, list[str]], dict[str, dict[str, Any]], str]:
+    """Map claim_id → conflict_ids and conflict_id → unresolved record metadata.
+
+    Present-but-unreadable or schema-invalid overlay files set integrity to
+    ``unreadable``. Callers must not treat that as a healthy empty overlay
+    (AS-ASK2-UNREADABLE-CONFLICTS-001). Missing ``review/conflicts`` is
+    absent, not corrupt.
+    """
     root = vault / "review" / "conflicts"
     claim_map: dict[str, set[str]] = {}
     conflict_records: dict[str, dict[str, Any]] = {}
+    integrity = "ok"
     if not root.is_dir():
-        return {}, {}
+        return {}, {}, integrity
     for path in sorted(root.glob("*.json")):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
+            integrity = "unreadable"
             continue
         entries = raw.get("entries") if isinstance(raw, dict) else None
         if not isinstance(entries, list):
+            integrity = "unreadable"
             continue
         for entry in entries:
             if not isinstance(entry, dict):
@@ -265,6 +274,7 @@ def _load_unresolved_claim_conflicts(
     return (
         {cid: sorted(ids) for cid, ids in sorted(claim_map.items())},
         dict(sorted(conflict_records.items())),
+        integrity,
     )
 
 
@@ -570,9 +580,10 @@ def compile_context(
     portfolio = _load_portfolio_freshness(vault_path) if p2 else {}
     claim_conflicts: dict[str, list[str]] = {}
     conflict_records: dict[str, dict[str, Any]] = {}
+    conflicts_overlay = "ok"
     if p2:
-        claim_conflicts, conflict_records = _load_unresolved_claim_conflicts(
-            vault_path
+        claim_conflicts, conflict_records, conflicts_overlay = (
+            _load_unresolved_claim_conflicts(vault_path)
         )
 
     selected: list[dict[str, Any]] = []
@@ -777,6 +788,10 @@ def compile_context(
             pipeline_receipt["excluded_conflict_ids"] = sorted(
                 excluded_conflict_ids_seen
             )
+        if conflicts_overlay == "unreadable":
+            # Optional field: omit on the healthy path so existing goldens
+            # stay byte-identical (AS-ASK2-UNREADABLE-CONFLICTS-001).
+            pipeline_receipt["conflicts_overlay"] = "unreadable"
         package["pipeline_receipt"] = pipeline_receipt
 
     if write:

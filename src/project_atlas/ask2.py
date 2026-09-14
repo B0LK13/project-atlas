@@ -615,7 +615,18 @@ def ask_atlas_2(
     else:
         status = "known"
 
+    receipt = package.get("pipeline_receipt")
+    overlay = ""
+    if isinstance(receipt, dict):
+        overlay = str(receipt.get("conflicts_overlay") or "")
+    if overlay == "unreadable" and status == "known":
+        # Corrupt conflict overlay must not launder CONFLICT into KNOWN.
+        # AS-ASK2-UNREADABLE-CONFLICTS-001
+        status = "unknown"
+
     unknown_reasons: list[str] = []
+    if overlay == "unreadable" and status == "unknown":
+        unknown_reasons.append("conflicts-overlay-unreadable")
     if not entries:
         unknown_reasons.append("no-grounded-evidence")
         if not required_terms:
