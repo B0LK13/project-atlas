@@ -106,6 +106,21 @@ the exact patch hash. The broker binds the Atlas agent role and a hash of the
 resolved workspace/tool/mutation scope. An unpatched, unmanifested, or
 incompletely budgeted runtime is refused before launch.
 
+The same block must also pin the child authority surface, and preflight fails
+closed without it: `child_admission.child_models` (non-empty allow-list of
+model ids a child may resolve; every reserve names its model and an
+unlisted or missing model is refused before any child session exists),
+and `child_admission.max_child_depth` (integer >= 1, default 1, so depth 0
+only unless raised). Each admitted reserve returns a journaled fencing
+token that the runtime echoes on commit and release; a missing or mismatched
+token is refused. Identical reserve retries deduplicate to the existing
+admission without spending a second slot or budget unit, which is also the
+uncertain-outcome recovery path. Denials are journaled before they are
+answered, the first-seen parent session binding wins, and the cumulative
+budget is never refunded. `adapter_options.policy_path` may bind a trusted
+policy file; it must live outside the worker-writable workspace, and its
+sha256 is recorded as `policy_hash` in the attempt metadata.
+
 For a local inference profile, set `adapter_options.inference_mode` to
 `local-only`, provide `local_endpoint`, `provider`, and `model`, and use a
 `NOT_APPLICABLE` credential with an empty environment allow-list. Preflight
