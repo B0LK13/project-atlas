@@ -291,24 +291,36 @@ def _count_scoped_entries(
     return count
 
 
-def _pending_review_count(vault: Path, project_id: str) -> int:
-    path = vault / "review" / "pending" / f"{project_id}.json"
-    payload = _read_json(path)
+def _pending_review_count(vault: Path, project_id: str) -> tuple[int, bool]:
+    """Count pending reviews. Unreadable scoped queue does not fall back.
+
+    Missing ``review/pending/<project>.json`` may still use the global
+    ``review/pending.json`` file (scoped by entry owner). A *present but
+    unreadable* scoped file must not resurrect stale global rows
+    (AS-ROADMAP-UNREADABLE-PENDING-FALLBACK-001 / D-047).
+    """
+    scoped_path = vault / "review" / "pending" / f"{project_id}.json"
+    scoped_present = scoped_path.is_file()
+    payload = _read_json(scoped_path)
+    if scoped_present and payload is None:
+        return 0, True
     file_is_project_scoped = payload is not None
     if not payload:
-        path = vault / "review" / "pending.json"
-        payload = _read_json(path)
+        payload = _read_json(vault / "review" / "pending.json")
         file_is_project_scoped = False
     if not payload:
-        return 0
+        return 0, False
     entries = payload.get("entries")
     if not isinstance(entries, list):
-        return 0
-    return _count_scoped_entries(
-        entries,
-        project_id,
-        file_is_project_scoped=file_is_project_scoped,
-        pending_only=True,
+        return 0, False
+    return (
+        _count_scoped_entries(
+            entries,
+            project_id,
+            file_is_project_scoped=file_is_project_scoped,
+            pending_only=True,
+        ),
+        False,
     )
 
 
@@ -860,7 +872,7 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
         for item in items:
             item["critical_path"] = False
 
-    pending_reviews = _pending_review_count(vault, project_id)
+    pending_reviews, pending_unreadable = _pending_review_count(vault, project_id)
     conflicts = _conflict_count(vault, project_id)
     extra_blockers: list[dict[str, Any]] = []
     if pending_reviews:
@@ -897,6 +909,8 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
         unknowns.append("multiple equal-length critical paths")
     if pending_reviews:
         unknowns.append("pending reviews")
+    if pending_unreadable:
+        unknowns.append("pending_queue=unreadable")
     if conflicts:
         unknowns.append("unresolved conflicts")
     if unknown_lens and unknown_lens.get("status") == "unknown":
@@ -979,6 +993,11 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "MERGED!=CLOSED",
             "IMPLEMENTED!=VERIFIED",
             "percent_complete_is_canonical=false",
+            *(
+                ["pending-queue-unreadable; no global pending.json fallback"]
+                if pending_unreadable
+                else []
+            ),
         ],
         "lifecycle_vocabulary": list(LIFECYCLES),
         "progress_vocabulary": list(ITEM_STATUSES),
@@ -993,6 +1012,7 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "merged_eq_closed": False,
             "implemented_eq_verified": False,
             "multiple_critical_paths": multiple_critical_paths,
+            "pending_queue_unreadable": pending_unreadable,
             "dogfood_local_vault_executed": False,
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
