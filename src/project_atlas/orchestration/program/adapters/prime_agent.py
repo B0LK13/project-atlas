@@ -20,6 +20,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Final
 from urllib.error import URLError
@@ -153,6 +154,8 @@ class PrimeChildAdmissionBroker:
         max_child_seconds: int,
         max_child_tokens: int | None,
         max_budget_seconds: int,
+        child_models: list[str],
+        max_child_depth: int = 1,
         journal_path: Path | None = None,
         candidate_sha: str | None = None,
         tree_sha: str | None = None,
@@ -165,6 +168,20 @@ class PrimeChildAdmissionBroker:
             raise ValueError("max_child_tokens must be positive")
         if not role or len(scope_hash) != 64:
             raise ValueError("child admission role and scope are required")
+        # Fail closed: admission without an explicit model allowlist or with a
+        # non-positive recursion depth is a configuration error, not a default.
+        if (
+            not isinstance(child_models, list)
+            or not child_models
+            or any(not isinstance(model, str) or not model.strip() for model in child_models)
+        ):
+            raise ValueError("child_models must be a non-empty list of model names")
+        if (
+            not isinstance(max_child_depth, int)
+            or isinstance(max_child_depth, bool)
+            or max_child_depth < 1
+        ):
+            raise ValueError("max_child_depth must be an integer >= 1")
         self.socket_path = socket_path
         self.journal_path = journal_path or socket_path.with_suffix(".jsonl")
         self.candidate_sha = candidate_sha
@@ -180,6 +197,9 @@ class PrimeChildAdmissionBroker:
         self.max_child_seconds = max_child_seconds
         self.max_child_tokens = max_child_tokens
         self.max_budget_seconds = max_budget_seconds
+        self.child_models = list(child_models)
+        self.max_child_depth = max_child_depth
+        self._fencing_token = 0
         self._reserved_budget_seconds = 0
         self.cancel_requested = cancel_requested
         self.records: list[dict[str, Any]] = []
@@ -248,6 +268,58 @@ class PrimeChildAdmissionBroker:
             stream.flush()
             os.fsync(stream.fileno())
 
+    def _deny(
+        self, request: dict[str, Any], *, code: str, message: str
+    ) -> dict[str, Any]:
+        """Refuse a request after journaling the denial (fsync) for audit."""
+        phase = request.get("phase")
+        entry = {
+            "phase": phase if isinstance(phase, str) else None,
+            "denial": code,
+            "reason": message,
+            "request_digest": hashlib.sha256(
+                json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()[:24],
+        }
+        # The wire denial below still fails closed even if the audit journal
+        # itself cannot be written.
+        with suppress(OSError):
+            self._journal("denied", entry)
+        return {"ok": False, "denial": code, "error": message}
+
+    def _bind_parent_session(self, request: dict[str, Any]) -> dict[str, Any] | None:
+        """Match or adopt the parent session binding; first-seen wins.
+
+        While ``parent_session_id`` is unbound (the Atlas session id is only
+        known after the daemon answers ``create``), the first request's value
+        becomes the binding; later mismatches are refused.
+        """
+        incoming = request.get("parent_session_id")
+        if self.parent_session_id:
+            if incoming != self.parent_session_id:
+                return self._deny(
+                    request,
+                    code="BINDING_REFUSAL",
+                    message="child admission binding mismatch: parent_session_id",
+                )
+            return None
+        if not isinstance(incoming, str) or not incoming:
+            return self._deny(
+                request,
+                code="BINDING_REFUSAL",
+                message="child admission requires a parent session binding",
+            )
+        self.parent_session_id = incoming
+        try:
+            self._journal("parent_bound", {"parent_session_id": incoming})
+        except OSError:
+            return self._deny(
+                request,
+                code="JOURNAL_REFUSAL",
+                message="child admission parent binding could not be journaled",
+            )
+        return None
+
     def _serve(self) -> None:
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._server = server
@@ -288,51 +360,135 @@ class PrimeChildAdmissionBroker:
             response = self._handle(records[0])
         except (OSError, PrimeFrameError, ValueError) as exc:
             response = {"ok": False, "error": str(exc)[:512]}
-        connection.sendall(
-            (json.dumps(response, ensure_ascii=False, sort_keys=True) + "\n").encode()
-        )
+        # The client vanished before the reply; the decision is already
+        # journaled, and the retry will be answered from the journal path.
+        with suppress(OSError):
+            connection.sendall(
+                (json.dumps(response, ensure_ascii=False, sort_keys=True) + "\n").encode()
+            )
 
     def _handle(self, request: dict[str, Any]) -> dict[str, Any]:
         if request.get("protocol") != "atlas-prime-child-admission":
-            raise ValueError("unsupported child admission protocol")
+            return self._deny(
+                request, code="PROTOCOL_REFUSAL", message="unsupported child admission protocol"
+            )
         if request.get("version") != self.protocol_version:
-            raise ValueError("unsupported child admission version")
+            return self._deny(
+                request, code="PROTOCOL_REFUSAL", message="unsupported child admission version"
+            )
         for key, expected in (
             ("mission_id", self.mission_id),
             ("task_id", self.task_id),
             ("attempt_id", self.attempt_id),
-            ("parent_session_id", self.parent_session_id),
             ("role", self.role),
             ("scope_hash", self.scope_hash),
         ):
             if expected and request.get(key) != expected:
-                raise ValueError(f"child admission binding mismatch: {key}")
+                return self._deny(
+                    request,
+                    code="BINDING_REFUSAL",
+                    message=f"child admission binding mismatch: {key}",
+                )
         if self.cancel_requested is not None and self.cancel_requested():
-            raise ValueError("child admission stopped by Atlas")
+            return self._deny(
+                request, code="CANCELLED", message="child admission stopped by Atlas"
+            )
+        parent_denial = self._bind_parent_session(request)
+        if parent_denial is not None:
+            return parent_denial
         phase = request.get("phase")
         if phase == "reserve":
             name = request.get("name")
             prompt_digest = request.get("prompt_sha256")
             if not isinstance(name, str) or not name.strip():
-                raise ValueError("child name is required")
+                return self._deny(
+                    request, code="NAME_REFUSAL", message="child name is required"
+                )
             if not isinstance(prompt_digest, str) or len(prompt_digest) != 64:
-                raise ValueError("child prompt digest is required")
+                return self._deny(
+                    request, code="PROMPT_REFUSAL", message="child prompt digest is required"
+                )
             if request.get("max_child_seconds") != self.max_child_seconds:
-                raise ValueError("child deadline does not match Atlas reservation")
+                return self._deny(
+                    request,
+                    code="DEADLINE_REFUSAL",
+                    message="child deadline does not match Atlas reservation",
+                )
             if request.get("max_child_tokens") != self.max_child_tokens:
-                raise ValueError("child token limit does not match Atlas reservation")
+                return self._deny(
+                    request,
+                    code="TOKEN_REFUSAL",
+                    message="child token limit does not match Atlas reservation",
+                )
+            # MODEL_REFUSAL / RECURSION_REFUSAL: children only run explicitly
+            # admitted models and must stay below the admitted recursion depth.
+            model = request.get("model")
+            if not isinstance(model, str) or not model.strip() or model not in self.child_models:
+                return self._deny(
+                    request,
+                    code="MODEL_REFUSAL",
+                    message="child model is not admitted by Atlas",
+                )
+            depth = request.get("depth")
+            if (
+                not isinstance(depth, int)
+                or isinstance(depth, bool)
+                or not 0 <= depth < self.max_child_depth
+            ):
+                return self._deny(
+                    request,
+                    code="RECURSION_REFUSAL",
+                    message="child depth exceeds the admitted recursion budget",
+                )
+            request_hash = hashlib.sha256(
+                json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            admission_id = request_hash[:24]
+            # Request dedup: an identical reserve for an still-active admission
+            # re-answers with the existing identity instead of double-spending
+            # a slot or budget; only a `reserve_retry` audit event is written.
+            for record in self.records:
+                if record["request_hash"] == request_hash and record["phase"] in {
+                    "reserved",
+                    "committed",
+                }:
+                    with suppress(OSError):
+                        self._journal(
+                            "reserve_retry",
+                            {
+                                "admission_id": admission_id,
+                                "request_hash": request_hash,
+                                "phase": record["phase"],
+                            },
+                        )
+                    return {
+                        "ok": True,
+                        "admission_id": admission_id,
+                        "fencing_token": record["fencing_token"],
+                        "max_depth": self.max_child_depth,
+                    }
             if not self._slots.acquire(blocking=False):
-                raise ValueError("Atlas child capacity is exhausted")
+                return self._deny(
+                    request,
+                    code="CAPACITY_REFUSAL",
+                    message="Atlas child capacity is exhausted",
+                )
             if self._reserved_budget_seconds + self.max_child_seconds > self.max_budget_seconds:
                 self._slots.release()
-                raise ValueError("Atlas child budget is exhausted")
+                return self._deny(
+                    request,
+                    code="BUDGET_REFUSAL",
+                    message="Atlas child budget is exhausted",
+                )
             self._reserved_budget_seconds += self.max_child_seconds
-            admission_id = hashlib.sha256(
-                json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
-            ).hexdigest()[:24]
+            self._fencing_token += 1
             record = {
                 "admission_id": admission_id,
+                "request_hash": request_hash,
+                "fencing_token": self._fencing_token,
                 "name": name,
+                "model": model,
+                "depth": depth,
                 "prompt_sha256": prompt_digest,
                 "phase": "reserved",
                 "role": self.role,
@@ -346,10 +502,20 @@ class PrimeChildAdmissionBroker:
                 self._journal("reserved", record)
             except OSError:
                 self._reserved_budget_seconds -= self.max_child_seconds
+                self._fencing_token -= 1
                 self._slots.release()
-                raise
+                return self._deny(
+                    request,
+                    code="JOURNAL_REFUSAL",
+                    message="child admission could not be journaled",
+                )
             self.records.append(record)
-            return {"ok": True, "admission_id": admission_id, "max_depth": 1}
+            return {
+                "ok": True,
+                "admission_id": admission_id,
+                "fencing_token": self._fencing_token,
+                "max_depth": self.max_child_depth,
+            }
         if phase == "commit":
             raw_admission_id = request.get("admission_id")
             child_id = request.get("child_id")
@@ -358,24 +524,64 @@ class PrimeChildAdmissionBroker:
                 isinstance(item, str) and item
                 for item in (raw_admission_id, child_id, session_dir)
             ):
-                raise ValueError("child commit identity is incomplete")
+                return self._deny(
+                    request,
+                    code="IDENTITY_REFUSAL",
+                    message="child commit identity is incomplete",
+                )
+            fencing_token = request.get("fencing_token")
+            if not isinstance(fencing_token, int) or isinstance(fencing_token, bool):
+                return self._deny(
+                    request,
+                    code="FENCING_REFUSED",
+                    message="child commit fencing token is missing or malformed",
+                )
             admission_id = str(raw_admission_id)
             child_id = str(child_id)
             session_dir = str(session_dir)
             for record in self.records:
                 if record["admission_id"] == admission_id:
+                    if record["fencing_token"] != fencing_token:
+                        return self._deny(
+                            request,
+                            code="FENCING_REFUSED",
+                            message="child commit fencing token mismatch",
+                        )
+                    if record["phase"] == "committed":
+                        # Idempotent retry: same child under the same fencing
+                        # token re-acknowledges instead of erroring.
+                        if record.get("child_id") == child_id:
+                            return {"ok": True}
+                        return self._deny(
+                            request,
+                            code="STATE_REFUSAL",
+                            message="child admission is already committed to another child",
+                        )
                     if record["phase"] != "reserved":
-                        raise ValueError("child admission is not reservable")
+                        return self._deny(
+                            request,
+                            code="STATE_REFUSAL",
+                            message="child admission is not reservable",
+                        )
                     updated = {
                         **record,
                         "phase": "committed",
                         "child_id": child_id,
                         "session_dir": session_dir,
                     }
-                    self._journal("committed", updated)
+                    try:
+                        self._journal("committed", updated)
+                    except OSError:
+                        return self._deny(
+                            request,
+                            code="JOURNAL_REFUSAL",
+                            message="child commit could not be journaled",
+                        )
                     record.update(updated)
                     return {"ok": True}
-            raise ValueError("unknown child admission")
+            return self._deny(
+                request, code="IDENTITY_REFUSAL", message="unknown child admission"
+            )
         if phase == "release":
             raw_admission_id = request.get("admission_id")
             status = request.get("status")
@@ -384,18 +590,53 @@ class PrimeChildAdmissionBroker:
                 "error",
                 "cancelled",
             }:
-                raise ValueError("child release is malformed")
+                return self._deny(
+                    request, code="RELEASE_REFUSAL", message="child release is malformed"
+                )
+            fencing_token = request.get("fencing_token")
+            if not isinstance(fencing_token, int) or isinstance(fencing_token, bool):
+                return self._deny(
+                    request,
+                    code="FENCING_REFUSED",
+                    message="child release fencing token is missing or malformed",
+                )
             admission_id = raw_admission_id
             for record in self.records:
                 if record["admission_id"] == admission_id:
-                    if record["phase"] != "released":
-                        updated = {**record, "phase": "released", "status": status}
+                    if record["fencing_token"] != fencing_token:
+                        return self._deny(
+                            request,
+                            code="FENCING_REFUSED",
+                            message="child release fencing token mismatch",
+                        )
+                    if record["phase"] == "released":
+                        # Idempotent retry: same terminal status under the same
+                        # fencing token re-acknowledges; the slot stays freed.
+                        if record.get("status") == status:
+                            return {"ok": True}
+                        return self._deny(
+                            request,
+                            code="STATE_REFUSAL",
+                            message="child admission is already released with another status",
+                        )
+                    updated = {**record, "phase": "released", "status": status}
+                    try:
                         self._journal("released", updated)
-                        record.update(updated)
-                        self._slots.release()
+                    except OSError:
+                        return self._deny(
+                            request,
+                            code="JOURNAL_REFUSAL",
+                            message="child release could not be journaled",
+                        )
+                    record.update(updated)
+                    self._slots.release()
                     return {"ok": True}
-            raise ValueError("unknown child admission")
-        raise ValueError("unsupported child admission phase")
+            return self._deny(
+                request, code="IDENTITY_REFUSAL", message="unknown child admission"
+            )
+        return self._deny(
+            request, code="PHASE_REFUSAL", message="unsupported child admission phase"
+        )
 
 
 def probe_local_model_endpoint(endpoint: str, *, timeout_seconds: float = 2.0) -> dict[str, Any]:
@@ -1053,6 +1294,29 @@ class PrimeExecutorAdapter:
                     "host-side admission hook and a daemon-backed session",
                     code="CHILD_ADMISSION_UNAVAILABLE",
                 )
+            child_models = child_admission.get("child_models")
+            if (
+                not isinstance(child_models, list)
+                or not child_models
+                or any(
+                    not isinstance(model, str) or not model.strip() for model in child_models
+                )
+            ):
+                raise AdapterUnavailableError(
+                    "Prime native children require an explicit non-empty "
+                    "child_models allowlist",
+                    code="CHILD_MODELS_REQUIRED",
+                )
+            max_child_depth = child_admission.get("max_child_depth", 1)
+            if (
+                not isinstance(max_child_depth, int)
+                or isinstance(max_child_depth, bool)
+                or max_child_depth < 1
+            ):
+                raise AdapterUnavailableError(
+                    "Prime child_admission max_child_depth must be an integer >= 1",
+                    code="INVALID_CHILD_DEPTH",
+                )
         resolved = self._resolve()
         _validate_runtime_manifest(profile, self.upstream_sha, resolved)
         _validate_sandbox_argv(sandbox_argv)
@@ -1299,6 +1563,8 @@ class PrimeExecutorAdapter:
                     else None
                 ),
                 max_budget_seconds=int(child_options["max_budget_seconds"]),
+                child_models=[str(model) for model in child_options["child_models"]],
+                max_child_depth=int(child_options.get("max_child_depth", 1)),
                 journal_path=request.evidence_dir
                 / f"{request.attempt_id}.child-admission.jsonl",
                 candidate_sha=candidate_sha,
@@ -1733,7 +1999,14 @@ def _valid_child_journal_lines(
             )
         ):
             return False
-        if entry.get("event") not in {"reserved", "committed", "released"}:
+        if entry.get("event") not in {
+            "reserved",
+            "reserve_retry",
+            "parent_bound",
+            "committed",
+            "released",
+            "denied",
+        }:
             return False
         found = True
     return found

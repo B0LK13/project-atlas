@@ -139,6 +139,7 @@ def test_child_admission_broker_binds_and_accounts_native_children(tmp_path: Pat
         max_child_seconds=10,
         max_child_tokens=100,
         max_budget_seconds=10,
+        child_models=["fixture-model"],
         candidate_sha="c" * 40,
         tree_sha="d" * 40,
         workspace_identity="/mission/workspace",
@@ -164,31 +165,51 @@ def test_child_admission_broker_binds_and_accounts_native_children(tmp_path: Pat
         "scope_hash": "b" * 64,
         "max_child_seconds": 10,
         "max_child_tokens": 100,
+        "model": "fixture-model",
+        "depth": 0,
     }
+    reserve_payload = {**base, "phase": "reserve", "name": "review", "prompt_sha256": "a" * 64}
+    request_hash = hashlib.sha256(
+        json.dumps(reserve_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     try:
-        reserved = call({**base, "phase": "reserve", "name": "review", "prompt_sha256": "a" * 64})
+        reserved = call(reserve_payload)
         assert reserved["ok"] is True
         admission_id = reserved["admission_id"]
-        assert call(
-            {**base, "phase": "reserve", "name": "second", "prompt_sha256": "b" * 64}
-        )["ok"] is False
+        fencing_token = reserved["fencing_token"]
+        assert admission_id == request_hash[:24]
+        assert fencing_token == 1
+        denied = call({**base, "phase": "reserve", "name": "second", "prompt_sha256": "b" * 64})
+        assert denied["ok"] is False
+        assert denied["denial"] == "CAPACITY_REFUSAL"
         assert call({
             **base,
             "phase": "commit",
             "admission_id": admission_id,
             "child_id": "sub-1",
             "session_dir": "/mission/sub-1",
+            "fencing_token": fencing_token,
         })["ok"] is True
         assert call(
-            {**base, "phase": "release", "admission_id": admission_id, "status": "done"}
+            {
+                **base,
+                "phase": "release",
+                "admission_id": admission_id,
+                "status": "done",
+                "fencing_token": fencing_token,
+            }
         )["ok"] is True
-        assert call(
-            {**base, "phase": "reserve", "name": "third", "prompt_sha256": "c" * 64}
-        )["ok"] is False
+        third = call({**base, "phase": "reserve", "name": "third", "prompt_sha256": "c" * 64})
+        assert third["ok"] is False
+        assert third["denial"] == "BUDGET_REFUSAL"
         assert broker.records == [
             {
                 "admission_id": admission_id,
+                "request_hash": request_hash,
+                "fencing_token": 1,
                 "name": "review",
+                "model": "fixture-model",
+                "depth": 0,
                 "prompt_sha256": "a" * 64,
                 "phase": "released",
                 "child_id": "sub-1",
@@ -205,8 +226,10 @@ def test_child_admission_broker_binds_and_accounts_native_children(tmp_path: Pat
         ]
         assert [entry["event"] for entry in journal] == [
             "reserved",
+            "denied",
             "committed",
             "released",
+            "denied",
         ]
         assert all(entry["attempt_id"] == "attempt-1" for entry in journal)
         assert all(entry["candidate_sha"] == "c" * 40 for entry in journal)
