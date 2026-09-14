@@ -1,7 +1,7 @@
 # ATLAS-PRIME-LOCAL-001 acceptance matrix
 
-Candidate date: 2026-09-14. Candidate branch:
-`feat/prime-local-001`. Prime source pin:
+Candidate date: 2026-09-14. Candidate commit:
+`88284ac9` on branch `feat/prime-local-001`. Prime source pin:
 `5d25a44bd22e1c1fe8321e141cd6c3932563d14c`.
 
 This matrix separates observed evidence from open gates. A fixture, install
@@ -19,14 +19,14 @@ criterion.
 | Multiple independent Atlas agent identities | PASS (control-plane) | supervisor vertical-slice plus independent verifier identity; fixture only |
 | Write-conflict serialization/refusal | PASS (Atlas) | existing supervisor overlap/lease tests; Prime adds no second scheduler |
 | Parent/child slot accounting | PARTIAL | broker enforces bounded child slots, child deadline and cumulative reserved budget units; parent waits for child release within the attempt deadline; public daemon usage snapshots are recorded when available, while cumulative provider usage reconciliation remains open |
-| Event-driven continuation and repair | PASS (Atlas control loop) | existing supervisor cycle/retry/acceptance tests; Prime-specific real repair open |
-| Studio/terminal disconnect | PASS (daemon contract only) | resident daemon smoke; Atlas Studio read projection unchanged |
+| Event-driven continuation and repair | PARTIAL (Atlas control loop) | existing supervisor cycle/retry/acceptance tests; Prime-specific real repair open |
+| Studio/terminal disconnect | PARTIAL (daemon contract only) | resident daemon smoke; real detached Prime development and later readback remain open |
 | Daemon restart attach/snapshot/cursor | PASS (upstream contract) | isolated smoke; adapter still requires reconciliation before uncertain replay |
 | Worker/kernel crash recovery | PARTIAL | client-owned upstream attach works; child admission lifecycle is journaled before reserve effects; Atlas provider-bound recovery is not integrated |
 | Replay generations and duplicate events | PASS (adapter contract) | cursor monotonicity tests and daemon smoke |
 | Budget/deadline/stop behavior | PASS (Atlas controls) | existing supervisor limits/cancellation tests; Prime records public token snapshots when available and keeps billing UNKNOWN unless only a client estimate is reported |
 | Prime autonomous budget configuration | PASS (fail-closed contract) | adapter rejects omitted/unbounded autonomous limits and timeouts beyond the Atlas task deadline; bounded config is sent in the documented daemon session config |
-| Secret and host isolation | PARTIAL | exact bwrap argv denies host SSH, other Atlas/cache paths, and loopback Ollama access; complete reviewed production profile and adversarial Prime worker run remain open |
+| Secret and host isolation | PARTIAL | exact bwrap argv denies host SSH, other Atlas/cache paths, and loopback Ollama access; preflight rejects pass-through wrappers and broad `/`, `/home`, `/root`, and writable `/etc` mounts; complete reviewed production profile and adversarial Prime worker run remain open |
 | Independent non-author verification | PASS (fixture control-plane) | verifier agent differs from implementer; required human IV remains open |
 | Knowledge canonical receipt/readback | OPEN | Prime evidence binding exists; Knowledge Plane receipt pipeline not connected |
 | A1 read-only / A2 mutation routing | PASS (reused Atlas route) | no new Studio mutation path added; full UI reconnect proof open |
@@ -34,4 +34,7 @@ criterion.
 | Exact-head CI and deployment gates | OPEN | not run or authorized from this candidate branch |
 
 The current proven state is therefore a model-free, locally tested Atlas
-adapter slice—not full product acceptance.
+adapter slice—not full product acceptance. Post-fix verification for commit
+`88284ac9` passed the Prime-focused adapter/supervisor tests, Ruff, Mypy, and
+the 14-test network-isolated Prime smoke. The full repository collection is
+6200 tests; no incomplete full-suite run is represented as green.
