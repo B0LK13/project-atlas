@@ -249,8 +249,10 @@ class ClaudeCodeAdapter:
             argv += ["--allowedTools", ",".join(profile.allowed_tools)]
         if profile.disallowed_tools:
             argv += ["--disallowedTools", ",".join(profile.disallowed_tools)]
+        from project_atlas.orchestration.program.path_safety import child_path
+
         for extra in profile.workspace.additional_dirs:
-            argv += ["--add-dir", str((request.workspace / extra).resolve())]
+            argv += ["--add-dir", str(child_path(request.workspace, extra))]
         if profile.workspace.restricted:
             argv += ["--restricted"]
         if profile.isolated_runtime:

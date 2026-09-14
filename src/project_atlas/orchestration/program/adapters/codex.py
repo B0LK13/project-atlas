@@ -237,8 +237,10 @@ class CodexAdapter:
             argv += ["--dangerously-bypass-approvals-and-sandbox"]
         if profile.model:
             argv += ["--model", profile.model]
+        from project_atlas.orchestration.program.path_safety import child_path
+
         for extra in profile.workspace.additional_dirs:
-            argv += ["--add-dir", str((request.workspace / extra).resolve())]
+            argv += ["--add-dir", str(child_path(request.workspace, extra))]
         if profile.isolated_runtime:
             argv += ["--ignore-user-config"]
         if profile.result_schema is not None:

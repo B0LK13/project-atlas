@@ -183,22 +183,33 @@ def handle_blocked_task(
         evidence=evidence,
     )
     projection_root = checked_path(lease_root, root=root) if lease_root is not None else root
+    # Preserve the projected lease only when a confirmed *live owned* worker
+    # still holds the surface. Missing attempts, dead PIDs, unknown identity,
+    # and a live reused PID whose start identity does not match are not a
+    # reason to leave an ACTIVE row after the task is BLOCKED (P1-1).
     safe_release = True
     if lease_root is not None:
-        from project_atlas.orchestration.program.adapters.base import pid_is_alive
-        from project_atlas.orchestration.program.models import ExecutionConfidence
+        from project_atlas.orchestration.program.adapters.base import (
+            pid_is_alive,
+            process_start_identity,
+        )
 
         state = load_state(root)
         record = state.tasks.get(envelope.task_id) if state else None
         attempt = state.attempts.get(record.last_attempt_id or "") if state and record else None
-        safe_release = bool(
+        live_owned = False
+        if (
             attempt
             and attempt.process_pid
             and attempt.process_start_identity
             and attempt.process_start_identity != "unknown"
-            and attempt.confidence is not ExecutionConfidence.UNCERTAIN
-            and not pid_is_alive(attempt.process_pid)
-        )
+            and pid_is_alive(attempt.process_pid)
+        ):
+            live_owned = (
+                process_start_identity(attempt.process_pid)
+                == attempt.process_start_identity
+            )
+        safe_release = not live_owned
     if safe_release:
         released, detail = _release_lease_for(
             projection_root, task_id=envelope.task_id, worker_id=worker_id

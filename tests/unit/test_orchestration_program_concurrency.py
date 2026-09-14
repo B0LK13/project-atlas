@@ -342,6 +342,38 @@ def test_one_agent_is_one_worker_not_a_pool(tmp_path: Path) -> None:
     assert sorted(adapter.started) == ["alpha", "beta"]
 
 
+def test_prefix_overlapping_mutation_paths_never_run_concurrently(
+    tmp_path: Path,
+) -> None:
+    """P1-3: src vs src/child.txt is overlap, not a disjoint pair."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "src").mkdir()
+    program = _program(
+        tmp_path,
+        workspace,
+        tasks=[
+            _task("alpha", profile_ref="a", paths=("src",), surface="alpha"),
+            _task(
+                "beta",
+                profile_ref="b",
+                paths=("src/child.txt",),
+                surface="beta",
+            ),
+        ],
+        profiles={"a": _profile("agent-a"), "b": _profile("agent-b")},
+        concurrency=2,
+    )
+    adapter = _ObservingAdapter()
+    supervisor = _supervisor(tmp_path, program, {"a": adapter, "b": adapter})
+    report = supervisor.start()
+
+    assert report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert adapter.peak == 1, "prefix containment must count as surface overlap"
+    for snapshot in adapter.overlaps:
+        assert len(snapshot) == 1, snapshot
+
+
 def test_overlapping_surfaces_never_run_concurrently(tmp_path: Path) -> None:
     """Different agents, capacity for two, one shared mutation path."""
     workspace = tmp_path / "ws"

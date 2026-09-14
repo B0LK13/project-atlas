@@ -2009,7 +2009,15 @@ class ProgramSupervisor:
     def _release_lease(self, state: ProgramStateRecord, task_id: str) -> None:
         lease = self._leases.pop(task_id, None)
         if lease is None:
-            return
+            # A successor supervisor has an empty in-memory map. Ownership of
+            # the surface is the durable ACTIVE row; pop-only would leave that
+            # row in place after attempt-budget BLOCKED (P1-2).
+            task = next((item for item in self.program.tasks if item.task_id == task_id), None)
+            if task is None:
+                return
+            lease = self._rehydrate_lease(task)
+            if lease is None:
+                return
         try:
             project_release(
                 state_dir(self.root),
