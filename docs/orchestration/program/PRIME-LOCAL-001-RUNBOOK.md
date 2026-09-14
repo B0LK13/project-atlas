@@ -45,6 +45,9 @@ to be `/usr/bin/bwrap` and requires `--die-with-parent`, `--new-session`,
 Arbitrary existing executables (including pass-through shell wrappers) are
 rejected; a worktree alone is not accepted as isolation. Deployment may add
 stricter mounts and limits, but may not remove this minimum contract.
+Preflight also rejects root, home-directory, and root-user bind sources, plus
+writable `/etc` mounts; mission workspace and explicitly reviewed read-only
+runtime mounts must be narrower.
 Also set `adapter_options.runtime_manifest` to the manifest produced by the
 pinned install. Preflight verifies its exact `upstream_sha` and
 `source_commit_verified` flag before any daemon or RPC launch.

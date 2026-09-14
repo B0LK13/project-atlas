@@ -292,6 +292,56 @@ def test_preflight_rejects_a_non_isolating_existing_wrapper(tmp_path: Path) -> N
         PrimeExecutorAdapter(str(fake)).preflight(profile)
 
 
+def test_preflight_rejects_a_broad_host_mount(tmp_path: Path) -> None:
+    fake = tmp_path / "prime-agent"
+    fake.write_text("#!/bin/sh\n", encoding="utf-8")
+    fake.chmod(0o755)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "upstream_sha": PRIME_UPSTREAM_SHA,
+                "source_commit_verified": True,
+                "executable": {
+                    "path": str(fake.resolve()),
+                    "sha256": hashlib.sha256(fake.read_bytes()).hexdigest(),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    profile = AgentProfile(
+        profile_id="prime",
+        agent_id="prime-agent",
+        adapter=AdapterKind.PRIME_AGENT,
+        capabilities=("IMPLEMENT",),
+        credential="NOT_APPLICABLE",
+        adapter_options={
+            "sandbox_argv": [
+                "/usr/bin/bwrap",
+                "--die-with-parent",
+                "--new-session",
+                "--unshare-all",
+                "--proc",
+                "/proc",
+                "--dev",
+                "/dev",
+                "--tmpfs",
+                "/tmp",
+                "--ro-bind",
+                "/",
+                "/host",
+                "--chdir",
+                str(tmp_path),
+            ],
+            "runtime_manifest": str(manifest),
+        },
+    )
+
+    with pytest.raises(AdapterUnavailableError, match="outside the approved mission scope"):
+        PrimeExecutorAdapter(str(fake)).preflight(profile)
+
+
 def test_preflight_rejects_a_manifest_bound_to_another_executable(tmp_path: Path) -> None:
     fake = tmp_path / "prime-agent"
     fake.write_text("#!/bin/sh\n", encoding="utf-8")

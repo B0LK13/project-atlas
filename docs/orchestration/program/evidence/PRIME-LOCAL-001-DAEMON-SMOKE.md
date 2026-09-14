@@ -84,6 +84,9 @@ The adapter now fails closed unless the resolved launcher is `/usr/bin/bwrap`
 with the required namespace, process-lifetime, temporary-filesystem, and
 mount/chdir controls. A pass-through wrapper such as `/bin/true` is rejected
 by preflight; the presence of `bwrap` alone is not treated as a security grant.
+Preflight also rejects broad `/`, `/home`, and `/root` bind sources and
+writable `/etc` mounts, so a profile cannot turn the launcher check into a
+host-wide writable mount.
 
 The Atlas supervisor vertical-slice test also passes with a disposable v7
 daemon fixture: Atlas creates the lease and dispatch intent, the Prime adapter

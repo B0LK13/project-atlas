@@ -62,6 +62,11 @@ REQUIRED_BWRAP_OPTIONS: Final[frozenset[str]] = frozenset(
         "--chdir",
     }
 )
+SENSITIVE_BWRAP_BIND_SOURCES: Final[tuple[Path, ...]] = (
+    Path("/"),
+    Path("/home"),
+    Path("/root"),
+)
 CHILD_ADMISSION_PATCH_ID: Final[str] = (
     "prime-agent-5d25a44-atlas-child-admission-v1"
 )
@@ -541,6 +546,19 @@ def _validate_sandbox_argv(sandbox_argv: list[str] | tuple[str, ...]) -> None:
             + ", ".join(missing),
             code="INCOMPLETE_ISOLATION_CONFIGURATION",
         )
+    for index, option in enumerate(sandbox_argv[:-1]):
+        if option not in {"--bind", "--ro-bind", "--dev-bind"}:
+            continue
+        source = Path(sandbox_argv[index + 1]).resolve()
+        if any(
+            source == sensitive or source.is_relative_to(sensitive)
+            for sensitive in SENSITIVE_BWRAP_BIND_SOURCES
+        ) or (option == "--bind" and source == Path("/etc")):
+            raise AdapterUnavailableError(
+                f"Prime Bubblewrap {option} source {source} is outside the "
+                "approved mission scope",
+                code="UNSAFE_ISOLATION_MOUNT",
+            )
 
 
 class PrimeDaemonClient:
