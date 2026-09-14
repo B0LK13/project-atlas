@@ -551,7 +551,8 @@ def _validate_sandbox_argv(sandbox_argv: list[str] | tuple[str, ...]) -> None:
             continue
         source = Path(sandbox_argv[index + 1]).resolve()
         if any(
-            source == sensitive or source.is_relative_to(sensitive)
+            source == sensitive
+            or (sensitive != Path("/") and source.is_relative_to(sensitive))
             for sensitive in SENSITIVE_BWRAP_BIND_SOURCES
         ) or (option == "--bind" and source == Path("/etc")):
             raise AdapterUnavailableError(
