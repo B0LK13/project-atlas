@@ -363,6 +363,20 @@ class ExecutionStep(BaseModel):
         return value
 
 
+def _compose_workdir_paths(paths: tuple[str, ...], working_subdir: str) -> tuple[str, ...]:
+    """Map cwd-relative mutation paths onto workspace-relative overlap paths.
+
+    The worker process cwd is ``working_subdir``. Files it writes named in
+    ``mutation_paths`` land under that subdirectory, so the overlap gate must
+    see the composed location, not the undeclared cwd (P1-NEW-1).
+    """
+    sub = (working_subdir or ".").strip() or "."
+    if sub == ".":
+        return paths
+    prefix = sub.rstrip("/")
+    return tuple(f"{prefix}/{item}" for item in paths)
+
+
 class ProgramTask(BaseModel):
     """One bounded unit of work inside an approved program."""
 
@@ -377,8 +391,10 @@ class ProgramTask(BaseModel):
     profile_ref: str = Field(min_length=1, max_length=128)
     depends_on: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     fallback_task_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
-    #: Workspace-relative paths this task may mutate. Projected onto
-    #: ``WorkNode.mutation_surface`` so the existing overlap gate applies.
+    #: Paths this task may mutate, relative to the effective profile's
+    #: ``working_subdir`` (the worker cwd). Projected onto
+    #: ``WorkNode.mutation_surface`` as workspace-relative paths so the
+    #: overlap gate sees the files workers actually write.
     mutation_paths: tuple[str, ...] = Field(default_factory=tuple, max_length=64)
     surface_id: str = Field(min_length=1, max_length=128)
     surface_semantic: str = Field(min_length=1, max_length=64)
@@ -485,12 +501,14 @@ class ProgramTask(BaseModel):
                 )
         return self
 
-    def to_work_node(self, *, base_pin: str) -> WorkNode:
+    def to_work_node(self, *, base_pin: str, working_subdir: str = ".") -> WorkNode:
         """Project onto the existing governance node type.
 
         The DAG, ``select_next``, ``grant_lease``, the overlap gate and the
         owner-gate evaluator all operate on ``WorkNode``. Producing one here
         is what makes those reusable without a second scheduling engine.
+        ``working_subdir`` is composed into the surface so a cwd of ``src``
+        plus ``child.txt`` overlaps a workspace-root ``src/child.txt``.
         """
         return WorkNode(
             package_id=self.task_id,
@@ -499,7 +517,7 @@ class ProgramTask(BaseModel):
             dependencies=self.depends_on,
             mutation_surface=MutationSurface(
                 surface_id=self.surface_id,
-                paths=self.mutation_paths,
+                paths=_compose_workdir_paths(self.mutation_paths, working_subdir),
                 semantic=self.surface_semantic,
             ),
             execution_host_class=ExecutionHostClass.LOCAL_PROCESS,

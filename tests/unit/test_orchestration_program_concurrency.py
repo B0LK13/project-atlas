@@ -342,6 +342,42 @@ def test_one_agent_is_one_worker_not_a_pool(tmp_path: Path) -> None:
     assert sorted(adapter.started) == ["alpha", "beta"]
 
 
+def test_working_subdir_composed_paths_never_run_concurrently(tmp_path: Path) -> None:
+    """P1-NEW-1: cwd src + child.txt overlaps workspace-root src/child.txt."""
+    workspace = tmp_path / "ws"
+    (workspace / "src").mkdir(parents=True)
+    alpha = _task("alpha", profile_ref="a", paths=("child.txt",), surface="alpha")
+    alpha["acceptance"] = [
+        {
+            "check_id": "alpha-out",
+            "kind": "FILE_EXISTS",
+            "description": "src/alpha.txt exists",
+            "path": "src/alpha.txt",
+        }
+    ]
+    program = _program(
+        tmp_path,
+        workspace,
+        tasks=[
+            alpha,
+            _task("beta", profile_ref="b", paths=("src/child.txt",), surface="beta"),
+        ],
+        profiles={
+            "a": _profile("agent-a", workspace={"working_subdir": "src"}),
+            "b": _profile("agent-b"),
+        },
+        concurrency=2,
+    )
+    adapter = _ObservingAdapter()
+    supervisor = _supervisor(tmp_path, program, {"a": adapter, "b": adapter})
+    report = supervisor.start()
+
+    assert report.stop_reason is ProgramStopReason.PROGRAM_COMPLETE
+    assert adapter.peak == 1, "working_subdir must compose into the overlap surface"
+    for snapshot in adapter.overlaps:
+        assert len(snapshot) == 1, snapshot
+
+
 def test_prefix_overlapping_mutation_paths_never_run_concurrently(
     tmp_path: Path,
 ) -> None:

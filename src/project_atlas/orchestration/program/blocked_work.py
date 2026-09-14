@@ -215,7 +215,7 @@ def handle_blocked_task(
             projection_root, task_id=envelope.task_id, worker_id=worker_id
         )
     else:
-        released, detail = False, "no confirmed exited execution identity; lease preserved"
+        released, detail = False, "confirmed live owned worker; lease preserved"
     fallback, reason = select_fallback(root, envelope)
     return BlockOutcome(
         decision=decision,

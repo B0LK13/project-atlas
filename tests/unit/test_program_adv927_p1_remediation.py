@@ -51,6 +51,8 @@ from project_atlas.orchestration.program.models import (
     AcceptanceCheck,
     AcceptanceKind,
     ExecutionConfidence,
+    ProgramTask,
+    _compose_workdir_paths,
 )
 from project_atlas.orchestration.program.path_safety import ContainmentError
 from project_atlas.orchestration.program.profiles import AgentProfile
@@ -293,7 +295,7 @@ def test_p1_1_confirmed_live_owned_worker_preserves_lease(tmp_path: Path) -> Non
     outcome = _block(root, envelope, lease_root=projection)
 
     assert outcome.lease_released is False
-    assert "lease preserved" in outcome.lease_release_detail
+    assert outcome.lease_release_detail == "confirmed live owned worker; lease preserved"
     assert [row.package_id for row in active_rows(load_projection(projection))] == [
         "blocked-task"
     ]
@@ -438,6 +440,55 @@ def test_p1_3_prefix_overlapping_mutation_paths_conflict() -> None:
     )
     assert surfaces_overlap(left, right)
     assert would_overlap((left,), right)
+
+
+def test_p1_new1_working_subdir_is_composed_into_overlap_surface() -> None:
+    """cwd src + child.txt is the same real file as workspace src/child.txt."""
+    assert _compose_workdir_paths(("child.txt",), "src") == ("src/child.txt",)
+    assert _compose_workdir_paths(("src/child.txt",), ".") == ("src/child.txt",)
+    subdir = ProgramTask.model_validate(
+        {
+            "task_id": "alpha",
+            "title": "alpha",
+            "instruction": "write child.txt",
+            "profile_ref": "a",
+            "mutation_paths": ["child.txt"],
+            "surface_id": "alpha",
+            "surface_semantic": "ALPHA",
+            "acceptance": [
+                {
+                    "check_id": "alpha-out",
+                    "kind": "FILE_EXISTS",
+                    "description": "src/child.txt exists",
+                    "path": "src/child.txt",
+                }
+            ],
+        }
+    )
+    root = ProgramTask.model_validate(
+        {
+            "task_id": "beta",
+            "title": "beta",
+            "instruction": "write src/child.txt",
+            "profile_ref": "b",
+            "mutation_paths": ["src/child.txt"],
+            "surface_id": "beta",
+            "surface_semantic": "BETA",
+            "acceptance": [
+                {
+                    "check_id": "beta-out",
+                    "kind": "FILE_EXISTS",
+                    "description": "src/child.txt exists",
+                    "path": "src/child.txt",
+                }
+            ],
+        }
+    )
+    left = subdir.to_work_node(base_pin=EXPECTED_BASE_MAIN, working_subdir="src")
+    right = root.to_work_node(base_pin=EXPECTED_BASE_MAIN, working_subdir=".")
+    assert left.mutation_surface.paths == ("src/child.txt",)
+    assert right.mutation_surface.paths == ("src/child.txt",)
+    assert surfaces_overlap(left, right)
 
 
 def test_p1_3_sibling_prefix_is_not_containment() -> None:

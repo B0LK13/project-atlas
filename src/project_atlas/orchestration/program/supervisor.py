@@ -482,6 +482,17 @@ class ProgramSupervisor:
             state.tasks.setdefault(task.task_id, TaskRecord(task_id=task.task_id))
         return state
 
+    def _work_node(self, task: ProgramTask, *, node_state: NodeState | None = None) -> WorkNode:
+        """Project one task, composing the effective profile's working_subdir."""
+        profile = self.loaded.effective_profile(task.task_id)
+        node = task.to_work_node(
+            base_pin=self.program.base_pin,
+            working_subdir=profile.workspace.working_subdir,
+        )
+        if node_state is None:
+            return node
+        return node.model_copy(update={"state": node_state})
+
     def _nodes(self, state: ProgramStateRecord) -> tuple[WorkNode, ...]:
         """Project current state onto the governance node type each cycle.
 
@@ -493,8 +504,7 @@ class ProgramSupervisor:
         nodes: list[WorkNode] = []
         for task in self.program.tasks:
             record = state.tasks[task.task_id]
-            node = task.to_work_node(base_pin=self.program.base_pin)
-            nodes.append(node.model_copy(update={"state": record.state}))
+            nodes.append(self._work_node(task, node_state=record.state))
         return tuple(nodes)
 
     def _transition(
@@ -1566,8 +1576,7 @@ class ProgramSupervisor:
                 and self.loaded.effective_profile(task.task_id).agent_id in busy
             ):
                 node_state = NodeState.DISCOVERED
-            node = task.to_work_node(base_pin=self.program.base_pin)
-            nodes.append(node.model_copy(update={"state": node_state}))
+            nodes.append(self._work_node(task, node_state=node_state))
         return tuple(nodes)
 
     def _authority_revoked(self, task_id: str) -> str | None:
@@ -1909,9 +1918,7 @@ class ProgramSupervisor:
                 f"task {task.task_id} is {record.state.value}, not READY",
                 code="NODE_NOT_READY",
             )
-        node = task.to_work_node(base_pin=self.program.base_pin).model_copy(
-            update={"state": NodeState.READY}
-        )
+        node = self._work_node(task, node_state=NodeState.READY)
         sequence = self._next_sequence(state)
         lease = grant_lease(
             lease_id=f"{self.program.program_id}-{task.task_id}-{sequence}",
