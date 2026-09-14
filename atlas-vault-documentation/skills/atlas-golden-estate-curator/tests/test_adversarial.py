@@ -11,7 +11,13 @@ SKILL = Path(__file__).resolve().parents[1]
 if str(SKILL) not in sys.path:
     sys.path.insert(0, str(SKILL))
 
-from curator import CuratorError, curate, main, reject_mutation  # noqa: E402
+from curator import (  # noqa: E402
+    CuratorError,
+    _redact_remote_url,
+    curate,
+    main,
+    reject_mutation,
+)
 from estate import _git, _init_repo, fingerprint  # noqa: E402
 
 
@@ -210,3 +216,35 @@ def test_gitdir_file_pointer_escape_does_not_read_foreign_remote(tmp_path: Path)
     item = next(row for row in report["inventory"] if row["name"] == "hollow2")
     assert item["git"] is False
     assert item["remote"] is None
+
+
+def test_prescheme_userinfo_is_redacted(tmp_path: Path) -> None:
+    estate = tmp_path / "estate"
+    project = estate / "prescheme"
+    _init_repo(project, readme="# Prescheme\n")
+    _git(
+        project,
+        "remote",
+        "add",
+        "origin",
+        f"owner:{TOKEN}@https://github.com/example/pre.git",
+    )
+    report = curate(estate, output=tmp_path / "prescheme.json")
+    assert TOKEN not in json_blob(report)
+    item = next(row for row in report["inventory"] if row["name"] == "prescheme")
+    assert TOKEN not in (item["remote"] or "")
+    assert item["remote"] == "https://github.com/example/pre.git"
+
+
+def test_fullwidth_at_userinfo_does_not_crash_or_echo(tmp_path: Path) -> None:
+    planted = f"https://owner:{TOKEN}\uff20github.com/x.git"
+    assert TOKEN not in _redact_remote_url(planted)
+    estate = tmp_path / "estate"
+    project = estate / "fullwidth"
+    _init_repo(project, readme="# Fullwidth\n")
+    _git(project, "remote", "add", "origin", planted)
+    report = curate(estate, output=tmp_path / "fullwidth.json")
+    blob = json_blob(report)
+    assert TOKEN not in blob
+    item = next(row for row in report["inventory"] if row["name"] == "fullwidth")
+    assert TOKEN not in (item["remote"] or "")

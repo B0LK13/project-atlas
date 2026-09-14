@@ -15,6 +15,7 @@ import re
 import stat
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any, Final
 from urllib.parse import urlsplit, urlunsplit
@@ -299,19 +300,24 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 _SCHEME_USERINFO_RE = re.compile(r":///*[^/@]*@")
+_CREDENTIAL_AT_RE = re.compile(r"[^/@:\s]+:[^/@\s]+@")
 
 
 def _redact_remote_url(url: str) -> str:
     """Return a remote locator with userinfo stripped. Never echo credentials.
 
-    ``urlsplit`` misses extra-slash authority forms that git still stores
-    (``https:///user:token@host``). Those are stripped with a scheme-userinfo
-    regex before the scp-like fallback.
+    Always removes ``user:secret@`` (including before a later ``://``). Extra
+    slashes and NFKC-lookalike separators are normalized. ``urlsplit``
+    ValueError must never escape with the raw URL in the message.
     """
-    text = url.strip()
+    text = unicodedata.normalize("NFKC", url.strip())
+    text = _CREDENTIAL_AT_RE.sub("", text)
     if "://" in text:
         cleaned = _SCHEME_USERINFO_RE.sub("://", text, count=1)
-        parts = urlsplit(cleaned)
+        try:
+            parts = urlsplit(cleaned)
+        except ValueError:
+            return "redacted-invalid-remote"
         if parts.username is not None or parts.password is not None:
             host = parts.hostname or ""
             if parts.port:
@@ -368,7 +374,10 @@ def _remote_url(path: Path) -> str | None:
     url = result.stdout.strip()
     if not url:
         return None
-    return _redact_remote_url(url)
+    try:
+        return _redact_remote_url(url)
+    except (ValueError, UnicodeError):
+        return "redacted-invalid-remote"
 
 
 def _walk_projects(root: Path) -> list[dict[str, Any]]:
