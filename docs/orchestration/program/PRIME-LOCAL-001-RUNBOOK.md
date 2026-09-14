@@ -109,6 +109,11 @@ queries only the loopback `/v1/models` catalog and requires the selected model
 to be advertised; it does not perform inference. An unreachable endpoint or
 missing model is rejected before dispatch, with no cloud fallback.
 
+Prime provider, authentication, and quota rejections are classified as
+`QUOTA_OR_CREDENTIAL` and are not retried as transient infrastructure. Other
+daemon transport failures remain subject to the supervisor's bounded recovery
+policy and uncertainty rules.
+
 When Atlas resumes an explicit Prime session, the adapter reads only the
 matching prior daemon evidence file to seed `resumeCursor`; a cursor belonging
 to another session is ignored. The adapter never replays an uncertain mutating

@@ -893,6 +893,28 @@ class PrimeDaemonError(AdapterUnavailableError):
     """The public Prime daemon route could not be used safely."""
 
 
+def _prime_failure_class(text: str) -> FailureClass:
+    """Classify provider rejection without turning it into an infrastructure retry."""
+    lowered = text.casefold()
+    if any(
+        marker in lowered
+        for marker in (
+            "api key",
+            "apikey",
+            "credential",
+            "unauthorized",
+            "authentication",
+            "quota",
+            "credit balance",
+            "billing",
+            "no provider",
+            "provider is not configured",
+        )
+    ):
+        return FailureClass.QUOTA_OR_CREDENTIAL
+    return FailureClass.TRANSIENT_INFRASTRUCTURE
+
+
 class PrimeExecutorAdapter:
     """Run one bounded Prime RPC attempt under an Atlas request."""
 
@@ -1214,7 +1236,10 @@ class PrimeExecutorAdapter:
             failure = None
         else:
             confidence = ExecutionConfidence.FAILED
-            failure = FailureClass.TRANSIENT_INFRASTRUCTURE
+            failure = _prime_failure_class(
+                _reported_text(frames)
+                or b"".join(stderr_chunks).decode("utf-8", errors="replace")
+            )
             terminal = "rpc_error"
         reported = _reported_text(frames)
         return AdapterOutcome(
@@ -1391,17 +1416,13 @@ class PrimeExecutorAdapter:
             exit_status = 0
         except (OSError, PrimeDaemonError, TimeoutError) as exc:
             reported = str(exc)
+            failure = _prime_failure_class(reported)
             confidence = (
                 ExecutionConfidence.UNCERTAIN
-                if daemon_available
+                if daemon_available and failure is not FailureClass.QUOTA_OR_CREDENTIAL
                 else ExecutionConfidence.FAILED
             )
             terminal = "daemon_error"
-            failure = (
-                FailureClass.UNCERTAIN_OUTCOME
-                if daemon_available
-                else FailureClass.TRANSIENT_INFRASTRUCTURE
-            )
             exit_status = None
             active_session_id = request.resume_session_id
         finally:

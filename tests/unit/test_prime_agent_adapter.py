@@ -23,6 +23,7 @@ from project_atlas.orchestration.program.adapters.prime_agent import (
     PrimeFrameError,
     PrimeFrameParser,
     _git_identity,
+    _prime_failure_class,
     _resume_cursor_for_session,
     _usage_from_session_stats,
     _valid_child_journal_lines,
@@ -91,6 +92,19 @@ def test_usage_keeps_unknown_billing_distinct_from_zero() -> None:
         "billing_status": "not-billed-amount",
     }
     assert cost == 0.0
+
+
+def test_provider_rejection_is_not_classified_as_an_infrastructure_retry() -> None:
+    from project_atlas.orchestration.program.models import FailureClass
+
+    assert (
+        _prime_failure_class("HTTP 401: API key is unauthorized")
+        is FailureClass.QUOTA_OR_CREDENTIAL
+    )
+    assert (
+        _prime_failure_class("daemon socket disappeared")
+        is FailureClass.TRANSIENT_INFRASTRUCTURE
+    )
 
 
 def test_child_journal_probe_requires_bound_valid_records() -> None:
