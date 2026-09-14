@@ -18,17 +18,27 @@ _ACTIVE_PARALLEL_STATES: frozenset[NodeState] = frozenset(
 )
 
 
+def normalize_rel_path(path: str) -> str:
+    """Collapse empty and ``.`` segments. Does not resolve ``..`` or follow links."""
+    parts = [part for part in path.replace("\\", "/").split("/") if part not in ("", ".")]
+    return "/".join(parts)
+
+
 def _paths_overlap(left: set[str], right: set[str]) -> bool:
     """Exact intersection or prefix containment.
 
     ``src`` overlaps ``src/child.txt``. Sibling names such as ``src/exp`` and
     ``src/exporter`` do not: containment requires a path-separator boundary.
+    ``src/.`` / ``src/./child.txt`` normalize to the same identity as ``src``
+    / ``src/child.txt`` so a dotted cwd cannot bypass the gate.
     Aligned with ``work_readiness.project._paths_overlap``.
     """
-    if left & right:
+    left_n = {normalize_rel_path(item) or item for item in left}
+    right_n = {normalize_rel_path(item) or item for item in right}
+    if left_n & right_n:
         return True
-    for lp in left:
-        for rp in right:
+    for lp in left_n:
+        for rp in right_n:
             if lp.startswith(rp.rstrip("/") + "/") or rp.startswith(lp.rstrip("/") + "/"):
                 return True
     return False

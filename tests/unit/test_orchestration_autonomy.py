@@ -464,6 +464,24 @@ def test_overlap_treats_prefix_containment_as_conflict() -> None:
     assert decision.parallel_execution is False
 
 
+def test_overlap_normalizes_dot_segments() -> None:
+    """P1-NEW-2: src/. / src/./child.txt is the same surface as src/child.txt."""
+    left = _node(
+        "PKG-A",
+        state=NodeState.LEASED,
+        surface="one",
+        paths=("src/./child.txt",),
+    )
+    right = _node(
+        "PKG-B",
+        state=NodeState.ACTIVE,
+        surface="two",
+        semantic="SEMANTIC_B",
+        paths=("src/child.txt",),
+    )
+    assert surfaces_overlap(left, right)
+
+
 def test_overlap_allows_disjoint_surfaces() -> None:
     left = _node(
         "PKG-A",

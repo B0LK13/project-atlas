@@ -34,6 +34,7 @@ from project_atlas.orchestration.autonomy.models import (
     RetryPolicy,
     WorkNode,
 )
+from project_atlas.orchestration.autonomy.overlap import normalize_rel_path
 from project_atlas.orchestration.sdk.external_observers import ObserverType
 
 PACKAGE_ID: Final[Literal["AS-ORCH-PROGRAM-SUPERVISOR-001"]] = (
@@ -370,11 +371,11 @@ def _compose_workdir_paths(paths: tuple[str, ...], working_subdir: str) -> tuple
     ``mutation_paths`` land under that subdirectory, so the overlap gate must
     see the composed location, not the undeclared cwd (P1-NEW-1).
     """
-    sub = (working_subdir or ".").strip() or "."
+    sub = normalize_rel_path(working_subdir or ".") or "."
+    normalized = tuple(normalize_rel_path(item) or item for item in paths)
     if sub == ".":
-        return paths
-    prefix = sub.rstrip("/")
-    return tuple(f"{prefix}/{item}" for item in paths)
+        return normalized
+    return tuple(f"{sub}/{item}" for item in normalized)
 
 
 class ProgramTask(BaseModel):
