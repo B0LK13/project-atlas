@@ -72,8 +72,11 @@ CHILD_ADMISSION_PATCH_ID: Final[str] = (
     "prime-agent-5d25a44-atlas-child-admission-v1"
 )
 CHILD_ADMISSION_PATCH_SHA256: Final[str] = (
-    "01dc22bfeff1d8a1458225eda8552f95abe74fad5ccd2d175586342c34420865"
+    "226405200865db6f677e846da420d2fa7c04e8b42d5bef8b77c1ffffb7416dba"
 )
+PILOT_MEMORY_MAX_BYTES: Final[int] = 6 * 1024**3
+PILOT_CPU_QUOTA_PERCENT: Final[int] = 400
+PILOT_MIN_AVAILABLE_BYTES: Final[int] = 2 * 1024**3
 
 
 class PrimeFrameError(ValueError):
@@ -788,16 +791,32 @@ def _validate_sandbox_argv(sandbox_argv: list[str] | tuple[str, ...]) -> None:
             code="INCOMPLETE_ISOLATION_CONFIGURATION",
         )
     for index, option in enumerate(sandbox_argv[:-1]):
-        if option not in {"--bind", "--ro-bind", "--dev-bind"}:
+        source: str | None = None
+        writable_bind = False
+        if option in {"--bind", "--ro-bind", "--dev-bind"}:
+            source = sandbox_argv[index + 1]
+            writable_bind = option == "--bind"
+        else:
+            for bind_flag in ("--bind=", "--ro-bind=", "--dev-bind="):
+                if option.startswith(bind_flag):
+                    source = option[len(bind_flag) :]
+                    writable_bind = bind_flag == "--bind="
+                    break
+        if source is None:
             continue
-        source = Path(sandbox_argv[index + 1]).resolve()
-        if any(
-            source == sensitive
-            or (sensitive != Path("/") and source.is_relative_to(sensitive))
-            for sensitive in SENSITIVE_BWRAP_BIND_SOURCES
-        ) or (option == "--bind" and source == Path("/etc")):
+        if not source:
             raise AdapterUnavailableError(
-                f"Prime Bubblewrap {option} source {source} is outside the "
+                "Prime Bubblewrap bind option is missing a source path",
+                code="UNSAFE_ISOLATION_MOUNT",
+            )
+        resolved_source = Path(source).resolve()
+        if any(
+            resolved_source == sensitive
+            or (sensitive != Path("/") and resolved_source.is_relative_to(sensitive))
+            for sensitive in SENSITIVE_BWRAP_BIND_SOURCES
+        ) or (writable_bind and resolved_source == Path("/etc")):
+            raise AdapterUnavailableError(
+                f"Prime Bubblewrap {option} source {resolved_source} is outside the "
                 "approved mission scope",
                 code="UNSAFE_ISOLATION_MOUNT",
             )

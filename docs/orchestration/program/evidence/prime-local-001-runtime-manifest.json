@@ -4,7 +4,7 @@
   "compatibility_patches": [
     {
       "id": "prime-agent-5d25a44-atlas-child-admission-v1",
-      "sha256": "01dc22bfeff1d8a1458225eda8552f95abe74fad5ccd2d175586342c34420865"
+      "sha256": "226405200865db6f677e846da420d2fa7c04e8b42d5bef8b77c1ffffb7416dba"
     }
   ],
   "config_hash": "not-configured",

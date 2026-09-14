@@ -124,3 +124,32 @@ def test_accepts_symlink_to_benign_workspace_bind(tmp_path: Path) -> None:
     argv = [*_smoke_shaped_argv(tmp_path, tmp_path / "runtime"), "--ro-bind", str(link), "/extra"]
 
     _validate_sandbox_argv(argv)
+
+
+@pytest.mark.parametrize("source", ["/home", "/root"])
+def test_rejects_sensitive_bind_in_attached_form(tmp_path: Path, source: str) -> None:
+    # bwrap accepts --ro-bind=SRC as a single token; the source check must
+    # parse that form too or a mission profile could smuggle a sensitive bind
+    # past the validator.
+    argv = [*_smoke_shaped_argv(tmp_path, tmp_path / "runtime"), f"--ro-bind={source}", "/host"]
+
+    with pytest.raises(AdapterUnavailableError, match=_REFUSAL):
+        _validate_sandbox_argv(argv)
+
+
+def test_rejects_writable_etc_bind_in_attached_form(tmp_path: Path) -> None:
+    argv = _smoke_shaped_argv(
+        tmp_path,
+        tmp_path / "runtime",
+        etc_bind=("--bind=/etc", "/etc"),
+    )
+
+    with pytest.raises(AdapterUnavailableError, match=_REFUSAL):
+        _validate_sandbox_argv(argv)
+
+
+def test_rejects_empty_attached_bind_source(tmp_path: Path) -> None:
+    argv = [*_smoke_shaped_argv(tmp_path, tmp_path / "runtime"), "--ro-bind=", "/host"]
+
+    with pytest.raises(AdapterUnavailableError, match="missing a source path"):
+        _validate_sandbox_argv(argv)
