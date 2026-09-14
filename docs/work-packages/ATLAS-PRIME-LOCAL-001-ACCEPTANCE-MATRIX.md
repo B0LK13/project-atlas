@@ -1,7 +1,7 @@
 # ATLAS-PRIME-LOCAL-001 acceptance matrix
 
 Candidate date: 2026-09-14. Candidate commit:
-`2bb84afb` on branch `feat/prime-local-001`. Prime source pin:
+`3740609c` on branch `feat/prime-local-001`. Prime source pin:
 `5d25a44bd22e1c1fe8321e141cd6c3932563d14c`.
 
 This matrix separates observed evidence from open gates. A fixture, install
@@ -35,6 +35,6 @@ criterion.
 
 The current proven state is therefore a model-free, locally tested Atlas
 adapter slice—not full product acceptance. Post-fix verification for commit
-`2bb84afb` passed the Prime-focused adapter/supervisor tests, Ruff, Mypy, and
+`3740609c` passed the Prime-focused adapter/supervisor tests, Ruff, Mypy, and
 the 14-test network-isolated Prime smoke. The full repository collection is
 6200 tests; no incomplete full-suite run is represented as green.
