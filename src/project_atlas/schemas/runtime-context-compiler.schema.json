@@ -180,6 +180,7 @@
         "unresolved_conflicts_retained": { "type": "integer", "minimum": 0 },
         "conflicts_excluded": { "type": "integer", "minimum": 0 },
         "freshness_unknown_count": { "type": "integer", "minimum": 0 },
+        "conflicts_overlay": { "enum": ["unreadable"] },
         "excluded_conflict_ids": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }

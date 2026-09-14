@@ -133,6 +133,7 @@ class _ProjectState:
     keys: tuple[tuple[str, str], ...] = ()
     freshness_by_source: dict[str, str] = field(default_factory=dict)
     conflicts_by_claim: dict[str, list[str]] = field(default_factory=dict)
+    conflicts_overlay: str = "ok"
     inspected: tuple[str, ...] = ()
 
 
@@ -333,7 +334,7 @@ def _load_state(
     freshness = _load_portfolio_freshness(root)
     if freshness:
         inspected.append("generated/portfolio/stale-knowledge.json")
-    conflicts, _records = _load_unresolved_claim_conflicts(root)
+    conflicts, _records, overlay = _load_unresolved_claim_conflicts(root)
     if (root / "review" / "conflicts").is_dir():
         inspected.append("review/conflicts")
 
@@ -350,6 +351,7 @@ def _load_state(
     state.keys = capped_keys
     state.freshness_by_source = freshness
     state.conflicts_by_claim = conflicts
+    state.conflicts_overlay = overlay
     state.inspected = tuple(sorted(set(inspected)))
     return state
 
@@ -444,7 +446,12 @@ def _evaluate_cell(
         )
         freshness = _freshness_for(source_ids, state.freshness_by_source)
         conflict_ids = tuple(state.conflicts_by_claim.get(selected, ()))
-        conflict_state = "unresolved" if conflict_ids else "none"
+        if conflict_ids:
+            conflict_state = "unresolved"
+        elif state.conflicts_overlay == "unreadable":
+            conflict_state = "unknown"
+        else:
+            conflict_state = "none"
         return _Cell(
             subject=subject,
             field=field_name,

@@ -14915,3 +14915,53 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AS-ASK2-UNREADABLE-CONFLICTS-001 — corrupt conflict overlay ≠ known
+
+**Date:** 2026-09-14
+**Branch:** `fix/as-ask2-unreadable-conflicts-known-001`
+**Base:** `b87b4a226f4aa8b2f669edf112aa3476454f754f`
+**Mode:** Night-cycle leftover P1 remediator. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+### Defect
+
+`_load_unresolved_claim_conflicts` skipped unreadable or schema-invalid
+`review/conflicts/*.json`. Ask Atlas 2 then compiled evidence with
+`conflict_state=none` and answered `status=known` for a vault that still
+had an unresolved conflict overlay.
+
+Independent reproduction on live main: baseline `status=conflict`; after
+`{broken json` or `{"entries":"not-a-list"}`, `status=known`.
+
+### Fix
+
+Loader now returns overlay integrity. Present-but-unreadable files are
+`unreadable` (missing directory remains absent). Context compiler stamps
+`pipeline_receipt.conflicts_overlay=unreadable` only on that path. Ask2
+demotes `known` → `unknown` with reason `conflicts-overlay-unreadable`.
+Knowledge Diff selected cells use `conflict_state=unknown` instead of
+`none` when the overlay is unreadable. Mixed valid+corrupt still reports
+conflict.
+
+### Validation
+
+```
+.venv/bin/python -m pytest tests/unit/test_as_ask2_unreadable_conflicts_known_001.py \
+  tests/unit/test_as_2_2_ask2_answer_lens_001.py tests/unit/test_as_2_2_runtime_001.py \
+  tests/unit/test_as_2_2_runtime_scope_001.py tests/unit/test_as_2_2_kdiff_001.py \
+  tests/unit/test_atlas3_memory_project_isolation_001.py \
+  tests/unit/test_atlas3_ledger_integrity_001.py --no-cov
+# 107 passed
+
+.venv/bin/python -m ruff check src/project_atlas/runtime_22.py src/project_atlas/ask2.py \
+  src/project_atlas/knowledge_diff.py tests/unit/test_as_ask2_unreadable_conflicts_known_001.py
+# All checks passed
+
+.venv/bin/python -m mypy src/project_atlas/runtime_22.py src/project_atlas/ask2.py \
+  src/project_atlas/knowledge_diff.py tests/unit/test_as_ask2_unreadable_conflicts_known_001.py
+# Success: no issues found in 4 source files
+```
+
+Does not merge. Does not expand Atlas 3 writers.
