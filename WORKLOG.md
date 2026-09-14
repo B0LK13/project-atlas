@@ -14915,3 +14915,25 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-PILOT-DEMO-FIXTURE-F1 — DEMO_FIXTURE is not an authentic estate
+
+Base: `b87b4a226f4aa8b2f669edf112aa3476454f754f` / tree `46d1989b026a2f15920ec5e1c78a106799bd1249`.
+
+`pilot_auth_prep.is_fixture_or_temp_marker` already excluded `tests/fixtures`
+and `fixtures/pilots`. Repo-root `fixtures/demo/` was omitted. On live main,
+`scan_known_pilot_roots` labeled `fixtures/demo/estate/project-a` and
+`project-b` as `FOUND_AUTHENTIC`, set `owner_blocked=False`, and selected
+`/workspace/fixtures/demo/estate/project-a` as `selected_authentic_root`.
+`tests/fixtures/demo/estate/harbor-api` was already classified fixture.
+
+`authentic_estate_pilot` and `pilot_pass` stayed False (no AUTHENTIC_PILOT
+claim). D-148 preflight still refuses paths containing `demo`. The defect is
+the classifier that exists to enforce `DEMO_FIXTURE != AUTHENTIC_PILOT`.
+
+Fix: add `/fixtures/demo/` and `\\fixtures\\demo\\` to
+`_NON_AUTHENTIC_FRAGMENTS`. Regression in
+`tests/unit/test_as_pilot_demo_fixture_not_authentic_001.py`.
+
+Does not merge, wake OPT, or claim `AUTHENTIC_PILOT = PASS`.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
