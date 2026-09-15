@@ -14915,3 +14915,21 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-CF-001 — format-control must not hide bearer tokens
+
+Independent used-surface hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 miss:
+`scan_text("Authorization: bearer\\u200b" + 32×A)` returned `[]` because the
+bearer pattern requires `\\s+`. ZERO WIDTH SPACE is Unicode Cf, not Zs, so
+ingest could persist credential-shaped material with empty secret-findings.
+
+Remediation: strip Cf characters before scan and redact. Ordinary whitespace
+(Zs) is preserved. Distinct from #895 (missing token prefixes).
+
+Does not merge. Does not start remaining token-prefix clones. Does not
+expand index-mapping validation (P1-2 from the same hunt classified
+DEFERRED / not this package).
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+

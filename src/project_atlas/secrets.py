@@ -8,6 +8,7 @@ string must be retained after detection.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 # Fixed placeholder — never includes matched secret material (CODEX-SEC-006).
@@ -55,12 +56,24 @@ _PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
 )
 
 
+def _without_format_chars(text: str) -> str:
+    """Treat Unicode format characters (Cf) as whitespace (AS-SEC-SCAN-CF-001).
+
+    Inserts such as ZERO WIDTH SPACE between ``bearer`` and the token defeat
+    raw ``\\s+`` patterns. Stripping them concatenates ``bearer``+token and
+    still misses. Replacing Cf with a space restores the separator. Ordinary
+    whitespace (Zs) is left unchanged.
+    """
+    return "".join(" " if unicodedata.category(ch) == "Cf" else ch for ch in text)
+
+
 def scan_text(text: str) -> list[SecretFinding]:
     """Return metadata-only findings; matched content is never returned."""
+    folded = _without_format_chars(text)
     return [
         SecretFinding(name, confidence, "content redacted")
         for name, confidence, pattern in _PATTERNS
-        if pattern.search(text)
+        if pattern.search(text) or pattern.search(folded)
     ]
 
 
@@ -68,8 +81,10 @@ def redact_text(text: str) -> str:
     """Replace matched secret spans with ``REDACTED_PLACEHOLDER`` (CODEX-SEC-006).
 
     Safe for persistence of surrounding context. Does not return raw matches.
+    Format-control characters are folded to spaces first so a ZWSP-split
+    bearer token cannot survive redaction.
     """
-    result = text
+    result = _without_format_chars(text)
     for _name, _confidence, pattern in _PATTERNS:
         result = pattern.sub(REDACTED_PLACEHOLDER, result)
     return result
