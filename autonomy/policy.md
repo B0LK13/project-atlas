@@ -178,8 +178,9 @@ delete plus an add, and both paths are judged), for the role named by
 5. `autonomy/ledger.jsonl` is append-only for every role: the head content must start with
    the base content byte for byte. Appended `resume` events are owner-only, and the executor
    may append only `packet` events.
-6. Every non-merge commit in `merge-base..HEAD` carries exactly one `Atlas-Role` trailer,
-   equal to the role being checked.
+6. Every commit in `merge-base..HEAD`, including merge commits, carries exactly one
+   `Atlas-Role` trailer equal to the role being checked. A merge that introduces files
+   without that trailer is fail-closed.
 
 Glob semantics: `*` and `?` stay within one path segment, `**` spans segments, and `**/`
 also matches zero segments.

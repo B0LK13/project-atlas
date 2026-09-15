@@ -15109,5 +15109,15 @@ grant refs, and rejects granted-directive edits at the scope gate.
 `loop.yaml` re-pinned to
 `2d990392de2117a4ea62b2cfd07f34241f8a169edd34fb559b7c95938e15d6e7`.
 
+IV on `8e3e73b7` left ROLE-TRAILER as the only VALID P2: `git log --no-merges`
+skipped an evil merge that introduced `src/evil.py`. `commit_roles` now includes
+merge commits. Policy §4 item 6 updated. Re-pin
+`9638033d201a25fdb4077d98fb4456becac44e8f5c380329ad9af75dc4db7d5e`.
+
+IV on `c5500728` then showed `autonomy/directives/./D-….md` survived `Path.parts`
+and missed the exact-string scope pin. `load_grant` now strips `.` / empty
+segments and stores the canonical path. Re-pin
+`88f68c6c79e691eb2b221cf20984f1aa7f0aa999c589076c1c4a2fa864e03b4c`.
+
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**

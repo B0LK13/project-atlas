@@ -618,10 +618,14 @@ def check_scope(
 
 
 def commit_roles(root: Path, base_ref: str, head: str) -> list[tuple[str, tuple[str, ...]]]:
-    """(sha, declared Atlas-Role values) for every non-merge commit in merge-base..head."""
+    """(sha, declared Atlas-Role values) for every commit in merge-base..head.
+
+    Merge commits are included. An evil merge that introduces files without an
+    Atlas-Role trailer is fail-closed; ``--no-merges`` would skip it.
+    """
     base = merge_base(root, base_ref, head)
     fmt = f"--format=%H%x1f%(trailers:key={ROLE_TRAILER},valueonly,separator=%x2C)%x1e"
-    out = _git_ok(root, "log", "--no-merges", fmt, f"{base}..{head}").decode("utf-8", "replace")
+    out = _git_ok(root, "log", fmt, f"{base}..{head}").decode("utf-8", "replace")
     records: list[tuple[str, tuple[str, ...]]] = []
     for record in out.split("\x1e"):
         if not record.strip():

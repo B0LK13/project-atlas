@@ -520,6 +520,39 @@ def test_role_trailers_keep_one_role_per_branch(tmp_path: Path) -> None:
     assert any("declares Atlas-Role none" in problem for problem in problems)
 
 
+@NEEDS_GIT
+def test_role_trailers_include_merge_commits_that_introduce_files(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _write(tmp_path / "README.md", "base\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+    _git(tmp_path, "branch", "grant-ref")
+    _git(tmp_path, "checkout", "-q", "-b", "subject")
+    _write(tmp_path / "src/a.py", "a = 1\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "feat a\n\nAtlas-Role: executor\n")
+    _git(tmp_path, "checkout", "-q", "grant-ref")
+    _git(tmp_path, "checkout", "-q", "-b", "other")
+    _write(tmp_path / "src/b.py", "b = 1\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "feat b\n\nAtlas-Role: executor\n")
+    _git(tmp_path, "checkout", "-q", "subject")
+    subprocess.run(
+        ["git", "merge", "--no-ff", "--no-commit", "other"],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+    )
+    _write(tmp_path / "src/evil.py", "evil = 1\n")
+    _git(tmp_path, "add", "src/evil.py")
+    _git(tmp_path, "commit", "-q", "-m", "merge other and sneak evil.py")
+    records = pf.commit_roles(tmp_path, "grant-ref", "HEAD")
+    problems = pf.check_roles(records, "executor")
+    assert any("declares Atlas-Role none" in problem for problem in problems)
+    changed = {change.path for change in pf.git_changes(tmp_path, "grant-ref", "HEAD")}
+    assert "src/evil.py" in changed
+
+
 CERT_HEAD = "c32e17c8fdc3cc3317764ed9d691aa33fae36438"
 INFRA_RED_RUN = "https://github.com/B0LK13/project-atlas/actions/runs/35013626943"
 HOST = {
