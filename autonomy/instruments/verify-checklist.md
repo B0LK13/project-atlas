@@ -23,16 +23,28 @@ Every lane ends GREEN, FAILED, TIMEOUT or INFRA_RED; never emit a packet with a 
 - [ ] `python -m ruff check .`
 - [ ] `python -m mypy src`
 - [ ] `python -m pytest`
-- [ ] CI run URL for `head_sha` recorded and green.
+- [ ] CI run URL for `head_sha` recorded and green, or, while CI is unavailable, a verifier
+      fallback cert (policy section 4.4) covering this lane.
 
 ## 2. Native Windows lane (CI gate: `quality (windows-latest, 3.12, windows)`)
 
 - [ ] `python -m pytest -m product_perf --no-cov`
 - [ ] `python -m pytest -m "not product_perf"`
 - [ ] New CLI or tool output is encodable on cp1252 (prefer ASCII-only messages).
-- [ ] CI run URL for `head_sha` recorded and green.
-- [ ] A local native Windows run is recorded as local evidence only; it never
-      substitutes for the CI run URL.
+- [ ] CI run URL for `head_sha` recorded and green, or, while CI is unavailable, a verifier
+      fallback cert (policy section 4.4) covering this lane.
+- [ ] An executor's own local run is recorded as local evidence only; it never substitutes
+      for the CI run URL or the verifier's fallback cert.
+
+## 2a. Fallback lanes (verifier only, while CI is unavailable)
+
+- [ ] Cite the INFRA_RED run URL that shows CI could not run.
+- [ ] Run both lanes on the designated verification host (native Windows and WSL Linux) on the
+      exact `head_sha`, from a clean checkout of that commit.
+- [ ] Record every command, exit code, `duration_seconds` and the host fingerprint per lane in
+      `autonomy/certs/C-<n>.md` with `lane_mode: local` and `expires: ci_available`.
+- [ ] `python autonomy/tools/preflight.py cert --iteration <n> --head <head_sha>` exits 0.
+- [ ] When CI returns, re-certify the same head in `autonomy/certs/C-<n>-ci.md`.
 
 ## 3. Scope, tests and budget
 

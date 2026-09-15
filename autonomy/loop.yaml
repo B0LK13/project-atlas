@@ -3,7 +3,7 @@
 version: 1
 max_iterations_per_grant: 1
 lanes: [linux, windows-native]
-policy_sha: fcb7b3e36bdfa276f37e615df80288423796a3783bb629e32fcc3a5f9b97d715
+policy_sha: c5e291461fc1b2db6fbd6511bf5573822726d39af9314645d4467d2fbca1564f
 halt_file: autonomy/HALT
 grant_ref: origin/main
 staging_branch: autonomy/staging

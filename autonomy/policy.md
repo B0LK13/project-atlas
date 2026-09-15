@@ -1,7 +1,7 @@
 # Autonomy Policy: Governed RSI Loop
 
-- Decisions: `D-ATLAS-RSI-GOVERNED-LOOP-001` (loop) and `D-ATLAS-AUTONOMY-LADDER-001`
-  (authority ladder).
+- Decisions: `D-ATLAS-RSI-GOVERNED-LOOP-001` (loop), `D-ATLAS-AUTONOMY-LADDER-001`
+  (authority ladder), and the owner's `lanes.fallback` rule of 2026-09-15 (section 4.4).
 - Status: **DRAFT**, proposed by the executor on branch `autonomy/scaffold`. It becomes
   binding when the owner merges it. From then on only the owner edits this file.
 - Pin: `policy_sha` = SHA-256 of this file's exact LF bytes
@@ -54,7 +54,7 @@ produces. The loop produces the evidence; the owner turns the ratchet.
 |---|---|---|---|
 | Supervisor (orchestrator) | Fable or a dedicated supervisor session | Runs the loop, spawns subagents, gates packets, issues verdicts, runs audits, files level proposals; issues grants and merges to staging only where section 11 permits | `role_scopes.supervisor`. Never product code. |
 | Executor subagent | Cursor Cloud session or Claude Code | One iteration: code, tests, lanes, reflection, next directive, packet | `allowed_scopes` plus `level_gated_scopes` |
-| Verifier subagent | Fresh session given the head SHA only; reads the packet only after committing its cert | Runs both lanes on the exact head and certifies pass or fail | `autonomy/certs/C-<n>.md` only |
+| Verifier subagent | Fresh session given the head SHA only; reads the packet only after committing its cert | Runs both lanes on the exact head (CI, or the section 4.4 local fallback) and certifies pass or fail | `autonomy/certs/C-<n>.md` and its CI re-certification `C-<n>-ci.md` only |
 | Instrument subagent | Fresh session | Reviews `[instrument]` commits for rigor loss and runs the drift check | `autonomy/drift/**` only |
 | Owner (governor) | B0LK13 | The section 2 invariant 7 powers; at levels 0 and 1 also grants and staging merges | Everything |
 
@@ -90,6 +90,7 @@ role_scopes:
   verifier:
     0:
       - autonomy/certs/C-{n}.md
+      - autonomy/certs/C-{n}-ci.md
   instrument:
     0:
       - autonomy/drift/**
@@ -140,9 +141,16 @@ budget:
   max_wall_clock_minutes: 180
   max_tokens: 3000000
 require_signed_grants: false
-required_lanes:
-  linux: "quality (ubuntu-latest, 3.12, full)"
-  windows-native: "quality (windows-latest, 3.12, windows)"
+lanes:
+  required:
+    linux: "quality (ubuntu-latest, 3.12, full)"
+    windows-native: "quality (windows-latest, 3.12, windows)"
+  fallback:
+    when: ci_unavailable
+    run_by: verifier
+    host: "designated verification host: Windows native + WSL Linux"
+    lane_mode: local
+    expires: ci_available
 test_count: non_decreasing
 ```
 
@@ -176,7 +184,7 @@ delete plus an add, and both paths are judged), for the role named by
 Glob semantics: `*` and `?` stay within one path segment, `**` spans segments, and `**/`
 also matches zero segments.
 
-The `required_lanes` values are the expected GitHub check names of the existing
+The `lanes.required` values are the expected GitHub check names of the existing
 `.github/workflows/ci.yml` matrix jobs. CI runs on `pull_request` for any base branch, so a
 PR into `autonomy/staging` exercises both lanes. The names are unconfirmed until a CI run
 actually starts; a mismatch is an owner policy edit, not an executor fix.
@@ -198,6 +206,58 @@ actually starts; a mismatch is an owner policy edit, not an executor fix.
   at least the count at the merge base.
 - Deleting, skipping, `xfail`-ing or de-selecting an existing test requires explicit
   authorization in the granted directive, cited in the packet.
+
+### 4.4 Lanes, certs and the local fallback
+
+A verifier cert is `autonomy/certs/C-<n>.md`, checked by
+`python autonomy/tools/preflight.py cert --iteration <n> [--head <sha>] [--require ci]`.
+
+- `lane_mode: ci`: both `lanes.required` lanes are certified from GitHub Actions run URLs on
+  `head_sha`.
+- `lane_mode: local` is the fallback (`lanes.fallback`). It is allowed only while CI is
+  unavailable, cited by an INFRA_RED run URL in `ci_unavailable_evidence`. The verifier
+  subagent, never the executor, runs both lanes on the designated verification host: native
+  Windows and WSL Linux. For each lane the cert records every command with its exit code and
+  duration, plus a host fingerprint. A fallback cert declares `expires: ci_available`.
+- Expiry: a fallback cert expires when CI returns. The next CI run re-certifies the same head
+  in `autonomy/certs/C-<n>-ci.md` with `lane_mode: ci` and the same `head_sha`, and from then on
+  only the CI cert counts. A re-certification of a different head, or one whose `result` is
+  `FAIL`, leaves the iteration uncertified, and a head already promoted on the fallback cert is
+  an immediate stop (section 12.1).
+- Consistency: `result` is `PASS` exactly when every recorded exit code is 0, and a cert whose
+  `result` is `FAIL` certifies nothing.
+- Removing `lanes.fallback` from the section 4 block disables local certs entirely.
+
+Cert format (quote `head_sha`, so YAML never reads an all-digit SHA as a number):
+
+```markdown
+---
+cert: C-<n>
+iteration: <n>
+role: verifier
+head_sha: "<40 hex>"
+lane_mode: local                # or ci
+result: PASS                    # PASS exactly when every exit below is 0
+expires: ci_available           # local only
+ci_unavailable_evidence: https://github.com/<owner>/<repo>/actions/runs/<id>   # local only
+lanes:
+  linux:
+    run_url: https://github.com/<owner>/<repo>/actions/runs/<id>   # ci only
+    host:                       # local only: host fingerprint
+      hostname: <name>
+      os: <uname -sr, or Windows edition and build>
+      python: <python --version>
+      git: <git --version>
+    commands:
+      - {cmd: "python -m ruff check .", exit: 0, duration_seconds: 21.4}
+      - {cmd: "python -m mypy src", exit: 0, duration_seconds: 96.0}
+      - {cmd: "python -m pytest", exit: 0, duration_seconds: 4210.8}
+  windows-native:               # same shape as linux
+    ...
+---
+
+Free-text notes. The verifier reads RP-<n> only after committing this file.
+```
 
 ## 5. Grants
 
@@ -279,8 +339,8 @@ base_sha / head_sha
 plan: (as written before execution)
 changes: [{path, +/-, purpose}]
 lanes:
-  linux:   {cmd, exit, status: GREEN|FAILED|TIMEOUT|INFRA_RED, run_url}
-  windows: {cmd, exit, status: GREEN|FAILED|TIMEOUT|INFRA_RED, run_url}
+  linux:   {cmd, exit, status: GREEN|FAILED|TIMEOUT|INFRA_RED, lane_mode: ci|local, run_url|cert}
+  windows: {cmd, exit, status: GREEN|FAILED|TIMEOUT|INFRA_RED, lane_mode: ci|local, run_url|cert}
 tests: before=N after=M
 claims: each with evidence pointer (sha:path:line | run_url)
 instrument_change: {status: applied|proposed, path, rationale, diff_summary}
@@ -289,8 +349,9 @@ budget_used: {files, lines, minutes, tokens}
 unknowns: explicit list, no silent gaps
 ```
 
-Local lane runs are evidence of the command and exit code only. A lane counts as GREEN for
-the gate only via a CI run URL on the packet's `head_sha`.
+Executor lane runs are evidence of the command and exit code only. A lane counts as GREEN for
+the gate only via a CI run URL on the packet's `head_sha` or, while CI is unavailable, via a
+valid `lane_mode: local` verifier cert on that head (section 4.4).
 
 ## 8. Ledger (`autonomy/ledger.jsonl`)
 
@@ -326,8 +387,9 @@ Append-only, one JSON object per line, UTF-8, LF. Lines are never edited or remo
 Input: the packet `RP-<n>`, the verifier cert `C-<n>`, the drift report under
 `autonomy/drift/`, and the live repository diff. Never the packet alone.
 
-1. Cert: `C-<n>` exists, certifies both lanes on the packet's `head_sha`, and was committed
-   by a separate verifier session. A missing or forged cert is an immediate stop (section 12).
+1. Cert: `preflight.py cert --iteration <n> --head <head_sha>` exits 0, and the cert was
+   committed by a separate verifier session. A `lane_mode: local` cert counts only while CI is
+   unavailable (section 4.4). A missing or forged cert is an immediate stop (section 12).
 2. Scope compliance: re-run `preflight.py scope` for each role's branch.
 3. Evidence integrity: every claim resolves, and every lane run URL is green on `head_sha`.
 4. Test monotonicity: no deleted, skipped or de-selected tests without directive
@@ -352,7 +414,7 @@ Verdicts are written to `autonomy/verdicts/V-<n>.md`. No verdict merges to `main
 
 ## 10. Promotion path
 
-`iter/<n>` -> PR to `autonomy/staging` -> verifier cert `C-<n>` on both lanes -> merge to
+`iter/<n>` -> PR to `autonomy/staging` -> verifier cert `C-<n>` on both lanes (CI, or the section 4.4 fallback) -> merge to
 `autonomy/staging` (owner at levels 0-1, supervisor from level 2) -> owner merges
 `autonomy/staging` -> `main`. Instrument changes ride the same path. They take effect only for
 iterations whose grant is issued against a grant ref that contains them.
@@ -392,10 +454,15 @@ failed, as opposed to red code); directive unresolvable from repository state.
 Enforced by `autonomy/tools/preflight.py`: kill switches, pin equality, grant identity on the
 grant ref, per-role and per-level scope floors and allow-lists, `Atlas-Role` trailers, ledger
 append-only and role-limited events, ledger tampering, iteration sequencing, the retry cap,
-and the file and line budget.
+the file and line budget, and cert structure (section 4.4: lane mode, per-command exit code and
+duration, host fingerprint, `result` consistency, fallback allowed by policy, CI
+re-certification of the same head).
 
 Not mechanized yet, so checked by the supervisor, and to be decided by the owner before level
-2: cert-before-packet ordering and forgery detection, the verifier/supervisor disagreement
+2: cert-before-packet ordering and forgery detection, whether CI really was unavailable when a
+fallback cert was written (the evidence URL is recorded, not queried), whether the fingerprinted
+host really is the designated verification host, when CI has returned so a fallback cert has
+expired, the verifier/supervisor disagreement
 rule, escalation routing, the wall-clock and token budget kill, verification of
 supervisor-issued grants against `autonomy/staging`, and the section 13 audit.
 

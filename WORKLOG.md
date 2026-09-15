@@ -15042,3 +15042,42 @@ copy and `Atlas-Role` trailers, never author names.
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
+
+## Owner rule `lanes.fallback`: local verifier lanes while CI is unavailable
+
+Owner instruction (2026-09-15), applied to the still-DRAFT policy on `autonomy/scaffold`:
+"when CI is unavailable, the verifier subagent runs both lanes on the designated verification
+host (Windows native + WSL Linux) and records command, exit code, duration, and host
+fingerprint in certs/C-<n>.md. Fallback certs are marked lane_mode: local and expire when CI
+returns; the next CI run re-certifies the same head."
+
+**What changed**
+
+- `autonomy/policy.md`: `required_lanes` becomes `lanes.required` plus `lanes.fallback`
+  (`when: ci_unavailable`, `run_by: verifier`, `lane_mode: local`, `expires: ci_available`,
+  designated host). New section 4.4 defines the cert format: per lane, every command with
+  `exit` and `duration_seconds`; a host fingerprint (`hostname`, `os`, `python`, `git`) for local
+  certs; `run_url` for CI certs; `ci_unavailable_evidence` run URL; `result` consistent with
+  exit codes. CI re-certification of the same head goes in `autonomy/certs/C-<n>-ci.md` and
+  supersedes the fallback cert. The verifier's scope gains `C-{n}-ci.md`. Sections 3, 7, 9, 10
+  and 12.3 are updated to match.
+- `autonomy/loop.yaml` re-pinned:
+  `policy_sha: c5e291461fc1b2db6fbd6511bf5573822726d39af9314645d4467d2fbca1564f`.
+- `autonomy/tools/preflight.py`: policy `lanes` parsing (a fallback that changes the rule, such
+  as `run_by: executor`, is a configuration error); `check_cert`, `check_certification`, and a
+  `cert --iteration N [--head SHA] [--require ci]` subcommand.
+- `autonomy/instruments/verify-checklist.md`: section 2a, fallback lanes (verifier only).
+- `tests/unit/test_autonomy_preflight.py`: 53 -> 85 collected tests; full collection 5822 -> 5854.
+
+**Interpretations to confirm (owner)**
+
+- A re-certification that fails, or that names a different head, leaves the iteration
+  uncertified, and a head already promoted on the fallback cert is an immediate stop.
+- The tool records CI unavailability and host identity; it does not query GitHub or
+  authenticate the host, and it cannot tell that CI has returned. Those checks stay with the
+  supervisor (policy section 12.3).
+- The executor's own local lane runs are never a cert: `C-<n>` is written by a separate
+  verifier session only.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**

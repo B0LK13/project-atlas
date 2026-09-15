@@ -1,9 +1,9 @@
 """D-ATLAS-RSI-GOVERNED-LOOP-001 / D-ATLAS-AUTONOMY-LADDER-001: governed loop gate.
 
 Pins the owner-controlled gate in ``autonomy/tools/preflight.py`` against
-``autonomy/policy.md`` sections 4, 5 and 8.1 (scopes per role and autonomy level, role
-separation, ledger rules and retry cap), and fails CI if the ``loop.yaml`` pin drifts from
-the policy bytes.
+``autonomy/policy.md`` sections 4, 4.4, 5 and 8.1 (scopes per role and autonomy level, role
+separation, ledger rules and retry cap, verifier certs and the local lane fallback), and fails
+CI if the ``loop.yaml`` pin drifts from the policy bytes.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOL = REPO_ROOT / "autonomy" / "tools" / "preflight.py"
@@ -418,3 +419,172 @@ def test_role_trailers_keep_one_role_per_branch(tmp_path: Path) -> None:
     assert len(problems) == 2
     assert any("declares Atlas-Role supervisor" in problem for problem in problems)
     assert any("declares Atlas-Role none" in problem for problem in problems)
+
+
+CERT_HEAD = "c32e17c8fdc3cc3317764ed9d691aa33fae36438"
+INFRA_RED_RUN = "https://github.com/B0LK13/project-atlas/actions/runs/35013626943"
+HOST = {
+    "hostname": "verify-host",
+    "os": "Windows 11 10.0.28000",
+    "python": "3.12.10",
+    "git": "2.55",
+}
+
+
+def _cert(
+    mode: str = "local", *, head: str = CERT_HEAD, exits: tuple[int, int] = (0, 0)
+) -> dict[str, Any]:
+    lanes: dict[str, Any] = {}
+    for name, code in zip(pf.LANE_NAMES, exits, strict=True):
+        lane: dict[str, Any] = {
+            "commands": [{"cmd": "python -m pytest", "exit": code, "duration_seconds": 812.5}]
+        }
+        if mode == "ci":
+            lane["run_url"] = f"{INFRA_RED_RUN}/job/104531452958"
+        else:
+            lane["host"] = dict(HOST)
+        lanes[name] = lane
+    cert: dict[str, Any] = {
+        "cert": "C-1",
+        "iteration": 1,
+        "role": "verifier",
+        "head_sha": head,
+        "lane_mode": mode,
+        "result": "PASS" if all(code == 0 for code in exits) else "FAIL",
+        "lanes": lanes,
+    }
+    if mode == "local":
+        cert["expires"] = "ci_available"
+        cert["ci_unavailable_evidence"] = INFRA_RED_RUN
+    return cert
+
+
+def _write_cert(root: Path, cert: dict[str, Any], *, ci_recert: bool = False) -> None:
+    body = yaml.safe_dump(cert, sort_keys=False)
+    _write(root / pf.cert_path(1, ci_recert=ci_recert), f"---\n{body}---\n\nVerifier notes.\n")
+
+
+@pytest.fixture
+def cert_root(tmp_path: Path) -> Path:
+    (tmp_path / "autonomy").mkdir()
+    shutil.copyfile(REPO_ROOT / pf.POLICY_PATH, tmp_path / pf.POLICY_PATH)
+    return tmp_path
+
+
+def test_repo_policy_declares_required_lanes_and_the_local_fallback() -> None:
+    policy = pf.load_policy(REPO_ROOT)
+    assert set(policy.lanes) == {"linux", "windows-native"}
+    assert policy.fallback is not None
+    assert {key: policy.fallback[key] for key in pf.FALLBACK_RULE} == pf.FALLBACK_RULE
+
+
+def test_policy_rejects_a_fallback_that_bends_the_rule(tmp_path: Path) -> None:
+    (tmp_path / "autonomy").mkdir()
+    text = (REPO_ROOT / pf.POLICY_PATH).read_text("utf-8")
+    _write(tmp_path / pf.POLICY_PATH, text.replace("run_by: verifier", "run_by: executor", 1))
+    with pytest.raises(pf.ConfigError, match=r"lanes\.fallback"):
+        pf.load_policy(tmp_path)
+
+
+@pytest.mark.parametrize("mode", ["local", "ci"])
+def test_well_formed_certs_pass(mode: str) -> None:
+    assert pf.check_cert(pf.load_policy(REPO_ROOT), _cert(mode), 1, "C-1.md") == []
+
+
+def test_local_cert_needs_the_policy_fallback() -> None:
+    no_fallback = replace(pf.load_policy(REPO_ROOT), fallback=None)
+    problems = pf.check_cert(no_fallback, _cert("local"), 1, "C-1.md")
+    assert any("lanes.fallback is not set" in problem for problem in problems)
+    assert pf.check_cert(no_fallback, _cert("ci"), 1, "C-1.md") == []
+
+
+@pytest.mark.parametrize(
+    ("mode", "mutate", "message"),
+    [
+        ("local", lambda c: c.pop("expires"), "expires: ci_available"),
+        ("local", lambda c: c.pop("ci_unavailable_evidence"), "ci_unavailable_evidence"),
+        ("local", lambda c: c.update(ci_unavailable_evidence="CI was down"), "ci_unavailable"),
+        ("local", lambda c: c["lanes"]["linux"]["host"].pop("hostname"), "lanes.linux.host"),
+        ("local", lambda c: c["lanes"]["windows-native"].pop("host"), "windows-native.host"),
+        ("local", lambda c: c["lanes"]["linux"]["commands"][0].pop("duration_seconds"), "duration"),
+        ("local", lambda c: c["lanes"]["linux"]["commands"][0].pop("cmd"), "exact command"),
+        ("local", lambda c: c["lanes"]["linux"]["commands"][0].update(exit="0"), "integer exit"),
+        ("local", lambda c: c["lanes"]["linux"]["commands"][0].update(exit=1), "does not match"),
+        ("local", lambda c: c.update(result="FAIL"), "does not match"),
+        ("local", lambda c: c["lanes"].pop("windows-native"), "lanes must certify exactly"),
+        ("local", lambda c: c["lanes"]["linux"].update(commands=[]), "at least one command"),
+        ("local", lambda c: c.update(role="executor"), "role: verifier"),
+        ("local", lambda c: c.update(head_sha=1234567), "head_sha"),
+        ("local", lambda c: c.update(lane_mode="manual"), "lane_mode must be"),
+        ("local", lambda c: c.update(cert="C-2"), "cert: C-1"),
+        ("ci", lambda c: c["lanes"]["linux"].pop("run_url"), "lanes.linux.run_url"),
+        ("ci", lambda c: c["lanes"]["linux"].update(run_url="green locally"), "run_url"),
+    ],
+)
+def test_cert_records_every_required_field(mode: str, mutate: Any, message: str) -> None:
+    cert = _cert(mode)
+    mutate(cert)
+    problems = pf.check_cert(pf.load_policy(REPO_ROOT), cert, 1, "C-1.md")
+    assert any(message in problem for problem in problems), problems
+
+
+def test_certification_accepts_a_passing_fallback_cert_on_the_head(cert_root: Path) -> None:
+    policy = pf.load_policy(cert_root)
+    assert pf.check_certification(cert_root, policy, 1, None, None)[1] == [
+        "missing cert autonomy/certs/C-1.md: no gate without a verifier cert"
+    ]
+    _write_cert(cert_root, _cert("local"))
+    assert pf.check_certification(cert_root, policy, 1, CERT_HEAD, None) == ("local", [])
+    mode, problems = pf.check_certification(cert_root, policy, 1, "d" * 40, None)
+    assert any(f"not {'d' * 40}" in problem for problem in problems)
+    mode, problems = pf.check_certification(cert_root, policy, 1, CERT_HEAD, "ci")
+    assert mode == "local" and any("C-1-ci.md required" in problem for problem in problems)
+
+
+def test_a_failing_cert_certifies_nothing(cert_root: Path) -> None:
+    _write_cert(cert_root, _cert("local", exits=(0, 1)))
+    mode, problems = pf.check_certification(cert_root, pf.load_policy(cert_root), 1, None, None)
+    assert mode == "local" and any("the head is not certified" in p for p in problems)
+
+
+def test_ci_recertification_of_the_same_head_supersedes_the_fallback(cert_root: Path) -> None:
+    policy = pf.load_policy(cert_root)
+    _write_cert(cert_root, _cert("local"))
+    _write_cert(cert_root, _cert("ci"), ci_recert=True)
+    assert pf.check_certification(cert_root, policy, 1, CERT_HEAD, "ci") == ("ci", [])
+
+
+@pytest.mark.parametrize(
+    ("original", "recert", "message"),
+    [
+        (_cert("local"), _cert("ci", head="e" * 40), "re-certifies"),
+        (_cert("local"), _cert("ci", exits=(1, 0)), "the head is not certified"),
+        (_cert("local"), _cert("local"), "must declare lane_mode: ci"),
+        (_cert("ci"), _cert("ci"), "only a lane_mode: local cert is re-certified"),
+    ],
+)
+def test_ci_recertification_that_disagrees_leaves_the_head_uncertified(
+    cert_root: Path, original: dict[str, Any], recert: dict[str, Any], message: str
+) -> None:
+    _write_cert(cert_root, original)
+    _write_cert(cert_root, recert, ci_recert=True)
+    _, problems = pf.check_certification(cert_root, pf.load_policy(cert_root), 1, None, None)
+    assert any(message in problem for problem in problems), problems
+
+
+def test_cert_command_reports_lane_mode_and_fails_closed(
+    cert_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert pf.main(["--root", str(cert_root), "cert", "--iteration", "1"]) == 1
+    assert "FAIL missing cert" in capsys.readouterr().out
+    _write_cert(cert_root, _cert("local"))
+    assert pf.main(["--root", str(cert_root), "cert", "--iteration", "1"]) == 0
+    assert capsys.readouterr().out.splitlines() == ["lane_mode local", "PASS"]
+    assert pf.main(["--root", str(cert_root), "cert", "--iteration", "1", "--require", "ci"]) == 1
+
+
+def test_verifier_may_write_the_ci_recertification_only_for_its_iteration() -> None:
+    policy = pf.load_policy(REPO_ROOT)
+    ok = [_change("autonomy/certs/C-1.md", "A"), _change("autonomy/certs/C-1-ci.md", "A")]
+    assert pf.check_scope(policy, _grant(), ok, "verifier") == []
+    assert pf.check_scope(policy, _grant(), [_change("autonomy/certs/C-2-ci.md", "A")], "verifier")

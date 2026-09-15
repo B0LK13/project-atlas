@@ -13,6 +13,7 @@ Exit codes: 0 pass, 1 violations, 2 usage or configuration error (fail closed).
     python autonomy/tools/preflight.py preflight --iteration N [--grant-ref origin/main]
     python autonomy/tools/preflight.py scope --iteration N [--role executor]
                                              [--grant-ref origin/main] [--head HEAD]
+    python autonomy/tools/preflight.py cert --iteration N [--head SHA] [--require ci]
 """
 
 from __future__ import annotations
@@ -51,6 +52,18 @@ OWNER_ONLY_EVENTS = ("resume",)
 MAX_REDESIGN_RETRIES = 2
 MULTI_ITERATION_GRANT_LEVEL = 3
 
+CERTS_PREFIX = "autonomy/certs/"
+LANE_NAMES = ("linux", "windows-native")
+LANE_MODES = ("ci", "local")
+CERT_RESULTS = ("PASS", "FAIL")
+HOST_KEYS = ("hostname", "os", "python", "git")
+FALLBACK_RULE = {
+    "when": "ci_unavailable",
+    "run_by": "verifier",
+    "lane_mode": "local",
+    "expires": "ci_available",
+}
+
 # No role, autonomy level or grant exception can open these.
 NEVER_WRITABLE = (
     "autonomy/policy.md",
@@ -76,6 +89,7 @@ _POLICY_BLOCK = re.compile(
 _FRONTMATTER = re.compile(r"\A---\n(.*?)^---[ \t]*$", re.S | re.M)
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _GIT_SHA = re.compile(r"[0-9a-f]{40}")
+_RUN_URL = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/actions/runs/[0-9]+(?:/job/[0-9]+)?")
 
 
 class ConfigError(Exception):
@@ -95,6 +109,8 @@ class Policy:
     role_scopes: dict[str, dict[int, tuple[str, ...]]]
     budget: dict[str, int]
     require_signed_grants: bool
+    lanes: dict[str, str]
+    fallback: dict[str, str] | None
 
     def scopes_for(self, role: str, iteration: int) -> tuple[str, ...]:
         if role == "executor":
@@ -222,6 +238,22 @@ def load_policy(root: Path) -> Policy:
     signed = data.get("require_signed_grants")
     if not isinstance(signed, bool):
         raise ConfigError("policy require_signed_grants must be true or false")
+    lanes = data.get("lanes")
+    required = lanes.get("required") if isinstance(lanes, dict) else None
+    if (
+        not isinstance(required, dict)
+        or set(required) != set(LANE_NAMES)
+        or not all(isinstance(check, str) and check for check in required.values())
+    ):
+        raise ConfigError(f"policy lanes.required must name CI checks for {', '.join(LANE_NAMES)}")
+    fallback = lanes.get("fallback") if isinstance(lanes, dict) else None
+    if fallback is not None and (
+        not isinstance(fallback, dict)
+        or any(fallback.get(key) != value for key, value in FALLBACK_RULE.items())
+        or not isinstance(fallback.get("host"), str)
+    ):
+        rule = ", ".join(f"{key}: {value}" for key, value in FALLBACK_RULE.items())
+        raise ConfigError(f"policy lanes.fallback must set host and {rule}")
     return Policy(
         level=_level(data.get("autonomy_level"), "policy autonomy_level"),
         allowed=_str_list(data.get("allowed_scopes"), "policy allowed_scopes"),
@@ -233,6 +265,8 @@ def load_policy(root: Path) -> Policy:
         },
         budget=_budget(data.get("budget"), "policy budget", required=True),
         require_signed_grants=signed,
+        lanes=dict(required),
+        fallback=dict(fallback) if fallback is not None else None,
     )
 
 
@@ -539,6 +573,139 @@ def check_roles(records: list[tuple[str, tuple[str, ...]]], role: str) -> list[s
     return problems
 
 
+def cert_path(iteration: int, *, ci_recert: bool = False) -> str:
+    return f"{CERTS_PREFIX}C-{iteration}{'-ci' if ci_recert else ''}.md"
+
+
+def load_cert(root: Path, rel: str) -> dict[str, Any]:
+    match = _FRONTMATTER.match(_read_bytes(root, rel).decode("utf-8"))
+    if match is None:
+        raise ConfigError(f"{rel} must start with a '---' frontmatter block")
+    try:
+        data = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"{rel} frontmatter is not valid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(f"{rel} frontmatter must be a mapping")
+    return data
+
+
+def _check_lane(lane: Any, where: str, mode: str) -> tuple[list[str], list[int]]:
+    if not isinstance(lane, dict):
+        return [f"{where} must be a mapping"], []
+    problems: list[str] = []
+    if mode == "ci":
+        url = lane.get("run_url")
+        if not isinstance(url, str) or not _RUN_URL.fullmatch(url):
+            problems.append(f"{where}.run_url must be a GitHub Actions run URL")
+    else:
+        host = lane.get("host")
+        if not isinstance(host, dict) or not all(
+            isinstance(host.get(key), str) and host[key].strip() for key in HOST_KEYS
+        ):
+            problems.append(f"{where}.host must fingerprint the host with {', '.join(HOST_KEYS)}")
+    commands = lane.get("commands")
+    if not isinstance(commands, list) or not commands:
+        return [*problems, f"{where}.commands must list at least one command"], []
+    exits: list[int] = []
+    for index, command in enumerate(commands):
+        at = f"{where}.commands[{index}]"
+        if not isinstance(command, dict):
+            problems.append(f"{at} must be a mapping")
+            continue
+        cmd = command.get("cmd")
+        if not isinstance(cmd, str) or not cmd.strip():
+            problems.append(f"{at}.cmd must record the exact command")
+        code = command.get("exit")
+        if isinstance(code, bool) or not isinstance(code, int):
+            problems.append(f"{at}.exit must be an integer exit code")
+        else:
+            exits.append(code)
+        duration = command.get("duration_seconds")
+        if isinstance(duration, bool) or not isinstance(duration, int | float) or duration < 0:
+            problems.append(f"{at}.duration_seconds must be a non-negative number")
+    return problems, exits
+
+
+def check_cert(
+    policy: Policy, cert: Mapping[str, Any], iteration: int, rel: str, *, ci_recert: bool = False
+) -> list[str]:
+    """Structure of one verifier cert per policy.md section 4.4."""
+    problems: list[str] = []
+    if cert.get("cert") != f"C-{iteration}" or cert.get("iteration") != iteration:
+        problems.append(f"must declare cert: C-{iteration} and iteration: {iteration}")
+    if cert.get("role") != "verifier":
+        problems.append("must declare role: verifier")
+    head = cert.get("head_sha")
+    if not isinstance(head, str) or not _GIT_SHA.fullmatch(head):
+        problems.append("head_sha must be a quoted full 40-character commit SHA")
+    mode = cert.get("lane_mode")
+    if mode not in LANE_MODES:
+        problems.append(f"lane_mode must be one of {', '.join(LANE_MODES)}")
+        return [f"{rel}: {problem}" for problem in problems]
+    if ci_recert and mode != "ci":
+        problems.append("a CI re-certification must declare lane_mode: ci")
+    if mode == "local":
+        if policy.fallback is None:
+            problems.append("lane_mode: local is not allowed: policy lanes.fallback is not set")
+        if cert.get("expires") != FALLBACK_RULE["expires"]:
+            problems.append(f"a fallback cert must declare expires: {FALLBACK_RULE['expires']}")
+        evidence = cert.get("ci_unavailable_evidence")
+        if not isinstance(evidence, str) or not _RUN_URL.fullmatch(evidence):
+            problems.append("a fallback cert must cite ci_unavailable_evidence as an Actions run URL")
+    lanes = cert.get("lanes")
+    exits: list[int] = []
+    if not isinstance(lanes, dict) or set(lanes) != set(LANE_NAMES):
+        problems.append(f"lanes must certify exactly {', '.join(LANE_NAMES)}")
+    else:
+        for name in LANE_NAMES:
+            lane_problems, lane_exits = _check_lane(lanes[name], f"lanes.{name}", mode)
+            problems.extend(lane_problems)
+            exits.extend(lane_exits)
+    result = cert.get("result")
+    if result not in CERT_RESULTS:
+        problems.append(f"result must be one of {', '.join(CERT_RESULTS)}")
+    elif (result == "PASS") != (bool(exits) and all(code == 0 for code in exits)):
+        problems.append(f"result {result} does not match the recorded exit codes")
+    return [f"{rel}: {problem}" for problem in problems]
+
+
+def check_certification(
+    root: Path, policy: Policy, iteration: int, head: str | None, require: str | None
+) -> tuple[str | None, list[str]]:
+    """Effective lane mode of C-<n> (and its CI re-certification) and any problems."""
+    primary = cert_path(iteration)
+    recert = cert_path(iteration, ci_recert=True)
+    if not (root / primary).is_file():
+        return None, [f"missing cert {primary}: no gate without a verifier cert"]
+    certs = [(primary, load_cert(root, primary))]
+    if (root / recert).is_file():
+        certs.append((recert, load_cert(root, recert)))
+    problems: list[str] = []
+    for rel, cert in certs:
+        problems.extend(check_cert(policy, cert, iteration, rel, ci_recert=rel == recert))
+    if problems:
+        return None, problems
+    if len(certs) == 2:
+        original, recertified = certs[0][1], certs[1][1]
+        if original["lane_mode"] != "local":
+            problems.append(f"{recert}: only a lane_mode: local cert is re-certified")
+        if recertified["head_sha"] != original["head_sha"]:
+            problems.append(
+                f"{recert}: re-certifies {recertified['head_sha']} but {primary} "
+                f"certified {original['head_sha']}"
+            )
+    effective_rel, effective = certs[-1]
+    if head is not None and effective["head_sha"] != head:
+        problems.append(f"{effective_rel}: certifies {effective['head_sha']}, not {head}")
+    if effective["result"] != "PASS":
+        problems.append(f"{effective_rel}: result {effective['result']}: the head is not certified")
+    if require == "ci" and effective["lane_mode"] != "ci":
+        problems.append(f"{effective_rel}: fallback cert only; CI re-certification {recert} required")
+    mode: str = effective["lane_mode"]
+    return mode, problems
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Governed RSI loop preflight and scope gate.")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
@@ -551,6 +718,10 @@ def main(argv: list[str] | None = None) -> int:
         if name == "scope":
             sub.add_argument("--head", default="HEAD")
             sub.add_argument("--role", choices=ROLES, default="executor")
+    cert = commands.add_parser("cert", help="validate the verifier cert for an iteration")
+    cert.add_argument("--iteration", type=int, required=True)
+    cert.add_argument("--head", default=None, help="commit the cert must certify")
+    cert.add_argument("--require", choices=("ci",), default=None)
     args = parser.parse_args(argv)
     root: Path = args.root.resolve()
     try:
@@ -563,6 +734,16 @@ def main(argv: list[str] | None = None) -> int:
                 problems = check_git_preflight(
                     root, load_policy(root), load_grant(root, args.iteration), args.grant_ref
                 )
+        elif args.command == "cert":
+            head = None
+            if args.head is not None:
+                resolved = _git_ok(root, "rev-parse", "--verify", f"{args.head}^{{commit}}")
+                head = resolved.decode("ascii").strip()
+            mode, problems = check_certification(
+                root, load_policy(root), args.iteration, head, args.require
+            )
+            if mode is not None and not problems:
+                print(f"lane_mode {mode}")
         else:
             policy = load_policy(root)
             grant = load_grant(root, args.iteration)
