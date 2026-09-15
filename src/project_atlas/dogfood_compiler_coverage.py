@@ -195,6 +195,7 @@ def _owned_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
     """Return project-owned imported source rows. Sibling / sentinel never leak."""
     selected: list[dict[str, Any]] = []
     seen: set[str] = set()
+    blocked: set[str] = set()
 
     def _accept(row: dict[str, Any], *, require_owner: bool) -> None:
         if row.get("exclusion_reason"):
@@ -203,6 +204,8 @@ def _owned_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
         source_id = str(row.get("source_id") or "")
         if not path or not source_id or source_id in seen:
             return
+        if source_id in blocked:
+            return
         if _is_secret_path(path):
             return
         if require_owner:
@@ -210,6 +213,9 @@ def _owned_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
             # (AS-DOGFOOD-SEMANTIC-OWNER-001 leftover P1-C-001).
             owner = str(row.get("likely_project") or "").strip()
             if owner != project_id or owner == _UNKNOWN_PROJECT:
+                # Remember rejected ids so a later semantic row cannot
+                # rebind the same source_id to the requested project.
+                blocked.add(source_id)
                 return
         seen.add(source_id)
         selected.append(row)
