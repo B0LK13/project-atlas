@@ -68,7 +68,7 @@ van andere missies.
 | Open taak | Ontbrekende voorwaarde | Hervattrigger |
 | --- | --- | --- |
 | Prime real-model toolcall / codingslice (pilotlijn) | voldoende model-tool-use (de Qwen3 1.7B-pogingen `kernel-bound-rpc-1..-6` en `kernel-bound-capability-1/-2` leverden **geen echte ipython-toolcall**: poging -6 deed één echte inferentie met `agent_end` maar alleen reasoning-text; capability-1/-2 onzeker/geen call) + reviewed proxy/IPC-brug | nieuw ownerbesluit; de geldige pilotgrant zegt expliciet dat geen verdere kleinere-modelpogingen geautoriseerd zijn |
-| ATLAS-PRIME-REALIGN-001 / AS-PRIME-TOOLCALL-DIAGNOSTICS-001 | taak is **niet geconstitueerd**: nergens in het dossier een ownerbesluit, enrollment of executorgrant; alleen voorstel-/verkenningstekst (inventory + proxy-WIP) — daar wordt geen taak of bevoegdheid van gemaakt | ownerbesluit via bestaande queue/handoff-route; pas daarna kan de supervisor haar onder geldige admission/ownership/executorgrant vervolgen |
+| ATLAS-PRIME-REALIGN-001 / AS-PRIME-TOOLCALL-DIAGNOSTICS-001 | bijgewerkt 2026-09-15 (zie §7.3/§7.4): de ownerbesluiten bestaan nu als bijlage (REALIGN + BOOTSTRAP-001) en de taak is gekoppeld en in uitvoering; resterend: supervisoracceptatie van de corrected successor-run + niet-auteur-IV van de delta | afloop van de successor-2 dispatch (§7.5); daarna niet-auteur-review van de worker-delta |
 | CI op de kandidaat | billingherstel GitHub-account; run op de gefroze head `913bc791` — een rerun van de oude run dekt de nieuwe head niet | billingherstel, daarna exact-head CI |
 | Canonieke kennisontvangst | Knowledge Plane receipt-pipeline aansluiting (lokale capture bestaat; canoniek blijft OPEN) | apart werkpakketbesluit |
 | Deployment / canary-rollback gate | deploymentautorisatie (niet verstrekt). De rollback-rij in de matrix blijft beperkt tot adapter-scope: cancel-na-CERTIFIED met intacte evidence is **geen** runtime-/deploymentrollback-bewijs | ownerdeploymentbesluit (canary-formaat) |
@@ -83,7 +83,7 @@ Resultaten van een andere executor tellen niet als Prime-real-modelbewijs.
 | Prime cloud/paid real-model | **nooit verstrekt** (P7-gapdoc) |
 | Kimi-probe 0/1 (auth 007) | **geldig, onaangeroerd** — niet door Prime gebruikt |
 | Lokale Qwen3-pilot (ownerbesluit) | **beperkt geldig**: alleen lokaal `qwen3:4b`-achtig traject, geen cloudfallback; kleinere-modelpogingen **uitgeput/onvoldoende** (geen toolcall); artifact `qwen3:4b` aanwezig (digest `359d77…74fae7`), tool-use-route onbewezen |
-| REALIGN/TOOLCALL-diagnosetaak | **niet geconstitueerd** (zie §4) |
+| REALIGN/TOOLCALL-diagnosetaak | **geconstitueerd 2026-09-15** (ownerbesluiten als bijlage; executor `codex-diagnostics-001` ACTIVE op canonieke registry; dispatch successor-2 loopt — §7.4) |
 
 Een vroeger verleende grant is geen huidige onbeperkte bevoegdheid: geen
 vierde capabilitycyclus, geen modelwissel, geen budgetreset.
@@ -101,3 +101,134 @@ vierde capabilitycyclus, geen modelwissel, geen budgetreset.
 Bewaking loopt uitsluitend via bestaande geautoriseerde mechanismen
 (`program status/events/control`, matrix, evidence-dossier) binnen deadline
 en budget; er is geen model-wachtlus of routinebevestiging opgenomen.
+
+## 7. Addendum 2026-09-15 — bewijsverduidelijking (A) en bootstrapstatus (B)
+
+Dit addendum verduidelijkt twee bewijs-/statuspunten en legt de uitvoering van
+ATLAS-EXECUTOR-BOOTSTRAP-001 vast. Het herschrijft geen earliere verdicts: de
+IV PASS op de freeze en de matrix blijven ongewijzigd op hun pins.
+
+### 7.1 Lijnverwantschap en reviewbereik — commitgraphbewijs
+
+Verificatie in `/home/gebruiker/atlas-prime-local-001` (branch
+`feat/prime-local-001`), exacte commando's en uitkomsten:
+
+| Commando | Uitkomst |
+| --- | --- |
+| `git merge-base --is-ancestor af3e4691 913bc791` | exit 0 — `af3e4691` is voorouder van `913bc791` |
+| `git rev-list --count af3e4691..913bc791` | 7 |
+| `git rev-list --count --ancestry-path af3e4691..913bc791` | 7 — pure lijn, geen zijtakken/merges |
+| `git merge-base --is-ancestor 3f3ee03b cc25b838` | exit 0 — reviewbereik goed gevormd |
+| `git merge-base --is-ancestor 913bc791 cc25b838` | exit 0 — freeze ligt ín het reviewbereik |
+| `git merge-base --is-ancestor 04c9cf27 cc25b838` | exit 1 — verdict-doc is kind van het reviewplafond (by construction) |
+
+Conclusie: het reviewbereik `3f3ee03b^..cc25b838` dekt de freeze `913bc791`
+én de laatste hostpatch; het verdict-doc `04c9cf27` zit er direct bovenop.
+Chronologie volgt uit git-geschiedenis (tijdstempels/volle hashes), nooit uit
+volgorde van korte hashes. Dit bevestigt §1 en §3; er was geen ongedekte
+delta, dus geen testherhaling.
+
+### 7.2 Verdictbindingscontrole (bron/patch/runtime)
+
+Op de gecommitte blobs bij `913bc791`:
+
+- `git show 913bc791:patches/prime-agent-5d25a44-atlas-child-admission-v1.patch | sha256sum`
+  = `226405200865db6f677e846da420d2fa7c04e8b42d5bef8b77c1ffffb7416dba` =
+  patchconstante in `prime_agent.py` = `patch_sha256` in
+  `prime-local-001-runtime-manifest.json` (drieweg-gelijk).
+- Manifest bij die commit: `adapter_version: prime-agent-atlas-adapter-v1`,
+  `upstream_sha 5d25a44bd22e1c1fe8321e141cd6c3932563d14c`,
+  `source_commit_verified: true`.
+
+### 7.3 "Lege enrollmentregistry"-observaties naast elkaar
+
+De eerdere constatering "diagnosetaak niet geconstitueerd / lege registry" was
+een **dossierstand op een tijdstip**, geen globale uitspraak. Drie observaties:
+
+| Wie / wanneer (UTC) | Host | Checkout / dossierstand | Gebruikte registry/state-root | Bevinding |
+| --- | --- | --- | --- | --- |
+| Codex-agent `01a0a06c`, 2026-09-14 20:40:17Z (herhaald 20:40:44Z, 20:41:02Z) | Probook-450 | dossier @ `04c9cf27` (tree `04cd857b`) | `/home/gebruiker/atlas-agents` (bestond niet) + enkele gecontroleerde paden | `agents: []`; taak als geblokkeerd gerapporteerd, geen self-enrollment |
+| Zelfde agent, 20:56:23Z | zelfde | zelfde | canoniek afgeleid uit DEPLOYMENT-MANIFEST-015: `…/supervisor-autonomous-009/registry` | alleen `q-agent-009` (historisch); bootstrap vervolgens zelf uitgevoerd: enroll 20:58:40Z, assign 21:00:12Z, dispatch (run 1 model-fout; successor worker compleet maar acceptance=false) |
+| Deze sessie, 2026-09-15 ±06:31Z | zelfde | `atlas-prime-local-001` @ `03bc4459` | canoniek registry + queue | `codex-diagnostics-001` ACTIVE, assigned; queue-binding conform manifest; diagnostische lijn bestaat dus wél |
+
+De ownerbesluiten bestaan inmiddels als bijlage: **ATLAS-PRIME-REALIGN-001**
+(taaktoelating AS-PRIME-TOOLCALL-DIAGNOSTICS-001) en
+**ATLAS-EXECUTOR-BOOTSTRAP-001** (begrensde operatorbootstrap). Deze vervallen
+de eerdere "niet geconstitueerd"-status; zie bijgewerkte rijen in §4/§5.
+
+### 7.4 Bootstrapstatus ATLAS-EXECUTOR-BOOTSTRAP-001
+
+Contextvaststelling (één keer, geen secrets gelogd): host `Probook-450`,
+OS-user `gebruiker`, cwd van deze operator-sessie
+`/home/gebruiker/Projects/project-atlas`; operator-CLI
+`/home/gebruiker/atlas-prime-local-001/.venv/bin/python -m project_atlas.orchestration.program.cli`;
+canonieke registry/state/queue afgeleid uit
+`…/atlas-supervisor-deployment-015/DEPLOYMENT-MANIFEST-015.json`
+(registry root `…/supervisor-autonomous-009/registry`); bron van `agents[]` =
+`registry/.atlas/orchestration/program/agents.json` (leesbaar, geen fallback,
+geen leesfout).
+
+- **Binding hergebruikt**: bestaande ACTIVE enrollment `codex-diagnostics-001`
+  (enrolled 2026-09-14T20:58:40Z) — geen nieuwe enrollment nodig.
+- **Programbinding via ondersteunde route**: `agent assign` op de canonieke
+  registry naar `program-successor-2.json` op 2026-09-15T06:38:10Z
+  (program_sha256 `2383b3e12a13fad8cbdb0679130306fda99c6fd98b608be4fdb688acfbfe0963`,
+  vooraf `program validate` → `valid: true`); readback bevestigd.
+- **Acceptance-defect forensisch vastgesteld**: de recorded acceptance-fout van
+  de successor-run (21:11Z) was een program-declaratiedefect, geen workerdefect.
+  De programmafiles zijn ná de run bewerkt (mtime 23:14:36 +0200); runtime-008
+  heeft een **niet-editable** `project_atlas 2.0.0` zonder `pytest-cov`, dus de
+  gedeclareerde commando kan daar nooit slagen (lokaal aangetoond:
+  cov-args-usagefout resp. `ModuleNotFoundError` op de nieuwe module). De
+  gecorrigeerde acceptance-route (workspace-`src` op `sys.path`, addopts
+  gewist) is lokaal groen: **73 passed in 8,98s**. Successor-2 draagt die
+  gecorrigeerde argv; geen wijziging in securitypolicy of acceptatiecriteria.
+- **Dispatch**: `program service start` op 2026-09-15T06:38:24Z, verse
+  state-root `state-successor-2`, service-pid 501639, `--max-rounds 1`.
+  Resultaat: **PENDING — zie §7.5**.
+- **Grenzen**: zelfde limieten (1 worker, 1 launch, 5400 s, geen recursie,
+  geen model-pin, geen providergrant, geen nieuwe inference); verbruik van
+  deze aanvulling wordt apart geregistreerd uit de run-evidence. Deze
+  executorbewijs telt niet als Prime-real-modeltoolcall of native delegatie.
+
+### 7.5 Successor-2 resultaat
+
+Dispatch bewijsbaar en het taakresultaat is echt:
+
+- Supervisor-dispatch: poging
+  `atlas-prime-toolcall-diagnostics-001-successor-2.AS-PRIME-TOOLCALL-DIAGNOSTICS-001.run.1.519a148f`,
+  gestart 2026-09-15T06:38:24Z, beëindigd 06:39:44Z, exit 0, confidence
+  CONFIRMED, supervisor-pid 501639.
+- **Supervisoracceptatie: `acceptance_passed: true`** —
+  `diagnostic-tests`: 73 passed in 8,64s (gesuperviseerde omgeving, geen
+  codex-sandbox); `git_tree_changed`: 9 gewijzigde paden. Taakstatus
+  **CERTIFIED** ("every acceptance condition observed to hold"). De worker
+  rapporteerde eerlijk 69/4 onder zijn eigen sandbox en voerde géén wijzigingen
+  door ("no changes made; existing implementation preserved").
+- **Aanvullend verbruik (apart geregistreerd, zoals vereist)**: 488.204
+  input-tokens (waarvan 418.816 gecached), 1.229 output-tokens, 40
+  reasoning-tokens; geen kostenpost verzonnen (adapter rapporteert alleen
+  tokens). Geen providergrant, geen modelwissel, geen budgetreset.
+- **Niet-auteur-IV van de worker-delta** (uitgevoerd door deze sessie; de
+  worker-auteur is `codex-diagnostics-001`): **PASS, 0 blockers**, twee
+  observaties:
+  1. `docs/.../prime-local-001-runtime-manifest.json` (adapter_version
+     v1→v2) valt buiten de gedeclareerde mutation_paths; docs-evidentie,
+     consistent met de `ADAPTER_VERSION`-bump in `prime_agent.py`. De
+     freeze-bindingen blijven intact: `CHILD_ADMISSION_PATCH_SHA256 =
+     226405200865…` en `PRIME_UPSTREAM_SHA = 5d25a44bd…` ongewijzigd; de
+     toelatingspoort hangt aan de patch-hash, niet aan het versielabel.
+  2. `scripts/prime-local-001-inference-relay.py` is ongetrackt en
+     byte-identiek aan de bestaande parallelle pilot-WIP — niet door deze
+     worker geautord, geen deel van de delta, ongemoeid gelaten.
+  Verder: zeven diagnostische statussen correct en alleen-lezen over
+  opgeslagen evidence; evidentiecorrecties (rpc-6 `no_structured_toolcall`,
+  capability-1 `kernel_start_failure` met geldige gestructureerde call,
+  capability-2 `unknown`) met SHA-256's vastgelegd; `control.py`-projectie
+  alleen-lezen, fail-closed, pad-veilig (symlink-escape-test), additieve
+  contract-bump volgens conventie; geen inference, geen policywijziging.
+- **Bewijsgrenzen**: dit alles sluit de diagnosetaak en haar
+  observability-eis; het is **geen** Prime-real-modeltoolcall-bewijs en geen
+  native Prime-delegatie. De open punten uit §4 (real-model slice, CI,
+  canonieke kennisontvangst, deployment, menselijke IV) blijven onveranderd
+  open.
