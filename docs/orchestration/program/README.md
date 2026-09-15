@@ -210,6 +210,13 @@ still refuses a second active lease for one task **or one agent** — an enrolle
 agent is one worker, not a pool — and owner gates still hold. What the number
 bounds is how many *non-conflicting* tasks may be in flight.
 
+Attempt-budget exhaustion must `RELEASE` the durable lease at or before
+`BLOCKED`. Leaving an ACTIVE lease after budget exhaustion can deny same-agent
+siblings as `FOREIGN_WORKER`. Bound by
+`test_attempt_budget_exhaustion_releases_active_lease` and
+`test_sibling_task_obtains_lease_after_attempt_budget_exhaustion_releases`
+(see also `SERVICE.md`).
+
 Only `adapter.run()` leaves the supervisor's thread. Leases, dispatch intent,
 transitions, acceptance and settlement all happen on the supervisor's own
 thread, so program state is never mutated from more than one place.
