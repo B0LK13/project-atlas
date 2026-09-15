@@ -1359,6 +1359,31 @@ class PrimeDaemonClient:
         data = response.get("data")
         return dict(data) if isinstance(data, dict) else None
 
+    def wait_for_idle(self, active_session_id: str) -> None:
+        """Block until the session reports idle after prompt_and_wait returns."""
+        self.request(
+            {"type": "wait_for_idle", "activeSessionId": active_session_id},
+            label="wait-idle",
+        )
+
+    def wait_for_headless_completion(
+        self, active_session_id: str, *, wait_for_rlm_quiescence: bool = True
+    ) -> dict[str, Any] | None:
+        """Wait through autonomous continuations / post-compaction restarts."""
+        command: dict[str, Any] = {
+            "type": "wait_for_headless_completion",
+            "activeSessionId": active_session_id,
+        }
+        if wait_for_rlm_quiescence:
+            if "rlm_quiescence_barrier" not in self.server_capabilities:
+                raise PrimeDaemonError(
+                    "Prime daemon does not advertise rlm_quiescence_barrier"
+                )
+            command["waitForRlmQuiescence"] = True
+        response = self.request(command, label="headless-completion")
+        data = response.get("data")
+        return dict(data) if isinstance(data, dict) else None
+
 
 class PrimeDaemonError(AdapterUnavailableError):
     """The public Prime daemon route could not be used safely."""
@@ -1910,7 +1935,7 @@ class PrimeExecutorAdapter:
             client_id=(
                 f"atlas:{request.program_id}:{request.task_id}:{request.attempt_id}"
             ),
-            timeout_seconds=min(30.0, float(request.timeout_seconds)),
+            timeout_seconds=float(request.timeout_seconds),
             max_frame_bytes=self._max_frame_bytes,
             resume_cursor=_resume_cursor_for_session(
                 request.evidence_dir, request.resume_session_id
@@ -1989,6 +2014,16 @@ class PrimeExecutorAdapter:
                 admission_id=request.idempotency_key,
                 cancel_requested=request.cancel_requested,
             )
+            # prompt_and_wait resolves on the first agent_end. Threshold
+            # compaction / autonomous continuation may restart the agent
+            # immediately afterward; keep the inference proxy alive until
+            # the public headless-completion barrier settles.
+            if "rlm_quiescence_barrier" in client.server_capabilities:
+                client.wait_for_headless_completion(
+                    active_session_id, wait_for_rlm_quiescence=True
+                )
+            else:
+                client.wait_for_idle(active_session_id)
             if broker is not None and not broker.wait_until_idle(
                 max(0.0, request.timeout_seconds - (time.monotonic() - started))
             ):
@@ -2228,6 +2263,14 @@ def _write_local_provider_config(
     if not 1024 <= port <= 65535:
         raise PrimeDaemonError("local inference proxy port is outside the user range")
     agent_dir.mkdir(parents=True, exist_ok=True)
+    # Default Prime compaction reserves 16Ki tokens. On a 4Ki local context
+    # window that makes shouldCompact() true after every turn, so the agent
+    # loop stops after the first tool round and never feeds tool results back
+    # to the model. Size reserves to the declared context window instead.
+    context_window = 4096
+    max_tokens = 1024
+    reserve_tokens = max(256, context_window // 8)
+    keep_recent_tokens = max(512, context_window // 4)
     config = {
         "providers": {
             provider: {
@@ -2242,16 +2285,28 @@ def _write_local_provider_config(
                     {
                         "id": model,
                         "input": ["text"],
-                        "contextWindow": 4096,
-                        "maxTokens": 512,
+                        "contextWindow": context_window,
+                        "maxTokens": max_tokens,
                         "reasoning": False,
                     }
                 ],
             }
         }
     }
+    settings = {
+        "telemetry": {"noticeShown": True},
+        "compaction": {
+            "enabled": True,
+            "reserveTokens": reserve_tokens,
+            "keepRecentTokens": keep_recent_tokens,
+        },
+    }
     (agent_dir / "models.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (agent_dir / "settings.json").write_text(
+        json.dumps(settings, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 
