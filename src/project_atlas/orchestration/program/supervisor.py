@@ -62,6 +62,12 @@ from project_atlas.orchestration.program.acceptance import (
     evaluate_task,
     progress_fingerprint,
 )
+from project_atlas.orchestration.program.semantic_acceptance import (
+    BaselineManifest,
+    capture_baseline_manifest,
+    evaluate_semantic_acceptance,
+    merge_acceptance_results,
+)
 from project_atlas.orchestration.program.adapters.base import (
     AdapterOutcome,
     AdapterRequest,
@@ -2239,6 +2245,30 @@ class ProgramSupervisor:
             },
         )
 
+        # Baseline before coding work: pre-existing porcelain is recorded and
+        # must never become the sole acceptance success signal (t003d FP).
+        if not verifying and task.mutation_paths:
+            baseline = capture_baseline_manifest(
+                workspace=self.workspace,
+                profile=profile,
+                attempt_id=attempt_id,
+                allowlist=tuple(task.mutation_paths),
+            )
+            baseline_name = f"{attempt_id}.baseline.json"
+            write_evidence(self.root, baseline_name, baseline.to_public_dict())
+            attempt.evidence_paths = (*attempt.evidence_paths, baseline_name)
+            persist_state(self.root, state)
+            append_event(
+                self.root,
+                "BASELINE_MANIFEST_CAPTURED",
+                {
+                    "attempt_id": attempt_id,
+                    "task_id": task.task_id,
+                    "allowlist": list(task.mutation_paths),
+                    "pre_existing_porcelain": len(baseline.pre_existing_porcelain),
+                },
+            )
+
         if task.task_kind == "VERIFY_SUBJECT" and record.state is NodeState.LEASED:
             self._transition(state, task.task_id, NodeState.ACTIVE, reason="review worker starting")
         elif not verifying and record.state is NodeState.LEASED:
@@ -2471,6 +2501,27 @@ class ProgramSupervisor:
             return
 
         acceptance = evaluate_task(task, workspace=self.workspace, profile=profile)
+        if task.mutation_paths and not verifying:
+            baseline_doc = None
+            baseline_name = f"{attempt.attempt_id}.baseline.json"
+            baseline_path = evidence_dir(self.root) / baseline_name
+            if baseline_path.is_file():
+                try:
+                    baseline_doc = BaselineManifest.from_public_dict(
+                        json.loads(baseline_path.read_text(encoding="utf-8"))
+                    )
+                except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                    baseline_doc = None
+            semantic = evaluate_semantic_acceptance(
+                task,
+                workspace=self.workspace,
+                profile=profile,
+                baseline=baseline_doc,
+                evidence_root=evidence_dir(self.root),
+                attempt_id=attempt.attempt_id,
+                require_reviewer=False,
+            )
+            acceptance = merge_acceptance_results(acceptance, semantic)
         attempt.acceptance_passed = acceptance.passed
         attempt.acceptance_detail = tuple(check.to_public_dict() for check in acceptance.checks)
         attempt.phase = AttemptPhase.ACCEPTANCE_EVALUATED
@@ -2491,6 +2542,7 @@ class ProgramSupervisor:
                 "worker_report_is_not_acceptance": True,
                 "acceptance": acceptance.to_public_dict(),
                 "progress_fingerprint": fingerprint,
+                "semantic_hardening": bool(task.mutation_paths and not verifying),
             },
         )
         attempt.evidence_paths = (*attempt.evidence_paths, evidence_name)

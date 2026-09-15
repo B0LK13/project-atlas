@@ -130,14 +130,33 @@ def _run_command(
     )
 
 
-def _git_tree_changed(workspace: Path, profile: AgentProfile) -> CheckResult:
-    """Did the worker change anything tracked, at all?
+def _porcelain_path(line: str) -> str:
+    body = line[3:] if len(line) >= 3 else line
+    if " -> " in body:
+        body = body.split(" -> ", 1)[1]
+    return body.strip()
 
-    A weak condition on purpose: it is the answer to "did this run do
-    literally nothing", not to "did it do the right thing". It is available as
-    an acceptance kind because a task whose real conditions are checked
-    elsewhere still benefits from failing loudly when the workspace is
-    untouched.
+
+def _path_in_scope(path: str, scope: str) -> bool:
+    if path == scope:
+        return True
+    prefix = scope.rstrip("/") + "/"
+    return path.startswith(prefix)
+
+
+def _git_tree_changed(
+    check: AcceptanceCheck,
+    workspace: Path,
+    profile: AgentProfile,
+) -> CheckResult:
+    """Did the worker change the declared scope?
+
+    When ``check.path`` is set, only porcelain entries for that path (or under
+    it) count. Pre-existing dirt elsewhere must never satisfy the check — that
+    false-positive is exactly how t003d's weak evaluator passed without an A1
+    patch. When ``path`` is unset the historical weak "any porcelain" behaviour
+    remains for legacy programs, but callers that need candidate-bound proof
+    must set ``path`` or use semantic acceptance.
     """
     try:
         completed = subprocess.run(
@@ -151,22 +170,39 @@ def _git_tree_changed(workspace: Path, profile: AgentProfile) -> CheckResult:
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return CheckResult(
-            check_id="git_tree_changed",
+            check_id=check.check_id,
             kind=AcceptanceKind.GIT_TREE_CHANGED,
             passed=False,
             detail=f"git status failed: {exc}",
         )
     if completed.returncode != 0:
         return CheckResult(
-            check_id="git_tree_changed",
+            check_id=check.check_id,
             kind=AcceptanceKind.GIT_TREE_CHANGED,
             passed=False,
             detail=(completed.stderr or "")[-_MAX_CAPTURE:] or "git status failed",
             exit_status=completed.returncode,
         )
     changed = [line for line in (completed.stdout or "").splitlines() if line.strip()]
+    if check.path:
+        scoped = [
+            line
+            for line in changed
+            if _path_in_scope(_porcelain_path(line), check.path)
+        ]
+        ignored = len(changed) - len(scoped)
+        return CheckResult(
+            check_id=check.check_id,
+            kind=AcceptanceKind.GIT_TREE_CHANGED,
+            passed=bool(scoped),
+            detail=(
+                f"{len(scoped)} changed path(s) in scope {check.path!r}"
+                + (f" (ignored {ignored} out-of-scope)" if ignored else "")
+            ),
+            exit_status=0,
+        )
     return CheckResult(
-        check_id="git_tree_changed",
+        check_id=check.check_id,
         kind=AcceptanceKind.GIT_TREE_CHANGED,
         passed=bool(changed),
         detail=f"{len(changed)} changed path(s)",
@@ -184,7 +220,7 @@ def evaluate_check(
         return _run_command(check, workspace=workspace, profile=profile)
 
     if check.kind is AcceptanceKind.GIT_TREE_CHANGED:
-        return _git_tree_changed(workspace, profile)
+        return _git_tree_changed(check, workspace, profile)
 
     assert check.path is not None  # guaranteed by the model validator
     try:

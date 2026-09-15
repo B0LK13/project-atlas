@@ -193,7 +193,9 @@ class AcceptanceKind(StrEnum):
     FILE_EXISTS = "FILE_EXISTS"
     #: A workspace-relative file must match a regular expression.
     FILE_MATCHES = "FILE_MATCHES"
-    #: `git diff --quiet` against the recorded base must report a change.
+    #: Declared path must show a porcelain change. When ``path`` is set only
+    #: that scope counts — pre-existing dirt elsewhere is not a success signal.
+    #: When unset, any porcelain change still passes (legacy weak behaviour).
     GIT_TREE_CHANGED = "GIT_TREE_CHANGED"
 
 
