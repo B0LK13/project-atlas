@@ -300,10 +300,16 @@ _GIT_SANDBOX: Final[tuple[str, ...]] = (
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["GIT_OPTIONAL_LOCKS"] = "0"
-    # Operator/process GIT_DIR must not retarget inventory at a foreign tree.
+    # Operator/process GIT_DIR / GIT_CONFIG_* must not retarget or inject
+    # executors into DISCOVER_ONLY inspection.
     env.pop("GIT_DIR", None)
     env.pop("GIT_WORK_TREE", None)
     env.pop("GIT_COMMON_DIR", None)
+    env.pop("GIT_CONFIG_COUNT", None)
+    env.pop("GIT_CONFIG_PARAMETERS", None)
+    env.pop("GIT_CONFIG_SYSTEM", None)
+    env.pop("GIT_CONFIG_GLOBAL", None)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
     return subprocess.run(
         ["git", "--no-optional-locks", *_GIT_SANDBOX, "-C", str(root), *args],
         check=False,
@@ -311,6 +317,11 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         text=True,
         env=env,
     )
+
+
+def _read_git_text(path: Path, limit: int = 1_000_000) -> str | None:
+    """Read git metadata. Do not use the 4KiB secret-scan cap."""
+    return _read_text_limited(path, limit=limit)
 
 
 _SCHEME_USERINFO_RE = re.compile(r":///*[^/@]*@")
@@ -387,18 +398,12 @@ def _git_head_readable(project: Path, source_root: Path) -> bool:
     return text is not None and bool(text.strip())
 
 
-def _git_exec_config_present(project: Path, source_root: Path) -> bool:
-    """Repo-local commands that git status/config may execute.
+def _is_git_repo(path: Path, source_root: Path) -> bool:
+    return _contained_git_repo(path, source_root) and _git_head_readable(path, source_root)
 
-    INI section form ([filter \"name\"] clean=...) is the live writer shape.
-    Unreadable config fails closed (unknown executor).
-    """
-    target = _gitdir_target(project)
-    if target is None or _escapes(target, source_root):
-        return False
-    text = _read_text_limited(target / "config")
-    if text is None:
-        return True
+
+def _git_config_has_executor(text: str) -> bool:
+    """True when local git config can run a process during inspect."""
     section = ""
     for raw in text.splitlines():
         line = raw.split(";", 1)[0].split("#", 1)[0].strip()
@@ -422,37 +427,88 @@ def _git_exec_config_present(project: Path, source_root: Path) -> bool:
             return True
         if section == "diff" and key == "external":
             return True
-        if section.startswith("filter ") and key in {"clean", "smudge", "process"}:
+        if (
+            section.startswith("filter ") or section.startswith("filter.")
+        ) and key in {"clean", "smudge", "process"}:
+            return True
+        if section in {"include", "includeif"} or section.startswith("includeif "):
             return True
     return False
 
 
-def _is_git_repo(path: Path, source_root: Path) -> bool:
-    return _contained_git_repo(path, source_root) and _git_head_readable(path, source_root)
+def _git_unsafe_to_invoke(project: Path, source_root: Path) -> bool:
+    """Fail closed when git metadata may execute helpers or is incomplete."""
+    target = _gitdir_target(project)
+    if target is None or _escapes(target, source_root):
+        return True
+    texts: list[str] = []
+    for rel in ("config", "config.worktree"):
+        payload = _read_git_text(target / rel)
+        if rel == "config" and payload is None:
+            return True
+        if payload:
+            texts.append(payload)
+    commondir = _read_git_text(target / "commondir")
+    if commondir is not None and commondir.strip():
+        common = Path(commondir.strip())
+        if not common.is_absolute():
+            common = target / common
+        if _escapes(common, source_root):
+            return True
+        common_cfg = _read_git_text(common / "config")
+        if common_cfg is None:
+            return True
+        texts.append(common_cfg)
+    return any(_git_config_has_executor(text) for text in texts)
 
 
 def _dirty(path: Path) -> bool | None:
-    """True/False when status is trustworthy; None when git inspection failed.
-
-    Failure must not be treated as clean. Callers mark inspection incomplete.
-    """
-    result = _git(path, "status", "--porcelain")
-    if result.returncode != 0:
+    """Name-only dirty. Never ``status`` or ``ls-files -m`` (both run filters)."""
+    tracked = _git(path, "ls-files", "-z")
+    extra = _git(path, "ls-files", "-o", "--exclude-standard", "-z")
+    if tracked.returncode != 0 or extra.returncode != 0:
         return None
-    return bool(result.stdout.strip())
+    if extra.stdout.strip("\x00").strip():
+        return True
+    for name in tracked.stdout.split("\x00"):
+        if not name:
+            continue
+        exists = _safe_exists(path / name)
+        if exists is None:
+            return None
+        if exists is False:
+            return True
+    return False
 
 
-def _remote_url(path: Path) -> str | None:
-    result = _git(path, "config", "--get", "remote.origin.url")
-    if result.returncode != 0:
+def _remote_url(path: Path, source_root: Path) -> str | None:
+    """Parse origin URL from contained git config. Never ``git config``."""
+    target = _gitdir_target(path)
+    if target is None or _escapes(target, source_root):
         return None
-    url = result.stdout.strip()
-    if not url:
+    text = _read_git_text(target / "config")
+    if text is None:
         return None
-    try:
-        return _redact_remote_url(url)
-    except (ValueError, UnicodeError):
-        return "redacted-invalid-remote"
+    section = ""
+    for raw in text.splitlines():
+        line = raw.split(";", 1)[0].split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip().lower()
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if section == 'remote "origin"' and key.strip().lower() == "url":
+            url = value.strip().strip('"').strip("'")
+            if not url:
+                return None
+            try:
+                return _redact_remote_url(url)
+            except (ValueError, UnicodeError):
+                return "redacted-invalid-remote"
+    return None
 
 
 def _walk_projects(root: Path) -> list[dict[str, Any]]:
@@ -631,7 +687,7 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
             dirty = False
             remote: str | None = None
             if git_here:
-                if _git_exec_config_present(current, root):
+                if _git_unsafe_to_invoke(current, root):
                     _record_inaccessible(exclusions, current / ".git" / "config", root)
                     inspection_complete = False
                 else:
@@ -641,7 +697,7 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
                         inspection_complete = False
                     else:
                         dirty = dirty_state
-                    remote = _remote_url(current)
+                remote = _remote_url(current, root)
             elif git_st is not None:
                 # Present .git that is not a contained readable repo.
                 inspection_complete = False

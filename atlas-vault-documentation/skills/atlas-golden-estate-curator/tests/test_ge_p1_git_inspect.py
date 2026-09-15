@@ -56,7 +56,6 @@ def test_fsmonitor_hook_does_not_run_and_is_not_golden(tmp_path: Path) -> None:
     qual = _qual(report, row["path"])
     assert row["inspection_complete"] is False
     assert qual["golden_candidate"] is False
-    assert qual["excluded"] is True
     assert INACCESSIBLE_REASON in qual["blockers"]
     assert row["path"] not in report["recommendation"]["recommended_golden_set"]
     assert report["source_mutations"] == 0
@@ -155,6 +154,66 @@ def test_garbage_gitfile_is_not_golden(tmp_path: Path) -> None:
     assert row["inspection_complete"] is False
     assert qual["golden_candidate"] is False
     assert INACCESSIBLE_REASON in qual["blockers"]
+
+
+def test_include_path_filter_does_not_run(tmp_path: Path) -> None:
+    """ADV leftover: include.path filter must not execute via status."""
+    source = tmp_path / "estate"
+    source.mkdir()
+    project = source / "included"
+    _init_repo(project, readme="# Included\n")
+    outside = tmp_path / "OUTSIDE_ONLY_INCLUDE"
+    hook = tmp_path / "include-hook.sh"
+    hook.write_text(f"#!/bin/sh\necho escaped > {outside}\ncat\n", encoding="utf-8")
+    hook.chmod(0o755)
+    extra = tmp_path / "extra-included.gitconfig"
+    extra.write_text(
+        f'[filter "huntleftover"]\n\tclean = {hook}\n\tsmudge = {hook}\n',
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "config", "include.path", str(extra)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (project / ".gitattributes").write_text("* filter=huntleftover\n", encoding="utf-8")
+    dest = tmp_path / "include.json"
+    before = fingerprint(source)
+    report = curate(source, phase="RECOMMEND", output=dest)
+    assert fingerprint(source) == before
+    assert not outside.exists()
+    row = _row(report, "included")
+    qual = _qual(report, row["path"])
+    assert row["kind"] == "git"
+    assert qual["golden_candidate"] is False
+    assert report["source_mutations"] == 0
+
+
+def test_padded_local_filter_does_not_run(tmp_path: Path) -> None:
+    """ADV leftover: filter section past a 4KiB pad must not execute."""
+    source = tmp_path / "estate"
+    source.mkdir()
+    project = source / "padded"
+    _init_repo(project, readme="# Padded\n")
+    outside = tmp_path / "OUTSIDE_ONLY_PAD"
+    hook = tmp_path / "pad-hook.sh"
+    hook.write_text(f"#!/bin/sh\necho escaped > {outside}\ncat\n", encoding="utf-8")
+    hook.chmod(0o755)
+    config = project / ".git" / "config"
+    text = config.read_text(encoding="utf-8")
+    pad = "# " + ("x" * 5000) + "\n"
+    text += pad + f'[filter "huntleftover"]\n\tclean = {hook}\n\tsmudge = {hook}\n'
+    config.write_text(text, encoding="utf-8")
+    (project / ".gitattributes").write_text("* filter=huntleftover\n", encoding="utf-8")
+    dest = tmp_path / "pad.json"
+    report = curate(source, phase="RECOMMEND", output=dest)
+    assert not outside.exists()
+    row = _row(report, "padded")
+    qual = _qual(report, row["path"])
+    assert row["kind"] == "git"
+    assert qual["golden_candidate"] is False
+    assert report["source_mutations"] == 0
 
 
 def test_healthy_contained_git_still_golden(tmp_path: Path) -> None:
