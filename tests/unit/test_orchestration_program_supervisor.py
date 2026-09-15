@@ -17,6 +17,10 @@ from typing import Any
 
 import pytest
 
+from project_atlas.orchestration.autonomy.lease_projection import (
+    active_rows,
+    load_projection,
+)
 from project_atlas.orchestration.autonomy.models import NodeState, OwnerGateKind
 from project_atlas.orchestration.program.adapters.base import version_at_least
 from project_atlas.orchestration.program.loader import ProgramLoadError, load_program
@@ -31,7 +35,7 @@ from project_atlas.orchestration.program.profiles import (
     build_profile_set,
     resolve_effective_profile,
 )
-from project_atlas.orchestration.program.store import load_state, read_events
+from project_atlas.orchestration.program.store import load_state, read_events, state_dir
 from project_atlas.orchestration.program.supervisor import (
     DispatchMode,
     ProgramSupervisor,
@@ -452,6 +456,54 @@ def test_owner_gated_task_never_dispatches(
 
 
 # ------------------------------------------------- acceptance vs worker claims
+
+
+def test_attempt_budget_exhaustion_releases_active_lease(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REMEDIATING + attempts>=budget must RELEASE the durable lease (9241755e).
+
+    Related BLOCKED/lease tests can pass while this `_choose` path still leaves
+    an ACTIVE projection row (FOREIGN_WORKER starvation). Bind ACTIVE→RELEASED
+    to the exact transition reason.
+    """
+    workspace = _make_workspace(tmp_path)
+    monkeypatch.setenv("ATLAS_FIXTURE_MODE", "claim-only")
+    program = _write_program(
+        tmp_path,
+        workspace,
+        tasks=[_task("budget-one", output="never-written.txt")],
+        profiles={"implementer": _profile(max_attempts=1)},
+        limits={
+            "max_cycles": 8,
+            "idle_sleep_seconds": 0.0,
+            "max_attempts_per_task": 1,
+        },
+    )
+    supervisor = _supervisor(program, tmp_path)
+    supervisor.start()
+
+    state = load_state(tmp_path / "state")
+    assert state is not None
+    assert state.tasks["budget-one"].state is NodeState.BLOCKED
+
+    events = read_events(tmp_path / "state")
+    budget_transitions = [
+        row
+        for row in events
+        if row.get("event") == "TASK_TRANSITION"
+        and row.get("to") == "BLOCKED"
+        and row.get("from") == "REMEDIATING"
+        and row.get("reason") == "attempt budget of 1 exhausted"
+    ]
+    assert budget_transitions, events
+
+    projection = load_projection(state_dir(tmp_path / "state"))
+    assert active_rows(projection) == ()
+    assert any(
+        row.get("event") == "LEASE_RELEASED" and row.get("task_id") == "budget-one"
+        for row in events
+    ), events
 
 
 def test_worker_claiming_completion_without_doing_the_work_fails_acceptance(
