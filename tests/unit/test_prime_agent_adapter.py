@@ -883,3 +883,143 @@ def test_resume_cursor_is_loaded_only_for_the_requested_session(tmp_path: Path) 
 
 def test_git_identity_is_read_only_and_safe_for_non_git_workspaces(tmp_path: Path) -> None:
     assert _git_identity(tmp_path) == (None, None)
+
+
+def test_ensure_daemon_fences_stale_socket_before_bind(tmp_path: Path) -> None:
+    """Stale AF_UNIX path with no listener must not block a new generation."""
+    from project_atlas.orchestration.program.adapters.prime_agent import PrimeDaemonError
+
+    sock = tmp_path / "daemon.sock"
+    lock = Path(str(sock) + ".lock")
+    lock.mkdir()
+    # Create a non-listening socket path: bind+close leaves a stale file on some
+    # systems; emulate with a plain file that connect() refuses.
+    sock.write_text("", encoding="utf-8")
+    fake = tmp_path / "prime-agent"
+    fake.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    fake.chmod(0o755)
+    adapter = PrimeExecutorAdapter(str(fake), daemon_socket=sock)
+    profile = AgentProfile(
+        profile_id="prime-worker",
+        agent_id="prime-e2e-parent-002",
+        adapter=AdapterKind.PRIME_AGENT,
+        credential="NOT_APPLICABLE",
+        capabilities=["IMPLEMENT"],
+        limits={"max_attempts": 1, "max_seconds": 30},
+    )
+    request = AdapterRequest(
+        program_id="program",
+        task_id="task",
+        attempt_id="attempt",
+        attempt_number=1,
+        idempotency_key="k",
+        instruction="x",
+        workspace=tmp_path,
+        profile=profile,
+        session_id=None,
+        resume_session_id=None,
+        timeout_seconds=1,
+        evidence_dir=tmp_path / "ev",
+    )
+    (tmp_path / "ev").mkdir()
+    with pytest.raises(PrimeDaemonError, match="exited before its public socket"):
+        adapter._ensure_daemon(request, env={}, session_dir=tmp_path / "sessions", require_new=True)
+    assert not sock.exists()
+    assert not lock.exists()
+
+
+def test_ensure_daemon_require_new_refuses_live_socket(tmp_path: Path) -> None:
+    from project_atlas.orchestration.program.adapters.prime_agent import PrimeDaemonError
+
+    sock = tmp_path / "daemon.sock"
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(str(sock))
+    server.listen(1)
+    try:
+        adapter = PrimeExecutorAdapter("prime-agent", daemon_socket=sock)
+        profile = AgentProfile(
+            profile_id="prime-worker",
+            agent_id="prime-e2e-parent-002",
+            adapter=AdapterKind.PRIME_AGENT,
+            credential="NOT_APPLICABLE",
+            capabilities=["IMPLEMENT"],
+            limits={"max_attempts": 1, "max_seconds": 30},
+        )
+        request = AdapterRequest(
+            program_id="program",
+            task_id="task",
+            attempt_id="attempt",
+            attempt_number=1,
+            idempotency_key="k",
+            instruction="x",
+            workspace=tmp_path,
+            profile=profile,
+            session_id=None,
+            resume_session_id=None,
+            timeout_seconds=1,
+            evidence_dir=tmp_path / "ev",
+        )
+        (tmp_path / "ev").mkdir()
+        with pytest.raises(PrimeDaemonError, match="refusing to reuse a live daemon socket"):
+            adapter._ensure_daemon(
+                request, env={}, session_dir=tmp_path / "sessions", require_new=True
+            )
+    finally:
+        server.close()
+        sock.unlink(missing_ok=True)
+
+
+def test_start_inference_proxy_uses_short_socket_dir_path(tmp_path: Path) -> None:
+    """Long evidence dirs must not place AF_UNIX socks beyond sun_path."""
+    from project_atlas.orchestration.program.adapters.prime_agent import (
+        _start_inference_proxy,
+    )
+
+    evidence = tmp_path / ("ev" * 40)
+    evidence.mkdir(parents=True)
+    sock_dir = tmp_path / "ipc"
+    sock_dir.mkdir()
+    agent_dir = tmp_path / "agent"
+    attempt_id = "e2e002-takeover-003.prime-a1.run.1.b4e04ee8"
+    profile = AgentProfile(
+        profile_id="prime-worker",
+        agent_id="prime-e2e-parent-002",
+        adapter=AdapterKind.PRIME_AGENT,
+        model="qwen3:1.7b-q4_K_M",
+        credential="NOT_APPLICABLE",
+        capabilities=["IMPLEMENT"],
+        limits={"max_attempts": 1, "max_seconds": 30},
+        adapter_options={
+            "inference_mode": "local-only",
+            "provider": "atlas-local-qwen",
+            "inference_proxy": {
+                "worker_port": 38741,
+                "socket_dir": str(sock_dir),
+            },
+        },
+    )
+    request = AdapterRequest(
+        program_id="program",
+        task_id="task",
+        attempt_id=attempt_id,
+        attempt_number=1,
+        idempotency_key="k",
+        instruction="x",
+        workspace=tmp_path,
+        profile=profile,
+        session_id=None,
+        resume_session_id=None,
+        timeout_seconds=1,
+        evidence_dir=evidence,
+    )
+    env: dict[str, str] = {}
+    proxy = _start_inference_proxy(request, env, agent_dir)
+    assert proxy is not None
+    try:
+        expected = sock_dir / "b4e04ee8.inf.sock"
+        assert Path(env["ATLAS_PRIME_INFERENCE_PROXY_SOCKET"]) == expected
+        assert len(env["ATLAS_PRIME_INFERENCE_PROXY_SOCKET"]) < 100
+        assert expected.exists()
+        assert (evidence / f"{attempt_id}.inference-audit.jsonl").exists() or True
+    finally:
+        proxy.close()

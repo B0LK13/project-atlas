@@ -398,6 +398,18 @@ class PrimeChildAdmissionBroker:
         if not self._ready.wait(timeout_seconds):
             self.close()
             raise PrimeDaemonError("child admission broker did not become ready")
+        # Bind failures still trip _ready in finally; require a live listener.
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            probe.settimeout(0.2)
+            probe.connect(str(self.socket_path))
+        except OSError as exc:
+            self.close()
+            raise PrimeDaemonError(
+                "child admission broker failed to bind its AF_UNIX socket"
+            ) from exc
+        finally:
+            probe.close()
 
     def close(self) -> None:
         self._stop.set()
@@ -492,11 +504,15 @@ class PrimeChildAdmissionBroker:
     def _serve(self) -> None:
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._server = server
+        bound = False
         try:
+            if len(str(self.socket_path)) >= 100:
+                raise OSError("AF_UNIX path too long")
             server.bind(str(self.socket_path))
             os.chmod(self.socket_path, 0o600)
             server.listen(8)
             server.settimeout(0.2)
+            bound = True
             self._ready.set()
             while not self._stop.is_set():
                 try:
@@ -508,7 +524,13 @@ class PrimeChildAdmissionBroker:
                 with connection:
                     self._serve_connection(connection)
         finally:
-            self._ready.set()
+            # Only signal ready after a successful bind; otherwise start()
+            # would treat a failed AF_UNIX bind as a healthy broker.
+            if bound:
+                self._ready.set()
+            else:
+                self._stop.set()
+                self._ready.set()
             server.close()
             self._server = None
 
@@ -1367,6 +1389,9 @@ class PrimeDaemonError(AdapterUnavailableError):
 def _prime_failure_class(text: str) -> FailureClass:
     """Classify provider rejection without turning it into an infrastructure retry."""
     lowered = text.casefold()
+    # Mission-owned AF_UNIX / broker path faults are infrastructure, never quota.
+    if "af_unix" in lowered or "path too long" in lowered:
+        return FailureClass.TRANSIENT_INFRASTRUCTURE
     if any(
         marker in lowered
         for marker in (
@@ -1667,9 +1692,20 @@ class PrimeExecutorAdapter:
         env = build_child_env(request.profile, extra=dict(request.extra_env))
         _add_kernel_python_environment(request.profile, env)
         _add_user_scope_environment(request.profile, env)
-        agent_dir = request.evidence_dir / "prime-config"
+        configured_agent_dir = request.profile.adapter_options.get("coding_agent_dir")
+        agent_dir = (
+            Path(configured_agent_dir)
+            if isinstance(configured_agent_dir, str) and configured_agent_dir
+            else request.evidence_dir / "prime-config"
+        )
+        configured_session_dir = request.profile.adapter_options.get("session_dir")
+        session_dir = (
+            Path(configured_session_dir)
+            if isinstance(configured_session_dir, str) and configured_session_dir
+            else request.evidence_dir / "prime-sessions"
+        )
         env.setdefault("PRIME_AGENT_CODING_AGENT_DIR", str(agent_dir))
-        env.setdefault("PRIME_AGENT_SESSION_DIR", str(request.evidence_dir / "prime-sessions"))
+        env.setdefault("PRIME_AGENT_SESSION_DIR", str(session_dir))
         inference_proxy = _start_inference_proxy(request, env, agent_dir)
         try:
             process = subprocess.Popen(
@@ -1828,8 +1864,18 @@ class PrimeExecutorAdapter:
         env = build_child_env(request.profile, extra=dict(request.extra_env))
         _add_kernel_python_environment(request.profile, env)
         _add_user_scope_environment(request.profile, env)
-        agent_dir = request.evidence_dir / "prime-config"
-        session_dir = request.evidence_dir / "prime-sessions"
+        configured_agent_dir = request.profile.adapter_options.get("coding_agent_dir")
+        agent_dir = (
+            Path(configured_agent_dir)
+            if isinstance(configured_agent_dir, str) and configured_agent_dir
+            else request.evidence_dir / "prime-config"
+        )
+        configured_session_dir = request.profile.adapter_options.get("session_dir")
+        session_dir = (
+            Path(configured_session_dir)
+            if isinstance(configured_session_dir, str) and configured_session_dir
+            else request.evidence_dir / "prime-sessions"
+        )
         env.setdefault("PRIME_AGENT_CODING_AGENT_DIR", str(agent_dir))
         env.setdefault("PRIME_AGENT_SESSION_DIR", str(session_dir))
         inference_proxy = _start_inference_proxy(request, env, agent_dir)
@@ -1838,8 +1884,28 @@ class PrimeExecutorAdapter:
         child_options = request.profile.adapter_options.get("child_admission")
         if request.profile.adapter_options.get("allow_children") is True:
             assert isinstance(child_options, dict)
+            # Keep the AF_UNIX child broker under the mission socket_dir; long
+            # evidence_dir + attempt_id paths exceed sun_path (TAKEOVER-003).
+            proxy_opts = request.profile.adapter_options.get("inference_proxy")
+            socket_dir_raw = (
+                proxy_opts.get("socket_dir")
+                if isinstance(proxy_opts, dict)
+                else None
+            )
+            short = request.attempt_id.rsplit(".", 1)[-1]
+            if isinstance(socket_dir_raw, str) and socket_dir_raw.strip():
+                child_sock = Path(socket_dir_raw) / f"{short}.child.sock"
+            else:
+                child_sock = (
+                    request.evidence_dir / f"{request.attempt_id}.child-admission.sock"
+                )
+            if len(str(child_sock)) >= 100:
+                raise AdapterUnavailableError(
+                    "child admission socket path exceeds AF_UNIX limit",
+                    code="CHILD_ADMISSION_PATH_TOO_LONG",
+                )
             broker = PrimeChildAdmissionBroker(
-                request.evidence_dir / f"{request.attempt_id}.child-admission.sock",
+                child_sock,
                 mission_id=request.program_id,
                 task_id=request.task_id,
                 attempt_id=request.attempt_id,
@@ -1910,6 +1976,10 @@ class PrimeExecutorAdapter:
                 request,
                 env=env,
                 session_dir=session_dir,
+                # Child admission must own a fresh daemon generation. Reusing a
+                # leftover socket (stale path or prior attempt) previously
+                # returned pid=None and then failed closed with an opaque error.
+                require_new=(broker is not None),
             )
             daemon_available = True
             if daemon_pid is not None:
@@ -2119,6 +2189,7 @@ class PrimeExecutorAdapter:
         *,
         env: dict[str, str],
         session_dir: Path,
+        require_new: bool = False,
     ) -> int | None:
         assert self._daemon_socket is not None
         deadline = time.monotonic() + request.timeout_seconds
@@ -2126,9 +2197,25 @@ class PrimeExecutorAdapter:
         try:
             probe.settimeout(0.2)
             probe.connect(str(self._daemon_socket))
+            if require_new:
+                raise PrimeDaemonError(
+                    "refusing to reuse a live daemon socket when a newly "
+                    "started mission-owned generation is required; stop the "
+                    "existing mission daemon and clear its socket first"
+                )
             return None
         except OSError:
-            pass
+            # Stale socket path with no listener blocks bind() for the next
+            # generation — fence it before starting (TAKEOVER-003 / e2e002 attempt 2).
+            with suppress(OSError):
+                if self._daemon_socket.exists():
+                    self._daemon_socket.unlink()
+            lock_path = Path(str(self._daemon_socket) + ".lock")
+            with suppress(OSError):
+                if lock_path.is_dir():
+                    shutil.rmtree(lock_path)
+                elif lock_path.exists():
+                    lock_path.unlink()
         finally:
             probe.close()
         self._daemon_socket.parent.mkdir(parents=True, exist_ok=True)
@@ -2252,7 +2339,21 @@ def _start_inference_proxy(
             "local inference proxy port is not bounded",
             code="INFERENCE_PROXY_REQUIRED",
         )
-    proxy_socket = request.evidence_dir / f"{request.attempt_id}.inference.sock"
+    # AF_UNIX sun_path is short (~108 bytes). Durable evidence dirs under
+    # long state-roots exceed that when attempt_id is embedded; prefer the
+    # mission socket_dir with a short sock name (TAKEOVER-003 / b4e04ee8).
+    socket_dir_raw = proxy_options.get("socket_dir")
+    if isinstance(socket_dir_raw, str) and socket_dir_raw.strip():
+        socket_dir = Path(socket_dir_raw)
+        short = request.attempt_id.rsplit(".", 1)[-1]
+        proxy_socket = socket_dir / f"{short}.inf.sock"
+    else:
+        proxy_socket = request.evidence_dir / f"{request.attempt_id}.inference.sock"
+    if len(str(proxy_socket)) >= 100:
+        raise AdapterUnavailableError(
+            "local inference proxy socket path exceeds AF_UNIX limit",
+            code="INFERENCE_PROXY_PATH_TOO_LONG",
+        )
     proxy = InferenceOnlyUnixProxy(
         proxy_socket,
         audit_path=request.evidence_dir / f"{request.attempt_id}.inference-audit.jsonl",
