@@ -291,10 +291,12 @@ A grant verifies only if all of these hold (`preflight.py preflight --iteration 
 - the grant file exists, `grant` is `G-<n>` and `iteration` is `<n>`;
 - `policy_sha` in the grant equals `loop.yaml` `policy_sha`, and both equal the SHA-256 of
   the current `policy.md`;
-- the grant file and `policy.md` are byte-identical to their versions on the grant ref (a
-  locally edited grant or policy is void);
+- the grant file, `policy.md`, and the directive named by the grant are byte-identical to
+  their versions on the grant ref (a locally edited grant, policy, or granted directive is
+  void; proposing `D-<n+1>` remains in scope);
 - `base_sha` is an ancestor of `HEAD`;
-- the directive named by the grant exists;
+- the directive named by the grant exists and is a normalized path under
+  `autonomy/directives/` (`..` and empty segments are rejected);
 - the ledger passes section 8.1;
 - if `require_signed_grants` is true, the latest commit touching the grant on the grant ref
   has a good signature (`%G? == G`);
@@ -304,10 +306,13 @@ A grant verifies only if all of these hold (`preflight.py preflight --iteration 
 
 For iteration `n`:
 
-1. **Preflight.** `python autonomy/tools/preflight.py preflight --iteration <n>`. A non-zero
-   exit stops the iteration with no code changes.
-2. **Ground.** `git fetch`, branch from the grant ref commit that contains the grant, and
-   read the directive and `autonomy/verdicts/V-<n-1>.md` (if any). Ignore chat memory.
+1. **Ground.** `git fetch` the grant ref, then branch from the grant-ref commit that
+   contains the grant. Read the directive and `autonomy/verdicts/V-<n-1>.md` (if any).
+   Ignore chat memory. A stale `origin/main` is not a clean gate.
+2. **Preflight.** `python autonomy/tools/preflight.py preflight --iteration <n>`. The tool
+   also fetches a remote-tracking `--grant-ref` before judging `HALT` / `HALT-REQUEST` and
+   the grant, policy, and granted-directive pins. A non-zero exit stops the iteration with
+   no code changes.
 3. **Plan.** Write a plan of at most 10 lines at the top of the packet before touching code:
    target, files, tests to add, verification command per lane.
 4. **Execute.** Branch `iter/<n>`. Stay inside the section 4 scopes. Stop at budget. Every
@@ -375,10 +380,13 @@ Append-only, one JSON object per line, UTF-8, LF. Lines are never edited or remo
 
 - Every line is a JSON object with an `event` name; `verdict` events carry an integer
   `iteration` and a section 9 verdict. Anything else fails preflight as suspected tampering.
-- A `STOP` verdict stops the loop until a later owner `resume` event.
+- A `STOP` verdict stops the loop until a later owner `resume` event. Resume leaves
+  iteration `n` closed and is the documented recovery that opens `n+1`.
 - An iteration closed by `CONTINUE`, `ACCELERATE`, `DEFER` or `STOP` cannot be preflighted
   again. One whose latest verdict is `OWNER_DECISION_REQUIRED` is paused.
-- Iteration `n > 1` requires a `CONTINUE`, `ACCELERATE` or `DEFER` verdict for `n-1`.
+- Iteration `n > 1` requires a `CONTINUE`, `ACCELERATE` or `DEFER` verdict for `n-1`, or a
+  `STOP` on `n-1` followed by an owner `resume` that has not been followed by another
+  `STOP`.
 - Retry cap: `REDESIGN` reworks the same grant at most 2 times. A third `REDESIGN` verdict
   for the same iteration fails preflight, and the supervisor creates `autonomy/HALT-REQUEST`.
 

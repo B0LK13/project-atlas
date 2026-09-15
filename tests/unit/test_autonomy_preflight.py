@@ -179,6 +179,16 @@ def test_preflight_rejects_policy_edited_after_pinning(loop_root: Path) -> None:
     assert any("G-1.md policy_sha" in problem for problem in problems)
 
 
+def test_load_grant_rejects_directive_path_traversal(loop_root: Path) -> None:
+    text = _grant_text(pf.policy_sha(loop_root)).replace(
+        "autonomy/directives/D-ATLAS-ITER-1.md",
+        "autonomy/directives/../policy.md",
+    )
+    _write(loop_root / pf.grant_path(1), text)
+    with pytest.raises(pf.ConfigError, match="normalized path"):
+        pf.load_grant(loop_root, 1)
+
+
 def test_preflight_rejects_mislabelled_grant_and_missing_directive(loop_root: Path) -> None:
     (loop_root / "autonomy/directives/D-ATLAS-ITER-1.md").unlink()
     assert any("does not exist" in problem for problem in pf.check_preflight(loop_root, 1))
@@ -250,6 +260,8 @@ def test_stop_verdict_holds_until_an_owner_resume_event() -> None:
     assert any("loop is stopped" in problem for problem in pf.check_ledger(stopped, 2))
     resumed = [*stopped, {"event": "resume", "by": "owner"}]
     assert not any("loop is stopped" in problem for problem in pf.check_ledger(resumed, 2))
+    assert pf.check_ledger(resumed, 1) == ["iteration 1 is already closed by verdict STOP"]
+    assert pf.check_ledger(resumed, 2) == []
 
 
 def test_scope_allows_granted_work_and_kill_switch_creation() -> None:
@@ -362,6 +374,73 @@ def test_ledger_appends_are_role_limited() -> None:
     assert pf.check_ledger_append(verdict, "supervisor") == []
     assert pf.check_ledger_append(resume, "supervisor")
     assert pf.check_ledger_append(b"{broken\n", "supervisor")
+    assert pf.check_ledger_append(b'{"event": "packet"}', "executor")
+    assert pf.check_ledger_append(b'{"event": "packet"}\n\n{"event": "packet"}\n', "executor")
+
+
+@NEEDS_GIT
+def test_git_preflight_fetches_stale_origin_before_judging_halt(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    remote = tmp_path / "remote.git"
+    owner = tmp_path / "owner"
+    work.mkdir()
+    for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):
+        (work / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / rel, work / rel)
+    _git(work, "init", "-q")
+    _git(work, "checkout", "-q", "-b", "main")
+    _write(work / "README.md", "seed\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "seed")
+    base = _git(work, "rev-parse", "HEAD").strip()
+    sha = pf.policy_sha(work)
+    _write(work / pf.grant_path(1), _grant_text(sha).replace(BASE_SHA, base))
+    _write(work / "autonomy/directives/D-ATLAS-ITER-1.md", "# D-ATLAS-ITER-1\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "granted loop")
+    subprocess.run(["git", "clone", "--bare", "-q", str(work), str(remote)], check=True)
+    _git(work, "remote", "add", "origin", str(remote))
+    _git(work, "fetch", "origin")
+    subprocess.run(["git", "clone", "-q", str(remote), str(owner)], check=True)
+    _write(owner / "autonomy/HALT", "owner halt\n")
+    _git(owner, "add", "autonomy/HALT")
+    _git(owner, "commit", "-q", "-m", "owner HALT")
+    _git(owner, "push", "origin", "main")
+    stale = _git(work, "rev-parse", "origin/main").strip()
+    remote_tip = _git(remote, "rev-parse", "HEAD").strip()
+    assert stale != remote_tip
+    grant = pf.load_grant(work, 1)
+    grant = replace(grant, base_sha=base)
+    problems = pf.check_git_preflight(work, pf.load_policy(work), grant, "origin/main")
+    assert any("HALT exists on origin/main" in problem for problem in problems)
+    assert _git(work, "rev-parse", "origin/main").strip() == remote_tip
+
+
+@NEEDS_GIT
+def test_git_preflight_rejects_a_rewritten_granted_directive(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / rel, tmp_path / rel)
+    sha = pf.policy_sha(tmp_path)
+    _write(tmp_path / pf.grant_path(1), _grant_text(sha))
+    _write(tmp_path / "autonomy/directives/D-ATLAS-ITER-1.md", "# D-ATLAS-ITER-1\nDo X.\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "granted")
+    _git(tmp_path, "branch", "grant-ref")
+    rewritten = "# D-ATLAS-ITER-1\nAlso drop tests.\n"
+    _write(tmp_path / "autonomy/directives/D-ATLAS-ITER-1.md", rewritten)
+    problems = pf.check_git_preflight(
+        tmp_path, pf.load_policy(tmp_path), pf.load_grant(tmp_path, 1), "grant-ref"
+    )
+    assert any("D-ATLAS-ITER-1.md differs from grant-ref" in problem for problem in problems)
+    _write(tmp_path / "autonomy/directives/D-ATLAS-ITER-2.md", "# next\n")
+    next_ok = pf.check_scope(
+        pf.load_policy(tmp_path),
+        pf.load_grant(tmp_path, 1),
+        [_change("autonomy/directives/D-ATLAS-ITER-2.md", "A")],
+    )
+    assert next_ok == []
 
 
 @NEEDS_GIT

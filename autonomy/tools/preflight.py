@@ -308,8 +308,13 @@ def load_grant(root: Path, iteration: int) -> Grant:
     if not isinstance(base, str) or not _GIT_SHA.fullmatch(base):
         raise ConfigError(f"{rel} base_sha must be a full 40-character commit SHA")
     directive = data.get("directive")
-    if not isinstance(directive, str) or not directive.startswith(DIRECTIVES_PREFIX):
-        raise ConfigError(f"{rel} directive must be a path under {DIRECTIVES_PREFIX}")
+    if (
+        not isinstance(directive, str)
+        or not directive.startswith(DIRECTIVES_PREFIX)
+        or "\\" in directive
+        or any(part in {"", ".", ".."} for part in Path(directive).parts)
+    ):
+        raise ConfigError(f"{rel} directive must be a normalized path under {DIRECTIVES_PREFIX}")
     return Grant(
         iteration=iteration,
         policy_sha=sha,
@@ -372,12 +377,18 @@ def check_ledger(events: list[dict[str, Any]], iteration: int) -> list[str]:
             f"retry cap: iteration {iteration} has {redesigns} REDESIGN verdicts "
             f"(max {MAX_REDESIGN_RETRIES} retries); create {HALT_REQUEST_PATH}"
         )
-    if iteration > 1 and not any(
-        verdict in NEXT_OPENING_VERDICTS for verdict in _verdicts_for(events, iteration - 1)
-    ):
-        problems.append(
-            f"iteration {iteration - 1} has no CONTINUE, ACCELERATE or DEFER verdict in the ledger"
-        )
+    if iteration > 1:
+        previous = _verdicts_for(events, iteration - 1)
+        opened = any(verdict in NEXT_OPENING_VERDICTS for verdict in previous)
+        if not opened:
+            # STOP closes n; a later owner resume is the documented recovery that opens n+1.
+            opened = "STOP" in previous and "STOP" not in _verdicts_for(
+                since_resume, iteration - 1
+            )
+        if not opened:
+            problems.append(
+                f"iteration {iteration - 1} has no CONTINUE, ACCELERATE or DEFER verdict in the ledger"
+            )
     return problems
 
 
@@ -433,12 +444,44 @@ def _blob(root: Path, ref: str, rel: str) -> bytes | None:
     return result.stdout if result.returncode == 0 else None
 
 
+def refresh_grant_ref(root: Path, grant_ref: str) -> str:
+    """Fetch a remote-tracking grant ref before judging HALT and pins.
+
+    A name ``<remote>/<branch>`` for a configured remote is refreshed from that
+    remote. Fetch failure is fail-closed. Local branches and raw SHAs are unchanged.
+    """
+    remotes = [line for line in _git_ok(root, "remote").decode("utf-8").splitlines() if line]
+    for remote in sorted(remotes, key=len, reverse=True):
+        prefix = f"{remote}/"
+        if not grant_ref.startswith(prefix):
+            continue
+        name = grant_ref[len(prefix) :]
+        if not name:
+            continue
+        _git_ok(
+            root,
+            "fetch",
+            "--no-tags",
+            "--update-head-ok",
+            remote,
+            f"+refs/heads/{name}:refs/remotes/{remote}/{name}",
+        )
+        return grant_ref
+    return grant_ref
+
+
 def check_git_preflight(root: Path, policy: Policy, grant: Grant, grant_ref: str) -> list[str]:
+    grant_ref = refresh_grant_ref(root, grant_ref)
     problems: list[str] = []
     grant_rel = grant_path(grant.iteration)
-    for rel in (grant_rel, POLICY_PATH):
-        if _blob(root, grant_ref, rel) != _read_bytes(root, rel):
-            problems.append(f"{rel} differs from {grant_ref}: only the committed grant-ref copy counts")
+    for rel in (grant_rel, POLICY_PATH, grant.directive):
+        remote_blob = _blob(root, grant_ref, rel)
+        if remote_blob is None:
+            problems.append(f"{rel} is missing on {grant_ref}: only the granted copy counts")
+        elif remote_blob != _read_bytes(root, rel):
+            problems.append(
+                f"{rel} differs from {grant_ref}: only the committed grant-ref copy counts"
+            )
     for rel in KILL_SWITCHES:
         if _blob(root, grant_ref, rel) is not None:
             problems.append(f"{rel} exists on {grant_ref}: the loop is stopped")
@@ -491,9 +534,20 @@ def ledger_append(root: Path, base_ref: str, head: str) -> bytes | None:
 
 
 def check_ledger_append(appended: bytes, role: str) -> list[str]:
+    if not appended:
+        return []
+    if b"\r" in appended:
+        return [f"{LEDGER_PATH}: appended bytes must be LF-only JSONL"]
+    if not appended.endswith(b"\n"):
+        return [f"{LEDGER_PATH}: appended bytes must be LF-terminated JSONL"]
+    try:
+        text = appended.decode("utf-8")
+    except UnicodeDecodeError:
+        return [f"{LEDGER_PATH}: appended bytes are not UTF-8"]
     problems: list[str] = []
-    for number, line in enumerate(appended.decode("utf-8", "replace").split("\n"), start=1):
+    for number, line in enumerate(text.split("\n")[:-1], start=1):
         if not line:
+            problems.append(f"{LEDGER_PATH}: appended line {number} is blank")
             continue
         try:
             event = json.loads(line)

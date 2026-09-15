@@ -15081,3 +15081,25 @@ returns; the next CI run re-certifies the same head."
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
+
+## AS-AUTONOMY-P1-GRANT-REF-001 — HALT freshness + granted-directive pin
+
+Night-cycle independent ADV on PR #946 head `034a1264` independently reproduced two
+VALID P1s that Codex had filed on `7a700b8e` (threads marked outdated, code still open):
+
+- P1-A: `check_git_preflight` judged `origin/main` without fetching, so an owner-pushed
+  `autonomy/HALT` was invisible until a later `git fetch`. Policy §6 also ran Preflight
+  before Ground/`git fetch`.
+- P1-B: the granted directive was existence-checked only; `autonomy/directives/**` stays
+  in executor scope, so rewriting `D-ATLAS-ITER-n.md` after preflight still passed scope.
+
+Same commit also consumes the independently reproduced P2 residuals that sit in the same
+gate: STOP+owner-resume now opens `n+1` (iteration `n` stays closed); ledger appends must
+be LF-terminated JSONL with no blank lines; grant `directive` rejects `..` / empty path
+segments.
+
+`autonomy/loop.yaml` re-pinned:
+`policy_sha: d2731e88c3571560cd97b6918322f2a94c865b5db479a3a0ee11f0d03afea6e8`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
