@@ -394,6 +394,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CONNECT-001 `atlas connect .` one-command bind+compile
 - [x] AS-CODER-ALPHA-OVERVIEW-001 Project Overview lens
 - [x] AS-CODER-ALPHA-STATE-001 Current State lens
+- [ ] AS-STATE-RESOLVED-001 Resolved conflict rows must not count as unresolved on state/unknown lenses (draft; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-CHANGED-001 What Changed defaults
 - [x] AS-CODER-ALPHA-DECISIONS-001 Decision memory
 - [x] AS-CODER-ALPHA-UNKNOWN-001 Unknown/conflict bundle

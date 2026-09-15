@@ -89,6 +89,27 @@ def _entry_count(payload: dict[str, Any] | None) -> int:
     return len(pending)
 
 
+def _unresolved_conflict_count(payload: dict[str, Any] | None) -> int:
+    """Count conflict rows still marked unresolved (AS-STATE-RESOLVED-001).
+
+    Conflict records use ``state``, not pending-queue ``status``. Missing
+    ``state`` defaults to unresolved so an incomplete row stays visible.
+    """
+    if not payload:
+        return 0
+    entries = payload.get("entries")
+    if not isinstance(entries, list):
+        return 0
+    count = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        state = str(entry.get("state") or "unresolved")
+        if state == "unresolved":
+            count += 1
+    return count
+
+
 def _parse_status_counts(text: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for match in _STATUS_ROW_RE.finditer(text):
@@ -174,10 +195,14 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
         pending_count = _entry_count(pending)
     else:
         pending_count = status_counts.get("claims awaiting review", 0)
-    conflict_count = max(
-        _entry_count(conflicts),
-        status_counts.get("unresolved conflicts", 0),
-    )
+    # Live conflict file is authoritative after human resolution. Do not
+    # treat resolved rows as UNKNOWN and do not resurrect them from a
+    # lagging knowledge-status.md count. Unreadable/absent: status fallback
+    # (unreadable overlay class remains #923/#926).
+    if conflicts is not None:
+        conflict_count = _unresolved_conflict_count(conflicts)
+    else:
+        conflict_count = status_counts.get("unresolved conflicts", 0)
     stale = status_counts.get("stale claims", 0)
     withheld = status_counts.get("claims withheld", 0)
     sources_failed = status_counts.get("sources failed", 0)

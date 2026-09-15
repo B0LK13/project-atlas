@@ -117,6 +117,28 @@ def _entry_count(payload: dict[str, Any] | None, *, pending_only: bool = False) 
     return count
 
 
+def _unresolved_conflict_count(payload: dict[str, Any] | None) -> int:
+    """Count conflict rows still marked unresolved (AS-STATE-RESOLVED-001).
+
+    Conflict records use ``state`` (``unresolved`` | ``resolved``), not the
+    pending-queue ``status`` field. Missing ``state`` defaults to unresolved
+    so an incomplete row cannot disappear from attention.
+    """
+    if not payload:
+        return 0
+    entries = payload.get("entries")
+    if not isinstance(entries, list):
+        return 0
+    count = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        state = str(entry.get("state") or "unresolved")
+        if state == "unresolved":
+            count += 1
+    return count
+
+
 def _rollup(
     *,
     lifecycle: str | None,
@@ -194,10 +216,14 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
             queue_pending,
             status_counts.get("claims awaiting review", 0),
         )
-    unresolved_conflicts = max(
-        _entry_count(conflicts_payload),
-        status_counts.get("unresolved conflicts", 0),
-    )
+    # Live conflict file is authoritative after human resolution. Do not
+    # resurrect resolved rows from a lagging knowledge-status.md count.
+    # Unreadable/absent file: keep the status fallback (unreadable class
+    # is owned by #923/#926 — do not expand it here).
+    if conflicts_payload is not None:
+        unresolved_conflicts = _unresolved_conflict_count(conflicts_payload)
+    else:
+        unresolved_conflicts = status_counts.get("unresolved conflicts", 0)
     stale_claims = status_counts.get("stale claims", 0)
     sources_failed = status_counts.get("sources failed", 0)
     sources_complete = status_counts.get("sources complete", 0)

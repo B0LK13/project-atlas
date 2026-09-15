@@ -14915,3 +14915,31 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-STATE-RESOLVED-001 — resolved conflicts must not count as unresolved
+
+Independent leftover-used-surface hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` /
+`46d1989b026a2f15920ec5e1c78a106799bd1249` reproduced a Coder Alpha
+current-state honesty hole:
+
+`review/conflicts/<project>.json` rows use canonical ``state``
+(`unresolved` | `resolved`). `project_state._entry_count` counted every
+entry. `project_unknown._entry_count` filtered pending-queue ``status``
+and defaulted missing status to `pending`, so resolved conflict rows
+still counted. Result: `unresolved_conflicts=1`, state `rollup=attention`,
+unknown `rollup=conflict`, and brief next-work asking to resolve a
+closed conflict.
+
+Remediation (this commit): count only `state == "unresolved"` (missing
+state defaults to unresolved, fail-closed). When the live conflict file
+is readable, do not `max()` against a lagging knowledge-status.md count
+(same "never resurrect decided rows" rule already applied to pending).
+Unreadable overlay fallback is unchanged (#923/#926).
+
+Does not merge. Does not expand Atlas 3 writers. Distinct from #926
+(unreadable overlay as known), #923/#924 (unreadable pending), #915
+(prefix ownership).
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+
