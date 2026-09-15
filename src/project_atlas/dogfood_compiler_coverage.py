@@ -230,7 +230,9 @@ def _owned_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
         if isinstance(sources, list):
             for row in sources:
                 if isinstance(row, dict):
-                    _accept(row, require_owner=False)
+                    # Semantic record is not an owner bypass. Foreign
+                    # likely_project / project_id must not enter harbor scope.
+                    _accept(row, require_owner=True)
     return selected
 
 
