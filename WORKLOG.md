@@ -14915,3 +14915,23 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-YAML-ESC-001 — decoded YAML scalars must be scanned
+
+Independent leftover hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 persist:
+raw YAML `title: "\\u0062earer " + token` has no ASCII `bearer`, so
+`scan_text` of the file is empty. `load_safe_yaml` decodes the quoted
+escape and `compile_knowledge` / `render_bundle` persist the decoded
+token in `state/claims/<project>.json` and `projects/<project>/claims.md`.
+The hex form `"\\x62earer "` is the same class.
+
+Remediation: scan decoded YAML leaf scalars after construct, before any
+consumer sees the tree. Distinct from #936 (JSON `\\u` export turns) and
+from HTML/XML entity leftovers.
+
+Does not merge. Does not remedi #933/#934/#935/#936 P2 leftovers.
+Does not touch `ingestion.py` (F5-B freeze).
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+

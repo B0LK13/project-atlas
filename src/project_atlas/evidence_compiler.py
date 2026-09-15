@@ -47,6 +47,7 @@ from project_atlas.evidence_profiles import (
     classify_root_key,
 )
 from project_atlas.parser_registry import bind_static_parsers, get_parser
+from project_atlas.secrets import scan_text
 from project_atlas.status_dimensions import refine_status_dimension
 from project_atlas.subject_derivation import derive_semantic_subject
 from project_atlas.verify_profile import parse_verify_document
@@ -536,6 +537,35 @@ def _extract_receipt(
         normalized = " ".join(("" if value is None else str(value)).split())
         if not normalized:
             continue
+        # AS-SEC-SCAN-YAML-ESC-001: quoted YAML ``\u`` / ``\x`` escapes
+        # decode after ``load_safe_yaml``. Scanning the raw buffer is not
+        # enough — decoded claim scalars must fail closed. Findings stay
+        # metadata-only; matched content is never persisted or echoed.
+        if scan_text(normalized):
+            reason = "decoded YAML claim scalar matched a secret pattern"
+            return SourceExtraction(
+                candidate=CompilationCandidate(
+                    source_path=path,
+                    outcome=CompilationOutcome.FAILED,
+                    diagnostics=(reason,),
+                    classification=_classification_pairs(classification),
+                ),
+                diagnostics=(
+                    Diagnostic(
+                        code=DiagnosticCode.PARSER_FAILURE,
+                        source_path=path,
+                        parser="evidence-yaml",
+                        profile=classification.document_profile,
+                        reason=reason,
+                        remediation=(
+                            "remove secret-shaped values from claim fields "
+                            "and re-ingest"
+                        ),
+                        continued=True,
+                        canonical_impact=CanonicalImpact.BLOCKED,
+                    ),
+                ),
+            )
         locator = yaml_path_locator(leaf_path)
         confidence = (
             LocatorConfidence.PROVISIONAL

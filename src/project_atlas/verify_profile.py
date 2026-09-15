@@ -32,6 +32,7 @@ from project_atlas.domain import (
     SemanticSubject,
     SourceSpan,
 )
+from project_atlas.secrets import scan_text
 from project_atlas.status_dimensions import refine_status_dimension
 from project_atlas.yaml_structured import (
     YamlSecurityError,
@@ -135,6 +136,16 @@ def parse_verify_document(text: str, *, source_path: str) -> VerifyProfileResult
             # unknown-field preservation applied to the profile as well).
             metadata.append(locator)
             continue
+        # AS-SEC-SCAN-YAML-ESC-001: decoded VERIFY claim scalars can reveal
+        # secrets the raw YAML escape form hid from ``scan_text``.
+        if scan_text(scalar):
+            return VerifyProfileResult(
+                records=(),
+                metadata_paths=(),
+                diagnostics=(
+                    "verify profile: decoded YAML claim scalar matched a secret pattern",
+                ),
+            )
         claim_type, raw_field, block_subject = claim
         subject = SemanticSubject.review(block_subject).serialize()
         dimension = refine_status_dimension(
