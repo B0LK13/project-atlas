@@ -283,6 +283,20 @@ def _secret_hit(path: Path) -> dict[str, str] | None:
     return None
 
 
+# DISCOVER_ONLY must not honor repo-local executors (fsmonitor / hooks /
+# diff.external). Command-line -c overrides local .git/config.
+_GIT_SANDBOX: Final[tuple[str, ...]] = (
+    "-c",
+    "core.fsmonitor=",
+    "-c",
+    "core.useBuiltinFSMonitor=false",
+    "-c",
+    "core.hooksPath=",
+    "-c",
+    "diff.external=",
+)
+
+
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["GIT_OPTIONAL_LOCKS"] = "0"
@@ -291,7 +305,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env.pop("GIT_WORK_TREE", None)
     env.pop("GIT_COMMON_DIR", None)
     return subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(root), *args],
+        ["git", "--no-optional-locks", *_GIT_SANDBOX, "-C", str(root), *args],
         check=False,
         capture_output=True,
         text=True,
@@ -364,13 +378,68 @@ def _contained_git_repo(project: Path, source_root: Path) -> bool:
     return not _escapes(target, source_root)
 
 
+def _git_head_readable(project: Path, source_root: Path) -> bool:
+    """HEAD must be a readable regular-file payload. Absence/ACL ≠ git."""
+    target = _gitdir_target(project)
+    if target is None or _escapes(target, source_root):
+        return False
+    text = _read_text_limited(target / "HEAD")
+    return text is not None and bool(text.strip())
+
+
+def _git_exec_config_present(project: Path, source_root: Path) -> bool:
+    """Repo-local commands that git status/config may execute.
+
+    INI section form ([filter \"name\"] clean=...) is the live writer shape.
+    Unreadable config fails closed (unknown executor).
+    """
+    target = _gitdir_target(project)
+    if target is None or _escapes(target, source_root):
+        return False
+    text = _read_text_limited(target / "config")
+    if text is None:
+        return True
+    section = ""
+    for raw in text.splitlines():
+        line = raw.split(";", 1)[0].split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip().lower()
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if not value.strip():
+            continue
+        key = key.strip().lower()
+        if section == "core" and key in {
+            "fsmonitor",
+            "usebuiltinfsmonitor",
+            "hookspath",
+            "sshcommand",
+        }:
+            return True
+        if section == "diff" and key == "external":
+            return True
+        if section.startswith("filter ") and key in {"clean", "smudge", "process"}:
+            return True
+    return False
+
+
 def _is_git_repo(path: Path, source_root: Path) -> bool:
-    return _contained_git_repo(path, source_root)
+    return _contained_git_repo(path, source_root) and _git_head_readable(path, source_root)
 
 
-def _dirty(path: Path) -> bool:
+def _dirty(path: Path) -> bool | None:
+    """True/False when status is trustworthy; None when git inspection failed.
+
+    Failure must not be treated as clean. Callers mark inspection incomplete.
+    """
     result = _git(path, "status", "--porcelain")
-    return result.returncode == 0 and bool(result.stdout.strip())
+    if result.returncode != 0:
+        return None
+    return bool(result.stdout.strip())
 
 
 def _remote_url(path: Path) -> str | None:
@@ -450,14 +519,18 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
         git_here = _is_git_repo(current, root)
         git_marker = current / ".git"
         git_st = _safe_lstat(git_marker)
+        git_target = _gitdir_target(current)
         if git_st is not None and not git_here:
-            exclusions.append(
-                {
-                    "path": report_relpath(git_marker, root),
-                    "reason": "GITDIR_ESCAPE",
-                    "action": "fail_closed_skip_git",
-                }
-            )
+            if git_target is not None and _escapes(git_target, root):
+                exclusions.append(
+                    {
+                        "path": report_relpath(git_marker, root),
+                        "reason": "GITDIR_ESCAPE",
+                        "action": "fail_closed_skip_git",
+                    }
+                )
+            else:
+                _record_inaccessible(exclusions, git_marker, root)
         marker = current / ".atlas-project.yaml"
         readme = current / "README.md"
         signals = current / ".atlas-estate" / "signals"
@@ -555,6 +628,23 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
                 _record_inaccessible(exclusions, current / "build.sh", root)
                 inspection_complete = False
                 malice = False
+            dirty = False
+            remote: str | None = None
+            if git_here:
+                if _git_exec_config_present(current, root):
+                    _record_inaccessible(exclusions, current / ".git" / "config", root)
+                    inspection_complete = False
+                else:
+                    dirty_state = _dirty(current)
+                    if dirty_state is None:
+                        _record_inaccessible(exclusions, current / ".git", root)
+                        inspection_complete = False
+                    else:
+                        dirty = dirty_state
+                    remote = _remote_url(current)
+            elif git_st is not None:
+                # Present .git that is not a contained readable repo.
+                inspection_complete = False
             records.append(
                 {
                     "path": rel,
@@ -570,7 +660,7 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
                     "git": git_here,
                     "nested_repo": bool(git_here and parent_git),
                     "monorepo": bool(packages_dir or apps_dir),
-                    "dirty_worktree": _dirty(current) if git_here else False,
+                    "dirty_worktree": dirty,
                     "missing_readme": not readme_file,
                     "stale_docs": stale,
                     "test_failure_signal": bool(test_signal),
@@ -578,7 +668,7 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
                     "secret_findings": secret_findings,
                     "duplicate_identity": duplicate,
                     "duplicate_of": seen_ids.get(identity) if duplicate else None,
-                    "remote": _remote_url(current) if git_here else None,
+                    "remote": remote,
                     "malicious_build_script": malice,
                     "executed_build": False,
                     "source_mutated": False,
