@@ -2278,8 +2278,11 @@ def _write_local_provider_config(
                 "api": "openai-completions",
                 "apiKey": "atlas-local-proxy",
                 "compat": {
+                    # thinkingLevel=off must be serialized as reasoning_effort=none
+                    # so Qwen3 does not burn the output budget on a discarded
+                    # reasoning channel (pilot observed empty content + N output).
                     "supportsDeveloperRole": False,
-                    "supportsReasoningEffort": False,
+                    "supportsReasoningEffort": True,
                 },
                 "models": [
                     {

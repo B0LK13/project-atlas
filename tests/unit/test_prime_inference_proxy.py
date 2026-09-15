@@ -82,6 +82,13 @@ def test_model_request_is_explicitly_bounded() -> None:
     assert b'"max_tokens":512' in body
     assert b'"reasoning_effort":"none"' in body
 
+    overridden, _ = _bound_model_request(
+        b'{"model":"qwen3:4b","reasoning_effort":"high","max_tokens":64}',
+        16_000,
+    )
+    assert b'"reasoning_effort":"none"' in overridden
+    assert b'"reasoning_effort":"high"' not in overridden
+
     try:
         _bound_model_request(b'{"model":"qwen3:4b","max_tokens":0}', 16_000)
     except InferenceProxyError as exc:

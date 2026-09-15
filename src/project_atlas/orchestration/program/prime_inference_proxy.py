@@ -155,7 +155,23 @@ class InferenceOnlyUnixProxy:
                         _relay(upstream, client)
                 finally:
                     self._inference_slot.release()
-                self._audit("forwarded", method, target)
+                # Record only non-secret rewrite markers for pilot diagnosis.
+                reasoning_none = False
+                if body:
+                    try:
+                        rewritten = json.loads(body)
+                        reasoning_none = (
+                            isinstance(rewritten, dict)
+                            and rewritten.get("reasoning_effort") == "none"
+                        )
+                    except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
+                        reasoning_none = False
+                self._audit(
+                    "forwarded",
+                    method,
+                    target,
+                    extra={"reasoning_effort_none": reasoning_none},
+                )
             except (InferenceProxyError, OSError, ValueError) as exc:
                 self._audit(type(exc).__name__, method, target)
                 # The client sees a deterministic denial, never an upstream
@@ -177,10 +193,22 @@ class InferenceOnlyUnixProxy:
             self._reserved_output_tokens += output_budget
             return True
 
-    def _audit(self, event: str, method: str, target: str) -> None:
+    def _audit(
+        self,
+        event: str,
+        method: str,
+        target: str,
+        extra: dict[str, object] | None = None,
+    ) -> None:
         if self._audit_path is None:
             return
-        record = {"event": event, "method": method, "target": target.split("?", 1)[0]}
+        record: dict[str, object] = {
+            "event": event,
+            "method": method,
+            "target": target.split("?", 1)[0],
+        }
+        if extra:
+            record.update(extra)
         try:
             with self._audit_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, sort_keys=True) + "\n")
@@ -268,11 +296,12 @@ def _bound_model_request(body: bytes, total_output_limit: int) -> tuple[bytes, i
         raise InferenceProxyError("inference output limit is invalid")
     bounded = min(requested, total_output_limit)
     document[field] = bounded
-    # Ollama enables Qwen3 thinking by default.  The OpenAI-compatible API
-    # supports the documented `reasoning_effort: none` control; make the
-    # selected low-resource pilot profile explicit while preserving a caller's
-    # deliberate setting.
-    document.setdefault("reasoning_effort", "none")
+    # Ollama enables Qwen3 thinking by default. Empty assistant turns with a
+    # non-zero output count and no tool_calls are the failure mode when thinking
+    # leaks into a `reasoning` field that the pilot client discards
+    # (`reasoning: false`). Force the OpenAI-compatible disable on every rewrite;
+    # setdefault is not enough when the client sends a non-none effort value.
+    document["reasoning_effort"] = "none"
     return (
         json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
         bounded,
