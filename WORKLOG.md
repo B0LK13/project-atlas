@@ -15140,3 +15140,27 @@ the advertised `preflight` then `scope` pair could both PASS while
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
+
+## Shutdown checkpoint 2026-09-15 (D-ATLAS-SHUTDOWN-CHECKPOINT-001)
+
+**Shipped today** on `autonomy/scaffold` (unmerged; https://github.com/bolkdev/project-atlas/pull/1):
+- `7a700b8e`: the governed RSI loop scaffold.
+- `c32e17c8`: the autonomy ladder, role separation and retry cap.
+- `034a1264`: the `lanes.fallback` verifier certs.
+
+The gate tests grew from 0 to 85. No iteration has run.
+
+**Blocked on the owner:**
+- Merge the PR.
+- Commit `G-1` and `D-ATLAS-ITER-1` to `main`.
+- Create `autonomy/staging`.
+- Delete `bolkdev/project-atlas-1`.
+- Rotate the PAT.
+- Decide the open Codex P1 ×2 and P2 findings, the Bugbot finding, and the missing `compat` and `control-plane` required checks. Their fixes are owner-only edits to `autonomy/tools/**` or `policy.md`.
+
+CI run https://github.com/bolkdev/project-atlas/actions/runs/35017265301 was still in progress at shutdown: `control-plane` and `compat` green, `full` and `windows` pending.
+
+**Checkpoint:** `autonomy/audits/SHUTDOWN-2026-09-15.md`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
