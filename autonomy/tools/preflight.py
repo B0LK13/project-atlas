@@ -822,11 +822,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             policy = load_policy(root)
             grant = load_grant(root, args.iteration)
-            changes = git_changes(root, args.grant_ref, args.head)
+            grant_ref = refresh_grant_ref(root, args.grant_ref)
+            changes = git_changes(root, grant_ref, args.head)
             problems = check_scope(policy, grant, changes, args.role)
-            problems.extend(check_roles(commit_roles(root, args.grant_ref, args.head), args.role))
+            problems.extend(check_roles(commit_roles(root, grant_ref, args.head), args.role))
             if any(change.path == LEDGER_PATH for change in changes):
-                appended = ledger_append(root, args.grant_ref, args.head)
+                appended = ledger_append(root, grant_ref, args.head)
                 if appended is None:
                     problems.append(f"{LEDGER_PATH}: head does not extend the base content")
                 else:

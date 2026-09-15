@@ -437,6 +437,58 @@ def test_git_preflight_fetches_stale_origin_before_judging_halt(tmp_path: Path) 
 
 
 @NEEDS_GIT
+def test_scope_refreshes_grant_ref_so_local_origin_main_cannot_empty_diff(
+    tmp_path: Path,
+) -> None:
+    """AS-AUTONOMY-P1-SCOPE-GRANT-REF-001: scope must refresh like preflight.
+
+    A local ``refs/heads/origin/main`` at HEAD makes raw ``origin/main``
+    merge-base equal HEAD, so the change list is empty and never-writable
+    floors are skipped. Scope must fetch and judge ``refs/remotes/…``.
+    """
+    work = tmp_path / "work"
+    remote = tmp_path / "remote.git"
+    work.mkdir()
+    for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):
+        (work / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / rel, work / rel)
+    _git(work, "init", "-q")
+    _git(work, "checkout", "-q", "-b", "main")
+    _write(work / "README.md", "seed\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "seed")
+    base = _git(work, "rev-parse", "HEAD").strip()
+    sha = pf.policy_sha(work)
+    _write(work / pf.grant_path(1), _grant_text(sha).replace(BASE_SHA, base))
+    _write(work / "autonomy/directives/D-ATLAS-ITER-1.md", "# D-ATLAS-ITER-1\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "granted loop")
+    subprocess.run(["git", "clone", "--bare", "-q", str(work), str(remote)], check=True)
+    _git(work, "remote", "add", "origin", str(remote))
+    _git(work, "fetch", "origin")
+    (work / "autonomy" / "tools").mkdir(parents=True, exist_ok=True)
+    (work / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    _write(work / "autonomy/tools/preflight.py", "# executor rewrite\n")
+    _write(work / ".github/workflows/evil.yml", "name: evil\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "iteration rewrite")
+    control = pf.main(
+        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
+    )
+    assert control == 1
+    _git(work, "branch", "origin/main", "HEAD")
+    shadowed = pf.main(
+        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
+    )
+    assert shadowed == 1
+    _git(work, "update-ref", "refs/remotes/origin/main", "HEAD")
+    poisoned = pf.main(
+        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
+    )
+    assert poisoned == 1
+
+
+@NEEDS_GIT
 def test_git_preflight_rejects_a_rewritten_granted_directive(tmp_path: Path) -> None:
     _git(tmp_path, "init", "-q")
     for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):

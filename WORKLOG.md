@@ -15121,3 +15121,22 @@ segments and stores the canonical path. Re-pin
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
+
+## AS-AUTONOMY-P1-SCOPE-GRANT-REF-001 — scope refreshes grant-ref
+
+Night-cycle independent ADV on PR #946 head `29c051d6` independently reproduced
+a remaining VALID P1: `scope` used the raw `--grant-ref` string (default
+`origin/main`) and never called `refresh_grant_ref`. A local branch named
+`origin/main` at HEAD (or a poisoned `refs/remotes/origin/main`) made
+`merge-base == HEAD`, emptied the change list, and skipped never-writable /
+role / budget / granted-directive floors. `preflight` already unshadowed HALT;
+the advertised `preflight` then `scope` pair could both PASS while
+`autonomy/tools/**` and `.github/**` were rewritten.
+
+`scope` now refreshes the grant ref the same way `preflight` does before
+`git_changes` / `commit_roles` / `ledger_append`. Policy bytes unchanged;
+`loop.yaml` pin stays
+`9638033d201a25fdb4077d98fb4456becac44e8f5c380329ad9af75dc4db7d5e`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
