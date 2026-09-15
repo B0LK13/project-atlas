@@ -44,6 +44,7 @@ from project_atlas.incremental_connect import (
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.scaffold import ScaffoldError, create_scaffold
+from project_atlas.secrets import scan_text
 from project_atlas.source_identity import (
     IdentityLockError,
     assert_project_uuid_one_owner,
@@ -319,8 +320,25 @@ def _read_project_marker(project_root: Path) -> tuple[Path, dict[str, Any]]:
     raise ConnectError("INVALID_PROJECT_MARKER: project marker not found")
 
 
+def _identity_without_secret(value: str | None) -> str | None:
+    """Return ``value`` only when it is ID-grammar-safe and not secret-shaped.
+
+    AS-SEC-SCAN-CONNECT-YAML-001: ``yaml.safe_load`` decodes quoted ``\\u``/``\\x``
+    after any raw-byte scan. An ID-pattern cloud-access-key (e.g. decoded
+    ``AKIA…``) must not become bind ``project_id``. Findings are metadata-only.
+    """
+    if not isinstance(value, str):
+        return None
+    token = value.strip()
+    if not token or not re.fullmatch(ID_PATTERN, token):
+        return None
+    if scan_text(token):
+        return None
+    return token
+
+
 def _marker_project_id(project_root: Path) -> str | None:
-    """Return marker ``project.id`` when present and ID-grammar-safe."""
+    """Return marker ``project.id`` when present, ID-safe, and not secret-shaped."""
     try:
         _marker, raw = _read_project_marker(project_root)
     except ConnectError:
@@ -331,9 +349,7 @@ def _marker_project_id(project_root: Path) -> str | None:
         candidate = project.get("id")
     if not isinstance(candidate, str) or not candidate.strip():
         candidate = raw.get("project_id")
-    if isinstance(candidate, str) and re.fullmatch(ID_PATTERN, candidate.strip()):
-        return candidate.strip()
-    return None
+    return _identity_without_secret(candidate if isinstance(candidate, str) else None)
 
 
 def _assert_marker_uuid_ownership(project_root: Path, vault: Path) -> None:
@@ -353,8 +369,11 @@ def _assert_marker_uuid_ownership(project_root: Path, vault: Path) -> None:
         return
     if raw_uuid is None:
         return
+    safe_id = _identity_without_secret(project_id)
+    if safe_id is None:
+        return
     project_uuid = validate_project_uuid(str(raw_uuid))
-    assert_project_uuid_one_owner(vault, {project_id.strip(): project_uuid})
+    assert_project_uuid_one_owner(vault, {safe_id: project_uuid})
 
 
 def _write_bind(
@@ -365,14 +384,18 @@ def _write_bind(
     project_ids: list[str] | None = None,
     primary_project_id: str | None = None,
 ) -> Path:
-    projects = sorted({str(item) for item in (project_ids or []) if str(item).strip()})
+    projects = sorted(
+        {
+            token
+            for item in (project_ids or [])
+            for token in [_identity_without_secret(str(item))]
+            if token is not None
+        }
+    )
     primary: str | None = None
-    if (
-        isinstance(primary_project_id, str)
-        and primary_project_id.strip()
-        and primary_project_id.strip() in projects
-    ):
-        primary = primary_project_id.strip()
+    safe_primary = _identity_without_secret(primary_project_id)
+    if safe_primary is not None and safe_primary in projects:
+        primary = safe_primary
     elif len(projects) == 1:
         primary = projects[0]
     payload = {
