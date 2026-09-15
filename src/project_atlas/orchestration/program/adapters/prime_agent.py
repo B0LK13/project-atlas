@@ -2169,6 +2169,8 @@ class PrimeExecutorAdapter:
             "--session-dir",
             str(session_dir),
         ]
+        if request.profile.tools is not None:
+            daemon_argv += ["--tools", ",".join(request.profile.tools)]
         sandbox_argv = request.profile.adapter_options.get("sandbox_argv")
         if isinstance(sandbox_argv, (list, tuple)) and all(
             isinstance(item, str) for item in sandbox_argv
