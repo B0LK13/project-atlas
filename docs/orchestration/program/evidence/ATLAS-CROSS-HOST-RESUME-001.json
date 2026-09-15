@@ -17,7 +17,8 @@
     ],
     "note": "Duplicates of the same terminal t003f run; create no new authorization or execution state"
   },
-  "cross_host_ready": "NO_GO_PENDING_CLEANUP",
+  "cross_host_ready": "GO_SANITIZED_BRANCH_ONLY",
+  "cross_host_ready_note": "Fresh clone of feat/prime-takeover-003-handoff-sanitized reproduced commit acf5a1f4c176b9a26dc4818c1878cae879cfb0b8 / tree 1a548a2069aefb1b324c2d8c9ac69b7221d74806; bounded remediation unit tests passed; resume files remotely readable. Contaminated ref feat/prime-takeover-003-config-route @ d539f88 remains published and requires separate owner-authorized destructive cleanup. Do not clone the contaminated branch.",
   "new_host_entry_gate": {
     "do_not_create_t003g_immediately_after_clone": true,
     "if_realistic_canary_fails_same_provider_model": [
@@ -46,6 +47,20 @@
     "DO_NOT_USE_feat/prime-takeover-003-config-route_AS_CLEAN_HANDOFF",
     "DO_NOT_CLAIM_d539f88_SANITIZED"
   ],
+  "published_lanes": {
+    "handoff/atlas-agy-lab-hardening-p1": {
+      "commit": "d41c80d26b16048bc530cd8e6d0ad55964f548ae",
+      "tree": "9b338752c72e92c093ba9e7e7db47a46ccb9d08e",
+      "url": "https://github.com/B0LK13/project-atlas/tree/handoff/atlas-agy-lab-hardening-p1"
+    },
+    "supervisor/asanc-pr927-caveat-001": {
+      "0f3ba880_tree": "b34557ccf8c2df3d514de0bf81d9c2a55eed157d",
+      "commit": "b4ebc905304e73e7937e43a959c04af6db1e31dc",
+      "includes_0f3ba880": true,
+      "tree": "2a46fa42aedb9fb9abbfc88c6d53a7e55295be1f",
+      "url": "https://github.com/B0LK13/project-atlas/tree/supervisor/asanc-pr927-caveat-001"
+    }
+  },
   "record_id": "ATLAS-CROSS-HOST-RESUME-001",
   "required_next_host_capability_work": [
     "Reproduce compaction reserveTokens sizing + headless-completion wait remediation",
@@ -53,6 +68,12 @@
     "Run production-shaped A1 canary to 2/2 PASS before any new Prime A1 root",
     "Do not resume t003f or reuse its counters/root"
   ],
+  "sanitized_handoff": {
+    "branch": "feat/prime-takeover-003-handoff-sanitized",
+    "commit": "acf5a1f4c176b9a26dc4818c1878cae879cfb0b8",
+    "tree": "1a548a2069aefb1b324c2d8c9ac69b7221d74806",
+    "url": "https://github.com/B0LK13/project-atlas/tree/feat/prime-takeover-003-handoff-sanitized"
+  },
   "schema_version": 1,
   "security_remediation": {
     "classification": "source-host_ephemeral_task_local",
@@ -99,5 +120,6 @@
     "terminal": "FAIL_NO_CANDIDATE",
     "third_coding_attempt": "FORBIDDEN",
     "workspace_tree_at_packaging": "ed560297c19e37ca427f693accb36daf0439c9a8"
-  }
+  },
+  "validated_at_utc": "2026-09-15T19:00:32Z"
 }

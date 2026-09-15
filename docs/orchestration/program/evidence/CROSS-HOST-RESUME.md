@@ -1,3 +1,15 @@
+# CROSS_HOST_READY = GO_SANITIZED_BRANCH_ONLY
+
+Fresh-clone validated: `feat/prime-takeover-003-handoff-sanitized` =
+`acf5a1f4c176b9a26dc4818c1878cae879cfb0b8` / tree `1a548a2069aefb1b324c2d8c9ac69b7221d74806`.
+
+Do **not** clone contaminated `feat/prime-takeover-003-config-route` (`d539f88`).
+Destructive cleanup of that ref still needs separate owner authorization.
+
+`acf5a1f4c176b9a26dc4818c1878cae879cfb0b8` / tree `1a548a2069aefb1b324c2d8c9ac69b7221d74806`.
+
+Destructive cleanup of that ref still needs separate owner authorization.
+
 # CROSS-HOST-RESUME — Atlas Prime takeover-003 / t003f
 
 **Status:** t003f is **TERMINAL** (`FAIL_NO_CANDIDATE`). **Do not resume t003f.**
