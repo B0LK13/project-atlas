@@ -1,0 +1,22 @@
+schema_version: 1
+adapters:
+  generic-cli-v1:
+    skill_version: 1.0.0
+    skill_sha256: 2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123
+    rehearsal_status: passed
+    capabilities:
+    - governed-implementation
+    revoked: false
+    skill_id: atlas-governed-work
+    rehearsal:
+      status: passed
+      rehearsal_id: ARH-0bdf96fdd71f870e
+      receipt_sha256: 4a832e6dd29912b7a10d5694ea67a86766f3d65d521b84dcf3d0c02cdac0d36c
+    governed_work_ready: true
+  ide-agent-v1:
+    skill_version: 1.0.0
+    skill_sha256: 2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123
+    rehearsal_status: pending
+    capabilities:
+    - governed-implementation
+    revoked: false

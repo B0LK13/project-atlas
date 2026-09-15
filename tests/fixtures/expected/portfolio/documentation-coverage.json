@@ -1,0 +1,214 @@
+{
+  "categories": [
+    "overview",
+    "architecture",
+    "setup",
+    "operations",
+    "development",
+    "testing",
+    "security",
+    "roadmap",
+    "decisions",
+    "deployment",
+    "troubleshooting"
+  ],
+  "projects": {
+    "black-agency-os": {
+      "categories": [
+        {
+          "category": "architecture",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "decisions",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "deployment",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "development",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "operations",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "overview",
+          "source_ids": [
+            "source-393059d91a5155e8",
+            "source-e7e6f6b00f48f523"
+          ],
+          "state": "present"
+        },
+        {
+          "category": "roadmap",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "security",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "setup",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "testing",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "troubleshooting",
+          "source_ids": [],
+          "state": "absent"
+        }
+      ]
+    },
+    "dark-factory": {
+      "categories": [
+        {
+          "category": "architecture",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "decisions",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "deployment",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "development",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "operations",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "overview",
+          "source_ids": [
+            "source-6d9d988ba4d0b0d5",
+            "source-f586ab5bbfc1f5e9"
+          ],
+          "state": "present"
+        },
+        {
+          "category": "roadmap",
+          "source_ids": [
+            "source-5e69f09b1bbedd2f",
+            "source-d25bc44223b4a562"
+          ],
+          "state": "present"
+        },
+        {
+          "category": "security",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "setup",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "testing",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "troubleshooting",
+          "source_ids": [],
+          "state": "absent"
+        }
+      ]
+    },
+    "nebula": {
+      "categories": [
+        {
+          "category": "architecture",
+          "source_ids": [
+            "source-7e8b95d2670704bf"
+          ],
+          "state": "partial"
+        },
+        {
+          "category": "decisions",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "deployment",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "development",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "operations",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "overview",
+          "source_ids": [
+            "source-02760b0ad38eedc9",
+            "source-9fc070623c2a55d3",
+            "source-cad2cec8ea1fe8d6"
+          ],
+          "state": "present"
+        },
+        {
+          "category": "roadmap",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "security",
+          "source_ids": [
+            "source-1a590ffa5b6f369a"
+          ],
+          "state": "partial"
+        },
+        {
+          "category": "setup",
+          "source_ids": [],
+          "state": "absent"
+        },
+        {
+          "category": "testing",
+          "source_ids": [
+            "source-4f3080175416a795"
+          ],
+          "state": "present"
+        },
+        {
+          "category": "troubleshooting",
+          "source_ids": [],
+          "state": "absent"
+        }
+      ]
+    }
+  },
+  "schema_version": 1
+}

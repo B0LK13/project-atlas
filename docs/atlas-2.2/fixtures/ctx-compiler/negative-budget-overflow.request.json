@@ -1,0 +1,20 @@
+{
+  "schema_version": 0,
+  "package_id": "AS-2.2-CTX-COMPILER-001",
+  "draft": true,
+  "task_id": "budget-hard-fail",
+  "profile_id": "architect",
+  "goal": "NEGATIVE: hard budget overflow fails closed.",
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "budget": {
+    "max_items": 1,
+    "max_bytes": 512,
+    "on_overflow": "fail"
+  },
+  "candidate_refs": [
+    { "ref": "fixture/sources/architecture.md", "kind": "source" },
+    { "ref": "fixture/sources/decisions.md", "kind": "source" },
+    { "ref": "fixture/claims/claim-constraint-a", "kind": "claim" }
+  ]
+}

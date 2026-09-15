@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/research-hypothesis.schema.json",
+  "title": "research-hypothesis (PREP STUB - not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "hypothesis_id",
+    "question_id",
+    "statement",
+    "status",
+    "authority_promoted"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.research.hypothesis.v0" },
+    "hypothesis_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "question_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "statement": { "type": "string", "minLength": 3, "maxLength": 2048 },
+    "status": {
+      "type": "string",
+      "enum": ["open", "supported", "refuted", "inconclusive"]
+    },
+    "authority_promoted": { "const": false },
+    "evidence_ref_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

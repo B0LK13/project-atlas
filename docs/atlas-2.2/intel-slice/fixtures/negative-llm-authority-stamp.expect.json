@@ -1,0 +1,21 @@
+{
+  "_prep_note": "FX-2.2-ISL-103 \u2014 expected rejection of llm_authority_stamp on intelligence slice",
+  "action_id": "action.demo.intel-slice.llm-authority-stamp.forbidden",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "LLM prose must not stamp slice winners or authority.level elevation"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "intel-slice-llm-authority-forbidden",
+  "kind": "llm_authority_stamp",
+  "package_id": "AS-2.2-INTEL-SLICE-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "slice_id": "intel-slice.demo.estate-alpha.001",
+  "status": "rejected_forbidden",
+  "truth_boundary": "INTEL SLICE ACTION \u2260 RELEASE CERT / \u2260 PILOT PASS / \u2260 LLM AUTHORITY / \u2260 CANONICAL WRITE"
+}

@@ -1,0 +1,5 @@
+schema_version: 1
+project:
+  id: harbor-api
+  name: Harbor API
+project_uuid: 0eaffd62-2dcf-49da-a4d6-57bcf58195c1

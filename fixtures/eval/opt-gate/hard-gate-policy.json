@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "version": "AS-OPT-GATE-001-GATES-1",
+  "package_id": "AS-OPT-GATE-001",
+  "required_gates": [
+    "security",
+    "provenance_integrity",
+    "authority_integrity",
+    "unknown_honesty",
+    "conflict_honesty",
+    "evidence_integrity",
+    "determinism",
+    "project_isolation",
+    "holdout_isolation"
+  ],
+  "unknown_result_is_pass": false,
+  "score_may_override_gates": false
+}

@@ -1,0 +1,28 @@
+{
+  "artifacts": {
+    "apps/web/package-lock.json": {
+      "bytes": 65313,
+      "sha256": "7cbfc985d68c6f13f6ae55d9730fedb805e330aef4b0c7a5ca7f4083b062e3f9"
+    },
+    "apps/web/package.json": {
+      "bytes": 825,
+      "sha256": "ef7652e1e527591d1faa201c26728035b36c753b6fd1f04e84cc5881a9e4a828"
+    },
+    "pyproject.toml": {
+      "bytes": 1735,
+      "sha256": "33deabbe8fd69ef412cb5bdefd1974def0f8235682876fc9d397c5531c3d46ff"
+    }
+  },
+  "classification": {
+    "LOCAL_SOURCE": [
+      "src/project_atlas",
+      "src/atlas_contracts",
+      "pyproject.toml (editable project-atlas)"
+    ],
+    "THIRD_PARTY": [
+      "apps/web/package-lock.json (npm)",
+      "pip resolved from pyproject optional-deps at install time (not frozen in v1; lock npm first)"
+    ]
+  },
+  "schema": "atlas-dep-integrity/v1"
+}

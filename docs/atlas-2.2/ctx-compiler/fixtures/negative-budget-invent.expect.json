@@ -1,0 +1,7 @@
+{
+  "action": "budget-invent-winner",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "budget failure must not invent truncated winners",
+  "release_certified": false
+}

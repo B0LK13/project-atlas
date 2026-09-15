@@ -1,0 +1,12 @@
+{
+  "example": "COPY refused",
+  "command": [
+    "python",
+    "curator.py",
+    "--source-root",
+    "/tmp/fixture-estate",
+    "--phase",
+    "COPY"
+  ],
+  "expected_error": "OWNER_GATE_REQUIRED"
+}

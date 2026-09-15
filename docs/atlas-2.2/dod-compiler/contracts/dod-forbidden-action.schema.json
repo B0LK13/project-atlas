@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/dod-forbidden-action.schema.json",
+  "title": "dod-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-DOD-DEEPEN-PREP-001 fail-closed action proposal. Reject Layer B promotion, LLM authority stamps, fixture-as-pilot, and invented PASS.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority_promoted",
+    "consume_only",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-DOD-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "proof_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "criterion_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "kind": {
+      "enum": [
+        "layer_b_promotion",
+        "llm_authority_stamp",
+        "fixture_as_authentic_pilot",
+        "invented_pass",
+        "release_cert_from_fixture",
+        "unknown_criterion_binding"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "dod-layer-b-promotion-forbidden",
+        "dod-llm-authority-forbidden",
+        "dod-fixture-as-pilot-forbidden",
+        "dod-invented-pass-forbidden",
+        "dod-release-cert-from-fixture-forbidden",
+        "dod-unknown-criterion-forbidden"
+      ]
+    },
+    "authority_promoted": { "const": false },
+    "consume_only": { "const": true },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate": { "const": false },
+    "evidence_class": { "const": "fixture-only" },
+    "truth_boundary": {
+      "const": "DoD PROOF ≠ LAYER B AUTHORITY / ≠ LLM AUTHORITY / ≠ INVENTED PASS / FIXTURE ≠ PILOT"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

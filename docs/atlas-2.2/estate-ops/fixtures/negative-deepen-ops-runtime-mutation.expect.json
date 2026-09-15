@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ESTATE-OPS-DEEPEN-PREP-001",
+  "action_id": "action.demo.estate-ops.ops-runtime-mutation.forbidden",
+  "kind": "ops_runtime_mutation",
+  "status": "rejected_forbidden",
+  "expected_error": "estate-ops-ops-runtime-mutation-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "Prep must not mutate project_atlas.ops_health or ops_events"
+  },
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "release_certified": false,
+  "pilot_pass": false,
+  "canonical_writes": false,
+  "pilot_roots": 0,
+  "truth_boundary": "ESTATE OPS ≠ UNKNOWN-AS-HEALTHY / ≠ UI-CANONICAL / ≠ OPS RUNTIME / ≠ LLM AUTHORITY",
+  "_prep_note": "FX-2.2-EO-DEEPEN-104 — expected rejection of ops_runtime_mutation"
+}

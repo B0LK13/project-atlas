@@ -1,0 +1,69 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+work_package_id: AS-CORE-002
+status: certified
+branch: main
+merge_commit: 50509a21e30a965a9b0e2e10cdaf72ed24d135cb
+implementation_commit: 575ce3b
+remediation_commit: bb2a713
+transaction_preflight_commit: f970e72
+independent_verification:
+  verifier: Agent Two
+  pinned_commit: 50509a2
+  status: passed
+  recommendation: merge-recommended
+  failure_isolation: byte-identical-vault-confirmed
+evidence_reconciliation:
+  note: >-
+    The original receipt overstated the number of source files checked by
+    mypy. Mypy itself genuinely passed; correcting the count from 127 to 28
+    does not alter functional certification.
+  original_mypy_source_file_count: 127
+  corrected_mypy_source_file_count: 28
+  functional_certification_changed: false
+ancestry:
+  semantic_implementation: true
+  schema_lifecycle_remediation: true
+  transaction_preflight: true
+  squashed: false
+control_plane:
+  unrelated_changes_introduced: false
+validation:
+  full_repository_tests: 88
+  prior_receipt_count: 87
+  count_reconciliation: corrected-undercount
+  focused_core_tests: 25
+  documentation_suite: passed
+  mypy: "passed: 28 source files"
+  ruff: passed
+  compilation: passed
+  public_cli_workflow: passed
+  strict_vault_validation: passed
+  unchanged_replay: passed
+  replay_content_drift: 0
+  replay_canonical_changes: 0
+  replay_filesystem_writes: 0
+transaction_probe:
+  projects: [aaa-first, zzz-second]
+  new_source: aaa/NOTES.md
+  malformed_project: zzz-second
+  failed_invocation_mutations: 0
+  corrected_retry: passed
+  imported_new_source_count: 1
+  duplicate_count: 0
+security:
+  content_based_secret_detection: passed
+  secret_bearing_source_excluded: true
+  metadata_only_findings: true
+regeneration:
+  human_region_preserved: true
+  malformed_markers_fail_closed: true
+deferred_items:
+  - richer Claim and Concept population
+  - schema/Pydantic coercion edge cases
+  - generated-marker convention reconciliation
+  - state-migration tooling
+  - real-project pilot certification
+milestone_tag: atlas-core-semantic-lifecycle-v1
+sync_state: synchronized
+blockers: []

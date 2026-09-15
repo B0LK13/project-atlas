@@ -1,0 +1,17 @@
+{
+  "schema_version": 0,
+  "package_id": "AS-2.2-CTX-COMPILER-001",
+  "draft": true,
+  "task_id": "forbidden-invent",
+  "profile_id": "research",
+  "goal": "NEGATIVE: attempt to invent estate facts must fail closed.",
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "budget": {
+    "max_items": 2,
+    "on_overflow": "fail"
+  },
+  "candidate_refs": [
+    { "ref": "fixture/sources/overview.md", "kind": "source" }
+  ]
+}

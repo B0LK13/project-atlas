@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/kf2-relationship.schema.json",
+  "title": "KF2 Relationship Record",
+  "description": "AS-KF2-REL-001 Knowledge Fabric relationship. Derived edges between KF2 entities; Graph≠authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "relationship_id",
+    "from_entity_id",
+    "to_entity_id",
+    "relation_type",
+    "compat_snapshot_id",
+    "authority",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-KF2-REL-001" },
+    "relationship_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "from_entity_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "to_entity_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "relation_type": {
+      "type": "string",
+      "enum": [
+        "depends-on",
+        "implements",
+        "related-to",
+        "supersedes",
+        "member-of"
+      ]
+    },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "active" },
+    "truth_boundary": {
+      "type": "string",
+      "const": "KF2 RELATIONSHIP ≠ AUTHORITY"
+    },
+    "notes": { "type": "string", "maxLength": 240 }
+  }
+}

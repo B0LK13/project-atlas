@@ -1,0 +1,381 @@
+"""Shared Claim Identity v2 primitives (AS-CORE-003).
+
+Canonical identity serialization, extraction rules, and stable locator
+resolution used by both the knowledge compiler and the v1-to-v2 migration.
+Centralizing these prevents drift between runtime extraction and historical
+migration and eliminates delimiter-collision ambiguity in identity keys.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from typing import Any
+
+from project_atlas.domain.vocabulary import ClaimType
+
+_TOKEN = re.compile(r"[^a-z0-9]+")
+
+# Line extraction rules shared between compiler and migration.
+# Order matters: the first matching rule wins for a given line.
+_LINE_RULES: tuple[tuple[ClaimType, str, re.Pattern[str]], ...] = (
+    (
+        ClaimType.PROJECT_PURPOSE,
+        "purpose",
+        re.compile(r"^(?:project\s+)?purpose\s*:\s*(.+)$", re.I),
+    ),
+    (
+        ClaimType.RUNTIME_DEPENDENCY,
+        "runtime",
+        re.compile(r"^(?:requires|runtime|dependency)\s*:\s*(.+)$", re.I),
+    ),
+    (
+        ClaimType.DEPLOYMENT_TARGET,
+        "deployment",
+        re.compile(
+            r"^(?:deployment(?:\s+target)?|deploy(?:ed|ment)?\s+target|target)"
+            r"\s*:\s*(.+)$",
+            re.I,
+        ),
+    ),
+    (
+        ClaimType.SETUP_REQUIREMENT,
+        "setup",
+        re.compile(r"^(?:setup|install(?:ation)?|requirement)\s*:\s*(.+)$", re.I),
+    ),
+    (
+        ClaimType.TEST_RESULT,
+        "validation",
+        re.compile(r"^(?:test|validation|acceptance)\s*(?:result|status)?\s*:\s*(.+)$", re.I),
+    ),
+    (ClaimType.ROADMAP_STATUS, "roadmap", re.compile(r"^(?:roadmap|status)\s*:\s*(.+)$", re.I)),
+    (
+        ClaimType.WORK_PACKAGE_STATUS,
+        "work-package",
+        re.compile(r"^(?:work[- ]package)\s*:\s*(.+)$", re.I),
+    ),
+    (ClaimType.DECISION, "decision", re.compile(r"^(?:decision)\s*:\s*(.+)$", re.I)),
+    (ClaimType.RISK, "risk", re.compile(r"^(?:risk|blocker)\s*:\s*(.+)$", re.I)),
+    (
+        ClaimType.OPERATIONAL_INSTRUCTION,
+        "operations",
+        re.compile(r"^(?:run|operate|command|instruction)\s*:\s*(.+)$", re.I),
+    ),
+)
+
+_SUPERSESSION_RULE = re.compile(
+    r"^(?:supersedes|replaces)\s*:\s*([A-Za-z0-9][A-Za-z0-9._-]*)$", re.I
+)
+_EXPLICIT_ID = re.compile(r"\{#([A-Za-z0-9][A-Za-z0-9._-]*)\}")
+
+
+class UnresolvedLocatorError(ValueError):
+    """A recognized claim line has no durable semantic locator."""
+
+    def __init__(self, line: str) -> None:
+        self.line = line
+        super().__init__(f"no stable locator found for recognized claim: {line}")
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _slug(value: str) -> str:
+    result = _TOKEN.sub("-", value.lower()).strip("-")
+    return result or "unknown"
+
+
+def canonical_identity_key(
+    project_identity: str,
+    source_identity: str,
+    claim_type: str,
+    field: str,
+    locator: str,
+) -> str:
+    """Return a canonical, delimiter-safe identity key for a claim.
+
+    The key is a compact JSON array so that embedded delimiters in the
+    component values cannot collide with the serialization boundaries.
+    """
+    return json.dumps(
+        ["v2", project_identity, source_identity, claim_type, field, locator],
+        separators=(",", ":"),
+    )
+
+
+def claim_id_from_key(identity_key: str) -> str:
+    """Derive the deterministic public claim id from a canonical identity key."""
+    return f"claim-{_digest(identity_key)[:20]}"
+
+
+def v2_claim_id(
+    project_identity: str,
+    source_identity: str,
+    claim_type: str,
+    field: str,
+    locator: str,
+) -> str:
+    """Return the canonical v2 claim id for the given identity components."""
+    return claim_id_from_key(
+        canonical_identity_key(project_identity, source_identity, claim_type, field, locator)
+    )
+
+
+def resolve_locator(
+    line: str,
+    current_heading: str | None,
+    *,
+    schema_key: str | None = None,
+    is_project_manifest: bool = False,
+) -> str | None:
+    """Resolve a stable semantic locator for a matched claim line.
+
+    Priority:
+    1. Explicit validated ID: `{#id}` in the claim line.
+    2. Schema key (compiler only): `schema:<key>`.
+    3. Project manifest marker: `schema:project-manifest`.
+    4. Heading with explicit ID: `heading:<id>`.
+    5. Heading slug: `heading:<slug>`.
+    6. Unresolved: return ``None``.
+    """
+    explicit_match = _EXPLICIT_ID.search(line)
+    if explicit_match:
+        return f"id:{explicit_match.group(1).strip()}"
+    if schema_key:
+        return f"schema:{schema_key}"
+    if is_project_manifest:
+        return "schema:project-manifest"
+    if current_heading:
+        heading_id_match = _EXPLICIT_ID.search(current_heading)
+        if heading_id_match:
+            return f"heading:{heading_id_match.group(1).strip()}"
+        return f"heading:{_slug(current_heading)}"
+    return None
+
+
+def normalize_claim_value(value: str) -> str:
+    """Collapse whitespace in a claim value the same way in compiler and migration."""
+    return " ".join(value.split())
+
+
+def _disambiguate_collisions(
+    claims: list[dict[str, Any]], *, withhold_unresolvable: bool
+) -> list[dict[str, Any]]:
+    """Apply the smallest stable collision resolution (AS-EXT-001A, §7.7).
+
+    Groups claims by their identity-relevant tuple ``(claim_type, field,
+    locator)`` — the tuple the Claim Identity v2 key is derived from:
+
+    1. identical-value groups are the same statement repeated: keep the first
+       occurrence deterministically;
+    2. heading-derived collisions with different ancestor paths are resolved
+       with the full heading path (``headingpath:<ancestor>/<slug>``);
+    3. heading-derived collisions with identical paths (repeated sibling
+       statements, duplicated foreign H1s) are resolved with a deterministic
+       document-order ordinal suffix ``~n``;
+    4. anything still colliding (for example duplicate explicit IDs) is
+       marked ``withheld`` when ``withhold_unresolvable`` is set, so the
+       caller can emit a diagnostic and a PARTIAL candidate instead of
+       aborting; otherwise records pass through unchanged and the existing
+       fail-closed compiler behavior applies.
+
+    Only documents that would previously have aborted reach steps 2-4, so
+    locators of already-promoted claims are byte-identical.
+
+    Withheld unresolved-locator records (``locator is None``, §7.8) are
+    ungroupable for the dedupe pass: ``str(None)`` would group every such
+    record under one key and step 1 would drop identical occurrences without
+    a diagnostic, violating the no-silent-drop contract. Each occurrence
+    keeps its record index in the grouping key so it survives and is
+    diagnosed individually by the caller.
+    """
+
+    def group_key(index: int, claim: dict[str, Any]) -> tuple[str, str, str]:
+        locator = claim["locator"]
+        return (
+            str(claim["claim_type"]),
+            str(claim["field"]),
+            str(locator) if locator is not None else f"<unresolved-locator:{index}>",
+        )
+
+    groups: dict[tuple[str, str, str], list[int]] = {}
+    for index, claim in enumerate(claims):
+        groups.setdefault(group_key(index, claim), []).append(index)
+
+    drop: set[int] = set()
+    for (_claim_type, _field, locator), indexes in groups.items():
+        if len(indexes) < 2:
+            continue
+        members = [claims[index] for index in indexes]
+        if len({str(member["value"]) for member in members}) == 1:
+            drop.update(indexes[1:])
+            continue
+        if isinstance(locator, str) and locator.startswith("heading:"):
+            paths = [tuple(member.get("heading_path") or ()) for member in members]
+            if len(set(paths)) > 1 and all(paths):
+                for member, path in zip(members, paths, strict=True):
+                    member["locator"] = "headingpath:" + "/".join(path)
+            else:
+                for ordinal, member in enumerate(members, start=1):
+                    member["locator"] = f"{locator}~{ordinal}"
+
+    remaining: dict[tuple[str, str, str], list[int]] = {}
+    for index, claim in enumerate(claims):
+        if index in drop:
+            continue
+        remaining.setdefault(group_key(index, claim), []).append(index)
+    for indexes in remaining.values():
+        if len(indexes) < 2 or len(
+            {str(claims[index]["value"]) for index in indexes}
+        ) == 1:
+            continue
+        for index in indexes:
+            if withhold_unresolvable:
+                claims[index]["withheld"] = True
+
+    return [claim for index, claim in enumerate(claims) if index not in drop]
+
+
+def extract_claims(
+    text: str,
+    *,
+    schema_key: str | None = None,
+    is_project_manifest: bool = False,
+    classification: str | None = None,
+    reject_unresolved: bool = False,
+    withhold_unresolvable: bool = False,
+) -> list[dict[str, Any]]:
+    """Extract raw claim records from source text using shared rules.
+
+    Each record contains the normalized current value, the unmodified
+    ``legacy_value`` used by the v1 compiler, and the durable v2 locator.
+    This is used by the compiler and migration so both agree on the complete
+    candidate set while the migration can still reconstruct historical IDs.
+
+    ``withhold_unresolvable`` (AS-EXT-001A, §7.7) marks claims that still
+    collide after the smallest stable resolution instead of letting them
+    abort compilation; the default preserves legacy fail-closed behavior.
+    """
+    claims: list[dict[str, Any]] = []
+    predecessor_id: str | None = None
+    current_heading: str | None = None
+    heading_stack: list[tuple[int, str]] = []
+
+    def heading_path() -> tuple[str, ...]:
+        return tuple(slug for _level, slug in heading_stack)
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip().lstrip("- ").strip()
+        supersession = _SUPERSESSION_RULE.match(line)
+        if supersession:
+            predecessor_id = supersession.group(1)
+            continue
+
+        if raw_line.startswith("#"):
+            level = len(raw_line) - len(raw_line.lstrip("#"))
+            current_heading = raw_line.lstrip("#").strip()
+            while heading_stack and heading_stack[-1][0] >= level:
+                heading_stack.pop()
+            heading_stack.append((level, _slug(current_heading)))
+            continue
+
+        for claim_type, field, pattern in _LINE_RULES:
+            match = pattern.match(line)
+            if not match:
+                continue
+            claim_value = match.group(1)
+            legacy_value = normalize_claim_value(match.group(1))
+            explicit_match = _EXPLICIT_ID.search(line)
+            if explicit_match:
+                claim_value = claim_value.replace(explicit_match.group(0), "").strip()
+
+            locator = resolve_locator(
+                line,
+                current_heading,
+                schema_key=schema_key,
+                is_project_manifest=is_project_manifest,
+            )
+            if locator is None:
+                if reject_unresolved:
+                    raise UnresolvedLocatorError(line)
+                if withhold_unresolvable:
+                    # AS-EXT-001A §7.8: lines without a stable locator become
+                    # visible withheld records instead of silent skips.
+                    claims.append(
+                        {
+                            "claim_type": claim_type.value,
+                            "field": field,
+                            "value": normalize_claim_value(claim_value),
+                            "legacy_value": legacy_value,
+                            "locator": None,
+                            "predecessor_id": predecessor_id,
+                            "heading_path": heading_path(),
+                            "withheld": True,
+                        }
+                    )
+                break
+
+            claims.append(
+                {
+                    "claim_type": claim_type.value,
+                    "field": field,
+                    "value": normalize_claim_value(claim_value),
+                    "legacy_value": legacy_value,
+                    "locator": locator,
+                    "predecessor_id": predecessor_id,
+                    "heading_path": heading_path(),
+                }
+            )
+            break
+
+    if classification == "architecture" and not claims:
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            locator = resolve_locator(
+                raw_line,
+                current_heading,
+                schema_key=schema_key,
+                is_project_manifest=is_project_manifest,
+            )
+            if locator is None:
+                if reject_unresolved:
+                    raise UnresolvedLocatorError(line)
+                if withhold_unresolvable:
+                    # AS-EXT-001A §7.8: visible withheld record, no silent skip.
+                    claims.append(
+                        {
+                            "claim_type": ClaimType.ARCHITECTURE.value,
+                            "field": "architecture",
+                            "value": normalize_claim_value(line),
+                            "legacy_value": normalize_claim_value(line),
+                            "locator": None,
+                            "predecessor_id": predecessor_id,
+                            "heading_path": heading_path(),
+                            "withheld": True,
+                        }
+                    )
+                break
+            explicit_match = _EXPLICIT_ID.search(line)
+            value = (
+                line.replace(explicit_match.group(0), "").strip()
+                if explicit_match
+                else line
+            )
+            claims.append(
+                {
+                    "claim_type": ClaimType.ARCHITECTURE.value,
+                    "field": "architecture",
+                    "value": normalize_claim_value(value),
+                    "legacy_value": normalize_claim_value(line),
+                    "locator": locator,
+                    "predecessor_id": predecessor_id,
+                    "heading_path": heading_path(),
+                }
+            )
+            break
+
+    return _disambiguate_collisions(claims, withhold_unresolvable=withhold_unresolvable)

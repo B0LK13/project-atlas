@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/provider-adapter-registry.schema.json",
+  "title": "Provider Adapter Registry",
+  "description": "AS-2.0-PROV-001 optional provider adapter registry. Disabled-by-default; never bypasses provenance or secrets scanning.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "adapters_enabled",
+    "adapters",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-PROV-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "adapters_enabled": { "const": false },
+    "adapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "adapter_id",
+          "provider",
+          "enabled",
+          "capabilities",
+          "status"
+        ],
+        "properties": {
+          "adapter_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["openai", "mcp", "local-model", "other"]
+          },
+          "enabled": { "const": false },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "classify-assist",
+                "summarize",
+                "tool-read",
+                "tool-query"
+              ]
+            }
+          },
+          "status": { "enum": ["registered", "denied"] },
+          "notes": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "PROVIDER ADAPTER ≠ AUTHORITY / ≠ PROVENANCE BYPASS"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

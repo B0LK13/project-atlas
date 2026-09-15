@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/charter-maturity-row.schema.json",
+  "title": "charter-maturity-row (PREP STUB — not package data)",
+  "description": "AS-2.2-DOC-CHARTER-PREP-001 single maturity matrix row. Draft audit label only; ATLAS_2_1_RELEASE_CERTIFIED=NO.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "row_id",
+    "package_id",
+    "maturity",
+    "evidence_path",
+    "disposition",
+    "evidence_class",
+    "authentic_estate",
+    "invent_pilot_roots",
+    "release_certified"
+  ],
+  "properties": {
+    "row_id": {
+      "type": "string",
+      "pattern": "^FX-2\\.2-DOC-CHARTER-[0-9]{3}$"
+    },
+    "package_id": {
+      "type": "string",
+      "pattern": "^AS-2\\.2-[A-Z0-9-]+$"
+    },
+    "maturity": {
+      "type": "string",
+      "enum": [
+        "LIVE_PRODUCTION",
+        "LIVE_READ_ONLY",
+        "BOUNDED",
+        "CONTRACT_ONLY",
+        "FIXTURE_ONLY",
+        "PROTOTYPE",
+        "DRY_RUN",
+        "DISABLED",
+        "STUB",
+        "DOCUMENTATION_ONLY",
+        "SUPERSEDED",
+        "BLOCKED"
+      ]
+    },
+    "evidence_path": { "type": "string", "minLength": 1 },
+    "disposition": {
+      "type": "string",
+      "enum": ["PREP", "BLOCKED", "FEEDS"]
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "invent_pilot_roots": { "const": false },
+    "release_certified": { "const": false },
+    "notes": { "type": "string" }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "scenario_id": "FX-2.2-RET-004",
+  "package_id": "AS-2.2-RET-HYBRID-001",
+  "plan_kind_draft": "hybrid_retrieval_2_plan",
+  "query": {
+    "kind": "claim",
+    "value": "claim-demo-001",
+    "mode": "exact",
+    "filters": {
+      "as_of": null,
+      "project_id": "demo"
+    }
+  },
+  "slots_sketch": {
+    "lexical_exact": { "enabled": true, "status": "active", "hits": ["claim-demo-001"] },
+    "lexical_prefix": { "enabled": false, "status": "idle", "hits": [] },
+    "metadata": { "enabled": true, "status": "active", "hits": ["claim-demo-001"] },
+    "graph": { "enabled": false, "status": "idle", "hits": [], "note": "Graph≠authority" },
+    "temporal": { "enabled": false, "status": "idle", "hits": [] },
+    "authority": { "enabled": true, "status": "advisory", "signals": ["freshness:unknown"] },
+    "semantic": {
+      "enabled": false,
+      "status": "disabled",
+      "reason": "no-semantic-index-contract"
+    }
+  },
+  "fusion_sketch": {
+    "order": [
+      "collect",
+      "dedupe",
+      "temporal_filter",
+      "authority_demote",
+      "preserve_lexical_over_semantic",
+      "emit_trace"
+    ],
+    "invariant": "semantic-cannot-erase-certified-lexical-hit",
+    "results_draft": [
+      {
+        "record_type": "claim",
+        "record_id": "claim-demo-001",
+        "slots_contributing": ["lexical_exact", "metadata"],
+        "authority_level": "derived"
+      }
+    ]
+  },
+  "runnable": false,
+  "gate_credit": "NO",
+  "_prep_note": "Non-normative fusion sketch for Hybrid Retrieval 2; not a live schema"
+}

@@ -1,0 +1,334 @@
+{
+  "aggregate": {
+    "PROJECTS_EXPECTED_TOTAL": 15,
+    "PROJECTS_FOUND_TOTAL": 15,
+    "all_gates_pass": true,
+    "ambiguous_or_review_projects_total": 0,
+    "estates": 5,
+    "false_matches_total": 0,
+    "knowledge_count_total": 7,
+    "obsidian_count_total": 1,
+    "recall_mean": 1.0,
+    "time_seconds_total": 0.016096
+  },
+  "authenticity": "NOT_AUTHENTIC_USER_ESTATE",
+  "base": "/tmp/d064-estates",
+  "estates": [
+    {
+      "PROJECTS_EXPECTED": [
+        "Alpha",
+        "Beta",
+        "Gamma"
+      ],
+      "PROJECTS_FOUND": [
+        "Alpha",
+        "Beta",
+        "Gamma"
+      ],
+      "PROJECTS_FOUND_COUNT": 3,
+      "PROJECTS_FOUND_PATHS": [
+        "/tmp/d064-estates/A-distinct/Alpha",
+        "/tmp/d064-estates/A-distinct/Beta",
+        "/tmp/d064-estates/A-distinct/Gamma"
+      ],
+      "ambiguous_match_states": 0,
+      "ambiguous_or_review_projects": 0,
+      "counts": {
+        "connected": 0,
+        "ignored": 3,
+        "knowledge": 0,
+        "projects": 3,
+        "required_review": 0
+      },
+      "description": "Distinct Alpha/Beta/Gamma git+manifest projects",
+      "estate_id": "A",
+      "extra_candidates_beyond_expected": [],
+      "false_match_count": 0,
+      "false_matches": [],
+      "honest_note": null,
+      "knowledge_count": 0,
+      "label": "REALISTIC_CONTROLLED_DOGFOOD",
+      "obsidian_count": 0,
+      "pass_gates": {
+        "knowledge_min": true,
+        "min_projects": true,
+        "no_false_matches": true,
+        "obsidian_min": true,
+        "recall_complete": true
+      },
+      "recall": 1.0,
+      "recall_hits": [
+        "Alpha",
+        "Beta",
+        "Gamma"
+      ],
+      "root": "/tmp/d064-estates/A-distinct",
+      "scan": {
+        "dirs_visited": 7,
+        "knowledge_limit_reached": false,
+        "max_depth": 8,
+        "max_knowledge_candidates": 500,
+        "max_project_candidates": 500,
+        "permission_errors": [],
+        "project_limit_reached": false,
+        "scan_complete": true,
+        "truncation_reason": null
+      },
+      "time_seconds": 0.002906
+    },
+    {
+      "PROJECTS_EXPECTED": [
+        "B-monorepo",
+        "api",
+        "shared",
+        "ui",
+        "web"
+      ],
+      "PROJECTS_FOUND": [
+        "B-monorepo",
+        "api",
+        "shared",
+        "ui",
+        "web"
+      ],
+      "PROJECTS_FOUND_COUNT": 5,
+      "PROJECTS_FOUND_PATHS": [
+        "/tmp/d064-estates/B-monorepo",
+        "/tmp/d064-estates/B-monorepo/apps/api",
+        "/tmp/d064-estates/B-monorepo/apps/web",
+        "/tmp/d064-estates/B-monorepo/packages/shared",
+        "/tmp/d064-estates/B-monorepo/packages/ui"
+      ],
+      "ambiguous_match_states": 0,
+      "ambiguous_or_review_projects": 0,
+      "counts": {
+        "connected": 0,
+        "ignored": 1,
+        "knowledge": 1,
+        "projects": 5,
+        "required_review": 0
+      },
+      "description": "Monorepo root.git + apps/ + packages/ + docs/",
+      "estate_id": "B",
+      "extra_candidates_beyond_expected": [],
+      "false_match_count": 0,
+      "false_matches": [],
+      "honest_note": "Ground truth allows root+nested; count how many candidates surface honestly rather than force a single-root policy.",
+      "knowledge_count": 1,
+      "label": "REALISTIC_CONTROLLED_DOGFOOD",
+      "obsidian_count": 0,
+      "pass_gates": {
+        "knowledge_min": true,
+        "min_projects": true,
+        "no_false_matches": true,
+        "obsidian_min": true,
+        "recall_complete": true
+      },
+      "recall": 1.0,
+      "recall_hits": [
+        "B-monorepo",
+        "api",
+        "shared",
+        "ui",
+        "web"
+      ],
+      "root": "/tmp/d064-estates/B-monorepo",
+      "scan": {
+        "dirs_visited": 12,
+        "knowledge_limit_reached": false,
+        "max_depth": 8,
+        "max_knowledge_candidates": 500,
+        "max_project_candidates": 500,
+        "permission_errors": [],
+        "project_limit_reached": false,
+        "scan_complete": true,
+        "truncation_reason": null
+      },
+      "time_seconds": 0.004017
+    },
+    {
+      "PROJECTS_EXPECTED": [
+        "svc",
+        "svc-copy",
+        "svc-old"
+      ],
+      "PROJECTS_FOUND": [
+        "svc",
+        "svc-copy",
+        "svc-old"
+      ],
+      "PROJECTS_FOUND_COUNT": 3,
+      "PROJECTS_FOUND_PATHS": [
+        "/tmp/d064-estates/C-lifecycle/Active/svc",
+        "/tmp/d064-estates/C-lifecycle/Archive/svc-old",
+        "/tmp/d064-estates/C-lifecycle/Copies/svc-copy"
+      ],
+      "ambiguous_match_states": 0,
+      "ambiguous_or_review_projects": 0,
+      "counts": {
+        "connected": 0,
+        "ignored": 3,
+        "knowledge": 0,
+        "projects": 3,
+        "required_review": 0
+      },
+      "description": "Active/Archive/Copies with copied markers",
+      "estate_id": "C",
+      "extra_candidates_beyond_expected": [],
+      "false_match_count": 0,
+      "false_matches": [],
+      "honest_note": null,
+      "knowledge_count": 0,
+      "label": "REALISTIC_CONTROLLED_DOGFOOD",
+      "obsidian_count": 0,
+      "pass_gates": {
+        "knowledge_min": true,
+        "min_projects": true,
+        "no_false_matches": true,
+        "obsidian_min": true,
+        "recall_complete": true
+      },
+      "recall": 1.0,
+      "recall_hits": [
+        "svc",
+        "svc-copy",
+        "svc-old"
+      ],
+      "root": "/tmp/d064-estates/C-lifecycle",
+      "scan": {
+        "dirs_visited": 10,
+        "knowledge_limit_reached": false,
+        "max_depth": 8,
+        "max_knowledge_candidates": 500,
+        "max_project_candidates": 500,
+        "permission_errors": [],
+        "project_limit_reached": false,
+        "scan_complete": true,
+        "truncation_reason": null
+      },
+      "time_seconds": 0.003195
+    },
+    {
+      "PROJECTS_EXPECTED": [
+        "ProjectA",
+        "ProjectB"
+      ],
+      "PROJECTS_FOUND": [
+        "ProjectA",
+        "ProjectB"
+      ],
+      "PROJECTS_FOUND_COUNT": 2,
+      "PROJECTS_FOUND_PATHS": [
+        "/tmp/d064-estates/D-node-modules/ProjectA",
+        "/tmp/d064-estates/D-node-modules/ProjectB"
+      ],
+      "ambiguous_match_states": 0,
+      "ambiguous_or_review_projects": 0,
+      "counts": {
+        "connected": 0,
+        "ignored": 3,
+        "knowledge": 0,
+        "projects": 2,
+        "required_review": 0
+      },
+      "description": "ProjectA/B with nested node_modules fake-project",
+      "estate_id": "D",
+      "extra_candidates_beyond_expected": [],
+      "false_match_count": 0,
+      "false_matches": [],
+      "honest_note": null,
+      "knowledge_count": 0,
+      "label": "REALISTIC_CONTROLLED_DOGFOOD",
+      "obsidian_count": 0,
+      "pass_gates": {
+        "knowledge_min": true,
+        "min_projects": true,
+        "no_false_matches": true,
+        "obsidian_min": true,
+        "recall_complete": true
+      },
+      "recall": 1.0,
+      "recall_hits": [
+        "ProjectA",
+        "ProjectB"
+      ],
+      "root": "/tmp/d064-estates/D-node-modules",
+      "scan": {
+        "dirs_visited": 5,
+        "knowledge_limit_reached": false,
+        "max_depth": 8,
+        "max_knowledge_candidates": 500,
+        "max_project_candidates": 500,
+        "permission_errors": [],
+        "project_limit_reached": false,
+        "scan_complete": true,
+        "truncation_reason": null
+      },
+      "time_seconds": 0.001402
+    },
+    {
+      "PROJECTS_EXPECTED": [
+        "platform",
+        "tooling"
+      ],
+      "PROJECTS_FOUND": [
+        "platform",
+        "tooling"
+      ],
+      "PROJECTS_FOUND_COUNT": 2,
+      "PROJECTS_FOUND_PATHS": [
+        "/tmp/d064-estates/E-mixed/Repositories/platform",
+        "/tmp/d064-estates/E-mixed/Repositories/tooling"
+      ],
+      "ambiguous_match_states": 0,
+      "ambiguous_or_review_projects": 0,
+      "counts": {
+        "connected": 0,
+        "ignored": 2,
+        "knowledge": 6,
+        "projects": 2,
+        "required_review": 1
+      },
+      "description": "Repositories + Notes + Research + Obsidian",
+      "estate_id": "E",
+      "extra_candidates_beyond_expected": [],
+      "false_match_count": 0,
+      "false_matches": [],
+      "honest_note": null,
+      "knowledge_count": 6,
+      "label": "REALISTIC_CONTROLLED_DOGFOOD",
+      "obsidian_count": 1,
+      "pass_gates": {
+        "knowledge_min": true,
+        "min_projects": true,
+        "no_false_matches": true,
+        "obsidian_min": true,
+        "recall_complete": true
+      },
+      "recall": 1.0,
+      "recall_hits": [
+        "platform",
+        "tooling"
+      ],
+      "root": "/tmp/d064-estates/E-mixed",
+      "scan": {
+        "dirs_visited": 13,
+        "knowledge_limit_reached": false,
+        "max_depth": 8,
+        "max_knowledge_candidates": 500,
+        "max_project_candidates": 500,
+        "permission_errors": [],
+        "project_limit_reached": false,
+        "scan_complete": true,
+        "truncation_reason": null
+      },
+      "time_seconds": 0.004576
+    }
+  ],
+  "honesty": {
+    "DEMO_FIXTURE_NE_AUTHENTIC_PILOT": true,
+    "DISCOVER_NE_INGEST": true,
+    "label": "REALISTIC_CONTROLLED_DOGFOOD"
+  },
+  "label": "REALISTIC_CONTROLLED_DOGFOOD"
+}

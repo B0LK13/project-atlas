@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "version": "AS-OPT-GATE-001-HONESTY-1",
+  "package_id": "AS-OPT-GATE-001",
+  "foreign_evidence_ids": ["ev-b-secret"],
+  "cases": [
+    {
+      "case_id": "EV-GATE-UNK-001",
+      "project_id": "proj-alpha",
+      "expected_status": "unknown",
+      "canonical_evidence_ids": [],
+      "allowed_project_ids": ["proj-alpha"]
+    },
+    {
+      "case_id": "EV-GATE-CONFLICT-001",
+      "project_id": "proj-alpha",
+      "expected_status": "conflict",
+      "canonical_evidence_ids": ["ev-left", "ev-right"],
+      "allowed_project_ids": ["proj-alpha"]
+    },
+    {
+      "case_id": "EV-GATE-KNOWN-001",
+      "project_id": "proj-alpha",
+      "expected_status": "known",
+      "canonical_evidence_ids": ["ev-alpha-status"],
+      "allowed_project_ids": ["proj-alpha"]
+    },
+    {
+      "case_id": "EV-GATE-PROJ-A-001",
+      "project_id": "proj-alpha",
+      "expected_status": "known",
+      "canonical_evidence_ids": ["ev-a-only"],
+      "allowed_project_ids": ["proj-alpha"]
+    }
+  ]
+}

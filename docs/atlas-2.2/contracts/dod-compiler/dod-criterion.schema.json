@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/dod-criterion.schema.json",
+  "title": "dod-criterion (PREP STUB — not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "criterion_id",
+    "statement",
+    "allowed_evidence_classes",
+    "severity"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.dod.criterion.v0" },
+    "criterion_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "statement": { "type": "string", "minLength": 3, "maxLength": 1024 },
+    "severity": {
+      "type": "string",
+      "enum": ["blocker", "high", "medium", "low"]
+    },
+    "allowed_evidence_classes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "unit_test",
+          "integration_test",
+          "adv_matrix",
+          "fixture_receipt",
+          "ci_digest",
+          "ops_receipt",
+          "authentic_pilot",
+          "release_checklist"
+        ]
+      }
+    },
+    "manual_waiver_forbidden": { "type": "boolean", "default": true }
+  }
+}

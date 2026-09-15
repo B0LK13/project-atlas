@@ -1,0 +1,10 @@
+{
+  "schema": "atlas.research.question.v0",
+  "question_id": "q-fx-res-001",
+  "statement": "What is the certified compatibility posture of the fixture vault?",
+  "scope": "fixture",
+  "project_id": "fixture-demo",
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "notes": "AS-2.2-RESEARCH-001 PREP sample; not authentic estate"
+}

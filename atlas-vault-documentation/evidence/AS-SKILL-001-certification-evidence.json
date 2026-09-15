@@ -1,0 +1,334 @@
+{
+  "all_negative_passed": true,
+  "negative_probes": [
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-wrong-vault-id",
+      "passed": true,
+      "probe_id": "NG-wrong-vault-id",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-wrong-vault-uuid",
+      "passed": true,
+      "probe_id": "NG-wrong-vault-uuid",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-receipt-skill-mismatch",
+      "passed": true,
+      "probe_id": "NG-receipt-skill-mismatch",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-stale-rehearsal",
+      "passed": true,
+      "probe_id": "NG-stale-rehearsal",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-corrupted-spool",
+      "passed": true,
+      "probe_id": "NG-corrupted-spool",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-missing-acknowledgement",
+      "passed": true,
+      "probe_id": "NG-missing-acknowledgement",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-wrong-session-acknowledgement",
+      "passed": true,
+      "probe_id": "NG-wrong-session-acknowledgement",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-conflicting-acknowledgement",
+      "passed": true,
+      "probe_id": "NG-conflicting-acknowledgement",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-missing-validation-completion",
+      "passed": true,
+      "probe_id": "NG-missing-validation-completion",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-uncertified-adapter",
+      "passed": true,
+      "probe_id": "NG-uncertified-adapter",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-revoked-adapter",
+      "passed": true,
+      "probe_id": "NG-revoked-adapter",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-missing-skill",
+      "passed": true,
+      "probe_id": "NG-missing-skill",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-malformed-manifest",
+      "passed": true,
+      "probe_id": "NG-malformed-manifest",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-bad-skill-hash",
+      "passed": true,
+      "probe_id": "NG-bad-skill-hash",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-unsupported-skill-version",
+      "passed": true,
+      "probe_id": "NG-unsupported-skill-version",
+      "receipt_issued": false
+    }
+  ],
+  "promotion": {
+    "adapter_id": "generic-cli-v1",
+    "governed_work_ready": true,
+    "ok": true,
+    "registry_mutations": 1,
+    "rehearsal_id": "ARH-0bdf96fdd71f870e",
+    "result": "promoted"
+  },
+  "promotion_replay": {
+    "adapter_id": "generic-cli-v1",
+    "governed_work_ready": true,
+    "ok": true,
+    "registry_mutations": 0,
+    "rehearsal_id": "ARH-0bdf96fdd71f870e",
+    "result": "already-promoted"
+  },
+  "rehearsal_receipt": {
+    "path": "/tmp/atlas-skill-cert-_z6d0ynp/vault/.atlas/receipts/ASR-0bdf96fdd71f870e.json",
+    "receipt": {
+      "agent": {
+        "adapter_id": "generic-cli-v1",
+        "agent_id": "generic",
+        "agent_type": "cli-agent",
+        "capabilities": {
+          "atlas_cli": true,
+          "filesystem_read": true,
+          "filesystem_write": true,
+          "network": false,
+          "shell": true,
+          "source_control": true
+        },
+        "receipt_required": true
+      },
+      "blockers": [],
+      "capability": {
+        "capability": {
+          "declared": [
+            "atlas_cli",
+            "filesystem_read",
+            "filesystem_write",
+            "network",
+            "shell",
+            "source_control"
+          ],
+          "level": 2,
+          "name": "governed-implementation"
+        },
+        "checked_at": "2026-08-01T17:49:59.925713Z",
+        "commands": {
+          "document": true,
+          "postflight": true,
+          "python": false,
+          "receipt": true,
+          "status": true,
+          "validate": true
+        },
+        "context": {
+          "adapter_ready": true,
+          "project_resolved": true,
+          "session_registered": true,
+          "vault_verified": true
+        },
+        "errors": [],
+        "offline": {
+          "spool_available": true
+        },
+        "ok": true,
+        "pipeline": {
+          "capture": true,
+          "normalize": true,
+          "postflight": true,
+          "receipt": true,
+          "route": true,
+          "verify": true
+        },
+        "ready": true,
+        "skill": {
+          "acknowledged": true,
+          "hash_verified": true,
+          "id": "atlas-governed-work",
+          "path": "/mnt/d/project-atlas-vault/atlas-vault-documentation/skills/atlas-governed-work/SKILL.md",
+          "resolved": true,
+          "sha256": "2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123",
+          "version": "1.0.0"
+        }
+      },
+      "events": {
+        "blocked": [],
+        "completion": [
+          "AE-20260801T175004Z-governed-work-rehearsal-b79159d4"
+        ],
+        "decision": [],
+        "implementation": [
+          "AE-20260801T175000Z-governed-work-rehearsal-9fb8db75"
+        ],
+        "session-start": [
+          "AE-20260801T174957Z-governed-work-rehearsal-a7623133"
+        ],
+        "validation": [
+          "AE-20260801T175002Z-governed-work-rehearsal-402401e0"
+        ]
+      },
+      "pipeline": {
+        "captured": 4,
+        "failed": 0,
+        "normalized": 4,
+        "pending_spool": 0,
+        "routed": 4,
+        "verified": 4
+      },
+      "receipt_id": "ASR-0bdf96fdd71f870e",
+      "receipt_type": "atlas-governed-work-rehearsal",
+      "rehearsal": {
+        "adapter_id": "generic-cli-v1",
+        "project_id": "governed-work-rehearsal",
+        "rehearsal_id": "ARH-0bdf96fdd71f870e",
+        "session_id": "AS-20260801T174957Z-generic-governed-work-rehearsal-df25e282"
+      },
+      "replay": {
+        "canonical_mutations": 0,
+        "idempotent": true
+      },
+      "schema_version": 1,
+      "session": {
+        "project_id": "governed-work-rehearsal",
+        "session_id": "AS-20260801T174957Z-generic-governed-work-rehearsal-df25e282",
+        "started_at": "2026-08-01T17:49:57.260425Z",
+        "task_id": "AS-SKILL-001"
+      },
+      "skill": {
+        "acknowledged": true,
+        "id": "atlas-governed-work",
+        "path": "/mnt/d/project-atlas-vault/atlas-vault-documentation/skills/atlas-governed-work/SKILL.md",
+        "sha256": "2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123",
+        "verified": true,
+        "version": "1.0.0"
+      },
+      "skill_acknowledgement": {
+        "acknowledged_at": "2026-08-01T17:49:59.312112Z",
+        "adapter_id": "generic-cli-v1",
+        "agent_id": "generic",
+        "bootstrap_version": 1,
+        "session_id": "AS-20260801T174957Z-generic-governed-work-rehearsal-df25e282",
+        "sha256": "2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123",
+        "skill_id": "atlas-governed-work",
+        "version": "1.0.0"
+      },
+      "status": "passed",
+      "sync_state": "synchronized",
+      "validation": {
+        "postflight": "passed",
+        "receipt": "passed",
+        "routes": "passed",
+        "session": "passed"
+      },
+      "vault": {
+        "root": "/tmp/atlas-skill-cert-_z6d0ynp/vault",
+        "vault_id": "atlas-rehearsal",
+        "vault_uuid": "rehearsal-uuid"
+      }
+    },
+    "sha256": "4a832e6dd29912b7a10d5694ea67a86766f3d65d521b84dcf3d0c02cdac0d36c"
+  },
+  "schema_version": 1
+}

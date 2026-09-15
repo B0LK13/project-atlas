@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/ret-semidx-forbidden-action.schema.json",
+  "title": "ret-semidx-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-RET-SEMIDX-PREP-001 fail-closed action proposal. Reject semantic_as_authority, default_enable_semantic, release_cert_stamp, unlock_stamp, pilot_invent, layer_b_write, llm_authority_stamp.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "package_id": {
+      "const": "AS-2.2-RET-SEMIDX-PREP-001"
+    },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "kind": {
+      "enum": [
+        "semantic_as_authority",
+        "default_enable_semantic",
+        "release_cert_stamp",
+        "unlock_stamp",
+        "pilot_invent",
+        "layer_b_write",
+        "llm_authority_stamp"
+      ]
+    },
+    "status": {
+      "const": "rejected_forbidden"
+    },
+    "expected_error": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "ret-semidx-semantic-as-authority-forbidden",
+        "ret-semidx-default-enable-semantic-forbidden",
+        "ret-semidx-release-cert-stamp-forbidden",
+        "ret-semidx-unlock-stamp-forbidden",
+        "ret-semidx-pilot-invent-forbidden",
+        "ret-semidx-layer-b-write-forbidden",
+        "ret-semidx-llm-authority-forbidden"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "const": "derived"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 400
+        }
+      }
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "release_certified": {
+      "const": false
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "pilot_roots": {
+      "const": 0
+    },
+    "semantic_enabled_default": {
+      "const": false
+    },
+    "truth_boundary": {
+      "const": "RET-SEMIDX PREP ≠ SEMANTIC AUTHORITY / ≠ UNLOCK / ≠ PILOT / ≠ RELEASE / ≠ LAYER B"
+    },
+    "_prep_note": {
+      "type": "string"
+    }
+  }
+}

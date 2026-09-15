@@ -1,0 +1,4 @@
+REMEDI-CLAUDE-009
+hotfix/adv005-claude-009-isolation
+D:\atlas-worktrees\remedi-claude-009
+Group C tip hotfix — hybrid retrieval project isolation

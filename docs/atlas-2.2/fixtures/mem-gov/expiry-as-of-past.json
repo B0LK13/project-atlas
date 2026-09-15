@@ -1,0 +1,9 @@
+{
+  "schema": "atlas.2.2.agent_memory.expiry.v0",
+  "memory_id": "mem-active-001",
+  "expires_at": "2026-01-01T00:00:00Z",
+  "as_of": "2026-08-10T00:00:00Z",
+  "written_at": "2025-12-01T00:00:00Z",
+  "effective_status": "expired",
+  "truth_boundary": "MEMORY EXPIRY ≠ PROJECT AUTHORITY"
+}

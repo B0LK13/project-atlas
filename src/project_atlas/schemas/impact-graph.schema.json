@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/impact-graph.schema.json",
+  "title": "Impact Graph",
+  "description": "AS-J-005 derived impact graph. IMPACT GRAPH ≠ AUTOMATIC AUTHORITY.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "generated",
+    "authority",
+    "truth_boundary",
+    "relationship_count",
+    "edge_count",
+    "entity_count",
+    "entities",
+    "edges"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-J-005" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "IMPACT GRAPH ≠ AUTOMATIC AUTHORITY"
+    },
+    "relationship_count": { "type": "integer", "minimum": 0 },
+    "edge_count": { "type": "integer", "minimum": 0 },
+    "entity_count": { "type": "integer", "minimum": 0 },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["entity_id", "impacts", "impacted_by"],
+        "properties": {
+          "entity_id": { "type": "string", "minLength": 1 },
+          "impacts": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "impacted_by": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project_id",
+          "from_entity_id",
+          "to_entity_id",
+          "via_relationship_type",
+          "via_relationship_id"
+        ],
+        "properties": {
+          "project_id": { "type": "string", "minLength": 1 },
+          "from_entity_id": { "type": "string", "minLength": 1 },
+          "to_entity_id": { "type": "string", "minLength": 1 },
+          "via_relationship_type": { "type": "string", "minLength": 1 },
+          "via_relationship_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

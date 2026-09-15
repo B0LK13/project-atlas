@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TEMPORAL-UX-PREP-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "project",
+    "id": "demo-project"
+  },
+  "as_of_valid_time": "2024-06-15",
+  "status": "ok",
+  "cards": [
+    {
+      "claim_id": "claim.demo.status.planned",
+      "project_id": "demo-project",
+      "subject": "demo-project.status",
+      "field": "package_status",
+      "disposition": "selected",
+      "valid_from": "2024-01-01",
+      "valid_to": "2024-12-31",
+      "source_id": "src.manifest-a",
+      "value_fingerprint": "planned0001",
+      "markdown_honesty_line": "- `claim.demo.status.planned` `package_status` — selected @ 2024-06-15; window[2024-01-01,2024-12-31]",
+      "authority": {
+        "level": "derived",
+        "note": "Card consumes TEMPORAL windows; never Layer B authority"
+      },
+      "truth_boundary": "VALIDITY CARD ≠ WALL-CLOCK NOW / ≠ SILENT WINNER"
+    }
+  ],
+  "receipt": {
+    "schema_version": 1,
+    "package_id": "AS-2.2-TEMPORAL-UX-PREP-001",
+    "compat_snapshot_id": "atlas-1.0.0-compat",
+    "scope": {
+      "kind": "project",
+      "id": "demo-project"
+    },
+    "as_of_valid_time": "2024-06-15",
+    "knowledge_compilation_id": "compile-fixture-1",
+    "status": "selected",
+    "selected_claim_ids": ["claim.demo.status.planned"],
+    "unresolved": [],
+    "authority": {
+      "level": "derived",
+      "note": "As-of lens consumes bitemporal selection; never invents current"
+    },
+    "truth_boundary": "AS-OF LENS ≠ AUTHORITY / ≠ WALL-CLOCK NOW / ≠ SILENT WINNER",
+    "evidence_class": "fixture-only",
+    "pilot_roots": 0,
+    "generated": { "by": "project-atlas" }
+  },
+  "unresolved": [],
+  "authority": {
+    "level": "derived",
+    "note": "Cockpit is consume-only over Core temporal + Time Machine stubs"
+  },
+  "truth_boundary": "TEMPORAL UX ≠ WALL-CLOCK NOW / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-TUX-001 — docs-only fixture sketch"
+}

@@ -1,0 +1,23 @@
+{
+  "case_id": "BM-RET2-004",
+  "package_id": "AS-2.2-RET-HYBRID-001",
+  "title": "Fusion preserves lexical hit over semantic-only preference",
+  "fixture_ref": "docs/atlas-2.2/fixtures/hybrid-retrieval/fusion-order.sketch.json",
+  "inputs": {
+    "kind": "claim",
+    "value": "claim-demo-001",
+    "mode": "exact",
+    "enable_semantic": false,
+    "simulate_semantic_candidate": "claim-similar-nonauthoritative"
+  },
+  "expect": {
+    "invariant": "semantic-cannot-erase-certified-lexical-hit",
+    "must_include": ["claim-demo-001"],
+    "authority_level": "derived",
+    "vault_mutated": false
+  },
+  "signals": ["fusion_trace_present", "plan_digest"],
+  "gate_credit": "NO",
+  "runnable": false,
+  "_prep_note": "Evaluates architecture invariant; no live fusion runner yet"
+}

@@ -1,0 +1,8 @@
+{
+  "BANNER": "TECHNICAL DEMO \u2014 NOT RELEASE CERTIFIED \u2014 NOT AUTHENTIC PILOT \u2014 DEMO_FIXTURE",
+  "DEMO_ESTATE_FINGERPRINT": "4993976f50097d1a262b3d44c6b9f2760f60237b8a6200f5e425e54cc804550c",
+  "FINGERPRINT_CONTRACT": "canonical-text-lf",
+  "MAIN_HEAD": "f866e0e2bad857450ec3d73802b9be1e0e900df4",
+  "RESET_COMMAND": "atlas demo full --reset --work-root .tmp/d177-full-product-demo",
+  "SOURCE": "fixtures/demo/estate"
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TIME-MACHINE-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "project",
+    "id": "demo-project"
+  },
+  "as_of_valid_time": "now",
+  "knowledge_compilation_id": null,
+  "status": "rejected_malformed",
+  "claims": [],
+  "graph": null,
+  "decisions": [],
+  "unresolved": [
+    {
+      "reason": "rejected_malformed",
+      "subject": "demo-project",
+      "field": "*",
+      "candidate_claim_ids": []
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Wall-clock tokens (now/today) are never valid as-of inputs"
+  },
+  "truth_boundary": "TIME MACHINE AS-OF ≠ AUTHORITY / ≠ WALL-CLOCK NOW",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-TM-007 — expected rejection of wall-clock as-of"
+}

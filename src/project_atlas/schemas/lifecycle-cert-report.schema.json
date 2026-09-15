@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/lifecycle-cert-report.schema.json",
+  "title": "Fixture Lifecycle Certification Report",
+  "description": "AS-CORE2-010 deterministic fixture-safe source lifecycle certification under generated/ops/. Operational/certification plane only; never invents estate PILOT PASS; never Layer B authority. No wall-clock stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "package",
+    "status",
+    "estate_pilot_passed",
+    "cases",
+    "counts",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.lifecycle_cert.report.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "FIXTURE LIFECYCLE CERT ≠ ESTATE PILOT PASS"
+    },
+    "package": { "const": "AS-CORE2-010" },
+    "status": {
+      "type": "string",
+      "enum": ["certified", "failed", "partial"]
+    },
+    "estate_pilot_passed": { "const": false },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["case_id", "result", "expected", "observed"],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "enum": [
+              "new",
+              "unchanged",
+              "modified",
+              "renamed",
+              "deleted",
+              "restored",
+              "ambiguous",
+              "corrupt"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": ["pass", "fail"]
+          },
+          "expected": { "type": "string", "minLength": 1 },
+          "observed": { "type": "string", "minLength": 1 },
+          "detail": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

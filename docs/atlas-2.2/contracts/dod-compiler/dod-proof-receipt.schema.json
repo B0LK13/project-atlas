@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/dod-proof-receipt.schema.json",
+  "title": "dod-proof-receipt (PREP STUB — not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "proof_id",
+    "goal_id",
+    "dod_id",
+    "status",
+    "criterion_results",
+    "consume_only",
+    "authority_promoted",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.dod.proof_receipt.v0" },
+    "proof_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "goal_id": { "type": "string" },
+    "dod_id": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "INCOMPLETE", "FAIL"]
+    },
+    "criterion_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["criterion_id", "status"],
+        "properties": {
+          "criterion_id": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["PASS", "INCOMPLETE", "FAIL"]
+          },
+          "binding_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "missing_evidence",
+                "missing_binding",
+                "evidence_class_mismatch",
+                "unknown_criterion",
+                "invented_evidence_forbidden",
+                "unsafe_pointer"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "consume_only": { "const": true },
+    "authority_promoted": { "const": false },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 },
+        "package": { "const": "AS-2.2-DOD-COMPILER-001" }
+      }
+    }
+  }
+}

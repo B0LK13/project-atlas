@@ -1,0 +1,69 @@
+{
+  "canonical_pr": 429,
+  "execution_authorized": false,
+  "findings": [
+    {
+      "attack": "ORCH-SDK-RESULT-BINDING-001",
+      "evidence": "src/project_atlas/orchestration/sdk/security_gates.py::validate_result_binding",
+      "file": "security_gates.py",
+      "finding_id": "ORCH-SDK-RESULT-BINDING-001",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "validate_result_binding",
+      "test": "test_as_orch_six_p1_security_088.py"
+    },
+    {
+      "attack": "ORCH-SDK-LEASE-GATE-001",
+      "evidence": "src/project_atlas/orchestration/sdk/security_gates.py::require_valid_lease",
+      "file": "security_gates.py",
+      "finding_id": "ORCH-SDK-LEASE-GATE-001",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "require_valid_lease",
+      "test": "test_as_orch_six_p1_security_088.py"
+    },
+    {
+      "attack": "ORCH-SDK-ALLOWED-PATHS-001",
+      "evidence": "src/project_atlas/orchestration/sdk/security_gates.py::enforce_allowed_paths",
+      "file": "security_gates.py",
+      "finding_id": "ORCH-SDK-ALLOWED-PATHS-001",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "enforce_allowed_paths",
+      "test": "test_as_orch_six_p1_security_088.py"
+    },
+    {
+      "attack": "ORCH-SDK-HOST-ROLLBACK-001",
+      "evidence": "src/project_atlas/orchestration/sdk/security_gates.py::reject_host_rollback",
+      "file": "security_gates.py",
+      "finding_id": "ORCH-SDK-HOST-ROLLBACK-001",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "reject_host_rollback",
+      "test": "test_as_orch_six_p1_security_088.py"
+    },
+    {
+      "attack": "ORCH-SDK-AGENT-LINEAGE-001",
+      "evidence": "src/project_atlas/orchestration/sdk/security_gates.py::bind_worker_lineage",
+      "file": "security_gates.py",
+      "finding_id": "ORCH-SDK-AGENT-LINEAGE-001",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "bind_worker_lineage",
+      "test": "test_as_orch_six_p1_security_088.py"
+    },
+    {
+      "attack": "ORCH-SDK-TRANSIENT-FAILURE-001",
+      "evidence": "src/project_atlas/orchestration/sdk/security_gates.py::classify_transient_failure",
+      "file": "security_gates.py",
+      "finding_id": "ORCH-SDK-TRANSIENT-FAILURE-001",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "classify_transient_failure",
+      "test": "test_as_orch_six_p1_security_088.py"
+    }
+  ],
+  "merge_authorized": false,
+  "package_id": "AS-ORCH-CONTINUATION-BROKER-001",
+  "six_p1_open_count": 0
+}

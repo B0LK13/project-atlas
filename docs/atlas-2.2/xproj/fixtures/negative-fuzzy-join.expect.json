@@ -1,0 +1,16 @@
+{
+  "scenario_id": "FX-2.2-XPROJ-006",
+  "attempt": "fuzzy-display-name-join",
+  "input": {
+    "display_name": "Postgres",
+    "match_mode": "fuzzy"
+  },
+  "expected_error": "xproj-prep-fuzzy-join-forbidden",
+  "expected_status": "quarantine",
+  "atlas_2_1_release_certified": false,
+  "invariants": {
+    "name_ne_identity": true,
+    "cross_project_ne_authority": true
+  },
+  "notes": "NAME ≠ IDENTITY; AS-XPROJ-INV-NO-FUZZY-001 conceptual"
+}

@@ -1,0 +1,110 @@
+schema_version: 1
+work_package: AS-MAINT-001
+title: Control Plane Test Fixture Executable-Bit Portability
+status: implemented-evidence-recorded-pending-owner-merge
+certified_base_commit: 7e720bda1a9efe3950a7943968024805fdfd2f6f
+implementation_commit: cf858185af9ea0aa18e550130f1fafab1e2e74b4
+evidence_commit: SELF
+
+summary: >-
+  atlas-vault-documentation/tests/fixtures/bin/mda is invoked directly (not
+  via `[sys.executable, <script>, ...]`) by several Control Plane tests and
+  by ATLAS_MDA_COMMAND-driven tooling, but was committed at git mode 100644.
+  core.filemode=false means the tracked mode has never picked up a local
+  chmod, so on any filesystem that honors real POSIX mode bits (ext4, and
+  any standard Linux CI runner) invoking it fails with "permission-denied"
+  instead of executing. On DrvFS-mounted Windows paths (e.g. /mnt/d under
+  WSL) all files present as world-executable regardless of tracked mode,
+  which is why this went unnoticed when working directly under
+  /mnt/d/project-atlas-vault. This package fixes only the git mode.
+
+root_cause: >-
+  `git ls-tree 7e720bda -- atlas-vault-documentation/tests/fixtures/bin/mda`
+  shows mode 100644. The repository has core.filemode=false, so git never
+  updates that bit from a working tree's local chmod; the fixture has been
+  non-executable in every commit since it was introduced, unrelated to any
+  AS-SEC-001 change.
+
+fix:
+  path: atlas-vault-documentation/tests/fixtures/bin/mda
+  git_mode_before: "100644"
+  git_mode_after: "100755"
+  method: git update-index --chmod=+x atlas-vault-documentation/tests/fixtures/bin/mda
+  content_sha256_before: c124cb66fd0464230e731bba2a156769ab640b1142044f66d4ace32c5218e26e
+  content_sha256_after: c124cb66fd0464230e731bba2a156769ab640b1142044f66d4ace32c5218e26e
+  content_unchanged: true
+  diff_stat: "1 file changed, 0 insertions(+), 0 deletions(-) (mode-only)"
+
+sibling_fixture_audit:
+  method: >-
+    `git ls-files -s | awk '{print $1}' | grep -v '^100644$'` against the
+    implementation commit found zero tracked files with any executable git
+    mode anywhere in the repository (i.e. this fixture was the only one
+    affected, and no other fixture was already correctly marked
+    executable). Additionally enumerated every tracked file with a shebang
+    line; every other shebang-bearing file is under
+    atlas-vault-documentation/scripts/ and is always invoked as
+    `[sys.executable, "<script>.py", ...]` (confirmed in
+    atlas_agent.py, run_ctrl_certification.py, run_skill_certification.py,
+    test_agent_control.py, ingestion_orchestrator.py), never as a bare
+    executable, so the missing bit does not affect them.
+  conclusion: complete; no additional executable-mode defect found
+
+independent_verification:
+  environment: fresh disposable clone, no manual chmod performed
+  clone_command: git clone --no-local /mnt/d/project-atlas-as-maint-001 /tmp/as-maint-001-fresh
+  checkout_commit: cf858185af9ea0aa18e550130f1fafab1e2e74b4
+  filesystem: ext4
+  filesystem_command: df -T .
+  filesystem_result: "/dev/sdd ext4"
+  git_mode_check_command: git ls-tree HEAD atlas-vault-documentation/tests/fixtures/bin/mda
+  git_mode_check_result: "100755"
+  filesystem_mode_check_command: stat -c '%a %A %n' atlas-vault-documentation/tests/fixtures/bin/mda
+  filesystem_mode_check_result: "755 -rwxr-xr-x"
+  content_hash_check_command: sha256sum atlas-vault-documentation/tests/fixtures/bin/mda
+  content_hash_check_result: c124cb66fd0464230e731bba2a156769ab640b1142044f66d4ace32c5218e26e
+  manual_chmod_used: false
+
+validation:
+  control_plane_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=short -q
+  control_plane_result: 146 passed, 0 failed
+  core_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests -q
+  core_result: 149 passed, 0 failed
+  mypy_command: MYPY_CACHE_DIR=/tmp/as-maint-001-mypy PYTHONPATH=src .venv/bin/python -m mypy src
+  mypy_result: clean, 34 source files
+  ruff_command: .venv/bin/python -m ruff check src tests
+  ruff_result: clean
+  compilation_command: >-
+    PYTHONPATH=src .venv/bin/python -m compileall -q src ;
+    PYTHONPATH=src .venv/bin/python -m compileall -q atlas-vault-documentation
+  compilation_result: clean (both src and atlas-vault-documentation)
+
+diff_scope:
+  method: git diff --name-status 7e720bda1a9efe3950a7943968024805fdfd2f6f cf858185af9ea0aa18e550130f1fafab1e2e74b4
+  result: atlas-vault-documentation/tests/fixtures/bin/mda (mode-only)
+  touches_src: false
+  touches_tests: false
+  touches_as_sec_001_implementation: false
+  touches_as_sec_001_receipt: false
+
+ci_observation:
+  finding: >-
+    atlas-vault-documentation/tests has no automatic CI coverage: root
+    pyproject.toml sets `[tool.pytest.ini_options] testpaths = ["tests"]`,
+    so .github/workflows/ci.yml's `python -m pytest` step never runs the
+    Control Plane suite, and no separate workflow runs it on push or pull
+    request. This defect could not have been caught by CI even on a native
+    Linux runner.
+  in_scope_of_this_package: false
+  recommended_follow_up: >-
+    AS-MAINT-002 - Control Plane Push/PR CI Coverage. Not implemented here;
+    deliberately out of scope for this mode-only fix.
+
+merge_authorized: false
+
+notes: >-
+  This receipt reflects only checks actually executed in this session
+  (commands and raw results recorded above). No prior-round "146 passed"
+  claim is reused or assumed; every number here was freshly reproduced
+  against the exact implementation_commit listed, in a fresh disposable
+  clone, without any manual chmod.

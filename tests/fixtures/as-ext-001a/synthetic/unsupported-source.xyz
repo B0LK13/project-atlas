@@ -1,0 +1,2 @@
+This file carries an extension no registered parser profile claims.
+It must yield an unsupported-source diagnostic, never a silent skip.

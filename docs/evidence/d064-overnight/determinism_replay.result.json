@@ -1,0 +1,135 @@
+{
+  "counters": {
+    "CANDIDATE_ID_DRIFT": 0,
+    "CATEGORY_DRIFT": 0,
+    "MATCH_STATE_DRIFT": 0
+  },
+  "drift_events": {
+    "candidate_ids": [],
+    "categories": [],
+    "match_states": []
+  },
+  "package_id": "AS-CODER-ALPHA-KNOWLEDGE-ESTATE-DISCOVERY-001",
+  "pass": true,
+  "runs": 4,
+  "runs_with_prior_cache": 1,
+  "schema": "d064-overnight-determinism-replay-v1",
+  "signatures": [
+    {
+      "cache_used_for_skip": false,
+      "candidate_ids": [
+        "obsidian_vault-98927b860d06dcd2",
+        "project-1e1ebdc4ac6e2474",
+        "project-2e3245808442e6f0"
+      ],
+      "categories": [
+        "UNMATCHED_KNOWLEDGE",
+        "DISCOVERED_PROJECTS",
+        "CONNECTED"
+      ],
+      "counts": {
+        "connected": 1,
+        "ignored": 3,
+        "knowledge": 1,
+        "projects": 2,
+        "required_review": 1
+      },
+      "match_states": [
+        "UNMATCHED",
+        "UNMATCHED",
+        "EXACT"
+      ],
+      "run": 0,
+      "scan_complete": true,
+      "truncation_reason": null,
+      "with_prior_cache": false
+    },
+    {
+      "cache_used_for_skip": false,
+      "candidate_ids": [
+        "obsidian_vault-98927b860d06dcd2",
+        "project-1e1ebdc4ac6e2474",
+        "project-2e3245808442e6f0"
+      ],
+      "categories": [
+        "UNMATCHED_KNOWLEDGE",
+        "DISCOVERED_PROJECTS",
+        "CONNECTED"
+      ],
+      "counts": {
+        "connected": 1,
+        "ignored": 3,
+        "knowledge": 1,
+        "projects": 2,
+        "required_review": 1
+      },
+      "match_states": [
+        "UNMATCHED",
+        "UNMATCHED",
+        "EXACT"
+      ],
+      "run": 1,
+      "scan_complete": true,
+      "truncation_reason": null,
+      "with_prior_cache": false
+    },
+    {
+      "cache_used_for_skip": false,
+      "candidate_ids": [
+        "obsidian_vault-98927b860d06dcd2",
+        "project-1e1ebdc4ac6e2474",
+        "project-2e3245808442e6f0"
+      ],
+      "categories": [
+        "UNMATCHED_KNOWLEDGE",
+        "DISCOVERED_PROJECTS",
+        "CONNECTED"
+      ],
+      "counts": {
+        "connected": 1,
+        "ignored": 3,
+        "knowledge": 1,
+        "projects": 2,
+        "required_review": 1
+      },
+      "match_states": [
+        "UNMATCHED",
+        "UNMATCHED",
+        "EXACT"
+      ],
+      "run": 2,
+      "scan_complete": true,
+      "truncation_reason": null,
+      "with_prior_cache": false
+    },
+    {
+      "cache_used_for_skip": false,
+      "candidate_ids": [
+        "obsidian_vault-98927b860d06dcd2",
+        "project-1e1ebdc4ac6e2474",
+        "project-2e3245808442e6f0"
+      ],
+      "categories": [
+        "UNMATCHED_KNOWLEDGE",
+        "DISCOVERED_PROJECTS",
+        "CONNECTED"
+      ],
+      "counts": {
+        "connected": 1,
+        "ignored": 3,
+        "knowledge": 1,
+        "projects": 2,
+        "required_review": 1
+      },
+      "match_states": [
+        "UNMATCHED",
+        "UNMATCHED",
+        "EXACT"
+      ],
+      "run": 3,
+      "scan_complete": true,
+      "truncation_reason": null,
+      "with_prior_cache": true
+    }
+  ]
+}

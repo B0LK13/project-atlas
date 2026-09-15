@@ -1,0 +1,64 @@
+schema_version: 1
+package: AS-CORE-003
+receipt_type: isolated-technical-review-addendum
+directive_id: D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+reviewer: Kimi (same fresh session that reviewed V2-005; no fixes in review worktree)
+recorded_at: "2026-08-05T09:55:00+02:00"
+base_review: docs/evidence/AS-CORE-003-v2-candidate-005-review.yaml
+candidate:
+  tag: candidate/CAND-AS-CORE-003-V2-006
+  commit: 54e7745a8f2cdf84f0ae74c369c79cdc6c628e12
+  tree: 48d5ccfe92dc4e79989e993b63a627d327124264
+  merge_base: c12ac61665bef5c692b338add5b4936e845e12e5
+review:
+  result: pass
+  environment: Windows 11 + WSL Ubuntu, Python 3.13.14 / 3.12.3
+  review_worktree: D:/project-atlas-review-as-core-003-v2-005 (detached at tag commit)
+  tag_annotation_tree_verified: true
+  worktree_differs_from_tag: false
+  incremental_delta_reviewed: 36a21a78ea2d2c7c98bd1db6440962042f7916a7..54e7745a8f2cdf84f0ae74c369c79cdc6c628e12
+  tracked_worktree_clean_after_review: true
+  fixes_made_in_review_session: false
+increment_findings:
+  - path: src/project_atlas/discovery.py
+    verdict: sound
+    notes: >-
+      Static _MEDIA_TYPES map covers exactly the seven supported text
+      suffixes plus an octet-stream fallback; mimetypes import removed;
+      no downstream consumer branches on media_type values (schema requires
+      a non-empty string only), so blast radius is the manifest record itself.
+  - path: tests/integration/test_as_mvp_001_release_closure.py
+    verdict: sound
+    notes: >-
+      newline="\n" pins LF bytes in the copied markers on every platform;
+      the pre-UUID assertion is retained; canonical sha256 values in the
+      golden are unchanged because the canonical hash already normalized CRLF.
+  - path: tests/fixtures/expected/manifests/pilots-manifest.json
+    verdict: sound
+    notes: >-
+      Regenerated through the real CLI path used by the test; delta is
+      exactly the three project-marker entries (media_type and size_bytes).
+  - path: README.md
+    verdict: non-blocking observation
+    notes: >-
+      Owner-authored additive documentation. One nit: it references
+      universal-directive.md, which is currently untracked in this
+      repository; the content itself is consistent with the authoritative
+      docs and contains no secrets.
+ci_failure_analysis:
+  failing_jobs: "quality (ubuntu-latest, 3.12, full), quality (ubuntu-latest, 3.13, compat)"
+  root_cause_1: "mimetypes.guess_type is host-mime-database dependent (media_type for .yaml differed)"
+  root_cause_2: "text-mode newline translation in the K-004 fixture writer (size_bytes differed by 5 per marker)"
+  reproduced_locally: true
+  fixed: true
+gates_reproduced:
+  windows_3_13_14: "ruff clean, mypy 39 files clean, compileall clean, 315 passed + 1 skipped, integration 113 passed + 1 skipped + 202 deselected, CLI smoke exit 0"
+  linux_3_12_3: "ruff clean, mypy 39 files clean, compileall clean, 316 passed, integration 114 passed + 202 deselected, CLI smoke exit 0"
+disposition:
+  candidate_accepted: true
+  tag_moved: false
+  historical_evidence_preserved: true
+  final_certification: certified-for-merge-pending-owner-authorization
+  remaining:
+    - remote CI verification on the V2-006 PR head
+    - Project Owner merge authorization

@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a capability change for authorized backlog consideration.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are tracked for Owner/backlog review. They are not a
+        commitment to implement. Do not include secrets or vulnerability details.
+        Security → `SECURITY.md`.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: This request contains no secrets, credentials, or vulnerability exploit details.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What gap exists today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Concrete behavior or artifact proposed. Prefer work-package framing.
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Explicit non-goals
+      description: What this request is not asking for.
+    validations:
+      required: false
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Primary surface
+      options:
+        - Core (`project_atlas`)
+        - Shared contracts (`atlas_contracts`)
+        - Control plane (`atlas-vault-documentation`)
+        - Governance / GitHub
+        - Docs / planning
+        - Unsure
+    validations:
+      required: true

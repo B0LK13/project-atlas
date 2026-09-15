@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/ask-atlas-2-answer.schema.json",
+  "title": "ask-atlas-2-answer (PREP STUB - not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "answer_id",
+    "question_id",
+    "ANSWER",
+    "WHY",
+    "WHY_NOT",
+    "EVIDENCE",
+    "AUTHORITY",
+    "TEMPORAL_VALIDITY",
+    "CONFLICTS",
+    "UNKNOWN",
+    "canonical_write",
+    "ui_truth",
+    "graph_authority",
+    "llm_authority"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.ask_atlas_2.answer.v0" },
+    "answer_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "question_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "pack_id": { "type": "string" },
+    "ANSWER": { "type": "string" },
+    "WHY": { "type": "array", "items": { "type": "string" } },
+    "WHY_NOT": { "type": "array", "items": { "type": "string" } },
+    "EVIDENCE": { "type": "array", "items": { "type": "string" } },
+    "AUTHORITY": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["derived", "documentation", "execution", "manifest"]
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "TEMPORAL_VALIDITY": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "valid_from": { "type": ["string", "null"] },
+        "valid_to": { "type": ["string", "null"] },
+        "as_of_known": { "type": "boolean" }
+      }
+    },
+    "CONFLICTS": { "type": "array", "items": { "type": "string" } },
+    "UNKNOWN": { "type": "array", "items": { "type": "string" } },
+    "canonical_write": { "const": false },
+    "ui_truth": { "const": false },
+    "graph_authority": { "const": false },
+    "llm_authority": { "const": false },
+    "truth_boundary": { "type": "string" }
+  }
+}

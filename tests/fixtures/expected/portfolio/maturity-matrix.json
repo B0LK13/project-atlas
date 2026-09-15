@@ -1,0 +1,32 @@
+{
+  "projects": {
+    "black-agency-os": {
+      "inputs": {
+        "declared_maturity_source": "state/concepts/black-agency-os.json",
+        "open_conflicts": 0,
+        "required_coverage_present": false,
+        "validation_evidence_present": false
+      },
+      "maturity": "prototype"
+    },
+    "dark-factory": {
+      "inputs": {
+        "declared_maturity_source": null,
+        "open_conflicts": 1,
+        "required_coverage_present": false,
+        "validation_evidence_present": false
+      },
+      "maturity": "unknown"
+    },
+    "nebula": {
+      "inputs": {
+        "declared_maturity_source": "state/concepts/nebula.json",
+        "open_conflicts": 0,
+        "required_coverage_present": true,
+        "validation_evidence_present": true
+      },
+      "maturity": "beta"
+    }
+  },
+  "schema_version": 1
+}

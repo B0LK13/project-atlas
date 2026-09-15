@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/research-evidence-pack.schema.json",
+  "title": "research-evidence-pack (PREP STUB - not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "pack_id",
+    "question_id",
+    "status",
+    "pipeline",
+    "canonical_write",
+    "authority_promoted",
+    "fixture_safe",
+    "estate_facts_invented",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.research.evidence_pack.v0" },
+    "pack_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "question_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "status": {
+      "type": "string",
+      "enum": ["COMPLETE", "INCOMPLETE", "FAIL"]
+    },
+    "pipeline": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "enum": [
+          "question",
+          "hypotheses",
+          "evidence",
+          "conflicts",
+          "synthesis",
+          "packs"
+        ]
+      }
+    },
+    "hypothesis_ids": { "type": "array", "items": { "type": "string" } },
+    "evidence_ref_ids": { "type": "array", "items": { "type": "string" } },
+    "conflict_ids": { "type": "array", "items": { "type": "string" } },
+    "synthesis_id": { "type": "string" },
+    "canonical_write": { "const": false },
+    "authority_promoted": { "const": false },
+    "fixture_safe": { "type": "boolean" },
+    "estate_facts_invented": { "const": false },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string" }
+      }
+    }
+  }
+}

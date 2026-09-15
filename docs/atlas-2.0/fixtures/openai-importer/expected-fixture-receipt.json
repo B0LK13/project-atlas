@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.0-OAI-IMPORT-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "receipt_id": "sample-1",
+  "adapter_id": "openai-fixture",
+  "status": "parsed-quarantined",
+  "live_api": false,
+  "sample_path": "docs/atlas-2.0/fixtures/openai-importer/sample-chat-export.md",
+  "turn_count": 2,
+  "turns": [
+    {
+      "role": "user",
+      "text": "Summarize the vault charter without inventing projects."
+    },
+    {
+      "role": "assistant",
+      "text": "I can only cite indexed notes; absent evidence stays unknown."
+    }
+  ],
+  "payload_sha256": "91bc82b6799ba1c11f3502e429dabf78e4c75d52d7392247374ddaf16303e098",
+  "secret_scan": {
+    "findings_count": 0,
+    "content_redacted": true,
+    "finding_kinds": []
+  },
+  "quarantine_envelope": {
+    "envelope_id": "oai-import-sample-1",
+    "status": "quarantined",
+    "package_id": "AS-2.0-PROV-001"
+  },
+  "authority": {
+    "level": "derived",
+    "note": "OpenAI importer fixture receipt only; no live API; never Layer B authority"
+  },
+  "truth_boundary": "OAI IMPORT FIXTURE ≠ LIVE API / ≠ AUTHORITY / ≠ PILOT",
+  "generated": {
+    "by": "project-atlas"
+  }
+}

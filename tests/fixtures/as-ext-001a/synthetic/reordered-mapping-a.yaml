@@ -1,0 +1,7 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+work_package_id: AS-SYNTH-003
+status: certified
+validation:
+  pytest_all: passed
+  ruff_check: clean

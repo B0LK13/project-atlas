@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-INTEL-SLICE-PREP-001",
+  "inventory_id": "intel-slice.inputs.demo-estate-alpha.001",
+  "scope": {
+    "kind": "estate_slice",
+    "id": "demo-estate-alpha"
+  },
+  "upstream_lanes": [
+    "AS-2.2-KF2-FABRIC-001",
+    "AS-2.2-RET-CTX-001",
+    "AS-2.2-TEMPORAL-001",
+    "AS-2.2-CONFLICT-UX-001"
+  ],
+  "citations": [
+    {
+      "lane": "kf_fabric",
+      "citation_id": "kf2.inv.demo-estate-alpha.001",
+      "dual_own_emit": false
+    },
+    {
+      "lane": "retrieval",
+      "citation_id": "ret.plan.demo-alpha.001",
+      "dual_own_emit": false
+    },
+    {
+      "lane": "context_packs",
+      "citation_id": "ctx.pack.demo-alpha.001",
+      "dual_own_emit": false
+    },
+    {
+      "lane": "temporal",
+      "citation_id": "temporal.receipt.demo-alpha.001",
+      "dual_own_emit": false
+    },
+    {
+      "lane": "conflicts",
+      "citation_id": "conflict.demo.package-status.001",
+      "dual_own_emit": false
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Cite-only inventory; never owns upstream emit trees"
+  },
+  "truth_boundary": "INTEL SLICE ≠ AUTHORITY / ≠ DUAL-OWN UPSTREAM EMIT",
+  "canonical_write": false,
+  "authentic_estate": false,
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": {
+    "by": "project-atlas"
+  },
+  "_prep_note": "FX-2.2-ISL-003 — cite-only upstream inventory"
+}

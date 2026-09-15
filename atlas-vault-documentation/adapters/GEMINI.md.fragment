@@ -1,0 +1,3 @@
+## Atlas participation rule
+
+Apply the `atlas-vault-documentation` skill during each work cycle. Meaningful work must be captured immediately as immutable raw evidence, normalized using mda-cli when available, routed to relevant Atlas records, validated, and acknowledged with an `ATLAS-DOC-RECEIPT`.

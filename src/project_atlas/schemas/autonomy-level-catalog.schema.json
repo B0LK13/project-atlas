@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/autonomy-level-catalog.schema.json",
+  "title": "AutonomyLevelCatalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+        "schema_version",
+        "package_id",
+        "compat_snapshot_id",
+        "catalog_id",
+        "live_autonomy",
+        "levels",
+        "authority",
+        "truth_boundary",
+        "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-AUTONOMY-001" },
+    "compat_snapshot_id": { "type": "string", "minLength": 1 },
+
+    "catalog_id": { "type": "string" },
+    "live_autonomy": { "const": false },
+    "levels": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["level", "name", "enabled", "requires_receipt"],
+        "properties": {
+          "level": { "type": "integer", "minimum": 0, "maximum": 5 },
+          "name": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "requires_receipt": { "type": "boolean" }
+        }
+      }
+    },
+
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

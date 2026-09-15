@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/validation-finding.schema.json",
+  "title": "ValidationFinding",
+  "description": "A single quality-gate result (FR-012; gates in docs/plan.md section 16).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["finding_id", "rule_id", "severity", "gate", "message"],
+  "properties": {
+    "finding_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "rule_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+    "gate": {
+      "type": "string",
+      "enum": ["structural", "provenance", "content", "freshness", "security"]
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "path": { "type": ["string", "null"] },
+    "concept_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/research-evidence-ref.schema.json",
+  "title": "research-evidence-ref (PREP STUB - not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "evidence_ref_id",
+    "question_id",
+    "evidence_class",
+    "pointer",
+    "invent_estate_facts"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.research.evidence_ref.v0" },
+    "evidence_ref_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "question_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "evidence_class": {
+      "type": "string",
+      "enum": [
+        "source_document",
+        "claim_pointer",
+        "receipt",
+        "fixture_receipt",
+        "index_hit",
+        "graph_projection",
+        "temporal_window",
+        "authentic_estate"
+      ]
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["path", "claim_id", "receipt_id", "digest", "uri"]
+        },
+        "value": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    "invent_estate_facts": { "const": false },
+    "notes": { "type": "string" }
+  }
+}

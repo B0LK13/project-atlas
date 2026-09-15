@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-XPROJ-CONTRACT-PREP-001",
+  "lens_id": "xlens-cross-project-edge-sample-v1",
+  "scope": {
+    "kind": "project-set",
+    "project_ids": ["proj-alpha", "proj-beta"]
+  },
+  "buckets": ["edges"],
+  "cited_ids": ["xe-dep-billing-postgres-v1"],
+  "status": "selected",
+  "authority": {
+    "level": "derived",
+    "note": "Conceptual citation of AS-XPROJ-002; Graph-003 ≠ XPROJ"
+  },
+  "truth_boundary": "XPROJ ESTATE LENS ≠ AUTHORITY / ≠ LAYER B MUTATION",
+  "evidence_class": "fixture-only",
+  "atlas_2_1_release_certified": false,
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" }
+}

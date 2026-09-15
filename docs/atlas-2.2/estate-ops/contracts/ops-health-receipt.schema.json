@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/ops-health-receipt.schema.json",
+  "title": "ops-health-receipt (PREP STUB — not package data)",
+  "description": "AS-2.2-ESTATE-OPS-PREP-001 ops health receipt at estate scope. unknown≠healthy; operational plane only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "estate_scope",
+    "rollup",
+    "signals",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-ESTATE-OPS-PREP-001" },
+    "estate_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "project_ids"],
+      "properties": {
+        "kind": { "enum": ["estate-slice", "project-set"] },
+        "project_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "rollup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["estate"],
+      "properties": {
+        "estate": { "enum": ["unknown", "degraded", "healthy", "empty"] }
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["signal_id", "status"],
+        "properties": {
+          "signal_id": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["unknown", "ok", "warn", "fail"] },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": { "const": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "OPS HEALTH RECEIPT ≠ UNKNOWN-AS-HEALTHY / ≠ PROJECT AUTHORITY"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

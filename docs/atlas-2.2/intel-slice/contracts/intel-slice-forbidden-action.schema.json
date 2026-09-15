@@ -1,0 +1,108 @@
+{
+  "$id": "https://project-atlas.local/prep/atlas-2.2/intel-slice-forbidden-action.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-2.2-INTEL-SLICE-DEEPEN-PREP-001 fail-closed action proposal. Reject release-cert stamps, PILOT invent, LLM authority, authority elevation, silent conflict resolve, and canonical writes. Does not relocate base informal negatives.",
+  "properties": {
+    "_prep_note": {
+      "type": "string"
+    },
+    "action_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "type": "string"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "const": "derived"
+        },
+        "note": {
+          "maxLength": 400,
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "type": "object"
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "expected_error": {
+      "enum": [
+        null,
+        "intel-slice-release-cert-stamp-forbidden",
+        "intel-slice-pilot-invent-forbidden",
+        "intel-slice-llm-authority-forbidden",
+        "intel-slice-authority-elevation-forbidden",
+        "intel-slice-silent-conflict-resolve-forbidden",
+        "intel-slice-canonical-write-forbidden"
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "release_cert_stamp",
+        "pilot_invent",
+        "llm_authority_stamp",
+        "authority_elevation",
+        "silent_conflict_resolve",
+        "canonical_write"
+      ]
+    },
+    "package_id": {
+      "const": "AS-2.2-INTEL-SLICE-DEEPEN-PREP-001"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "pilot_roots": {
+      "const": 0
+    },
+    "release_certified": {
+      "const": false
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "slice_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "type": "string"
+    },
+    "status": {
+      "const": "rejected_forbidden"
+    },
+    "truth_boundary": {
+      "const": "INTEL SLICE ACTION \u2260 RELEASE CERT / \u2260 PILOT PASS / \u2260 LLM AUTHORITY / \u2260 CANONICAL WRITE"
+    }
+  },
+  "required": [
+    "action_id",
+    "authentic_estate",
+    "authority",
+    "canonical_writes",
+    "evidence_class",
+    "kind",
+    "package_id",
+    "pilot_pass",
+    "release_certified",
+    "schema_version",
+    "status",
+    "truth_boundary"
+  ],
+  "title": "intel-slice-forbidden-action (PREP STUB \u2014 not package data)",
+  "type": "object"
+}

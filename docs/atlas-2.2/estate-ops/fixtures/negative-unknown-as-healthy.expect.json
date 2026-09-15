@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ESTATE-OPS-PREP-001",
+  "kind": "unknown_as_healthy",
+  "status": "rejected_forbidden",
+  "expected_error": "estate-ops-unknown-as-healthy-forbidden",
+  "forbidden_catalog": {
+    "rollup_estate": "healthy",
+    "signal_status": "unknown",
+    "invented_evidence": true
+  },
+  "authority": {
+    "level": "derived",
+    "note": "Must not coerce unknown signals to healthy rollup"
+  },
+  "canonical_write": false,
+  "truth_boundary": "ESTATE OPS ACTION ≠ CANONICAL WRITE / ≠ PILOT INVENT / ≠ UNKNOWN-AS-HEALTHY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-EO-004 — negative expectation"
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "atlas.2.2.agent_memory.record.v0",
+  "package_id": "AS-2.2-MEM-GOV-001",
+  "memory_id": "mem-revoked-001",
+  "memory_key": "working.scratchpad",
+  "project_id": "proj-fixture-001",
+  "kind": "working",
+  "status": "revoked",
+  "body_ref": "fixtures/mem-gov/bodies/scratchpad.txt",
+  "provenance": {
+    "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_receipt_id": "rcpt-sess-002",
+    "session_id": "sess-fixture-002"
+  },
+  "revocation": {
+    "reason": "operator",
+    "status": "revoked",
+    "detail": "operator withdrew scratchpad trust"
+  },
+  "authority_plane": "none",
+  "truth_boundary": "AGENT MEMORY ≠ LAYER B AUTHORITY",
+  "consume_only": true,
+  "generated": {
+    "by": "project-atlas-prep"
+  }
+}

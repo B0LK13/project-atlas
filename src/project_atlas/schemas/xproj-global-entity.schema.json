@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/xproj-global-entity.schema.json",
+  "title": "XPROJ Global Entity Record",
+  "description": "AS-XPROJ-001 explicit global entity registration. CROSS-PROJECT IDENTITY ≠ AUTOMATIC AUTHORITY. Name/string ≠ identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "global_entity_id",
+    "entity_class",
+    "display_name",
+    "authority",
+    "registration_kind",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-XPROJ-001" },
+    "global_entity_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "entity_class": {
+      "type": "string",
+      "enum": [
+        "technology",
+        "service",
+        "library",
+        "infrastructure",
+        "environment",
+        "external-api",
+        "organization",
+        "extension"
+      ]
+    },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "registration_kind": { "const": "explicit" },
+    "status": { "const": "registered" },
+    "truth_boundary": {
+      "type": "string",
+      "const": "CROSS-PROJECT IDENTITY ≠ AUTOMATIC AUTHORITY"
+    },
+    "notes": { "type": "string", "maxLength": 240 },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    }
+  }
+}

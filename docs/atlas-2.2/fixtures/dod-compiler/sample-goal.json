@@ -1,0 +1,8 @@
+{
+  "schema": "atlas.dod.goal.v0",
+  "goal_id": "goal.demo.unit-gate",
+  "statement": "Demo package unit gate is green on fixture evidence only",
+  "release_line": "package",
+  "owner_package": "AS-2.2-DOD-COMPILER-001",
+  "notes": "Synthetic prep goal — not a release blocker"
+}

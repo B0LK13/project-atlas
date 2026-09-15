@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Ingestion plan","type":"object","required":["schema_version","project_id","inventory_sha256","operations","plan_sha256"],"properties":{"schema_version":{"const":1},"project_id":{"type":"string"},"inventory_sha256":{"type":"string"},"operations":{"type":"array"},"plan_sha256":{"type":"string"}}}

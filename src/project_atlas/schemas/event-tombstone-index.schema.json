@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/event-tombstone-index.schema.json",
+  "title": "Event Package / Receipt Tombstone Index",
+  "description": "AS-INT-010 deterministic removed-package/deletion-state projection under generated/ops/. Operational only; never Layer B / never authority. No wall-clock stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "tombstones",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.event_tombstone.index.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "REMOVED PACKAGE / RECEIPT TOMBSTONE ≠ PROJECT AUTHORITY"
+    },
+    "tombstones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "unit_key",
+          "project_id",
+          "event_id",
+          "reason",
+          "deleted_paths",
+          "state"
+        ],
+        "properties": {
+          "unit_key": { "type": "string", "minLength": 1 },
+          "project_id": { "type": "string", "minLength": 1 },
+          "event_id": { "type": "string", "minLength": 1 },
+          "reason": {
+            "type": "string",
+            "enum": ["retention", "explicit"]
+          },
+          "deleted_paths": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "state": { "const": "deleted" }
+        }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

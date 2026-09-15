@@ -1,0 +1,111 @@
+schema_version: 1
+work_package: AS-SEC-001
+status: merged-post-merge-validated
+
+original_certified_base: 7e720bda1a9efe3950a7943968024805fdfd2f6f
+certified_candidate: 0a3ee8f65735ee72f5e3dc65b02dfa7e90bb987d
+
+maintenance_prerequisite:
+  id: AS-MAINT-001
+  implementation_commit: cf858185af9ea0aa18e550130f1fafab1e2e74b4
+  evidence_commit: 4ff107db32fffcd4252f7eb438fc301715266a55
+  merge_commit: ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1
+
+certification_carry_forward_commit: 2e910ea0db5cb9e967c1b6dc5925d9048d82d0b2
+
+security_merge_commit: 29437d72e1ef37ff71a8f148b79e2ffc965718c8
+merge_method: git merge --no-ff (history preserved, not squashed or rebased)
+conflicts:
+  paths: [WORKLOG.md]
+  resolution: >-
+    Concatenated both histories in chronological order (AS-SEC-001
+    implementation history first, then the standalone AS-MAINT-001 fix
+    that followed it); no recorded hash or result altered, no fabricated
+    bridging text added. No production, test, or receipt file conflicted.
+
+validation:
+  environment:
+    filesystem: ext4
+    filesystem_check_command: df -T .
+    filesystem_check_result: "/dev/sdd ext4"
+    fresh_clone_path: /tmp/as-sec-001-post-merge
+    clone_command: git clone --no-local /mnt/d/project-atlas-vault /tmp/as-sec-001-post-merge
+    checked_out_commit: 29437d72e1ef37ff71a8f148b79e2ffc965718c8
+    python_executable: /tmp/as-sec-001-post-merge/.venv/bin/python3.14
+    install_command: python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+    manual_chmod_used: false
+  fixture_mode:
+    git_tree_mode: "100755"
+    filesystem_mode: "755 rwxr-xr-x"
+  core:
+    command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests --tb=short -q
+    result: "245 passed, 0 failed, 0 skipped, 0 xfailed"
+    exit_code: 0
+  control_plane:
+    command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=short -q
+    result: "146 passed, 0 failed"
+    exit_code: 0
+    note: replaces the previously disclosed inherited red state (28 failed/118 passed) now that AS-MAINT-001 is merged
+  mypy:
+    command: MYPY_CACHE_DIR=/tmp/as-sec-001-post-merge-mypy PYTHONPATH=src .venv/bin/python -m mypy src
+    result: "clean, 35 source files"
+  ruff:
+    command: .venv/bin/python -m ruff check src tests
+    result: clean
+  compilation:
+    command: >-
+      PYTHONPATH=src .venv/bin/python -m compileall -q src ;
+      PYTHONPATH=src .venv/bin/python -m compileall -q atlas-vault-documentation
+    result: clean (both src and atlas-vault-documentation)
+  security_integration:
+    command: PYTHONPATH=src .venv/bin/python -m pytest -p no:cacheprovider tests/integration/test_as_sec_001_quarantine_boundary.py --tb=short -q
+    result: "16 passed"
+  fuzz:
+    command: PYTHONPATH=src .venv/bin/python -m pytest -p no:cacheprovider tests/unit/test_quarantine_fuzz.py -s -q
+    result: "generated=218 executed=218 skipped=0 failures=0 false_positives=0 exceptions=0"
+  public_workflow:
+    corpus: tests/fixtures/adversarial-project (26 markdown/yaml fixtures + project marker)
+    pipeline: init -> discover -> ingest -> build-indexes -> validate
+    result: all stages exit 0; discovered 29 sources, ingested 6 trusted documents, validated 49 Markdown files
+    adversarial_disposition:
+      quarantined_source_count: 23
+      quarantined_sources_in_concepts_index: 0
+      quarantined_sources_in_claims_index: 0
+      quarantined_sources_in_imported_documents: 0
+      adversarial_text_found_in_generated_output: false
+    benign_disposition:
+      ingested_normally: [README.md, non-adversarial-control.md, benign-multiline-control.md, benign-multilingual-separators-control.md]
+  settled_replay:
+    protocol: run1 (project UUID genesis) -> run2 (convergence) -> run3 (settled) -> run4 (settled comparison)
+    method: full-tree sha256sum over every file in the vault, no filename filtering
+    run2_vs_run3: byte-identical
+    run3_vs_run4: byte-identical
+    result: "settled replay byte-identical after one-time project UUID genesis"
+  rollback:
+    tests_run:
+      - tests/integration/test_as_sec_001_quarantine_boundary.py::test_transaction_rollback_on_corrupted_quarantine_report_reference
+      - tests/integration/test_as_sec_001_quarantine_boundary.py::test_unchanged_replay_is_byte_identical
+      - tests/integration/test_core_semantic_lifecycle.py::test_malformed_generated_markers_fail_closed
+      - tests/integration/test_core_semantic_lifecycle.py::test_duplicate_active_project_uuid_fails_before_promotion
+      - tests/integration/test_core_semantic_lifecycle.py::test_malformed_marker_in_one_project_aborts_before_other_project_writes
+      - tests/integration/test_core_semantic_lifecycle.py::test_cross_project_preflight_preserves_vault_until_marker_is_fixed
+      - tests/integration/test_core_semantic_lifecycle.py::test_project_uuid_genesis_is_injected_once_and_replay_is_zero_write
+    result: "7 passed, 0 failed"
+  promotion_boundary:
+    result: preserved; single _promote(write_plan) boundary intact per Core semantic-lifecycle tests above
+
+protected_boundary:
+  command: >-
+    git diff --name-status 7e720bda1a9efe3950a7943968024805fdfd2f6f
+    29437d72e1ef37ff71a8f148b79e2ffc965718c8 --
+    atlas-vault-documentation/ AGENT-BOOTSTRAP.md .atlas/
+  result: "atlas-vault-documentation/tests/fixtures/bin/mda (mode 100644 -> 100755) only"
+  as_sec_001_control_plane_logic_changed: false
+
+history:
+  squash_used: false
+  rebase_used: false
+  certified_commits_rewritten: false
+
+certification_issued: true
+merge_authorized: true

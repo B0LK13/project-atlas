@@ -1,0 +1,14 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+work_package_id: AS-SYNTH-002
+status: certified
+validation:
+  pytest_all: passed
+uuid_genesis: 00000000-0000-0000-0000-000000000000
+gov_001_evidence_commit: abc1234
+rollback: not-exercised
+quantum_certifier: enabled
+hyperdrive_score: 42
+ninth_review_round: waived
+legacy_slot_retirement: complete
+attestation_chain_depth: 3

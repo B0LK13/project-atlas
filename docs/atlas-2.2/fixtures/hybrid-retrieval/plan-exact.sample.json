@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.0-RET-HYBRID-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "plan_kind": "hybrid_retrieval_plan",
+  "query": {
+    "kind": "concept",
+    "value": "demo-concept",
+    "mode": "exact"
+  },
+  "slots": {
+    "lexical_exact": { "enabled": true, "status": "active" },
+    "lexical_prefix": { "enabled": false, "status": "idle" },
+    "semantic": {
+      "enabled": false,
+      "status": "disabled",
+      "reason": "semantic-slot-disabled-by-default-no-embeddings-service"
+    }
+  },
+  "results": [
+    {
+      "record_type": "concept",
+      "record_id": "demo-concept",
+      "slot": "lexical_exact"
+    }
+  ],
+  "semantic_enabled": false,
+  "authority": {
+    "level": "derived",
+    "note": "Hybrid plan consumes AS-RET-001 lexical indexes; semantic slot disabled"
+  },
+  "truth_boundary": "HYBRID PLAN ≠ EMBEDDINGS SERVICE / ≠ AUTHORITY",
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "AS-2.2-RET-HYBRID-001 fixture sketch — docs-only; mirrors 2.0 plan shape"
+}

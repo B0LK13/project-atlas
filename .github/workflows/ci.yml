@@ -1,0 +1,135 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ${{ matrix.os }}
+    # Per-entry, because the Windows entry is the only one that needs more and
+    # a single shared ceiling hid that. Measured on runs 34634842455 (009b),
+    # 34639255748 (010) and 34641206377 (010b): the Windows job needs >= 30.3,
+    # 30.3 and 36.1 minutes respectively, against a shared cap of 30. All three
+    # were killed mid-suite -- 009b and 010 at 99%, 010b at 81% -- and pytest
+    # prints a "N passed" summary on KeyboardInterrupt, so those runs read as
+    # green suites when no suite had finished. The Linux entries finish in ~15
+    # and stay at 30 deliberately: this raises the ceiling only where it was
+    # actually short.
+    #
+    # Windows is slow uniformly, not in one hot spot (top 12 of 86 progress
+    # blocks = 51% of wall, top 30 = 85%), so splitting a subset into its own
+    # job would not reliably fit either half under 30. Narrowing what Windows
+    # runs was rejected outright: the full-suite Windows job is what caught the
+    # POSIX-only BASE_ENV_NAMES defect that no Linux runner could observe.
+    #
+    # The key is timeout_minutes with an UNDERSCORE: in a GitHub expression
+    # `matrix.timeout-minutes` parses as subtraction, not as a key lookup.
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.12"
+            suite: full
+            timeout_minutes: 30
+          - os: windows-latest
+            python-version: "3.12"
+            suite: windows
+            timeout_minutes: 60
+          - os: ubuntu-latest
+            python-version: "3.13"
+            suite: compat
+            timeout_minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff
+        if: matrix.suite == 'full'
+        run: python -m ruff check .
+
+      - name: Mypy
+        if: matrix.suite == 'full'
+        run: python -m mypy src
+
+      - name: Pytest with coverage
+        if: matrix.suite == 'full'
+        run: python -m pytest
+
+      - name: Coverage report available
+        if: matrix.suite == 'full'
+        run: |
+          test -f coverage.xml && echo "coverage.xml generated"
+          echo "Coverage threshold: none (baseline only)"
+
+      - name: Pytest (compatibility)
+        if: matrix.suite == 'compat'
+        run: python -m pytest
+
+      - name: Pytest product-perf (Windows, uncovered)
+        if: matrix.suite == 'windows'
+        # Dense 10k wall-clock was calibrated uncovered. addopts enables
+        # --cov for the default suite; do not re-gate that 20s product cap
+        # under coverage instrumentation on Windows hosted runners.
+        run: python -m pytest -m product_perf --no-cov
+
+      - name: Pytest (Windows)
+        if: matrix.suite == 'windows'
+        run: python -m pytest -m "not product_perf"
+
+      - name: CLI smoke (AT-001 scaffold contract)
+        if: matrix.suite != 'compat'
+        shell: bash
+        run: |
+          atlas --help
+          atlas version
+          atlas init --output .tmp/atlas-vault --dry-run
+          atlas init --output .tmp/atlas-vault
+          test -f .tmp/atlas-vault/index.md
+          test -f .tmp/atlas-vault/00-system/vault-charter.md
+
+      - name: Line-ending-sensitive golden fixture test (Windows)
+        if: matrix.suite == 'windows'
+        run: python -m pytest tests/integration/test_as_mvp_001_release_closure.py::test_k005_settled_rebuild_is_byte_identical_to_golden_state -v
+
+  # AS-MAINT-002 / ADR-006: Control Plane suite on every push/PR.
+  # Distinct job id preserves the existing `quality (*)` check identities.
+  control-plane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Control Plane pytest
+        env:
+          PYTHONPATH: src
+        # --no-cov: pyproject addopts enables Core coverage; CP suite must not inherit it
+        # (avoids module-not-imported / no-data-collected noise without changing Core gates).
+        run: python -m pytest atlas-vault-documentation/tests atlas-vault-documentation/skills/atlas-golden-estate-curator/tests --tb=short -q --no-cov

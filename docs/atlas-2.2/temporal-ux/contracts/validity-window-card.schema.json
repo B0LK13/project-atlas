@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/validity-window-card.schema.json",
+  "title": "validity-window-card (PREP STUB — not package data)",
+  "description": "AS-2.2-TEMPORAL-UX-PREP-001 validity-window card. Consumes TEMPORAL windows; never invents claim ids or wall-clock current.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "claim_id",
+    "project_id",
+    "subject",
+    "field",
+    "disposition",
+    "valid_from",
+    "valid_to",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "claim_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "project_id": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "subject": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "field": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "disposition": {
+      "enum": ["selected", "historical", "unresolved", "authority_pending"]
+    },
+    "valid_from": { "type": "string", "minLength": 4, "maxLength": 64 },
+    "valid_to": {
+      "type": ["string", "null"],
+      "minLength": 4,
+      "maxLength": 64
+    },
+    "source_id": { "type": ["string", "null"], "minLength": 1 },
+    "value_fingerprint": {
+      "type": ["string", "null"],
+      "minLength": 8,
+      "maxLength": 64
+    },
+    "markdown_honesty_line": { "type": ["string", "null"], "maxLength": 800 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "VALIDITY CARD ≠ WALL-CLOCK NOW / ≠ SILENT WINNER"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

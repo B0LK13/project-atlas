@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/authority-record.schema.json",
+  "title": "AuthorityRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "authority_id", "project_id", "subject_id", "level", "precedence", "reason", "source_ids"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "authority_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "project_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "subject_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "level": { "type": "string", "enum": ["primary", "maintained", "validated-execution", "generated", "inferred", "pending", "conflicting", "rejected"] },
+    "precedence": { "type": "integer", "minimum": 0 },
+    "reason": { "type": "string", "minLength": 1 },
+    "source_ids": { "type": "array", "items": { "type": "string" } }
+    ,"source_lineage_ids": { "type": "array", "items": { "type": "string", "pattern": "^sline-[A-Za-z0-9]+$" } }
+  }
+}

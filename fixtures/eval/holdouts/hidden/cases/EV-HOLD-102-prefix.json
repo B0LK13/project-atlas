@@ -1,0 +1,6 @@
+{
+  "case_id": "EV-HOLD-102",
+  "visibility": "holdout",
+  "score_mode": "prefix",
+  "query": "hidden provenance chain probe"
+}

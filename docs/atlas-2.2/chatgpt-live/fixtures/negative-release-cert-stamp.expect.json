@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001",
+  "action_id": "action.demo.chatgpt-live.release-cert-stamp.forbidden",
+  "session_id": "live-session-demo-001",
+  "kind": "release_cert_stamp",
+  "status": "rejected_forbidden",
+  "expected_error": "chatgpt-live-release-cert-stamp-forbidden",
+  "pilot_roots": 0,
+  "invent_pilot_roots": false,
+  "canonical_writes": false,
+  "opt_in": true,
+  "authority": {
+    "level": "derived",
+    "note": "DEMO≠RELEASE — fixture live session must not stamp ATLAS_2_1_RELEASE_CERTIFIED"
+  },
+  "truth_boundary": "CHATGPT LIVE DEEPEN ≠ ENV FORCE / ≠ BILLING WITHOUT OPT-IN / ≠ BYPASS QUARANTINE / ≠ RELEASE CERT",
+  "_prep_note": "FX-2.2-CGL-104 — expected rejection of release-cert stamp from fixture rehearsal"
+}

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/agent-memory-record.schema.json",
+  "title": "agent-memory-record (PREP STUB — not package data)",
+  "description": "AS-2.2-MEM-GOV-001 governed agent memory unit. Operational only; authority_plane=none.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "package_id",
+    "memory_id",
+    "memory_key",
+    "project_id",
+    "kind",
+    "status",
+    "provenance",
+    "authority_plane",
+    "truth_boundary",
+    "consume_only",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.agent_memory.record.v0" },
+    "package_id": { "const": "AS-2.2-MEM-GOV-001" },
+    "memory_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "memory_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "episodic",
+        "working",
+        "preference",
+        "skill_binding",
+        "factoid_derived"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "revoked", "expired", "superseded"]
+    },
+    "body_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Pointer to body bytes / vault-relative path; never embeds secrets."
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "content_sha256",
+        "source_receipt_id",
+        "session_id"
+      ],
+      "properties": {
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "session_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "event_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "vault_identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "normalized_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "expires_at": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 64,
+      "description": "Deterministic expiry marker; evaluation uses injected as_of."
+    },
+    "written_at": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 64,
+      "description": "Optional write marker from evidence; not wall-clock now()."
+    },
+    "supersedes": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "superseded_by": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "revocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "status"],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": ["operator", "skill_policy", "integrity"]
+        },
+        "status": { "const": "revoked" },
+        "detail": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "authority_plane": { "const": "none" },
+    "truth_boundary": {
+      "const": "AGENT MEMORY ≠ LAYER B AUTHORITY"
+    },
+    "consume_only": { "const": true },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "revoked" } },
+        "required": ["status"]
+      },
+      "then": { "required": ["revocation"] }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "superseded" } },
+        "required": ["status"]
+      },
+      "then": { "required": ["superseded_by"] }
+    }
+  ]
+}

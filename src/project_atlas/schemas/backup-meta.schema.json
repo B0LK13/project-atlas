@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/backup-meta.schema.json",
+  "title": "Verified Atlas Snapshot Meta",
+  "description": "AS-BACKUP-001 META.json. Identity samples for restore compare; no secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_epoch",
+    "snapshot_id",
+    "vault_logical_id",
+    "domains_included",
+    "include_d5",
+    "identity_samples",
+    "tool_version",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.backup.meta.v1" },
+    "schema_epoch": { "type": "integer", "const": 1 },
+    "snapshot_id": { "type": "string", "minLength": 1 },
+    "vault_logical_id": { "type": "string", "minLength": 1 },
+    "domains_included": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["D1", "D2", "D3", "D4", "D5", "D6"] },
+      "uniqueItems": true
+    },
+    "include_d5": { "type": "boolean" },
+    "identity_samples": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vault_logical_id", "project_uuids", "source_lineage_ids"],
+      "properties": {
+        "vault_logical_id": { "type": "string", "minLength": 1 },
+        "project_uuids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source_lineage_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "tool_version": { "type": "string", "minLength": 1 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+schema_version: 1
+project:
+  id: project-a
+  name: Project A
+project_uuid: 2f44fd75-1b53-4136-b60f-ae22ef687fba

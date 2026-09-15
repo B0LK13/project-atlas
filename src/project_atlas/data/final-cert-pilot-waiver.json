@@ -1,0 +1,19 @@
+{
+  "atlas_2_0_final_cert_pilot_mode": "FIXTURE_ONLY_OWNER_WAIVER",
+  "atlas_2_0_release_certified": true,
+  "authentic_estate_pilot": false,
+  "directive": "D-PROJECT-ATLAS-2.0-PILOT-WAIVER-TO-FINAL-CERT-001",
+  "generated": {
+    "by": "project-atlas"
+  },
+  "honest_label": "PILOT PASS \u2014 FIXTURE-ONLY UNDER EXPLICIT OWNER FINAL-CERT WAIVER",
+  "independent_of_1_0_waiver": true,
+  "owner_waived": true,
+  "package_version": "2.0.0",
+  "schema_version": 1,
+  "software_freeze_main": "045b7d72d2897324e12e942d1a9658a09127aa2a",
+  "software_freeze_tree": "2dbbfbf93267497eb312dd826b077d9c27cd65c2",
+  "sync_001_production": "UNLOCKED",
+  "tip_at_approval": "52ed69032e23d11440d13e17173b595ef72f6afe",
+  "twin_001_production": "UNLOCKED"
+}

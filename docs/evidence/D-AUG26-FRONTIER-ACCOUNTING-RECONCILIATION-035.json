@@ -1,0 +1,123 @@
+{
+  "directive": "D-035",
+  "purpose": "governance accounting seal, not a re-certification",
+  "live_refresh": {
+    "main_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "main_tree": "9c670d710ec63d36fea70c6a181c088b79294336",
+    "pr607": {
+      "head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+      "tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "mergeable": "MERGEABLE",
+      "state": "OPEN",
+      "new_comments_since_d034": 0
+    },
+    "pr608": {
+      "head": "5c89c39f42ba0e485d2c6ed2c8575d3a4700a4e3",
+      "tree": "88d1fa458d0b66c4fc1d553e58726d92e15f9075",
+      "base_head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+      "base_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "remote_head_match": true,
+      "remote_tree_match": true,
+      "mergeable": "MERGEABLE",
+      "state": "OPEN",
+      "is_draft": true,
+      "movement_since_d034": {
+        "from_head": "0987bf2af0a1d47cfa25db7a3ed2106b656fc720",
+        "to_head": "5c89c39f42ba0e485d2c6ed2c8575d3a4700a4e3",
+        "changed_files": [
+          "docs/evidence/D-AUG26-EVIDENCE-GROUNDED-GOLDEN-ESTATE-034.json",
+          "docs/evidence/D-AUG26-EVIDENCE-GROUNDED-GOLDEN-ESTATE-034.md"
+        ],
+        "classification": "EVIDENCE_ONLY",
+        "rationale": "Both changed files are pure new docs/evidence additions with zero path overlap with the Golden Estate skill, its tests, or ci.yml. All D-034 certification results (semantic IV, CI IV, GE_TESTS, SKILL_SCHEMA, SKILL_HASH) remain valid without rerun.",
+        "certification_rerun_required": false
+      }
+    },
+    "frontier_invalidated": false
+  },
+  "sec021_hermeticity_reclassification": {
+    "prior_class": "READY (D-034, inconsistent with AUTONOMOUS_NODES_REMAINING=0)",
+    "case_analysis": {
+      "h1_required_hardening": "NOT APPLICABLE -- no repository contract found requiring tests to tolerate arbitrary unrelated broken executables pre-existing on PATH",
+      "h2_optional_resilience": "APPLIES -- PATH-sanitizing the test would only guard against this specific interactive sandbox's own unrelated tool contamination, which is outside the supported CI/dev execution contract",
+      "h3_invalid_remediation": "NOT APPLICABLE -- widening the assertion set would not weaken the actual trusted-execution invariant (str(evil) not in payload['command'] and not marker.exists() are the invariant-bearing assertions and are untouched either way), so this is not a case of obscuring security intent"
+    },
+    "disposition": "BACKLOG_OPTIONAL",
+    "action_taken": "none -- no repository/test file modified"
+  },
+  "pr608_retarget_reclassification": {
+    "prior_class": "DERIVABLE (D-034, incorrect per D-035 taxonomy)",
+    "disposition": "BLOCKED_BY_OWNER",
+    "depends_on": "PR607_MERGED",
+    "rationale": "The only remaining action -- retargeting #608's base from #607's branch to main -- requires #607 to actually merge first, which is an owner-exclusive transition. Simulation (git merge-tree, 0 conflicts) was already completed in D-034 and remains valid (no relevant object moved).",
+    "simulation_reused_from_d034": {
+      "simulated_merge_tree": "2c37c950d27a035995cfb019edaeff871686ec3d",
+      "conflicts": 0
+    }
+  },
+  "owner_gated_nodes": [
+    {
+      "node_id": "OWNER-1",
+      "description": "PR #607 (docs-only governance seal) review and merge decision",
+      "why_owner_only": "MERGE_AUTHORIZATION = NOT_GRANTED; no repository or session authority permits Claude to merge",
+      "autonomous_preparation_complete": true,
+      "next_required_owner_action": "Review and merge (or request changes to) PR #607",
+      "dependents": [
+        "OWNER-2 (PR608 retarget cannot execute until this resolves)"
+      ]
+    },
+    {
+      "node_id": "OWNER-2",
+      "description": "PR #608 (Golden Estate carrier, draft) review and merge decision, gated behind #607",
+      "why_owner_only": "Stacked on unmerged #607 by design; also draft status and MERGE_AUTHORIZATION=NOT_GRANTED both require owner action regardless",
+      "autonomous_preparation_complete": true,
+      "next_required_owner_action": "After #607 merges: retarget #608 to main (mechanical, 0 conflicts per simulation), mark ready for review, then review/merge decision",
+      "dependents": []
+    },
+    {
+      "node_id": "OWNER-3",
+      "description": "43-PR supersession cleanup (close/comment on the 43 still-open PRs proven contained in main)",
+      "why_owner_only": "PR_CLOSE_AUTHORIZATION explicitly NOT_GRANTED under D-029; repository governance requires explicit owner sign-off before mass-closing PRs, even with proof of containment",
+      "autonomous_preparation_complete": true,
+      "next_required_owner_action": "Review docs/evidence/D-029-SUPERSESSION-CLEANUP.md and authorize (or decline) closure",
+      "dependents": []
+    }
+  ],
+  "windows_node": {
+    "disposition": "BLOCKED_EXTERNAL",
+    "capability_available": false,
+    "target_head": "5c89c39f42ba0e485d2c6ed2c8575d3a4700a4e3",
+    "target_tree": "88d1fa458d0b66c4fc1d553e58726d92e15f9075",
+    "packet_path": "docs/evidence/D-AUG26-EVIDENCE-GROUNDED-GOLDEN-ESTATE-034.json#windows_verification.execution_packet",
+    "binding_update": "Packet's target HEAD/TREE updated from D-034's 0987bf2a.../2c37c950d... to current 5c89c39f.../88d1fa45... -- movement was evidence-only, packet's actual commands/criteria are unaffected and remain valid",
+    "note": "No Windows capability became available during D-035; node remains BLOCKED_EXTERNAL with preparation complete"
+  },
+  "supersession_set": {
+    "size": 43,
+    "cumulative_sample_checked_d034_plus_d035": 7,
+    "sample_prs": [
+      "536",
+      "543",
+      "550",
+      "565",
+      "580",
+      "592",
+      "..."
+    ],
+    "drift_found": 0,
+    "classification": "SUPERSESSION_ANALYSIS = COMPLETE (from D-029); PR_CLOSURE_EXECUTION = BLOCKED_BY_OWNER; no full re-audit performed (not required -- 0 drift in cumulative sample)"
+  },
+  "dag_accounting": {
+    "READY": 0,
+    "DERIVABLE": 0,
+    "UNKNOWN_REQUIRES_AUDIT": 0,
+    "AUTONOMOUS_REMEDIATIONS": 0,
+    "BLOCKED_BY_OWNER": 3,
+    "BLOCKED_EXTERNAL": 1,
+    "BACKLOG_OPTIONAL": 1,
+    "DECLINED_NO_DEFECT": 0,
+    "ALREADY_COMPLETE": 2,
+    "autonomous_nodes_remaining": 0,
+    "frontier_accounting_consistent": true
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/kf2-estate-fabric-inventory.schema.json",
+  "title": "kf2-estate-fabric-inventory (PREP STUB — not package data)",
+  "description": "AS-2.2-KF2-FABRIC-PREP-001 docs-only estate KF inventory. References AS-KF2-* conceptually; never mutates runtime; cross_promote=false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "scope",
+    "pilot_roots",
+    "authentic_estate_pilot_passed",
+    "atlas_2_1_release_certified",
+    "cross_promote",
+    "scenarios",
+    "scenario_count",
+    "invariants",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.kf2-estate-fabric-inventory.v0" },
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-KF2-FABRIC-PREP-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "project_ids"],
+      "properties": {
+        "kind": { "enum": ["estate-slice", "project-set"] },
+        "project_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        }
+      }
+    },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate_pilot_passed": { "const": false },
+    "atlas_2_1_release_certified": { "const": false },
+    "cross_promote": { "const": false },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "kf2-estate-fabric-scenario.schema.json"
+      }
+    },
+    "scenario_count": { "type": "integer", "minimum": 1 },
+    "invariants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kf2_ne_authority",
+        "no_cross_promote",
+        "projection_ne_mutation",
+        "kf2_ne_fed"
+      ],
+      "properties": {
+        "kf2_ne_authority": { "const": true },
+        "no_cross_promote": { "const": true },
+        "projection_ne_mutation": { "const": true },
+        "kf2_ne_fed": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "KF2 ESTATE FABRIC ≠ AUTHORITY / ≠ CROSS PROMOTE / ≠ LAYER B MUTATION / ≠ 2.1 RELEASE CERTIFIED"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" },
+        "package": { "const": "AS-2.2-KF2-FABRIC-PREP-001" }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "content_digest": "093429549e488898c66b464bac0f752dac903835ef35a91adab5a7d0e33a6356",
+  "findings": [
+    {
+      "current": "14309db042d48b1d1bb0e1c28646c56569cec4fa066be145e71b8913fc631862",
+      "fragment_id": "src-arch",
+      "kind": "source_changed",
+      "path": "docs/architecture.md",
+      "previous": "eb3d73b8c2112804a05ef89f594087e5463c9af5c83fde2204b08c1ae36f2cfb"
+    },
+    {
+      "current": "14309db042d48b1d1bb0e1c28646c56569cec4fa066be145e71b8913fc631862",
+      "fragment_id": "src-arch-dup",
+      "kind": "source_changed",
+      "path": "docs/architecture.md",
+      "previous": "eb3d73b8c2112804a05ef89f594087e5463c9af5c83fde2204b08c1ae36f2cfb"
+    }
+  ],
+  "notes": [
+    "PACKET_SNAPSHOT != LIVE_ENVIRONMENT",
+    "recheck is for prepare/handoff; no background monitor"
+  ],
+  "packet_id": "tcp-atlas-task-context-and-continuity-001-demo-093429549e48",
+  "status": "must_rebuild"
+}

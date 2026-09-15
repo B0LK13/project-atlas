@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-health-snapshot.schema.json",
+  "title": "Graph Health Snapshot",
+  "description": "AS-GRAPH-004 deterministic graph health counters. Operational metadata only — GRAPH HEALTH ≠ PROJECT AUTHORITY. No wall-clock timestamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "project_id",
+    "authority",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "retained_count",
+    "quarantined_count",
+    "category_counts",
+    "link_quality_histogram",
+    "health_state",
+    "input_content_hash",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-004" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": { "const": "GRAPH HEALTH ≠ PROJECT AUTHORITY" },
+    "retained_count": { "type": "integer", "minimum": 0 },
+    "quarantined_count": { "type": "integer", "minimum": 0 },
+    "category_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "link_quality_histogram": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "health_state": {
+      "type": "string",
+      "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+    },
+    "input_content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH QUARANTINE ≠ AUTOMATIC AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-graph-004" }
+      }
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "$id": "https://project-atlas.local/prep/atlas-2.2/conflict-ux-forbidden-action.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-2.2-CONFLICT-UX-DEEPEN-PREP-001 fail-closed action proposal. Reject release-cert stamps, PILOT invent, LLM authority, auto-resolve, UI canonical writes, and authority elevation. Does not relocate disposition-action.schema.json.",
+  "properties": {
+    "_prep_note": {
+      "type": "string"
+    },
+    "action_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "type": "string"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "const": "derived"
+        },
+        "note": {
+          "maxLength": 400,
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "type": "object"
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "conflict_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "type": "string"
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "expected_error": {
+      "enum": [
+        null,
+        "conflict-ux-release-cert-stamp-forbidden",
+        "conflict-ux-pilot-invent-forbidden",
+        "conflict-ux-llm-authority-forbidden",
+        "conflict-ux-auto-resolve-forbidden",
+        "conflict-ux-ui-canonical-write-forbidden",
+        "conflict-ux-authority-elevation-forbidden",
+        "conflict-ux-llm-pick-winner-forbidden"
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "release_cert_stamp",
+        "pilot_invent",
+        "llm_authority_stamp",
+        "auto_resolve",
+        "ui_canonical_write",
+        "authority_elevation",
+        "llm_pick_winner"
+      ]
+    },
+    "package_id": {
+      "const": "AS-2.2-CONFLICT-UX-DEEPEN-PREP-001"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "pilot_roots": {
+      "const": 0
+    },
+    "release_certified": {
+      "const": false
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "const": "rejected_forbidden"
+    },
+    "truth_boundary": {
+      "const": "CONFLICT UX ACTION \u2260 RELEASE CERT / \u2260 PILOT PASS / \u2260 LLM AUTHORITY / \u2260 CANONICAL WRITE"
+    }
+  },
+  "required": [
+    "action_id",
+    "authentic_estate",
+    "authority",
+    "canonical_writes",
+    "evidence_class",
+    "kind",
+    "package_id",
+    "pilot_pass",
+    "release_certified",
+    "schema_version",
+    "status",
+    "truth_boundary"
+  ],
+  "title": "conflict-ux-forbidden-action (PREP STUB \u2014 not package data)",
+  "type": "object"
+}

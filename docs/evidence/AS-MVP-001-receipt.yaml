@@ -1,0 +1,759 @@
+schema_version: 1
+work_package: AS-MVP-001
+title: Portfolio Intelligence and Pilot Onboarding Closure
+status: implementation-complete-release-closure-remediation-complete-final-independent-verification-required
+# Equivalent to: implementation_complete: true,
+# release_closure_remediation_complete: true,
+# final_independent_verification: blocked_pending_evidence_reverification.
+# merge_authorized remains false throughout (see below).
+
+architecture_commit: e1b2bba2ea25aacf27e5da2e0696f850b56494c4
+adr: docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md
+branch: feat/as-mvp-001-portfolio-pilots
+
+implementation_commits:
+  - d4d664a0576d84a069e9b5ca8d8f9b19eb36df39  # feat(portfolio): add deterministic projection schemas and helpers
+  - f588236608fb9bb0be69fabaa9c105bb888fc0d5  # feat(portfolio): generate overview/maturity/coverage/stale/dependency/capability + CLI + validation
+  - 83a5ad22de17c9bf1bef2ec7e3adaa8ade1481dc  # test(fixtures): add AS-MVP-001 pilot projects
+  - 326fa5adc1c01c60ebe694b1bc512eb5e8f34f15  # fix(portfolio): exclude quarantined sources from stale-knowledge citations
+  - ea368e7c7099b5bc18095caf0f6f038ae6560f8e  # test(portfolio): certify MVP portfolio workflows
+evidence_commit: SELF
+
+epic_i:
+  completed_before:
+    - id: I-001
+      title: Project index generator
+    - id: I-006
+      title: Conflict review queue
+  implemented:
+    - id: I-002
+      title: Portfolio overview
+      output: generated/portfolio/overview.json
+    - id: I-003
+      title: Maturity matrix
+      output: generated/portfolio/maturity-matrix.json
+      note: >-
+        Categorical only (existing Maturity enum). Every project in the
+        current pipeline reports maturity "unknown" because no existing
+        knowledge_compiler.py rule populates ConceptRecord.maturity yet
+        (a pre-existing gap tracked separately by backlog CORE-MODEL-001,
+        not touched by this package). The explicit inputs
+        (required_coverage_present, validation_evidence_present,
+        open_conflicts) are populated and correctly distinguish the
+        pilots even though the categorical label itself does not yet.
+    - id: I-004
+      title: Documentation gap report
+      output: generated/portfolio/documentation-coverage.json
+      note: reuses semantic_compiler.coverage_for(); does not recompute rules
+    - id: I-005
+      title: Stale knowledge report
+      output: generated/portfolio/stale-knowledge.json
+      note: >-
+        Freshness derived from sources/manifests/source-manifest.json's
+        modified_at against an injected reference date. Known limitation:
+        that manifest file is overwritten (not merged) by each `atlas
+        ingest` call, so a vault built from multiple separate ingest
+        calls only retains the most recent batch's freshness data; a
+        single combined discover+ingest across all projects (the
+        pattern used by this package's own pilot workflow and
+        acceptance tests) is unaffected. Not fixed here; pre-existing
+        ingestion.py behavior, out of AS-MVP-001 scope.
+    - id: I-007
+      title: Dependency report
+      output: generated/portfolio/dependency-report.json
+      note: >-
+        Existing deterministic RUNTIME_DEPENDENCY claims ("requires:"/
+        "dependency:" line extraction, knowledge_compiler.py) plus any
+        populated depends_on/related_project concept relationships.
+        Verified working end-to-end via the dark-factory -> nebula and
+        nebula -> shared-auth-service pilot declarations.
+    - id: I-008
+      title: Capability report
+      output: generated/portfolio/capability-report.json
+      note: >-
+        Aggregates existing Capability-typed concepts and provides
+        relationships. Correctly empty for all three pilots (none
+        declares a Capability-typed concept) - verified functional but
+        not exercised with real capability data, since the current
+        one-concept-per-project model (backlog CORE-MODEL-001, not in
+        scope here) makes richer per-source concept typing a separate,
+        larger change.
+
+epic_k:
+  pilots:
+    - id: nebula
+      profile: mature-and-complete
+      path: tests/fixtures/pilots/nebula
+    - id: black-agency-os
+      profile: partial-and-stale
+      path: tests/fixtures/pilots/black-agency-os
+    - id: dark-factory
+      profile: conflicted-and-dependency-heavy
+      path: tests/fixtures/pilots/dark-factory
+  completed_items:
+    - K-001  # Nebula fixture corpus
+    - K-002  # Black Agency OS fixture corpus
+    - K-003  # Dark Factory fixture corpus
+  # HISTORICAL BASELINE ONLY -- status of K-004 through K-007 at the
+  # original implementation-freeze candidate (architecture_commit /
+  # base_commit da04bd3156e87d2cd7acf15ed8d43f4529a02d20), retained
+  # verbatim as verification context. This is NOT current status; it was
+  # superseded by the release-closure remediation ending at evidence tip
+  # 6e56fbe13732dc7e9519129c8672770f6c70c980. See
+  # `current_epic_k_status` below for the one authoritative current-state
+  # mapping.
+  not_implemented_items_at_implementation_freeze:
+    baseline_candidate: da04bd3156e87d2cd7acf15ed8d43f4529a02d20
+    superseded_by: 6e56fbe13732dc7e9519129c8672770f6c70c980
+    current_status_authoritative: false
+    items:
+      - id: K-004
+        title: Expected manifests
+        note: >-
+          Not authored as separate committed golden files in this package;
+          the acceptance tests instead assert directly against freshly
+          computed pipeline output (equivalent coverage, less golden-file
+          maintenance). Recommended follow-up if byte-for-byte golden
+          manifests are required by a future release-closure gate.
+      - id: K-005
+        title: Expected generated vault
+        note: same rationale as K-004
+      - id: K-006
+        title: Contradiction fixtures
+        note: >-
+          Partially covered: dark-factory's two "roadmap:" claims produce
+          a real, pipeline-detected conflict (test_scenario_4). A
+          dedicated standalone contradiction fixture beyond dark-factory
+          was not authored separately.
+      - id: K-007
+        title: Secret fixtures
+        note: >-
+          Not authored as a new fixture; AS-MVP-001's non-leakage test
+          reuses the existing certified adversarial-project fixture
+          (instruction-bearing.md, canary-bearing.md) to prove zero
+          leakage into portfolio outputs, which exercises the same
+          quarantine boundary a dedicated secret fixture would.
+
+outputs:
+  - generated/portfolio/overview.json
+  - generated/portfolio/maturity-matrix.json
+  - generated/portfolio/documentation-coverage.json
+  - generated/portfolio/stale-knowledge.json
+  - generated/portfolio/dependency-report.json
+  - generated/portfolio/capability-report.json
+  - generated/navigation/portfolio-overview.md
+
+cli:
+  command: atlas build-portfolio --vault <vault-dir>
+  workflow: init -> discover -> ingest -> build-indexes -> build-portfolio -> validate
+  not_folded_into: build-indexes
+
+validation:
+  core_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests --tb=short -q
+  core_result: "257 passed, 0 failed (245 pre-existing + 12 new AS-MVP-001 tests; no existing test removed or weakened)"
+  control_plane_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=short -q
+  control_plane_result: "146 passed, 0 failed"
+  portfolio_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests/integration/test_as_mvp_001_portfolio.py -v --tb=short
+  portfolio_result: "12 passed, 0 failed (10 ADR-005 acceptance scenarios + 1 dedicated security non-leakage test + 1 rollback test)"
+  security_integration_command: PYTHONPATH=src .venv/bin/python -m pytest -p no:cacheprovider tests/integration/test_as_sec_001_quarantine_boundary.py -q
+  security_integration_result: "16 passed, 0 failed"
+  fuzz_command: PYTHONPATH=src .venv/bin/python -m pytest -p no:cacheprovider tests/unit/test_quarantine_fuzz.py -s -q
+  fuzz_result: "generated=218 executed=218 skipped=0 failures=0 false_positives=0 exceptions=0"
+  mypy_command: MYPY_CACHE_DIR=/tmp/mvp-final-mypy PYTHONPATH=src .venv/bin/python -m mypy src
+  mypy_result: "clean, 36 source files (was 35 before this package; +1 for portfolio.py)"
+  ruff_command: .venv/bin/python -m ruff check src tests
+  ruff_result: clean
+  compilation_command: >-
+    PYTHONPATH=src .venv/bin/python -m compileall -q src ;
+    PYTHONPATH=src .venv/bin/python -m compileall -q atlas-vault-documentation
+  compilation_result: clean (both src and atlas-vault-documentation)
+  environment:
+    fresh_clone_path: /tmp/mvp-fresh
+    filesystem: ext4
+    clone_command: git clone --no-local /mnt/d/project-atlas-as-mvp-001 /tmp/mvp-fresh
+    checked_out: feat/as-mvp-001-portfolio-pilots
+    all_core_control_plane_static_and_public_workflow_checks_rerun_here: true
+  public_workflow:
+    corpus: tests/fixtures/pilots (nebula, black-agency-os, dark-factory copied to a scratch dir, black-agency-os README aged 400 days)
+    pipeline: init -> discover -> ingest -> build-indexes -> build-portfolio -> validate
+    result: all stages exit 0 on fresh ext4; discovered 12 sources across 3 projects, validated 81 Markdown files
+  deterministic_replay: >-
+    build_portfolio() called twice with the same injected reference_date
+    produces byte-identical generated/portfolio/*.json (verified both in
+    the acceptance test suite - test_scenario_8 - and manually on the
+    fresh ext4 clone). CLI invocations without an injected reference
+    date naturally vary only in stale-knowledge.json's reference_date
+    field, as designed (the CLI captures real time once per invocation;
+    it is never read from inside the deterministic per-item computation).
+  rollback: >-
+    test_rollback_preserves_prior_valid_portfolio_on_failure forces a
+    write failure inside the promotion boundary (replacing
+    generated/portfolio/ with a regular file so mkdir raises before any
+    file in that directory can be written) and confirms the previously
+    promoted valid output is byte-identical afterward.
+  security_non_leakage: >-
+    test_security_no_quarantined_content_in_portfolio_outputs reuses the
+    certified adversarial-project fixture; confirms zero quarantined
+    source_id references, zero canary tokens, and zero "ignore"-keyword
+    text in any generated/portfolio output. validation.py's
+    _validate_no_quarantined_leakage additionally rejects any future
+    regression at validate() time.
+
+canonical_state_mutated: false
+history_rewritten: false
+merge_authorized: false
+final_certification_issued: false
+# Project Owner disposition (see release_closure_remediation.owner_disposition
+# below for the accepted platform-limitation exceptions this depends on):
+# AS-MVP-001 TECHNICALLY CERTIFIED -- FINAL EVIDENCE GATE PENDING.
+# final_certification_issued flips to true only after Agent Two's focused
+# receipt reverification of this exact evidence-only correction passes;
+# merge_authorized flips to true only after that reverification, per a
+# fast-forward-only merge from fix/as-mvp-001-r1-relation-edge-tests.
+
+known_limitations:
+  - maturity_matrix always reports "unknown" today because no existing
+    rule populates ConceptRecord.maturity (CORE-MODEL-001, separate
+    backlog item, out of scope here) -- still accurate as of the current
+    evidence tip; not addressed by release-closure remediation.
+  - capability_report is correctly empty for all three pilots; not
+    exercised with real Capability-typed concept data (same root cause)
+    -- still accurate as of the current evidence tip.
+  - >-
+    stale_knowledge relies on sources/manifests/source-manifest.json,
+    which is overwritten (not merged) by a later, narrower `atlas
+    ingest` batch; accurate only for a single combined discover+ingest
+    across all projects in one vault (which is how this package's own
+    workflow and tests use it). This ingestion.py behavior itself was
+    NOT fixed by release-closure remediation (out of AS-MVP-001-R1's
+    allowed paths; owner-accepted as a non-MVP workflow limitation --
+    see `release_closure_remediation.multi_batch_manifest_disposition`
+    below). The only in-scope change was a portfolio.py mitigation:
+    overview.json now reports "unknown" (never a fabricated 0) for a
+    project whose sources fell out of a truncated manifest.
+  - >-
+    _promote() (ingestion.py, shared with other certified packages)
+    writes each destination file atomically on its own (temp file +
+    os.replace) but provides no cross-file transaction: a failure
+    isolated to one specific file partway through a multi-file write
+    plan can leave a mix of newly-written and stale files. Not fixed
+    here (out of allowed paths); see
+    `release_closure_remediation.rollback_test_strengthening` below for
+    the precise scope of what was, and was not, proven.
+  - >-
+    RESOLVED by release-closure remediation (no longer a current
+    limitation): the K-004/K-005 golden-fixture gap described here at
+    the original da04bd3 implementation freeze was closed by the
+    release-closure remediation ending at evidence tip
+    6e56fbe13732dc7e9519129c8672770f6c70c980. See
+    `current_epic_k_status` below for the current, authoritative K-004
+    through K-007 status and its concrete fixture/test evidence.
+
+# Current, authoritative Epic K status. This is the ONLY current-state
+# mapping for K-004 through K-007 in this receipt; `epic_k`'s
+# `not_implemented_items_at_implementation_freeze` above is historical
+# baseline context only (current_status_authoritative: false) and does
+# not contradict this section.
+current_epic_k_status:
+  as_of_candidate: 6e56fbe13732dc7e9519129c8672770f6c70c980
+  K-004:
+    status: implemented
+    evidence:
+      fixture: tests/fixtures/expected/manifests/pilots-manifest.json
+      test: tests/integration/test_as_mvp_001_release_closure.py::test_k004_discovery_manifest_matches_golden_fixture
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
+  K-005:
+    status: implemented
+    evidence:
+      fixtures:
+        - tests/fixtures/expected/portfolio/overview.json
+        - tests/fixtures/expected/portfolio/maturity-matrix.json
+        - tests/fixtures/expected/portfolio/documentation-coverage.json
+        - tests/fixtures/expected/portfolio/stale-knowledge.json
+        - tests/fixtures/expected/portfolio/dependency-report.json
+        - tests/fixtures/expected/portfolio/capability-report.json
+        - tests/fixtures/expected/portfolio/portfolio-overview.md
+      tests:
+        - tests/integration/test_as_mvp_001_release_closure.py::test_k005_portfolio_outputs_match_golden_fixtures
+        - tests/integration/test_as_mvp_001_release_closure.py::test_k005_settled_rebuild_is_byte_identical_to_golden_state
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
+  K-006:
+    status: implemented
+    evidence:
+      approach: >-
+        Per ADR-005's own explicit design ("reuse the dark-factory
+        project for conflicts"); no second conflict model or redundant
+        fourth contradiction project was introduced.
+      test: tests/integration/test_as_mvp_001_release_closure.py::test_k006_contradiction_handling_full_checklist
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
+  K-007:
+    status: implemented
+    evidence:
+      fixture_project: tests/fixtures/k007-canary-secrets/
+      test: tests/integration/test_as_mvp_001_release_closure.py::test_k007_dedicated_secret_fixture_never_leaks
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
+
+remediation:
+  id: AS-MVP-001-R1
+  title: Relationship and capability edge-case hardening
+  base_commit: da04bd3156e87d2cd7acf15ed8d43f4529a02d20
+  branch: fix/as-mvp-001-r1-relation-edge-tests
+  source:
+    prototype_b_reviewed: false
+    prototype_b_commits_available_during_r1_implementation: false
+    prototype_b:
+      commits:
+        dependency_projection: 8e8687ee5eaaf891be5c5fd422ee0400a6ca9a3b
+        capability_projection: 9161d0b0310a803019fa5e4cf8d9e4a0ffe3013f
+      preservation:
+        bundle_path: .session-preservation/as-mvp-001-b/as-mvp-001-b-9161d0b.bundle
+        bundle_sha256: c4505dc23c37556505bdc54b6f4a2b5451455661ed38e03a8b3f67bad456b1e7
+        bundle_verified: true
+        bundle_tracked_by_git: false
+      implementation_disposition:
+        reviewed_during_r1_implementation: false
+        reused: false
+        cherry_picked: false
+        merged: false
+      clarification: >-
+        Correction (post-verification, evidence-only): the two Prototype B
+        commit hashes referenced in the R1 directive were not found in the
+        active repository object database or any inspected worktree/reflog
+        during R1 implementation -- that part of the original prototype_b_note
+        was itself inaccurate as a claim of nonexistence. They were
+        subsequently located and independently verified (git bundle verify,
+        git cat-file, git show) as recoverable from the preserved Prototype B
+        git bundle at the path above. R1 was, and remains, implemented
+        directly from ADR-005 and the authoritative da04bd3... implementation;
+        no Prototype B implementation or API was reviewed, reused,
+        cherry-picked, merged, or reconstructed at any point, including after
+        this bundle was located. The Prototype B API was also structurally
+        incompatible with the authoritative implementation's vault-facing
+        surface (see the AS-MVP-001-R1 directive's own architecture-boundary
+        findings), independent of its (re)discovered availability.
+    prototype_commits_merged: false
+  edge_cases:
+    circular_dependencies:
+      status: already-passing
+      test: test_circular_dependency_does_not_crash_and_is_deterministic
+      note: >-
+        dependency_report() is a pure, non-recursive aggregation over
+        each project's own declared relationships; A->B / B->A entries
+        are reported independently per project with no traversal, so a
+        cycle cannot cause recursion failure or corruption. Verified.
+    self_references:
+      status: already-passing
+      test: test_self_reference_is_reported_explicitly_and_deterministically
+      note: >-
+        ADR-005 defines no distinct self-reference policy. A->A is
+        surfaced as-is (target equals the declaring concept's own id),
+        citing the concept, deterministically. No silent drop, no
+        fabricated "valid dependency" relabeling beyond what any other
+        declared relationship already receives.
+    duplicate_relationships:
+      status: production-fix-required
+      test: test_duplicate_identical_relationship_is_not_reported_twice
+      fix: >-
+        Added _dedupe_entries() in portfolio.py; dependency_report() and
+        capability_report() now drop byte-for-byte-identical entries
+        (same concept_id/target/type, or same claim_id) before sorting.
+        Distinct entries -- e.g. two claims with different claim_id
+        asserting the same target -- are never merged.
+    invalid_targets:
+      status: already-passing
+      test: test_dependency_on_missing_target_project_is_reported_not_fabricated
+      note: >-
+        Relationship.target is documented (domain/relationships.py) as
+        "a vault-relative path or concept ID", not guaranteed to resolve
+        to an existing project. portfolio.py never asserts or implies
+        target resolvability; a target with no matching project is
+        carried through as an opaque, cited string with no crash and no
+        implied validity.
+    shuffled_input:
+      status: production-fix-required
+      test: >-
+        test_dependency_report_is_order_independent_under_tied_sort_keys,
+        test_capability_report_provides_is_order_independent_under_tied_sort_keys
+      fix: >-
+        dependency_report()'s and capability_report()'s sort keys added
+        concept_id (and relationship_type for dependencies) as explicit
+        tiebreakers, so entries that tie on (target, claim_id) no longer
+        depend on Python's stable-sort input order when the underlying
+        concepts list order changes (e.g. two different concepts
+        declaring a relationship to the same target).
+    shared_capability_providers:
+      status: already-passing-unsupported-cross-project-semantics
+      test: test_shared_capability_provider_across_projects_is_independent_per_project
+      note: >-
+        The canonical model has no dedicated "shared provider" record;
+        two projects independently declaring "provides" to the same
+        target string are reported correctly and independently in their
+        own project's capability-report.json entry. No cross-project
+        merge or inference from target-string equality was added or
+        attempted (ADR-005 explicitly rejects prose/name-based
+        inference); this remains out of scope pending a canonical model
+        extension, not implemented here.
+    capability_deduplication:
+      status: production-fix-required
+      test: test_duplicate_capability_concepts_are_not_reported_twice
+      fix: same _dedupe_entries() fix as duplicate_relationships, applied to
+        capability_report()'s capabilities and provides lists.
+  production_changes_required: true
+  production_files_changed:
+    - src/project_atlas/portfolio.py
+  tests_added:
+    file: tests/unit/test_as_mvp_001_relationship_edges.py
+    count: 11
+  validation:
+    focused_edge_tests: "11 passed, 0 failed"
+    portfolio_integration: "12 passed, 0 failed (unchanged from pre-R1 baseline)"
+    core: "268 passed, 0 failed (257 pre-R1 + 11 new AS-MVP-001-R1 tests)"
+    control_plane: "146 passed, 0 failed"
+    as_sec_001_regression: "16 passed, 0 failed"
+    fuzz: "generated=218 executed=218 skipped=0 failures=0 false_positives=0 exceptions=0"
+    mypy: "clean, 36 source files"
+    ruff: clean
+    compilation: clean (src and atlas-vault-documentation)
+    public_workflow: >-
+      Exercised via tests/integration/test_as_mvp_001_portfolio.py's
+      _run_pipeline() (init -> discover -> ingest -> build-indexes ->
+      build-portfolio -> validate) against all three pilots; unchanged
+      pilot expectations, all 12 scenarios pass.
+    determinism: >-
+      test_scenario_8_deterministic_settled_rebuild (two build_portfolio()
+      calls, same reference_date, byte-identical output) continues to
+      pass; the new order-independence tests additionally prove
+      dependency-report.json/capability-report.json are byte-identical
+      across shuffled concept-list input orderings, not just repeated
+      runs of the same input order.
+  prototype_b_merged: false
+  adr_005_reopened: false
+  historical_commits_rewritten: false
+  fabricated_attestations_created: false
+  merge_to_main_authorized: false
+
+# Chronology: implementation freeze (da04bd3, above) -> independent
+# verification (passed technically/architecturally; owner found Epic K
+# gaps and an overview-counting nuance) -> owner scope-closure decision
+# (AS-MVP-001 MERGE BLOCKED pending Epic K closure) -> this
+# release-closure remediation (extends the same R1 branch/worktree
+# above, does not open a competing branch) -> final independent
+# verification pending. Nothing above is erased or rewritten by this
+# section.
+release_closure_remediation:
+  id: AS-MVP-001-R1
+  title: Relationship Edge Hardening and Epic K Closure Remediation
+  continues_branch: fix/as-mvp-001-r1-relation-edge-tests
+  continues_worktree: /mnt/d/project-atlas-as-mvp-001-r1
+  wording_correction: >-
+    The relationship/capability edge-case tests above were derived from
+    ADR-005 and independent reconciliation notes against the
+    authoritative da04bd3... implementation, not from inspecting any
+    Prototype B source. Superseded by the more precise correction below
+    (source.prototype_b): Prototype B was not available in the active
+    repository object database or inspected worktrees/reflog at the time
+    this was originally written, but was subsequently located and
+    verified in a preserved git bundle; it was still never reviewed,
+    reused, cherry-picked, or merged into this implementation at any
+    point. No wording in this receipt claims external prototype code was
+    reviewed.
+  k004_expected_manifests:
+    status: implemented
+    fixture: tests/fixtures/expected/manifests/pilots-manifest.json
+    test: test_k004_discovery_manifest_matches_golden_fixture
+    note: >-
+      Golden fixture generated once by running `atlas discover` against
+      a scratch copy of tests/fixtures/pilots/ with every file's mtime
+      pinned to a fixed, non-wall-clock epoch and a fixed, pre-declared
+      project_uuid per pilot (see below), then committed; the test
+      compares fresh discovery output against this fixture, it does not
+      compute its own expected value by calling discover() a second
+      time. "source_root" (an absolute scratch-directory path) and
+      "inventory_sha256" (a hash of source_root, discovery.py) are
+      excluded from the comparison as inherently run-specific; every
+      other field is compared exactly.
+  k005_expected_generated_outputs:
+    status: implemented
+    fixtures: tests/fixtures/expected/portfolio/ (six *.json reports plus
+      portfolio-overview.md)
+    tests:
+      - test_k005_portfolio_outputs_match_golden_fixtures
+      - test_k005_settled_rebuild_is_byte_identical_to_golden_state
+    note: >-
+      Supplements, does not replace, the existing behavioral scenario
+      tests in test_as_mvp_001_portfolio.py. Golden files were reviewed
+      for absence of machine-specific paths and secrets before commit.
+  k006_contradiction_fixtures:
+    status: implemented
+    test: test_k006_contradiction_handling_full_checklist
+    note: >-
+      Per ADR-005's own explicit design ("Contradiction fixtures (K-006)
+      ... reuse the dark-factory project for conflicts"), this does not
+      introduce a second conflict model or a redundant fourth
+      contradiction project; it adds one itemized test proving, against
+      the existing certified conflict pipeline and dark-factory: two
+      incompatible source records are identified as a contradiction,
+      stable conflict identity, appearance in the approved review index,
+      zero effect on nebula/black-agency-os, no conflict-state mutation
+      by build-portfolio, and preserved conflict identity across a
+      deterministic rebuild.
+  k007_secret_fixtures:
+    status: implemented
+    fixture: tests/fixtures/k007-canary-secrets/ (dedicated, minimal
+      fourth project; safe canary string "AKIAFAKEFAKEFAKEFAKE", an
+      obviously fake AWS-access-key-shaped value matching secrets.py's
+      existing cloud-access-key pattern)
+    test: test_k007_dedicated_secret_fixture_never_leaks
+    note: >-
+      Per ADR-005's own explicit design ("add one credential-shaped
+      string to a fourth, minimal fixture project"). Proves zero leakage
+      into every generated/portfolio/*.json file, the navigation
+      Markdown, and CLI stdout/stderr -- not just a subset of outputs.
+    defect_found_and_fixed: >-
+      While building this test, discovered that portfolio.py's
+      _quarantined_source_ids() only ever recognized quarantine findings
+      from injection-findings.json's {"findings": [...]} shape;
+      secret-findings.json is actually written by ingestion.py as a bare
+      top-level JSON array with a "pattern" key (not "rule"). This meant
+      every secret-only quarantine finding was silently invisible to
+      stale_knowledge() and overview()'s quarantined_sources count --
+      the CONFIG-NOTES.md source carrying the canary secret leaked its
+      own source_id and path into stale-knowledge.json even though the
+      code's own comment claimed quarantined sources were excluded.
+      Fixed with a new _quarantine_findings() helper in portfolio.py
+      that correctly parses both on-disk shapes; verified with the
+      reproduction above and the full regression suite (no behavior
+      change for injection-findings.json, no change to
+      secrets.py/quarantine.py/ingestion.py themselves).
+  overview_aggregation_decision:
+    option_chosen: A (field literally counts only "present")
+    rationale: >-
+      overview.json's "coverage_categories_present" is documented and
+      tested (test_overview_coverage_categories_present_counts_
+      strictly_present_only) to count CoverageRecord.state == "present"
+      only, matching the field's literal name; ADR-005 draws no
+      equivalence between it and maturity-matrix.json's
+      "required_coverage_present" (a different, narrower boolean over a
+      fixed three-category subset that accepts "present" or "partial" as
+      a maturity *input*, not a coverage tally). Implementation
+      unchanged; a dedicated test now pins both fields' semantics down
+      explicitly using nebula's "partial" architecture/security
+      categories, where the two fields provably diverge by design.
+    behavior_changed: false
+  rollback_test_strengthening:
+    status: test-implementation-strengthened
+    finding: >-
+      PRODUCTION BEHAVIOR INDEPENDENTLY PROVEN (narrow scope): when the
+      whole generated/portfolio/ destination directory is unavailable, no
+      file in the write plan is ever touched (_atomic_bytes' mkdir fails
+      identically and immediately for the first path in sorted order),
+      so the prior valid output is undisturbed by construction.
+      TEST IMPLEMENTATION STRENGTHENED: the test now inspects disk state
+      immediately after the forced failure and before any restorative
+      cleanup (previously the only post-failure inspection happened
+      after a `finally` block had already rewritten the "before" bytes,
+      so a passing assertion could not distinguish genuine preservation
+      from the cleanup manufacturing it). A subsequent clean rebuild is
+      now also asserted to succeed and reproduce the same settled bytes.
+      NOT PROVEN, AND NOT CLAIMED: full cross-file transactional
+      atomicity of _promote() (ingestion.py, shared with other certified
+      packages, out of AS-MVP-001-R1's bounded scope) across an
+      arbitrary write plan. _promote() writes each destination file
+      atomically on its own (temp file + os.replace) but has no
+      transaction or rollback across files already written before a
+      later file in the same plan fails; a failure isolated to one
+      specific file partway through a multi-file plan can leave a mix of
+      newly-written and stale files. This is a pre-existing, shared
+      architectural characteristic, not an AS-MVP-001 regression, and is
+      flagged here for a separate architecture/governance decision
+      rather than silently fixed or silently left unstated.
+  relationship_edge_case_hardening: >-
+    See the remediation: section above (AS-MVP-001-R1, already complete
+    as of this branch's earlier commits); no further changes were
+    required for release closure.
+  multi_batch_manifest_disposition: explicitly-accepted-by-owner-as-non-mvp-workflow-limitation
+  multi_batch_manifest_finding: >-
+    test_multi_batch_ingest_manifest_overwrite_is_reproduced_and_bounded
+    reproduces the pre-existing (predates AS-MVP-001; lives in
+    ingestion.py, not portfolio.py) sources/manifests/source-manifest.json
+    overwrite-not-merge behavior: a second, narrower atlas discover+ingest
+    batch against the same vault causes earlier projects' manifest
+    entries to disappear from that file. Canonical per-project state
+    (state/concepts/*.json, state/claims/*.json) is NOT lost -- all
+    affected projects still appear correctly in every portfolio output.
+    Fixing ingestion.py's write behavior (merge instead of overwrite) is
+    out of AS-MVP-001-R1's allowed paths and would touch a certified
+    boundary shared with AS-CORE-002/AS-ID-001/AS-SEC-001; not attempted
+    here. In-scope mitigation applied in portfolio.py: overview.json now
+    reports "unknown" (never a fabricated 0) for a project with zero
+    entries of its own in a truncated manifest, rather than
+    misrepresenting missing manifest data as a confirmed zero-quarantine
+    count.
+  unrelated_defect_discovered_during_this_remediation: >-
+    While probing multi-batch behavior directly against
+    tests/fixtures/pilots/ (uncopied), discovered that a first-ever
+    `atlas ingest` durably writes a freshly-allocated project_uuid back
+    into the scanned source's own .atlas-project.yaml marker file
+    (ingestion.py's _prepare_project_identity(), AS-ID-001's intentional
+    "project identity genesis" design -- confirmed not a defect by
+    reading the implementation, which also writes a matching
+    project-identity-allocation receipt). This is why every existing
+    test in this suite copies the pilots to a scratch directory before
+    discover/ingest (_copy_pilots()) rather than pointing at the
+    committed fixtures directly. The new multi-batch and K-004/K-005
+    tests initially violated that convention and durably mutated the
+    committed tests/fixtures/pilots/*/.atlas-project.yaml files during
+    local test runs in this session; caught before commit via `git
+    status`/`git diff`, reverted with `git checkout --`, and every new
+    test now copies pilots (or a fixed-UUID-pre-declared copy, for
+    golden-fixture determinism) before running discover/ingest. No
+    commit in this branch's history ever contained a mutated pilot
+    fixture.
+  production_changes_required: true
+  production_files_changed:
+    - "src/project_atlas/portfolio.py: _quarantine_findings() secret-findings.json parsing fix; overview() unknown-vs-fabricated-0 fix"
+  tests_added:
+    - "tests/integration/test_as_mvp_001_release_closure.py (7 tests: K-004, K-005 x2, K-006, K-007, overview semantics, multi-batch regression)"
+    - "tests/fixtures/k007-canary-secrets/ (dedicated K-007 fixture project)"
+    - "tests/fixtures/expected/manifests/pilots-manifest.json (K-004 golden)"
+    - "tests/fixtures/expected/portfolio/*.json and portfolio-overview.md (K-005 golden, 7 files)"
+  tests_modified:
+    - "tests/integration/test_as_mvp_001_portfolio.py (rollback test strengthened; no other scenario test changed)"
+  validation:
+    release_closure_tests: "7 passed, 0 failed"
+    portfolio_integration: "12 passed, 0 failed (rollback test strengthened, same pass/fail outcome)"
+    relationship_edge_tests: "11 passed, 0 failed (unchanged)"
+    core: "275 passed, 0 failed (268 pre-closure + 7 new)"
+    control_plane: "146 passed, 0 failed"
+    as_sec_001_regression: "16 passed, 0 failed"
+    fuzz: "generated=218 executed=218 skipped=0 failures=0 false_positives=0 exceptions=0"
+    mypy: "clean, 36 source files"
+    ruff: clean
+    compilation: clean (src and atlas-vault-documentation)
+    public_workflow: >-
+      Exercised for all four required scenarios: the three standard
+      pilots (test_k004/k005/rollback/existing scenario tests), the
+      dark-factory contradiction (test_k006), the dedicated
+      k007-canary-secrets adversarial fixture (test_k007), and the
+      multi-batch discover/ingest sequence (test_multi_batch_...). All
+      pass; settled rebuild remains byte-identical throughout.
+  merge_authorized: false
+  mvp_closure_claimed: false
+  historical_commits_rewritten: false
+  fabricated_attestations_created: false
+
+  # Project Owner / AS-MVP-001 Release Governance disposition, recorded
+  # verbatim from the owner's review of the independently verified
+  # 6e56fbe candidate and the d9e1865 Prototype B correction. These two
+  # accepted exceptions are what "final_certification_issued" (top level)
+  # and "merge_authorized" depend on once the receipt itself passes its
+  # own focused reverification.
+  owner_disposition:
+    reviewed_candidate: 6e56fbe13732dc7e9519129c8672770f6c70c980
+    reviewed_evidence_correction: d9e1865f6b331b212cf37c4924390d451706b42f
+    technical_certification_accepted: true
+    promotion_atomicity_exception:
+      status: accepted_for_as_mvp_001
+      wording: >-
+        AS-MVP-001 uses the repository's existing per-file atomic
+        promotion mechanism. Cross-file transactional rollback is not
+        provided or certified. This inherited platform limitation is
+        accepted for the AS-MVP-001 release and should be tracked
+        separately as platform hardening.
+      does_not_certify: _promote() as transactionally atomic across a write plan
+      does_not_prohibit: a future platform package strengthening publication semantics
+    multi_batch_manifest_limitation:
+      status: accepted_as_non_mvp_shared_ingestion_limitation
+      tracked_as: unresolved technical debt (shared ingestion.py, outside AS-MVP-001's authorized production scope)
+    remaining_release_blocker_at_time_of_review: >-
+      Stale Epic K current-state mappings in this receipt (K-004 through
+      K-007 shown as absent/incomplete alongside a separate section
+      showing them implemented, with no explicit chronology/authority
+      marker). Addressed by this same commit's epic_k.not_implemented_items_at_implementation_freeze
+      (historical, pinned to da04bd3..., superseded_by 6e56fbe...,
+      current_status_authoritative: false) and current_epic_k_status
+      (the one authoritative current-state mapping) above.
+    final_merge_authorization: withheld_pending_receipt_reconciliation
+    merge_method_when_authorized: fast_forward_only
+    merge_source: fix/as-mvp-001-r1-relation-edge-tests
+    merge_target: main
+
+# ---------------------------------------------------------------------------
+# AS-CORE2-009 ERRATUM (additive; does not rewrite AS-MVP-001 history)
+# Date: 2026-08-09
+# Package: AS-CORE2-009 / CORE2-009 interrupted-write recovery
+# ---------------------------------------------------------------------------
+# Historical AS-MVP-001 text above correctly recorded that, at MVP freeze,
+# cross-file transactional rollback for `_promote` was NOT certified.
+# Subsequent platform packages changed that residual:
+#   - CORE3-023: in-process mid-promotion cross-file rollback + artifact cleanup
+#   - CORE-OPS-001: hash-before-replace + PromoteAccounting
+#   - AS-CORE2-009: process-crash orphan `.atlas-stage`/`.atlas-backup` recovery
+#     on ingest preflight (fail-closed or deterministic abort-clean/abort-restore
+#     with receipt). This erratum does not alter AS-MVP-001 acceptance claims.
+as_core2_009_promotion_atomicity_erratum:
+  status: additive_erratum_only
+  does_not_rewrite_as_mvp_001_history: true
+  superseding_packages:
+    - CORE3-023
+    - AS-CORE-OPS-001
+    - AS-CORE2-009
+  residual_addressed_by_as_core2_009: >-
+    Process-crash / power-loss window leaving orphan stage/backup artifacts
+    is recovered deterministically on ingest preflight; backup snapshot create
+    continues to refuse unclean orphans until recovery runs.
+
+# ---------------------------------------------------------------------------
+# AS-MVP-001 REPOSITORY-STATUS RECONCILIATION (additive; does not rewrite
+# AS-MVP-001 history and does not re-bind any historical certification)
+# Date: 2026-08-27
+# Reason: the `status:` field and the merge-gate narrative above describe the
+# pre-merge candidate. Git history shows that candidate is already an ancestor
+# of `main`, so documentation derived from those lines repeatedly presented
+# AS-MVP-001 as pending owner-merge work that does not exist.
+# ---------------------------------------------------------------------------
+as_mvp_001_status_reconciliation:
+  status: additive_reconciliation_only
+  does_not_rewrite_as_mvp_001_history: true
+  historical_candidate_head: da04bd3156e87d2cd7acf15ed8d43f4529a02d20
+  historical_candidate_tree: c5d1ac23519849d993804dfac651e594cf98723d
+  historical_candidate_status: merged_and_superseded
+  historical_candidate_is_ancestor_of_main: true
+  pending_owner_merge_of_historical_candidate: false
+  # Applies to this receipt's `status:` field and to the merge-gate narrative
+  # above; those remain valid as history, not as present-tense status.
+  current_status_authoritative: false
+  reconciled_against_main_head: f1b5256510cb66e037e6774aa49d753bdb7dd96f
+  reconciled_against_main_tree: 8df56184bb25b1cf1b6a9102cf34e77248287940
+  reconciliation_date: 2026-08-27
+  current_main_status: >-
+    Portfolio intelligence is present on main and has been evolved by later
+    packages (AS-MVP-001-R1 relation/edge remediation; AS-INGEST-MANIFEST-001,
+    which resolved the multi-batch source-manifest limitation recorded under
+    epic_i I-005 above). Declared maturity is no longer universally "unknown":
+    the pilots report distinct labels through the real pipeline.
+  independent_reverification_2026_08_27:
+    scope: >-
+      The four AS-MVP-001 capabilities (portfolio overview, maturity matrix,
+      documentation coverage, stale knowledge) exercised through the real CLI
+      against main f1b52565: three-pilot corpus, empty portfolio, repeat-build
+      determinism, and validate.
+    result: capabilities_present_and_behaving_per_contract
+    binds_historical_evidence_to_current_main: false
+    p0_count: 0
+    p1_count: 0
+    open_p2_followups:
+      - >-
+        AS-MVP FUTURE-TIMESTAMP TRUST SEMANTICS: source timestamps dated after
+        the reference date are reported "fresh"; is_untrusted_mtime() guards
+        only the pre-1980 end. Changing this alters H-006 severity semantics
+        and is deliberately left as a separate owner decision.
+    open_p3_followups:
+      - >-
+        stale_knowledge() accepts stale_after_days <= 0 while
+        validation.py::_validate_freshness rejects < 1. Internal API only; the
+        CLI does not expose the threshold.
+  evidence_binding_note: >-
+    This block records repository status only. It does not transfer, renew or
+    extend any certification to a revision other than the one the original
+    receipt pinned.

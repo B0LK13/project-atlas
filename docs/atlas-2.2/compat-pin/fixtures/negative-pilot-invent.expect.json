@@ -1,0 +1,16 @@
+{
+  "package_id": "AS-2.2-COMPAT-PIN-PREP-001",
+  "scenario_id": "FX-2.2-COMPAT-NEG-002",
+  "forbidden_inventory": {
+    "pilot_roots": 1,
+    "invent_pilot_roots": true,
+    "authentic_estate_pilot_passed": true
+  },
+  "expected_error": "compat-pin-prep-pilot-invent-forbidden",
+  "pilot_roots": 0,
+  "invent_pilot_roots": false,
+  "atlas_2_1_release_certified": false,
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "notes": "Compat pin prep must not invent PILOT roots to justify anchor publication"
+}

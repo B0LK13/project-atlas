@@ -1,0 +1,16 @@
+{
+  "generated": {
+    "by": "project-atlas-demo"
+  },
+  "package_id": "AS-DEMO-2.1-BROWSER-E2E-001",
+  "path_a_chips_observed": false,
+  "path_b_live_chips_observed": false,
+  "pilot_pass": false,
+  "playwright_cypress_in_repo": false,
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "BROWSER_E2E_MISSING",
+  "technical_demo_verified_from_this_package_alone": false,
+  "tooling_blocker": "browser automation tab create/navigate unavailable; no in-repo E2E harness",
+  "truth_boundary": "BROWSER_E2E_MISSING != PATH_A_OBSERVED != RELEASE != PILOT"
+}

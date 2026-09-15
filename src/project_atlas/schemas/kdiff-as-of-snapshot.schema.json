@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/kdiff-as-of-snapshot.schema.json",
+  "title": "Knowledge Diff As-Of Snapshot",
+  "description": "AS-2.2-KDIFF-001 read-only as-of projection over persisted Core state. Consumes AS-2.0-TEMPORAL-001 validity windows plus AS-CORE authority/freshness/conflict signals; never recomputes truth, never writes the vault, never uses wall-clock now. Prefer honest unknown over an invented current.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "artifact_kind",
+    "scope",
+    "as_of_valid_time",
+    "status",
+    "cells",
+    "cell_count",
+    "truncated",
+    "unresolved",
+    "caps",
+    "inspected_artifacts",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-KDIFF-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "artifact_kind": { "const": "kdiff-as-of-snapshot" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "const": "project" },
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "as_of_valid_time": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "knowledge_compilation_id": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "status": {
+      "enum": ["ok", "partial", "not_found", "rejected_malformed"]
+    },
+    "cells": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cell" }
+    },
+    "cell_count": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" },
+    "unresolved": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/unresolved" }
+    },
+    "caps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject_cap"],
+      "properties": {
+        "subject_cap": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "inspected_artifacts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "llm_authority"],
+      "properties": {
+        "level": { "const": "derived" },
+        "llm_authority": { "const": false },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "KDIFF AS-OF \u2260 AUTHORITY / \u2260 WALL-CLOCK NOW / \u2260 LAYER B MUTATION"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  },
+  "$defs": {
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "field",
+        "disposition",
+        "selected_claim_id",
+        "authority_disposition",
+        "authority_role",
+        "freshness",
+        "conflict_state",
+        "reason"
+      ],
+      "properties": {
+        "subject": { "type": "string", "minLength": 1 },
+        "field": { "type": "string", "minLength": 1 },
+        "disposition": {
+          "enum": ["selected", "not_found", "unresolved", "unknown"]
+        },
+        "selected_claim_id": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "value_sketch": { "type": "string", "maxLength": 240 },
+        "authority_disposition": {
+          "type": ["string", "null"],
+          "enum": [
+            "authoritative",
+            "subordinate",
+            "unresolved",
+            "authority-pending",
+            "authority-conflict",
+            "unknown",
+            null
+          ]
+        },
+        "authority_role": {
+          "enum": [
+            "authoritative",
+            "competing",
+            "subordinate",
+            "authority-pending",
+            "known-nonwinner",
+            "unknown"
+          ]
+        },
+        "freshness": { "enum": ["fresh", "stale", "unknown"] },
+        "conflict_state": { "enum": ["unresolved", "none", "unknown"] },
+        "conflict_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "candidate_claim_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          }
+        },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "unresolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "field", "reason"],
+      "properties": {
+        "subject": { "type": "string", "minLength": 1 },
+        "field": { "type": "string", "minLength": 1 },
+        "reason": {
+          "enum": [
+            "unresolved_overlap",
+            "unresolved_incomplete",
+            "temporal-data-missing",
+            "rejected_malformed"
+          ]
+        },
+        "candidate_claim_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          }
+        }
+      }
+    }
+  }
+}

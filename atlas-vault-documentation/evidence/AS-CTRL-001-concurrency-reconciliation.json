@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "evidence_type": "as-ctrl-001-concurrency-reconciliation",
+  "historical_failure": {
+    "test": "test_managed_launcher_automates_ack_capability_and_postflight",
+    "observed_at": "2026-08-01T18:04:09Z",
+    "status": "verification-failed",
+    "problems": [
+      "unexpected file produced: concurrent session normalized artifact",
+      "unexpected file produced: concurrent normalization failure temporary file"
+    ],
+    "raw_output": "verification-failed; normalized output failed verification; unexpected file produced in shared sources/agent-events directory"
+  },
+  "root_cause": {
+    "category": "shared-state-ordering-race",
+    "explanation": "Provider verification snapshots a shared event directory. Concurrent capture or normalization from another session can legitimately create files during that snapshot, which were classified as unsafe side effects.",
+    "initial_mitigation_limit": "Serializing provider normalization alone did not prevent a concurrent capture from appearing during the verification snapshot.",
+    "final_fix": "A per-Vault cross-process lock now covers capture through normalization and routing for online event submission. Spool capture remains independent while offline."
+  },
+  "regression": {
+    "focused_command": "./.venv/bin/python -m pytest atlas-vault-documentation/tests/test_agent_control.py::test_managed_launcher_automates_ack_capability_and_postflight -q",
+    "focused_result": "passed",
+    "repetition_command": "for i in 1 2 3 4 5 6 7 8 9 10; do ./.venv/bin/python -m pytest atlas-vault-documentation/tests/test_agent_control.py::test_managed_launcher_automates_ack_capability_and_postflight -q || exit $?; done",
+    "repetitions": 10,
+    "passed": 10,
+    "failed": 0,
+    "consecutive": true,
+    "full_suite_command": "./.venv/bin/python -m pytest atlas-vault-documentation/tests -q",
+    "full_suite_result": "passed",
+    "full_suite_tests": 146
+  },
+  "state_safety": {
+    "persistent_processes_after_validation": 0,
+    "persistent_normalization_locks": 0,
+    "temporary_harness_directories_remaining": 0,
+    "pending_spool_events": 0
+  },
+  "disposition": "post-fix concurrency evidence reconciled"
+}

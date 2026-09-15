@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/sync-plan-dry-run.schema.json",
+  "title": "Sync Plan Dry-Run (SYNC-002 scaffold)",
+  "description": "AS-SYNC-002-SCAFFOLD deterministic dry-run sync PLAN from an explicit workspace-registry document. Ordered project_uuid list + dispositions; checkpoint stubs null/empty. Never claims production SYNC-002 or PILOT PASS. No wall-clock generated.at.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "package",
+    "production_sync_certified",
+    "estate_pilot_passed",
+    "registry_id",
+    "vault_identity",
+    "project_order",
+    "entries",
+    "quarantine_paths",
+    "checkpoint",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.sync_plan.dry_run.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "DRY-RUN SYNC PLAN SCAFFOLD ≠ AS-SYNC-002 CERTIFIED / ≠ PILOT PASS"
+    },
+    "package": { "const": "AS-SYNC-002-SCAFFOLD" },
+    "production_sync_certified": { "const": false },
+    "estate_pilot_passed": { "const": false },
+    "registry_id": { "type": "string", "minLength": 1 },
+    "vault_identity": { "type": "string", "minLength": 1 },
+    "project_order": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project_uuid",
+          "disposition",
+          "reason",
+          "root_id",
+          "project_root"
+        ],
+        "properties": {
+          "project_uuid": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": ["eligible", "quarantined", "disabled"]
+          },
+          "reason": { "type": ["string", "null"] },
+          "root_id": { "type": "string", "minLength": 1 },
+          "project_root": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "quarantine_paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resume_from_project_uuid",
+        "completed_project_uuids",
+        "last_checkpoint_key"
+      ],
+      "description": "Retry/resume stubs for future SYNC-002; scaffold leaves them null/empty.",
+      "properties": {
+        "resume_from_project_uuid": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "completed_project_uuids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          }
+        },
+        "last_checkpoint_key": { "type": ["string", "null"] }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

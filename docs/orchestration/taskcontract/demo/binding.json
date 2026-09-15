@@ -1,0 +1,9 @@
+{
+  "binding_id": "demo-local",
+  "workspace_root": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract",
+  "state_root": "/home/gebruiker/.cache/atlas-taskcontract-demo/state",
+  "registry_root": "/home/gebruiker/.cache/atlas-taskcontract-demo/registry",
+  "interpreter": "/home/gebruiker/Projects/project-atlas-worktrees/backlog-contract/.venv/bin/python",
+  "profile_ref": "implementer",
+  "agent_role": "implementer"
+}

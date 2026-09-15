@@ -1,0 +1,21 @@
+{
+  "case_id": "BM-RET2-001",
+  "package_id": "AS-2.2-RET-HYBRID-001",
+  "title": "Lexical exact plan stability",
+  "fixture_ref": "docs/atlas-2.2/fixtures/hybrid-retrieval/plan-exact.sample.json",
+  "inputs": {
+    "kind": "concept",
+    "value": "demo-concept",
+    "mode": "exact",
+    "enable_semantic": false
+  },
+  "expect": {
+    "semantic_enabled": false,
+    "result_ids": ["demo-concept"],
+    "active_slot": "lexical_exact",
+    "vault_mutated": false
+  },
+  "signals": ["ops_count", "plan_digest"],
+  "gate_credit": "NO",
+  "runnable": false
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-REALITY-GAP-DEEPEN-PREP-001",
+  "action_id": "action.demo.reality-gap.unknown-as-healthy.forbidden",
+  "kind": "unknown_as_healthy",
+  "status": "rejected_forbidden",
+  "expected_error": "reality-gap-unknown-as-healthy-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "Coerce unknown inventory status to healthy"
+  },
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "release_certified": false,
+  "pilot_pass": false,
+  "canonical_writes": false,
+  "pilot_roots": 0,
+  "truth_boundary": "REALITY GAP PREP ≠ RELEASE CERT / ≠ UNLOCK / ≠ PILOT / ≠ UNKNOWN-AS-HEALTHY / ≠ UI CANONICAL / ≠ LLM AUTHORITY",
+  "_prep_note": "FX-2.2-REALITY-GAP-DEEPEN-101 — expected rejection of unknown_as_healthy"
+}

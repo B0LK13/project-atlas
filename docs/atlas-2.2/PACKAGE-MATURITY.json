@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "id": "AS-2.2-PACKAGE-MATURITY-001",
+  "title": "Atlas 2.2 package capability-maturity source of truth",
+  "description": "Single source of truth mapping each Atlas 2.2 package/capability to a maturity class. The prep-guard branch-scope tests key on this file instead of a blanket 'no src/ on any 2.2 branch' rule. A 'prep-frozen' package remains doc/contract/fixture only: its declared production_surface must NOT be mutated by any branch (DENY). An 'implementation-unlocked' capability has real authorized runtime evidence merged on main and MAY legitimately mutate its production_surface under normal governance (ALLOW). This does NOT delete the PREP<->IMPLEMENTATION boundary and is NOT a blanket 2.2 unlock: unlock is per-capability and evidence-driven. Flip a package to 'implementation-unlocked' here (with runtime evidence) at the moment its production surface is authorized.",
+  "maturities": ["prep-frozen", "implementation-unlocked"],
+  "gates": {
+    "ATLAS_2_1_RELEASE_CERTIFIED": "NO",
+    "ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED": "SELECTIVE",
+    "note": "SELECTIVE = per-capability unlock keyed on merged runtime evidence, never a blanket 2.2 unlock. prep-frozen packages stay frozen."
+  },
+  "surface_notes": "production_surface lists src paths that constitute a package's own 2.2 production surface (files ending in '/' are treated as directory prefixes). For prep-frozen packages this is the DENY set. Pan-core shared modules (e.g. knowledge_compiler.py, api_server.py, authz.py, ops_health.py) are intentionally NOT owned by 2.2 prep packages: they are governed by core's own tests, so 2.2 prep guards must not claim them (that was a source of false positives on legitimate branches).",
+  "packages": {
+    "ask-atlas-2": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-2.2/ask-atlas-2/",
+      "production_surface": [
+        "src/project_atlas/ask_atlas_live.py",
+        "src/project_atlas/web_ask_atlas.py"
+      ],
+      "evidence": "Ask Atlas live answer lens has authorized runtime (ask_atlas_live/web_ask_atlas merged on main); ADVANCE-005 ask lane. Directive D-INTEGRATE-007A names ask2 as implementation-unlocked.",
+      "guard_tests": ["tests/unit/test_as_2_2_ask2_deepen_prep_001.py"]
+    },
+    "time-machine": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-2.2/time-machine/",
+      "production_surface": [
+        "src/project_atlas/bitemporal.py",
+        "src/project_atlas/temporal_evaluator.py",
+        "src/project_atlas/temporal_evidence.py"
+      ],
+      "evidence": "Knowledge-diff / time-machine (kdiff) capability builds on merged temporal engine (bitemporal/temporal_evaluator on main). Directive names kdiff as implementation-unlocked.",
+      "guard_tests": ["tests/unit/test_as_2_2_time_machine_deepen_prep_001.py"]
+    },
+    "ret-hybrid": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-2.2/ret-hybrid/",
+      "production_surface": [
+        "src/project_atlas/hybrid_retrieval.py",
+        "src/project_atlas/retrieval_fusion.py"
+      ],
+      "evidence": "Lexical/BM25/RRF hybrid fusion merged (PR #292, ADVANCE-005 C2). No branch-scope guard test; recorded for completeness.",
+      "guard_tests": []
+    },
+    "ctx-compiler": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-2.2/ctx-compiler/",
+      "production_surface": [
+        "src/project_atlas/context_pack_composition.py",
+        "src/project_atlas/context_pack.py"
+      ],
+      "evidence": "AS-2.2 context compiler P2 pipeline merged (PR #290). No branch-scope guard test; recorded for completeness.",
+      "guard_tests": []
+    },
+    "runtime-001": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": null,
+      "production_surface": [
+        "src/project_atlas/runtime_22.py"
+      ],
+      "evidence": "atlas runtime hybrid-retrieve/compile-context project-scope merged (PR #302, CLAUDE-009/013). No branch-scope guard test; recorded for completeness.",
+      "guard_tests": []
+    },
+    "eval-matrix": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": null,
+      "production_surface": [
+        "src/project_atlas/eval_substrate.py"
+      ],
+      "evidence": "AS-2.2-EVAL-001 substrate with hidden-holdout isolation + integrated case-class matrix merged (PR #293/#304). No branch-scope guard test; recorded for completeness.",
+      "guard_tests": []
+    },
+    "conflict-ux": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/conflict-ux/",
+      "production_surface": [
+        "src/project_atlas/conflict_projections.py"
+      ],
+      "evidence": "Conflict UX 2.2 surface is docs/contracts/fixtures only; no authorized runtime. conflict_projections.py is its designated 2.2 surface and must not be mutated while frozen.",
+      "guard_tests": [
+        "tests/unit/test_as_2_2_conflict_ux_prep_001.py",
+        "tests/unit/test_as_2_2_conflict_ux_deepen_prep_001.py"
+      ]
+    },
+    "chatgpt-live": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/chatgpt-live/",
+      "production_surface": [
+        "src/project_atlas/chatgpt_bridge.py",
+        "src/project_atlas/chatgpt_capture.py"
+      ],
+      "evidence": "ChatGPT live bridge 2.2 deepen is docs/contracts/fixtures only; chatgpt_bridge/chatgpt_capture are its designated surface and stay frozen.",
+      "guard_tests": [
+        "tests/unit/test_as_2_2_chatgpt_live_prep_001.py",
+        "tests/unit/test_as_2_2_chatgpt_live_deepen_prep_001.py"
+      ]
+    },
+    "compat-pin": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/compat-pin/",
+      "production_surface": [
+        "src/project_atlas/compat_anchor.py"
+      ],
+      "evidence": "Compat-pin 2.2 expectations are docs-only; compat_anchor.py is its designated surface and stays frozen.",
+      "guard_tests": ["tests/unit/test_as_2_2_compat_pin_deepen_prep_001.py"]
+    },
+    "reality-live": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/reality-live/",
+      "production_surface": [
+        "src/project_atlas/reality_gap.py",
+        "src/project_atlas/reality_gap_ui.py"
+      ],
+      "evidence": "Reality-live 2.2 deepen is docs/contracts/fixtures only; reality_gap/reality_gap_ui are its designated surface and stay frozen.",
+      "guard_tests": ["tests/unit/test_as_2_2_reality_live_deepen_prep_001.py"]
+    },
+    "temporal-ux": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/temporal-ux/",
+      "production_surface": [],
+      "evidence": "Temporal-UX presentation layer is docs/contracts/fixtures only with no dedicated 2.2 module. The temporal engine (bitemporal/temporal_evaluator) is core/time-machine surface, not temporal-ux's, so it is not denied here.",
+      "guard_tests": [
+        "tests/unit/test_as_2_2_temporal_ux_prep_001.py",
+        "tests/unit/test_as_2_2_temporal_ux_deepen_prep_001.py"
+      ]
+    },
+    "estate-ops": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/estate-ops/",
+      "production_surface": [],
+      "evidence": "Estate-ops 2.2 is estate-lens contracts only with no dedicated 2.2 module. ops_health/ops_events are pan-core ops surfaces governed by core, not estate-ops, so they are not denied here.",
+      "guard_tests": [
+        "tests/unit/test_as_2_2_estate_ops_prep_001.py",
+        "tests/unit/test_as_2_2_estate_ops_deepen_prep_001.py"
+      ]
+    },
+    "research": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/research/",
+      "production_surface": [],
+      "evidence": "Research workspace 2.2 deepen is docs/contracts/fixtures only with no dedicated 2.2 module.",
+      "guard_tests": ["tests/unit/test_as_2_2_research_deepen_prep_001.py"]
+    },
+    "dod-compiler": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/dod-compiler/",
+      "production_surface": [],
+      "evidence": "DoD compiler 2.2 deepen is docs/contracts/fixtures only with no dedicated 2.2 module.",
+      "guard_tests": ["tests/unit/test_as_2_2_dod_deepen_prep_001.py"]
+    },
+    "mem-gov": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/mem-gov/",
+      "production_surface": [],
+      "evidence": "Mem-gov 2.2 is docs/contracts/fixtures only with no dedicated 2.2 module (its concerns live in pan-core api_server/authz/ops_receipts governed by core).",
+      "guard_tests": [
+        "tests/unit/test_as_2_2_mem_gov_prep_001.py",
+        "tests/unit/test_as_2_2_mem_gov_deepen_prep_001.py"
+      ]
+    },
+    "intel-slice": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/intel-slice/",
+      "production_surface": [],
+      "evidence": "Intel-slice 2.2 is docs/contracts/fixtures only with no dedicated 2.2 module.",
+      "guard_tests": [
+        "tests/unit/test_as_2_2_intel_slice_prep_001.py",
+        "tests/unit/test_as_2_2_intel_slice_deepen_prep_001.py"
+      ]
+    },
+    "doc-charter": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/doc-charter/",
+      "production_surface": [],
+      "evidence": "Doc-charter is a charter/maturity-matrix doc package only with no dedicated 2.2 module.",
+      "guard_tests": [
+        "tests/unit/test_as_2_2_doc_charter_prep_001.py",
+        "tests/unit/test_as_2_2_doc_charter_deepen_prep_001.py"
+      ]
+    }
+  }
+}

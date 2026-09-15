@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/dod-evidence-ref.schema.json",
+  "title": "dod-evidence-ref (PREP STUB — not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "evidence_id",
+    "criterion_id",
+    "evidence_class",
+    "pointer"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.dod.evidence_ref.v0" },
+    "evidence_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "criterion_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "evidence_class": {
+      "type": "string",
+      "enum": [
+        "unit_test",
+        "integration_test",
+        "adv_matrix",
+        "fixture_receipt",
+        "ci_digest",
+        "ops_receipt",
+        "authentic_pilot",
+        "release_checklist"
+      ]
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["repo_path", "receipt_id", "digest_sha256", "uri_deny"]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "description": "Relative repo path, receipt id, or hex digest; uri_deny always fail-closed in prep"
+        }
+      }
+    },
+    "invented": { "const": false }
+  }
+}

@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["schema_version","agents"],"properties":{"schema_version":{"const":1},"agents":{"type":"array","items":{"type":"object","required":["adapter_id","agent_type","receipt_required"]}}}}

@@ -1,0 +1,5 @@
+# Test-only dependencies for the ATLAS-FOR-CHATGPT-READONLY-001 integration.
+# Runtime deps live in requirements.txt; these are needed only to run pytest.
+-r requirements.txt
+pytest>=8.4
+pytest-asyncio>=1.4  # async MCP server handler tests (asyncio_mode=auto)

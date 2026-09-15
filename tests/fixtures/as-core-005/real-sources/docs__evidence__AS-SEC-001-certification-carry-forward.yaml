@@ -1,0 +1,88 @@
+schema_version: 1
+work_package: AS-SEC-001
+status: certification-carry-forward-approved
+
+original_certified_base: 7e720bda1a9efe3950a7943968024805fdfd2f6f
+certified_candidate: 0a3ee8f65735ee72f5e3dc65b02dfa7e90bb987d
+new_main: ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1
+
+ancestry:
+  base_is_ancestor_of_new_main: true
+  base_is_ancestor_of_candidate: true
+  prior_evidence_ancestor_3f11bb7_is_ancestor_of_candidate: true
+  merge_base_new_main_and_candidate: 7e720bda1a9efe3950a7943968024805fdfd2f6f
+  merge_base_matches_original_certified_base: true
+
+intervening_package:
+  id: AS-MAINT-001
+  implementation_commit: cf858185af9ea0aa18e550130f1fafab1e2e74b4
+  evidence_commit: 4ff107db32fffcd4252f7eb438fc301715266a55
+  merge_commit: ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1
+  type: git-mode-only-maintenance
+  content_bytes_changed: false
+  security_source_overlap: none
+  security_test_overlap: none
+  intervening_diff_base_to_new_main:
+    - WORKLOG.md
+    - atlas-vault-documentation/tests/fixtures/bin/mda (mode 100644 -> 100755)
+    - docs/evidence/AS-MAINT-001-receipt.yaml (new)
+
+candidate_scope_diff_base_to_candidate:
+  touches_src: true
+  touches_tests: true
+  touches_atlas_vault_documentation: false
+  touches_fixture_mda: false
+  files:
+    - src/project_atlas/discovery.py
+    - src/project_atlas/ingestion.py
+    - src/project_atlas/knowledge_compiler.py
+    - src/project_atlas/quarantine.py (new)
+    - src/project_atlas/validation.py
+    - tests/fixtures/adversarial-project/** (new, 26 files)
+    - tests/integration/test_as_sec_001_quarantine_boundary.py (new)
+    - tests/unit/test_quarantine.py (new)
+    - tests/unit/test_quarantine_fuzz.py (new)
+    - WORKLOG.md
+    - docs/evidence/AS-SEC-001-receipt.yaml (new)
+
+overlap:
+  method: >-
+    git diff --name-status comparing (base..new_main) against
+    (base..candidate); intersected the two path sets.
+  result: WORKLOG.md only
+  production_overlap: none
+  test_overlap: none
+  fixture_overlap: none
+  receipt_overlap: none
+
+preview_merge:
+  method: >-
+    git worktree add --detach at new_main, git switch -c
+    review/as-sec-001-integration-preview, then
+    git merge --no-commit --no-ff <certified_candidate>
+  result: CONFLICT (content) in WORKLOG.md only; all other paths applied cleanly
+  unmerged_paths:
+    - WORKLOG.md
+  aborted: true
+  worktree_removed: true
+
+review:
+  ancestry_verified: true
+  candidate_unchanged: true
+  intervening_diff_reviewed: true
+  overlap: WORKLOG.md only, resolved by preserving both histories chronologically
+  full_recertification_required: false
+  focused_post_merge_validation_required: true
+
+certification_carry_forward_conditions:
+  as_maint_001_is_only_intervening_change: true
+  production_effect_limited_to_fixture_mode: true
+  fixture_bytes_unchanged: true
+  as_maint_001_does_not_alter_as_sec_001_code_or_tests: true
+  certified_candidate_hash_unchanged: true
+  candidate_history_not_rewritten: true
+  maintenance_merge_removes_disclosed_control_plane_defect: true
+  no_semantic_conflict: true
+  final_post_merge_gates_pass: pending_post_merge_validation
+
+merge_authorized: true

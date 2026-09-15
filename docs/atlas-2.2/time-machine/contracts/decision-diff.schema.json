@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/decision-diff.schema.json",
+  "title": "decision-diff (PREP STUB — not package data)",
+  "description": "AS-2.2-TIME-MACHINE-001 decision/review disposition delta. Not silent approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "opened",
+    "closed",
+    "transitioned",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TIME-MACHINE-001" },
+    "opened": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision_id", "disposition"],
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "disposition": {
+            "enum": ["open", "accepted", "rejected", "deferred", "superseded"]
+          }
+        }
+      }
+    },
+    "closed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision_id", "disposition"],
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "disposition": {
+            "enum": ["accepted", "rejected", "deferred", "superseded"]
+          }
+        }
+      }
+    },
+    "transitioned": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision_id", "from_disposition", "to_disposition"],
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "from_disposition": {
+            "enum": ["open", "accepted", "rejected", "deferred", "superseded"]
+          },
+          "to_disposition": {
+            "enum": ["open", "accepted", "rejected", "deferred", "superseded"]
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "DECISION DIFF ≠ HUMAN APPROVAL / ≠ AUTHORITY"
+    }
+  }
+}

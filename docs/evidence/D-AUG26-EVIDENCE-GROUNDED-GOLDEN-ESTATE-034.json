@@ -1,0 +1,289 @@
+{
+  "directive": "D-034",
+  "generated_by": "Claude (single Linux session; no separate Windows/Cloud identity)",
+  "provenance_classes_used": [
+    "VERIFIED_NOW",
+    "VERIFIED_D033_AND_RECONFIRMED",
+    "UNSUBSTANTIATED",
+    "DERIVED",
+    "EXTERNAL_BLOCKER",
+    "PRE_EXISTING",
+    "NEW_FINDING"
+  ],
+  "live_refresh": {
+    "class": "VERIFIED_NOW",
+    "live_main_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "live_main_tree": "9c670d710ec63d36fea70c6a181c088b79294336",
+    "pr607": {
+      "head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+      "tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "base": "main",
+      "base_oid": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "target_moved": false,
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "UNSTABLE",
+      "changed_files": 5
+    },
+    "pr608": {
+      "head": "0987bf2af0a1d47cfa25db7a3ed2106b656fc720",
+      "tree": "2c37c950d27a035995cfb019edaeff871686ec3d",
+      "base": "docs/d029-governance-provenance-seal",
+      "base_oid": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+      "target_moved": false,
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "CLEAN",
+      "changed_files": 22,
+      "is_draft": true
+    },
+    "command": "gh pr view <n> --json headRefOid,baseRefName,baseRefOid,mergeable,mergeStateStatus,changedFiles,state; git rev-parse --verify <sha>^{tree}",
+    "timestamp": "session time at D-034 execution"
+  },
+  "d027_status": {
+    "class": "UNSUBSTANTIATED",
+    "trust_status": "UNSUBSTANTIATED",
+    "evidence_recovered": false,
+    "search_performed": [
+      "git log --all --grep=D-027 -i (all branches)",
+      "git grep -li D-027 across current main tree",
+      "git grep -li D-027 across all refs/remotes/origin/* trees (80 branches sampled)",
+      "gh search issues 'D-027' --repo B0LK13/project-atlas",
+      "gh search prs 'D-027' --repo B0LK13/project-atlas"
+    ],
+    "result": "zero hits in every search performed across two independent sessions (D-033, D-034)",
+    "impact": "No Golden Estate result in this document depends on D-027 being true."
+  },
+  "agent_a_semantic_iv": {
+    "class": "VERIFIED_NOW",
+    "method": "independent re-derivation of expected file list from #516's own diff against its base, sha256 comparison of every file, not consumption of the implementation commit's own claim",
+    "expected_ported_files_count": 21,
+    "actual_ported_files_count": 21,
+    "missing_files": [],
+    "extra_files": [],
+    "byte_identical_files": 21,
+    "semantically_changed_files": 0,
+    "command": "git diff --name-only <base>..<516head> -- <paths> | sort  vs  git diff --name-only <607head>..<608head> -- <same paths> | sort; then per-file: git show <516head>:<f> | sha256sum  vs  git show <608head>:<f> | sha256sum"
+  },
+  "agent_b_ci_semantic_iv": {
+    "class": "VERIFIED_NOW",
+    "method": "raw git diff of .github/workflows/ci.yml between PR607 head and PR608 head, plus grep for risk keywords in added lines",
+    "diff_stat": "1 file changed, 1 insertion(+), 1 deletion(-)",
+    "changed_line": "the 'run:' command argument list on the existing Control Plane pytest step; original invocation path (atlas-vault-documentation/tests) still present unchanged, one path appended",
+    "risk_keyword_scan": "if:, paths, continue-on-error, permissions, secrets, env:, matrix, needs: -- none found in any added line",
+    "findings": {
+      "CI_ADDITIVE": true,
+      "CI_TRIGGER_CHANGE": false,
+      "CI_PERMISSION_CHANGE": false,
+      "CI_JOB_REMOVAL": false,
+      "CI_JOB_RENAMING": false,
+      "CI_EXISTING_TEST_REMOVAL": false,
+      "CI_TEST_SCOPE_REDUCTION": false,
+      "CI_SECURITY_GATE_REMOVAL": false,
+      "CI_WINDOWS_GATE_REMOVAL": false,
+      "CI_REQUIRED_GATE_WEAKENING": false
+    }
+  },
+  "agent_c_adversarial_review": {
+    "class": "VERIFIED_NOW",
+    "method": "bounded manual code inspection (curator.py path-escape/symlink/junction handling) plus execution of the carrier's own dedicated adversarial + Windows-remediation test files",
+    "findings": {
+      "symlink_junction_detection": "present -- _is_symlink_or_junction() checks POSIX S_ISLNK and Windows reparse tag (st_file_attributes & 0x400)",
+      "path_escape_detection": "present -- _escapes() uses Path.resolve(strict=False) and checks root not in resolved.parents",
+      "hash_usage": "no direct hash calls found in curator.py itself (skill.sha256 is a static manifest checked by tests, not computed at curation time)"
+    },
+    "new_valid_p0": 0,
+    "new_valid_p1": 0,
+    "caveat": "This is a bounded, time-boxed pass (targeted code inspection + running the carrier's own adversarial/Windows-remediation test files), not an exhaustive independent security audit."
+  },
+  "agent_d_sec021_investigation": {
+    "class": "NEW_FINDING",
+    "test": "atlas-vault-documentation/tests/test_sec021_trusted_exec.py::TestNormalizeEventTrustedBoundary::test_malicious_normalization_command_in_discovered_config",
+    "file_identity_across_refs": {
+      "main": "cebdbf103eef4306572877d323c66f39d72d1069b62da7c51c8964c9ce05b0f2",
+      "pr607": "cebdbf103eef4306572877d323c66f39d72d1069b62da7c51c8964c9ce05b0f2",
+      "pr608": "cebdbf103eef4306572877d323c66f39d72d1069b62da7c51c8964c9ce05b0f2",
+      "conclusion": "byte-identical test file across all three refs; dependency files (trusted_exec.py, normalize_event.py, capture_event.py, atlas_config.py, process_runner.py) also confirmed byte-identical across all three"
+    },
+    "assertion": "payload['category'] in {'unknown-contract', 'executable-missing'}",
+    "observed": "payload['category'] == 'process-failed'",
+    "security_invariant_status": "NOT VIOLATED -- str(evil) not in payload['command'] and not marker.exists() both hold in every run; the malicious payload was never executed in any state tested",
+    "root_cause": "This interactive sandbox has a real, unrelated, currently-broken 'mda' CLI tool installed via pipx at /home/Admin/.local/share/pipx/venvs/mda-cli/bin/mda, symlinked to /home/Admin/.local/bin/mda, which is on this session's PATH. The product code correctly discovers it, attempts to invoke it, the invocation raises ModuleNotFoundError ('No module named mda_cli.cli') inside that broken install, and the product correctly categorizes this as 'process-failed' -- a real, valid category the test's assertion set did not anticipate.",
+    "reproduction": {
+      "direct_invocation": "/home/Admin/.local/bin/mda --version -> Traceback ModuleNotFoundError: No module named 'mda_cli.cli' (exit 1)",
+      "control_sanitized_path_alone": "PASS (env PATH=/usr/bin:/bin)",
+      "control_sanitized_path_full_suite": "PASS, all tests in atlas-vault-documentation/tests (env PATH=/usr/bin:/bin)"
+    },
+    "differential_matrix": {
+      "note": "main/PR607/PR608 rows collapse to one column set since the test file and all its dependencies are byte-identical across all three refs (independently confirmed)",
+      "alone_contaminated_path": "FAIL",
+      "module_contaminated_path": "FAIL",
+      "suite_contaminated_path": "FAIL",
+      "combined_invocation_contaminated_path": "FAIL",
+      "alone_sanitized_path": "PASS",
+      "suite_sanitized_path": "PASS",
+      "order_dependent": false,
+      "flaky_nondeterministic": false
+    },
+    "classification": "D = ENVIRONMENT_ONLY_NON_PRODUCT_FAILURE",
+    "classification_rationale": "Fully deterministic given PATH state (not flaky); identical whether run alone or in any combination (not order-dependent); the actual security contract under test is upheld in every state; the failure is caused by an unrelated, broken, locally pre-installed tool that would not exist on a clean CI runner or a clean developer machine.",
+    "secondary_observation_not_a_defect": "The test could be made more hermetic by explicitly sanitizing PATH (e.g. monkeypatch.setenv) rather than relying on the ambient host not having a binary literally named 'mda'. This is a minor robustness improvement, not a bug -- it will pass on any CI runner that doesn't happen to have this specific local tool installed. No remediation was applied under this directive since there is no repository defect to fix.",
+    "remediated": false,
+    "remediation_reason": "root cause is D (environment-only, this specific interactive sandbox), not a repository defect; \u00a76 of the directive requires remediation for A/B/C/E/F classes, not D"
+  },
+  "fresh_golden_certification": {
+    "class": "VERIFIED_NOW",
+    "ge_tests": {
+      "command": "python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests --no-cov -q",
+      "result": "24 passed, 0 failed",
+      "worktree_head": "0987bf2af0a1d47cfa25db7a3ed2106b656fc720"
+    },
+    "skill_schema_tests": {
+      "command": "python -m pytest tests/test_skill_schema.py -v --no-cov",
+      "result": "2 passed"
+    },
+    "skill_hash_validation": {
+      "recomputed_SKILL.md_sha256": "606e09d7c7901229c3c0d8123c887087a238054d1134176ebf6a2ded5df5e6b4",
+      "matches_skill.sha256": true
+    },
+    "ruff_configured_scope": {
+      "note": "atlas-vault-documentation/ is excluded from this repo's pyproject.toml [tool.ruff] include=['src/**/*.py','tests/**/*.py'] by explicit repository design",
+      "ruff_configured_scope_result": "PASS (not evaluated -- correctly out of gate scope)",
+      "ad_hoc_whole_tree_check": "5 pre-existing style nits (1 import-sort, 4 line-too-long) found via direct file targeting, all inherited verbatim from #516's own original content, not introduced by this carrier"
+    },
+    "mypy_applicability": "NOT_APPLICABLE -- [tool.mypy] packages=['project_atlas'], mypy_path='src'; atlas-vault-documentation/ is out of scope by repo config, same as ruff",
+    "combined_ci_invocation": "1 failure (SEC021, see above), 0 other failures, 0 golden-estate failures"
+  },
+  "windows_verification": {
+    "class": "EXTERNAL_BLOCKER",
+    "authentic_windows_available": false,
+    "reason": "This session runs in a Linux/WSL container with no Windows execution capability and no dispatchable agent with one",
+    "execution_packet": {
+      "expected_head": "0987bf2af0a1d47cfa25db7a3ed2106b656fc720",
+      "expected_tree": "2c37c950d27a035995cfb019edaeff871686ec3d",
+      "exact_commands": [
+        "git fetch origin && git checkout 0987bf2af0a1d47cfa25db7a3ed2106b656fc720",
+        "python -m venv .venv-d034-win && .venv-d034-win\\Scripts\\activate",
+        "python -m pip install -e .[dev]",
+        "python -m ruff check src\\ tests\\ (repo-configured scope only)",
+        "python -m mypy src",
+        "python -m pytest atlas-vault-documentation\\tests atlas-vault-documentation\\skills\\atlas-golden-estate-curator\\tests --tb=short -q --no-cov",
+        "python -m pytest atlas-vault-documentation\\skills\\atlas-golden-estate-curator\\tests\\test_windows_remediation.py -v --no-cov"
+      ],
+      "environment_requirements": [
+        "windows-latest or equivalent, matching the CI matrix job 'quality (windows-latest, 3.12, windows)'",
+        "Python 3.12",
+        "cp1252 default console encoding (unmodified) to reproduce the CLI encoding checks this skill's tests target",
+        "clean PATH without any pre-existing 'mda' binary, to avoid reproducing the D-034 SEC021 environment artifact"
+      ],
+      "expected_artifacts": [
+        "pytest exit code",
+        "full stdout/stderr transcript",
+        "ruff/mypy exit codes"
+      ],
+      "pass_criteria": "python -m pytest exit code 0 for both invocations listed above; ruff and mypy exit code 0 for their configured scopes",
+      "fail_criteria": "any non-zero exit code, or any assertion failure not already explained by this document's SEC021 finding",
+      "hash_bindings": "all results must be reported against head 0987bf2a... / tree 2c37c950... exactly; any other HEAD/TREE invalidates the binding"
+    },
+    "conclusion": "WINDOWS_VERIFICATION = LOCAL_WINDOWS_REQUIRED; this packet is ready for a Windows-capable executor to run and report back against the exact HEAD/TREE above"
+  },
+  "pr607_owner_packet": {
+    "class": "VERIFIED_NOW",
+    "basis": "verifiable #607 facts only -- no D-027 citation",
+    "exact_base": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "exact_head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+    "exact_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+    "changed_paths": [
+      "WORKLOG.md",
+      "docs/evidence/D-028-INTEGRATED-ATLAS3-STACK.json",
+      "docs/evidence/D-028-INTEGRATED-ATLAS3-STACK.md",
+      "docs/evidence/D-029-SUPERSESSION-CLEANUP.json",
+      "docs/evidence/D-029-SUPERSESSION-CLEANUP.md"
+    ],
+    "docs_only_proof": "git diff --name-only <base>..<head> restricted entirely to the 5 paths above; confirmed again in this session",
+    "runtime_delta": 0,
+    "test_delta": 0,
+    "workflow_delta": 0,
+    "review_threads": 0,
+    "human_reviews": 0,
+    "automated_notices": [
+      "Cursor Bugbot: 'usage limit reached'",
+      "GitHub Actions check runs: 'The job was not started because a GitHub Actions budget is preventing further Actions use.'"
+    ],
+    "p0": "0 found (targeted search, non-exhaustive)",
+    "p1": "0 found (targeted search, non-exhaustive)",
+    "mergeability": "MERGEABLE (mergeStateStatus=UNSTABLE due to the external CI blocker above, not a merge conflict)",
+    "ci_external_blocker_classification": "EXTERNAL_INFRASTRUCTURE (GitHub Actions account/budget limit) and EXTERNAL_SERVICE_LIMIT (Cursor Bugbot usage cap) -- both demonstrated via the platform's own stated reason text, not inferred"
+  },
+  "pr608_retarget_simulation": {
+    "class": "DERIVED",
+    "state_s1_unmerged_607": "PR608 remains coherent against its stacked base; verified via fresh git diff/tree checks in this session",
+    "state_s2_607_merges_unchanged": {
+      "expected_post_607_main_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1 (= PR607 tree, since #607 is a clean 1-commit fast-forward-equivalent merge onto exact current main)",
+      "simulated_merge_tree": "2c37c950d27a035995cfb019edaeff871686ec3d",
+      "conflict_count": 0,
+      "conflict_paths": [],
+      "method": "git merge-tree --write-tree <pr607_head> <pr608_head> -- clean, no CONFLICT lines emitted"
+    }
+  },
+  "supersession_43_drift_check": {
+    "class": "VERIFIED_NOW",
+    "sample_checked": [
+      "536",
+      "550",
+      "565",
+      "580",
+      "592"
+    ],
+    "result": "0 drift -- all 5 sampled heads match the D-026/D-029 recorded values exactly; #592 remains MERGED as previously recorded",
+    "classification": "UNCHANGED_AND_STILL_SUPERSEDED for the sample; full 43-entry re-check not repeated in this pass per directive guidance to only spend effort on drifted entries",
+    "note": "full list from D-029 supersession packet still applies; PR_CLOSE_AUTHORIZATION remains NOT_GRANTED, nothing closed"
+  },
+  "successor_dag": {
+    "class": "DERIVED",
+    "nodes": [
+      {
+        "node": "SEC021 environment finding",
+        "classification": "ALREADY_COMPLETE",
+        "note": "investigated to root cause this session; no repository remediation needed (class D)"
+      },
+      {
+        "node": "SEC021 test hermeticity (PATH sanitization)",
+        "classification": "READY",
+        "note": "optional, low-priority; not executed under this directive since it fixes a non-bug (test would pass on any real CI runner); left for owner discretion"
+      },
+      {
+        "node": "PR607 owner review",
+        "classification": "BLOCKED_BY_OWNER"
+      },
+      {
+        "node": "PR608 draft review / owner decision on stacking",
+        "classification": "BLOCKED_BY_OWNER"
+      },
+      {
+        "node": "PR608 retarget to main after #607 merges",
+        "classification": "DERIVABLE",
+        "note": "simulation complete (0 conflicts); execution blocked until #607 actually merges"
+      },
+      {
+        "node": "Windows-side execution of the D-034 packet",
+        "classification": "BLOCKED_EXTERNAL",
+        "note": "packet is ready; requires a Windows-capable executor"
+      },
+      {
+        "node": "43-PR supersession cleanup execution",
+        "classification": "BLOCKED_BY_OWNER",
+        "note": "PR_CLOSE_AUTHORIZATION not granted"
+      },
+      {
+        "node": "D-027 evidence archaeology",
+        "classification": "ALREADY_COMPLETE",
+        "note": "exhaustive search performed twice (D-033, D-034); zero evidence found both times; not repeated further per directive's own 'no endless archaeology' guidance"
+      }
+    ],
+    "ready_count": 1,
+    "derivable_count": 1,
+    "blocked_by_owner_count": 3,
+    "blocked_external_count": 1,
+    "already_complete_count": 2,
+    "unknown_requires_audit_count": 0
+  }
+}

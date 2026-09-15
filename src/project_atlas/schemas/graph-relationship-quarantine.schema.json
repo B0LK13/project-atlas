@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-relationship-quarantine.schema.json",
+  "title": "Graph Relationship Quarantine Candidate",
+  "description": "AS-GRAPH-003 soft quarantine for orphaned / rejected / incompatible edges. Handoff to AS-GRAPH-004. Never last-write-wins. Never claim-conflict synthesis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "project_id",
+    "candidate_id",
+    "category",
+    "authority",
+    "status",
+    "reason"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-003" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "candidate_id": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": [
+        "orphaned-endpoint",
+        "quarantined-endpoint",
+        "cross-project-endpoint",
+        "incompatible-duplicate",
+        "capacity-rejected",
+        "malformed-edge"
+      ]
+    },
+    "relationship_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "graphify_edge_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "source_graphify_id": { "type": "string" },
+    "target_graphify_id": { "type": "string" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "quarantine_candidate" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH RELATIONSHIP ≠ AUTOMATIC AUTHORITY"
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "sha256"],
+        "properties": {
+          "relative_path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  }
+}

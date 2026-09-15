@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-COMPAT-PIN-DEEPEN-PREP-001",
+  "action_id": "action.demo.compat-pin.pilot-invent.forbidden",
+  "kind": "pilot_invent",
+  "status": "rejected_forbidden",
+  "expected_error": "compat-pin-pilot-invent-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "Prep fixtures must not invent PILOT roots to justify anchor publication"
+  },
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "release_certified": false,
+  "pilot_pass": false,
+  "canonical_writes": false,
+  "pilot_roots": 0,
+  "truth_boundary": "COMPAT PIN PREP ≠ RELEASE ANCHOR / ≠ PILOT PASS / ≠ RUNTIME MUTATION",
+  "_prep_note": "FX-2.2-COMPAT-DEEPEN-102 — expected rejection of pilot_invent"
+}

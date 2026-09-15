@@ -1,0 +1,10 @@
+{
+  "action": "release-cert-stamp",
+  "authentic_estate": false,
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "KCI rehearsal must not stamp release certification",
+  "release_certified": false
+}

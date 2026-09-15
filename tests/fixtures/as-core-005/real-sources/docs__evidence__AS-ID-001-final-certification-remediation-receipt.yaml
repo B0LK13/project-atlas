@@ -1,0 +1,98 @@
+package: AS-ID-001
+title: Final bounded certification remediation
+certified_base_commit: 313712ee28083693ae39470b2d7148dc74617322
+architecture_contract_commit: ae98fba
+previous_blocked_candidate: 91cbab5
+remediation_implementation_commit: cc49619d16decd089975ecdd4972fab5f034362e
+evidence_commit: SELF
+status: implementation-complete-independent-rereview-required
+architecture_rereview: pending
+scope:
+  - explicit lineage-resolution contract and fail-closed validation
+  - retired-slot generation reachability and max-generation allocation
+  - unresolved-source-identity finding completion
+  - migration continuity-chain evidence edges
+  - restoration and supersession relationship population
+  - overlapping test-count reconciliation
+implementation:
+  lineage_resolution:
+    outcomes: [continue_existing, create_new_generation, unresolved]
+    authorities: [system_proven, curator_approved]
+    invalid_values: rejected_before_registry_construction
+    unresolved_mutations: zero
+  retired_slot_generation:
+    explicit_new_generation: passed
+    generation_policy: max_retained_slot_generation_plus_one
+    prior_generations_retained: true
+    identical_and_changed_reoccupation: covered
+  relationships:
+    restored_as: current_canonical_path_for_proven_restoration
+    supersedes_lineage: populated_for_explicit_new_generation
+    superseded_by_lineage: populated_on_direct_prior_retired_generation
+  unresolved_finding:
+    schema_version: 1
+    finding_type: unresolved-source-identity
+    fields: [finding_id, project_uuid, observed_path, observed_content_sha256, reason, candidate_lineage_ids, resolution_required]
+    deterministic_replay: passed
+    constructor_io: none
+  migration_receipts:
+    continuity_chain: ordered_record_references
+    evidence_edges: ordered_adjacent_relationship_edges
+    ordering_key: [first_seen, canonical_origin_path, first_content_sha256]
+    duplicate_replay: none
+validation:
+  focused_remediation:
+    command: ./.venv/bin/python -m pytest tests/unit/test_source_identity.py tests/integration/test_core_semantic_lifecycle.py -q
+    result: 33 passed
+    description: combined overlapping focused selection
+  migration_tests:
+    command: ./.venv/bin/python -m pytest tests/unit/test_source_identity.py -q
+    result: 14 passed
+    description: subset of focused_remediation
+  identity_lifecycle_tests:
+    command: ./.venv/bin/python -m pytest tests/integration/test_core_semantic_lifecycle.py -q
+    result: 19 passed
+    description: subset of focused_remediation
+  core_suite:
+    command: ./.venv/bin/python -m pytest -q
+    result: 114 passed
+    prior_reviewed_result: 112 passed
+    reconciliation: 2 additional targeted source-identity tests; no tests removed, moved, or deselected
+  control_plane_suite:
+    command: ./.venv/bin/python -m pytest atlas-vault-documentation/tests -q
+    result: 146 passed
+    diff: zero
+  mypy:
+    command: ./.venv/bin/python -m mypy src
+    result: clean, 31 source files
+  ruff:
+    command: ./.venv/bin/python -m ruff check src tests
+    result: passed
+  compilation:
+    command: ./.venv/bin/python -m compileall -q src
+    result: passed
+  public_cli_workflow:
+    command: ./.venv/bin/python -m pytest tests/integration/test_core_vertical_slice.py -q
+    result: 3 passed
+  public_multiprocess_concurrency:
+    command: ./.venv/bin/python -m pytest tests/integration/test_core_semantic_lifecycle.py -q -k public_multiprocess
+    result: 1 passed; one UUID, one allocation receipt, shared winner, no lock artifact
+  security_regressions:
+    command: ./.venv/bin/python -m pytest tests/integration/test_ingestion_security.py -q
+    result: 8 passed
+  strict_vault_validation: passed in public Core workflow tests
+  unchanged_replay: passed with zero filesystem drift in lifecycle and migration coverage
+  same_run_rename_move: passed in Core lifecycle coverage
+  migration_rollback: passed in Core transaction coverage
+  multi_project_rollback: passed in Core transaction coverage
+  lineage_collision: passed; conflicting duplicate identities rejected
+protected_branches:
+  main: 313712ee28083693ae39470b2d7148dc74617322
+  original_as_core_003: 04a62fe
+  adapted_as_core_003_implementation: 49e9a91
+  adapted_as_core_003_evidence: c120c03
+  architecture: ae98fba
+notes:
+  - This receipt supersedes the evidence accounting at 91cbab5; historical evidence was not rewritten.
+  - No certification, merge eligibility, or architecture conformance claim is made.
+  - AS-CORE-003 remains outside this branch and unchanged.

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-REALITY-GAP-DEEPEN-PREP-001",
+  "action_id": "action.demo.reality-gap.runtime-mutation.forbidden",
+  "kind": "runtime_mutation",
+  "status": "rejected_forbidden",
+  "expected_error": "reality-gap-runtime-mutation-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "Mutate project_atlas runtime from gap prep"
+  },
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "release_certified": false,
+  "pilot_pass": false,
+  "canonical_writes": false,
+  "pilot_roots": 0,
+  "truth_boundary": "REALITY GAP PREP ≠ RELEASE CERT / ≠ UNLOCK / ≠ PILOT / ≠ UNKNOWN-AS-HEALTHY / ≠ UI CANONICAL / ≠ LLM AUTHORITY",
+  "_prep_note": "FX-2.2-REALITY-GAP-DEEPEN-106 — expected rejection of runtime_mutation"
+}

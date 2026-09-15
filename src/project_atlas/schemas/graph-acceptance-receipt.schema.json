@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-acceptance-receipt.schema.json",
+  "title": "Graph Acceptance Receipt",
+  "description": "AS-GRAPH-001 deterministic acceptance receipt. Derived-only; never domain-authoritative (INV-TRUTH-001).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "project_id",
+    "authority",
+    "semantic_ingestion",
+    "artifacts",
+    "accepted_count",
+    "rejected_count",
+    "node_count",
+    "edge_count",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-001" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "semantic_ingestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "status": {
+          "type": "string",
+          "enum": ["disabled", "unsupported"]
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifact_id",
+          "relative_path",
+          "sha256",
+          "family",
+          "authority_level",
+          "node_count",
+          "edge_count",
+          "status"
+        ],
+        "properties": {
+          "artifact_id": { "type": "string", "minLength": 1 },
+          "relative_path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "family": {
+            "type": "string",
+            "enum": ["envelope", "nodes", "edges", "metadata"]
+          },
+          "authority_level": { "const": "derived" },
+          "node_count": { "type": "integer", "minimum": 0 },
+          "edge_count": { "type": "integer", "minimum": 0 },
+          "status": {
+            "type": "string",
+            "enum": ["accepted", "rejected"]
+          },
+          "error_code": { "type": "string" }
+        }
+      }
+    },
+    "accepted_count": { "type": "integer", "minimum": 0 },
+    "rejected_count": { "type": "integer", "minimum": 0 },
+    "node_count": { "type": "integer", "minimum": 0 },
+    "edge_count": { "type": "integer", "minimum": 0 },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "relative_path", "message"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "relative_path": { "type": "string" },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH RELATIONSHIP ≠ AUTOMATIC AUTHORITY"
+    }
+  }
+}

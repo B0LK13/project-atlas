@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/ops-event-stream.schema.json",
+  "title": "Operational Event Stream Root",
+  "description": "AS-OBS-002 stream metadata for generated/ops/events/. Non-canonical; regenerable/retainable. truth_plane=operational; authority_plane=none.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "stream_path",
+    "next_sequence",
+    "event_count",
+    "retention",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.ops.event_stream.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": { "const": "OPERATIONAL EVENT STREAM ≠ PROJECT AUTHORITY" },
+    "stream_path": {
+      "type": "string",
+      "const": "generated/ops/events/stream.jsonl"
+    },
+    "next_sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_events", "max_bytes"],
+      "properties": {
+        "max_events": { "type": "integer", "minimum": 1 },
+        "max_bytes": { "type": "integer", "minimum": 1024 }
+      }
+    },
+    "last_event_uid": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{16,64}$"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+status: certified
+a: &a ["x", "x", "x", "x", "x", "x", "x", "x"]
+b: &b [*a, *a, *a, *a, *a, *a, *a, *a]
+c: &c [*b, *b, *b, *b, *b, *b, *b, *b]
+d: &d [*c, *c, *c, *c, *c, *c, *c, *c]
+e: [*d, *d, *d, *d, *d, *d, *d, *d]

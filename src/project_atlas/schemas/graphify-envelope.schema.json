@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graphify-envelope.schema.json",
+  "title": "Graphify Envelope",
+  "description": "AS-GRAPH-001 Graphify graph.json envelope (graphify-1.0 / schema_version 1).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "anyOf": [
+        { "const": 1 },
+        { "const": "1" },
+        { "const": "1.0" },
+        { "const": "graphify-1.0" }
+      ]
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "graphify-node.schema.json" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "graphify-edge.schema.json" }
+    }
+  }
+}

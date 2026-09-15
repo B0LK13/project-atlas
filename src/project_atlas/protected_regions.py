@@ -1,0 +1,413 @@
+"""Shared HUMAN-region preservation primitive (AT-011).
+
+Atlas owns the generated region of a projected Markdown note; anything a
+human wraps in a named ``<!-- BEGIN HUMAN: name --> ... <!-- END HUMAN: name
+-->`` block survives a re-render byte-for-byte. A region is identified by its
+:data:`RegionPath` -- the scope it sits in plus its name -- so ``a/x`` and
+``b/x`` are two independent regions rather than one name used twice. Both the living Obsidian
+project projection (:mod:`project_atlas.obsidian_projection`) and the
+Obsidian capture-note projection (:mod:`project_atlas.obsidian_capture_note`)
+call into it, so the merge algorithm cannot drift between those two surfaces
+the way the atomic-write layer already guards against for filesystem writes
+(:mod:`project_atlas.capture_io`).
+
+This is **not** the only consumer of the semantics in the repository:
+:mod:`project_atlas.graph_projections` reaches this module through a narrow
+adapter (AS-OBSIDIAN-CAPTURE-001-F4). It reuses this module's HUMAN-region
+identity, ambiguity and preservation semantics **when HUMAN regions are
+present**, and retains one separately documented graph-specific contract for
+when they are not: with a prior note carrying no HUMAN regions, graph
+projections preserve the text outside the generated span and replace only
+that span, where this module returns the fresh render. So graph projections
+are not equivalent to this module in general -- only on the HUMAN-region
+semantics themselves.
+
+Callers translate :class:`ProtectedRegionError` into their own domain error
+type at the boundary (the existing convention in this codebase for
+``ValueError``-raising primitives such as ``ensure_under_root``), so this
+module carries no dependency on either caller's error vocabulary.
+"""
+
+from __future__ import annotations
+
+import re
+from collections import Counter
+from pathlib import Path
+
+GENERATED_START = "<!-- atlas:generated:start -->"
+GENERATED_END = "<!-- atlas:generated:end -->"
+_HUMAN_BEGIN = re.compile(r"<!--\s*BEGIN HUMAN:\s*([^\s>]+)\s*-->")
+_HUMAN_END = re.compile(r"<!--\s*END HUMAN:\s*([^\s>]+)\s*-->")
+
+
+class ProtectedRegionError(ValueError):
+    """Fail-closed: malformed generated/human region markers."""
+
+
+#: The same marker grammar the canonical parser uses, as one token stream.
+#: Sharing ``[^\s>]+`` with :data:`_HUMAN_BEGIN` matters: a permissive variant
+#: would recognise ``<!-- BEGIN HUMAN: -->`` as a marker where the canonical
+#: parser does not, and the diagnostic would then report containment inside a
+#: "region" that does not exist.
+_HUMAN_TOKEN = re.compile(r"<!--\s*(BEGIN|END) HUMAN:\s*([^\s>]+)\s*-->")
+
+
+def _outermost_human_spans(text: str) -> list[tuple[int, int]]:
+    """``(start, end)`` of each outermost HUMAN block, or ``[]`` if undecidable.
+
+    Deliberately non-raising: this runs only to enrich a diagnostic for a
+    document already known to be malformed, so it must not fail and mask the
+    real error.
+
+    Pairing is strict and name-matched, exactly as the canonical parser pairs
+    -- an ``END`` must close the region currently open. Anything else (an
+    orphan ``END``, a crossed pair, an unclosed ``BEGIN``) means containment is
+    *not* structurally determinable, and this returns ``[]`` so the caller omits
+    the fact rather than asserting something the canonical grammar would not
+    agree with.
+    """
+    spans: list[tuple[int, int]] = []
+    open_names: list[str] = []
+    opened_at = 0
+    for match in _HUMAN_TOKEN.finditer(text):
+        kind, name = match.group(1), match.group(2)
+        if kind == "BEGIN":
+            if not open_names:
+                opened_at = match.start()
+            open_names.append(name)
+            continue
+        if not open_names or open_names[-1] != name:
+            return []  # orphan or crossed: not determinable
+        open_names.pop()
+        if not open_names:
+            spans.append((opened_at, match.end()))
+    return [] if open_names else spans
+
+
+def _reserved_marker_inside_human_region(text: str) -> bool:
+    """Does a generated-marker occurrence fall inside an outermost HUMAN span?
+
+    Both sequences are ascending and the spans do not overlap, so this walks
+    them together rather than comparing every marker against every span. The
+    naive form was quadratic on exactly the input that reaches it -- a large
+    malformed note with many markers and many sibling regions -- and a refusal
+    path must not become slow while merely formatting its own error.
+    """
+    spans = _outermost_human_spans(text)
+    if not spans:
+        return False
+    positions = sorted(
+        index
+        for marker in (GENERATED_START, GENERATED_END)
+        for index in _all_indices(text, marker)
+    )
+    span_index = 0
+    for position in positions:
+        while span_index < len(spans) and spans[span_index][1] <= position:
+            span_index += 1
+        if span_index == len(spans):
+            return False
+        if spans[span_index][0] <= position:
+            return True
+    return False
+
+
+def generated_marker_diagnosis(text: str, *, reason: str) -> str:
+    """Public form of :func:`_generated_marker_diagnosis`.
+
+    Exported so other generated-span-preserving writers can emit the *same*
+    diagnosis rather than their own weaker message. Before
+    AS-OBSIDIAN-CAPTURE-001-F9 the identical corrupt note produced
+    ``malformed-generated-markers:count,begin=2,end=1,expected=1,no-write:n.md``
+    from the canonical core and a bare ``malformed-generated-markers:n.md``
+    from ``graph_projections`` -- the operator's diagnosis depended on which
+    writer happened to hit the note first.
+    """
+    return _generated_marker_diagnosis(text, reason=reason)
+
+
+def _generated_marker_diagnosis(text: str, *, reason: str) -> str:
+    """Observable facts about a generated-marker failure.
+
+    Reports what can be counted and located, never who wrote it. The same
+    shape arises from an operator writing a reserved spelling as prose, from
+    Atlas corrupting its own structure, and from an unrelated malformed state,
+    and this function cannot tell those apart -- so it states the counts, notes
+    when a reserved spelling demonstrably sits inside a HUMAN region, and
+    leaves the cause to the reader.
+
+    ``no-write`` is included because the most useful thing an operator can be
+    told about a fail-closed refusal is that the note on disk was not touched.
+    """
+    facts = [
+        reason,
+        f"begin={text.count(GENERATED_START)}",
+        f"end={text.count(GENERATED_END)}",
+        "expected=1",
+    ]
+    if _reserved_marker_inside_human_region(text):
+        facts.append("reserved-marker-in-human-region")
+    facts.append("no-write")
+    return ",".join(facts)
+
+
+def _all_indices(text: str, needle: str) -> list[int]:
+    found: list[int] = []
+    index = text.find(needle)
+    while index >= 0:
+        found.append(index)
+        index = text.find(needle, index + 1)
+    return found
+
+
+def validate_protected_markers(text: str, *, path: str) -> None:
+    begins = _HUMAN_BEGIN.findall(text)
+    ends = _HUMAN_END.findall(text)
+    if len(begins) != len(ends) or sorted(begins) != sorted(ends):
+        raise ProtectedRegionError(f"malformed-protected-markers:{path}")
+    start_count = text.count(GENERATED_START)
+    end_count = text.count(GENERATED_END)
+    if start_count != end_count or start_count > 1:
+        # Atlas owns exactly one generated span, so the marker spellings are
+        # reserved syntax wherever they occur -- including inside a HUMAN
+        # region (AS-OBSIDIAN-CAPTURE-001-F3). A note carrying one is a
+        # structural collision, not opaque prose, and is refused with the note
+        # left untouched. Note that a *balanced* forged pair is caught here
+        # too: counting alone would call it balanced, and `start_count > 1` is
+        # what stops a forged pair becoming valid structure by accident.
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:"
+            f"{_generated_marker_diagnosis(text, reason='count')}:{path}"
+        )
+    if start_count == 1 and text.index(GENERATED_END) < text.index(GENERATED_START):
+        raise ProtectedRegionError(
+            f"malformed-generated-markers:"
+            f"{_generated_marker_diagnosis(text, reason='end-before-begin')}:{path}"
+        )
+
+
+#: A region's identity: the names of its open ancestors, outermost first,
+#: followed by its own name. ``a/x`` and ``b/x`` are therefore two different
+#: regions rather than one name used twice.
+RegionPath = tuple[str, ...]
+
+
+def _human_region_spans(text: str) -> list[tuple[RegionPath, int, int]]:
+    """``(path, start, end)`` for every HUMAN block, in document order.
+
+    Markers are paired structurally with a stack rather than by searching for
+    the next ``END`` of the same name, so a region's identity is its position
+    in the nesting tree. Anything that cannot be paired unambiguously fails
+    closed here, which is the only way a caller can be handed a document it is
+    safe to rewrite:
+
+    * an ``END`` with no open region, or one that does not close the innermost
+      open region -- crossed markers such as ``BEGIN a, BEGIN b, END a, END b``
+      have no single valid reading;
+    * a ``BEGIN`` left open at end of document;
+    * a region whose name equals one of its own open ancestors. Its path would
+      be unique, but the marker text is not: nothing in the document says which
+      ``END`` closes which ``BEGIN``, so the structure is ambiguous to any
+      reader, human or otherwise.
+    """
+    events: list[tuple[int, int, str, int]] = []
+    for match in _HUMAN_BEGIN.finditer(text):
+        events.append((match.start(), 0, match.group(1), match.end()))
+    for match in _HUMAN_END.finditer(text):
+        events.append((match.start(), 1, match.group(1), match.end()))
+    events.sort(key=lambda event: event[0])
+
+    spans: list[tuple[RegionPath, int, int]] = []
+    open_stack: list[tuple[str, int]] = []
+    open_names: Counter[str] = Counter()
+    for position, kind, name, marker_end in events:
+        if kind == 0:
+            if name in open_names:
+                raise ProtectedRegionError(
+                    f"ambiguous-protected-region-nesting:{name}"
+                )
+            open_stack.append((name, position))
+            open_names[name] += 1
+            continue
+        if not open_stack or open_stack[-1][0] != name:
+            raise ProtectedRegionError(f"malformed-protected-markers:unpaired:{name}")
+        open_name, open_position = open_stack.pop()
+        del open_names[open_name]
+        region = (*(ancestor for ancestor, _ in open_stack), name)
+        spans.append((region, open_position, marker_end))
+    if open_stack:
+        raise ProtectedRegionError(
+            f"malformed-protected-markers:missing-end:{open_stack[-1][0]}"
+        )
+    spans.sort(key=lambda span: span[1])
+    return spans
+
+
+def _ambiguous_region_paths(spans: list[tuple[RegionPath, int, int]]) -> list[str]:
+    """Paths used by more than one region in ``spans``.
+
+    Scope is part of identity, so this is the only remaining ambiguity once
+    :func:`_human_region_spans` has accepted the structure: two regions that
+    genuinely occupy the same slot. ``a/x`` beside ``b/x`` is not one of them.
+    """
+    counts = Counter(path for path, _, _ in spans)
+    return sorted("/".join(path) for path, seen in counts.items() if seen > 1)
+
+
+def reject_ambiguous_region_identity(text: str, *, path: str) -> None:
+    """Fail closed when HUMAN region identity is ambiguous.
+
+    A region's identity is its :data:`RegionPath` -- ancestry scope plus name.
+    Two regions occupying the same path have no way to say which of them the
+    fresh render's single slot refers to, so :func:`extract_human_regions`
+    would have to pick one, and picking silently discards the other.
+
+    Owner policy is to refuse rather than choose: no first-wins, no last-wins,
+    no concatenation, no reordering. Content equality does not disambiguate --
+    the ambiguity is in the identity, not the payload -- so identical and empty
+    duplicates are refused too. Names are compared exactly, matching the
+    identity contract the merge itself uses, so ``Notes`` and ``notes`` are two
+    different regions rather than a duplicate.
+
+    Scope is part of that identity, so ``a/x`` beside ``b/x`` is **not**
+    ambiguous: those are two regions that happen to share a leaf name, and
+    both are preserved. Structural impossibilities -- crossed markers, an
+    unclosed region, a region nested inside one of its own name -- are refused
+    earlier, by :func:`_human_region_spans`, because a document that cannot be
+    parsed into one tree cannot be safely rewritten at all.
+    """
+    duplicates = _ambiguous_region_paths(_human_region_spans(text))
+    if duplicates:
+        raise ProtectedRegionError(
+            f"duplicate-protected-region-names:{','.join(duplicates)}:{path}"
+        )
+
+
+def extract_human_regions(text: str) -> dict[RegionPath, str]:
+    """HUMAN blocks keyed by structural path, outermost ancestor first.
+
+    Keyed by :data:`RegionPath` rather than by bare name: ``a/x`` and ``b/x``
+    are independent regions, and collapsing them into one dictionary slot is
+    what silently discarded one of them. A block's bytes include everything
+    nested inside it, so a parent's entry already carries its children.
+
+    Fails closed on ambiguous identity for the same reason the merge does:
+    this function is exported and callable on its own, and quietly returning
+    one of two regions that claim the same slot is exactly the human-data loss
+    this module exists to prevent.
+    """
+    spans = _human_region_spans(text)
+    duplicates = _ambiguous_region_paths(spans)
+    if duplicates:
+        raise ProtectedRegionError(
+            f"duplicate-protected-region-names:{','.join(duplicates)}:extract"
+        )
+    return {path: text[start:end] for path, start, end in spans}
+
+
+def read_note_text(path: Path) -> str:
+    """Read a note's text **without** translating its line endings.
+
+    ``Path.read_text`` opens in text mode with universal newlines, which
+    rewrites ``\r\n`` and a lone ``\r`` to ``\n`` *before any caller sees the
+    bytes*. Every generated-span-preserving writer reads the prior note in
+    order to splice a fresh generated span into it and write the result back,
+    so a translating read silently rewrites the operator's HUMAN bytes on a
+    refresh they did not ask for -- the note is stored, not merely parsed.
+
+    That directly contradicts the owner policy for F3 (raw HUMAN bytes are
+    immutable: no escaping, no normalisation, no zero-width rewriting) and the
+    byte-for-byte preservation contract these writers document.
+
+    ``newline=""`` would be the obvious spelling but ``Path.read_text`` only
+    accepts it from Python 3.13; this package supports 3.12, so decode the
+    bytes directly. The exception surface is unchanged: ``OSError`` from the
+    read and ``UnicodeDecodeError`` (a ``UnicodeError``) from the decode.
+
+    This is deliberately **not** the rule for hashing. CORE3-014 normalises
+    CRLF to LF before hashing text sources so identity is stable across
+    platforms; that normalisation is applied to a copy for the digest and must
+    not be confused with what is written back to disk.
+    """
+    return path.read_bytes().decode("utf-8")
+
+
+def merge_protected_regions(*, existing: str | None, rendered: str, path: str) -> str:
+    """Splice HUMAN blocks from ``existing`` into a fresh ``rendered``.
+
+    ``existing is None`` (first write, no prior file) returns ``rendered``
+    unchanged. Otherwise every HUMAN block in ``existing`` is re-inserted at
+    the position in ``rendered`` holding the **same structural path** --
+    byte-for-byte, never re-derived from the new render, and never moved into
+    a different scope. A block whose path the fresh render no longer offers is
+    appended rather than dropped.
+
+    Resolution is by path, not by name. Keying on the bare name collapsed
+    ``a/x`` and ``b/x`` into one slot, so the last one parsed won and its bytes
+    were then spliced into the *other* container -- one human's note silently
+    replaced by another's. Position is used only to locate spans; it is never
+    identity, so reordering two sibling containers moves nothing between them.
+
+    The whole plan is resolved and validated before a single byte is written.
+    If any identity is ambiguous the caller gets an exception and the note it
+    passed in is untouched -- there is no partially rewritten result.
+    """
+    if existing is None:
+        validate_protected_markers(rendered, path=path)
+        reject_ambiguous_region_identity(rendered, path=path)
+        return rendered
+    validate_protected_markers(existing, path=path)
+    validate_protected_markers(rendered, path=path)
+
+    existing_spans = _human_region_spans(existing)
+    rendered_spans = _human_region_spans(rendered)
+    for spans in (existing_spans, rendered_spans):
+        duplicates = _ambiguous_region_paths(spans)
+        if duplicates:
+            raise ProtectedRegionError(
+                f"duplicate-protected-region-names:{','.join(duplicates)}:{path}"
+            )
+
+    prior = {region: existing[start:end] for region, start, end in existing_spans}
+    if not prior:
+        return rendered
+
+    # Plan. Outermost match wins: a block's bytes already contain everything
+    # nested inside it, so replacing a parent also restores its children, and
+    # descending into it afterwards would splice the same content twice.
+    replacements: list[tuple[int, int, str]] = []
+    replaced: list[RegionPath] = []
+    covered_until = -1
+    for region, start, end in rendered_spans:
+        if start < covered_until or region not in prior:
+            continue
+        replacements.append((start, end, prior[region]))
+        replaced.append(region)
+        covered_until = end
+
+    def _is_under(candidate: RegionPath, ancestor: RegionPath) -> bool:
+        return candidate[: len(ancestor)] == ancestor
+
+    # A prior region the fresh render has no slot for is appended, so human
+    # bytes survive a template that dropped its section. Only the outermost
+    # such region is appended: its block already carries its descendants.
+    orphans = [
+        region
+        for region in sorted(prior)
+        if not any(_is_under(region, done) for done in replaced)
+    ]
+    minimal_orphans = [
+        region
+        for region in orphans
+        if not any(other != region and _is_under(region, other) for other in orphans)
+    ]
+
+    merged = rendered
+    for start, end, block in sorted(replacements, reverse=True):
+        merged = merged[:start] + block + merged[end:]
+    for region in minimal_orphans:
+        merged = merged.rstrip() + "\n\n" + prior[region] + "\n"
+
+    validate_protected_markers(merged, path=path)
+    reject_ambiguous_region_identity(merged, path=path)
+    return merged

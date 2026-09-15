@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/research-synthesis.schema.json",
+  "title": "research-synthesis (PREP STUB - not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "synthesis_id",
+    "question_id",
+    "summary",
+    "unknown",
+    "conflict_ids",
+    "authority_promoted"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.research.synthesis.v0" },
+    "synthesis_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "question_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "unknown": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "conflict_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "hypothesis_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "authority_promoted": { "const": false }
+  }
+}

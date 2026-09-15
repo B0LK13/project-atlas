@@ -1,0 +1,78 @@
+{
+  "goal": {
+    "schema": "atlas.dod.goal.v0",
+    "goal_id": "goal.demo.unit-gate",
+    "statement": "Demo package unit gate is green on fixture evidence only",
+    "release_line": "package",
+    "owner_package": "AS-2.2-DOD-COMPILER-001"
+  },
+  "dod": {
+    "schema": "atlas.dod.definition.v0",
+    "dod_id": "dod.demo.unit-gate",
+    "goal_id": "goal.demo.unit-gate",
+    "title": "Demo unit-gate DoD",
+    "criterion_ids": ["crit.demo.ruff-clean", "crit.demo.schema-stub-present"],
+    "consume_only": true,
+    "authority_promoted": false
+  },
+  "criteria": [
+    {
+      "schema": "atlas.dod.criterion.v0",
+      "criterion_id": "crit.demo.ruff-clean",
+      "statement": "Ruff check exits 0 on scoped paths",
+      "severity": "high",
+      "allowed_evidence_classes": ["unit_test", "ci_digest", "fixture_receipt"],
+      "manual_waiver_forbidden": true
+    },
+    {
+      "schema": "atlas.dod.criterion.v0",
+      "criterion_id": "crit.demo.schema-stub-present",
+      "statement": "dod-proof-receipt schema stub exists under docs/atlas-2.2/contracts",
+      "severity": "medium",
+      "allowed_evidence_classes": ["fixture_receipt", "unit_test"],
+      "manual_waiver_forbidden": true
+    }
+  ],
+  "test_bindings": [
+    {
+      "schema": "atlas.dod.test_binding.v0",
+      "binding_id": "bind.demo.ruff",
+      "criterion_id": "crit.demo.ruff-clean",
+      "kind": "ci_job",
+      "locator": "ci.yml::ruff",
+      "expects": "pass"
+    },
+    {
+      "schema": "atlas.dod.test_binding.v0",
+      "binding_id": "bind.demo.stub-path",
+      "criterion_id": "crit.demo.schema-stub-present",
+      "kind": "manual_procedure",
+      "locator": "docs/atlas-2.2/contracts/dod-compiler/dod-proof-receipt.schema.json",
+      "expects": "pass"
+    }
+  ],
+  "evidence": [
+    {
+      "schema": "atlas.dod.evidence_ref.v0",
+      "evidence_id": "ev.demo.ruff-fixture",
+      "criterion_id": "crit.demo.ruff-clean",
+      "evidence_class": "fixture_receipt",
+      "pointer": {
+        "kind": "repo_path",
+        "value": "docs/atlas-2.2/fixtures/dod-compiler/expected-proof-pass.json"
+      },
+      "invented": false
+    },
+    {
+      "schema": "atlas.dod.evidence_ref.v0",
+      "evidence_id": "ev.demo.stub-path",
+      "criterion_id": "crit.demo.schema-stub-present",
+      "evidence_class": "fixture_receipt",
+      "pointer": {
+        "kind": "repo_path",
+        "value": "docs/atlas-2.2/contracts/dod-compiler/dod-proof-receipt.schema.json"
+      },
+      "invented": false
+    }
+  ]
+}

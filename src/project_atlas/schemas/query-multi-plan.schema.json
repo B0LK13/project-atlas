@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/query-multi-plan.schema.json",
+  "title": "QueryMultiPlan",
+  "description": "AS-QUERY-MULTI-001 tip-safe multi-subject / multi-project query PLAN envelope. Plan ≠ answer ≠ authority ≠ temporal tip ≠ trust score ≠ graph subject. Forbidden fields (trust, confidence, graph_*, value, claim_id, authority_disposition) must not appear.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package",
+    "plan_kind",
+    "projects",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package": { "const": "AS-QUERY-MULTI-001" },
+    "plan_kind": { "const": "multi_query_plan" },
+    "projects": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/project_scope" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "project_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "items"],
+      "properties": {
+        "project_id": { "type": "string", "minLength": 1 },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/plan_item" }
+        }
+      }
+    },
+    "plan_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "kind"],
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": ["point", "multifield", "list"]
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["authoritative", "temporal", "explain"]
+        },
+        "subject": { "type": "string", "minLength": 1 },
+        "field": { "type": "string", "minLength": 1 },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "attach_explain_receipt": {
+          "type": "boolean",
+          "description": "Optional planning hint to attach AS-EXPLAIN-001 Band A receipts at execution time. Consume-only; never dual-owns EXPLAIN writers."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "shape": { "const": "point" } }, "required": ["shape"] },
+          "then": {
+            "required": ["subject", "field"],
+            "not": { "required": ["fields"] }
+          }
+        },
+        {
+          "if": { "properties": { "shape": { "const": "multifield" } }, "required": ["shape"] },
+          "then": {
+            "required": ["subject", "fields"],
+            "not": { "required": ["field"] }
+          }
+        },
+        {
+          "if": { "properties": { "shape": { "const": "list" } }, "required": ["shape"] },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["subject"] },
+                { "required": ["field"] },
+                { "required": ["fields"] }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

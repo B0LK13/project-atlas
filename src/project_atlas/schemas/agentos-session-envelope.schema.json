@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/agentos-session-envelope.schema.json",
+  "title": "Agent OS Session Envelope",
+  "description": "AS-2.0-AGENTOS-001 governed session envelope. Complementary to control plane; never Core authority mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "session_id",
+    "task_id",
+    "phase",
+    "protected_paths_acknowledged",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-AGENTOS-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "phase": {
+      "enum": [
+        "bootstrap",
+        "preflight",
+        "session-start",
+        "work",
+        "validation",
+        "postflight",
+        "closed"
+      ]
+    },
+    "skill_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skill_id", "skill_sha256"],
+      "properties": {
+        "skill_id": { "type": "string", "minLength": 1 },
+        "skill_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "protected_paths_acknowledged": { "const": true },
+    "receipt_required": { "const": true },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "AGENT OS ENVELOPE ≠ CORE AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

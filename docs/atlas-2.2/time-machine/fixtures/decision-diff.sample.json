@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TIME-MACHINE-001",
+  "opened": [],
+  "closed": [],
+  "transitioned": [
+    {
+      "decision_id": "review.demo-001",
+      "from_disposition": "open",
+      "to_disposition": "accepted"
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Decision diff records disposition change; not an approval action"
+  },
+  "truth_boundary": "DECISION DIFF ≠ HUMAN APPROVAL / ≠ AUTHORITY",
+  "_prep_note": "FX-2.2-TM-006 — decision diff block sketch"
+}

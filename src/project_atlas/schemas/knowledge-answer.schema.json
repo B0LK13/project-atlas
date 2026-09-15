@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/knowledge-answer.schema.json",
+  "title": "KnowledgeAnswer",
+  "description": "AS-CORE-007 deterministic knowledge query envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package",
+    "status",
+    "kind",
+    "project_id",
+    "inspected_artifacts",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package": { "const": "AS-CORE-007" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "not_found",
+        "authority-pending",
+        "authority-conflict",
+        "unresolved",
+        "temporal_state_missing"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["authoritative", "temporal", "explain"]
+    },
+    "project_id": { "type": "string", "minLength": 1 },
+    "subject": { "type": ["string", "null"] },
+    "field": { "type": ["string", "null"] },
+    "compilation_id": { "type": ["string", "null"] },
+    "temporal_status": { "type": ["string", "null"] },
+    "temporal_resolution_basis": { "type": ["string", "null"] },
+    "temporal_current_claim_id": { "type": ["string", "null"] },
+    "temporal_historical_claim_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "temporal_rationale": { "type": ["string", "null"] },
+    "authority_disposition": { "type": ["string", "null"] },
+    "authority_domain": { "type": ["string", "null"] },
+    "rule_id": { "type": ["string", "null"] },
+    "registry_version": { "type": ["integer", "null"], "minimum": 1 },
+    "trust_root": { "type": ["string", "null"] },
+    "authoritative_role": { "type": ["string", "null"] },
+    "value": { "type": ["string", "null"] },
+    "claim_id": { "type": ["string", "null"] },
+    "competing_claim_ids": { "type": "array", "items": { "type": "string" } },
+    "subordinate_claim_ids": { "type": "array", "items": { "type": "string" } },
+    "temporally_ineligible_claim_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "authority_rationale": { "type": ["string", "null"] },
+    "claim": { "type": ["object", "null"] },
+    "evidence": { "type": "array", "items": { "type": "object" } },
+    "inspected_artifacts": { "type": "array", "items": { "type": "string" } },
+    "reason_code": { "type": ["string", "null"] },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

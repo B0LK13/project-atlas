@@ -1,0 +1,8 @@
+{
+  "expect": "reject",
+  "forbidden_field": {
+    "path_a_chips_observed": true
+  },
+  "reason": "cannot invent Path A chip observation without walkthrough receipt",
+  "required_status_when_unattested": "BROWSER_E2E_MISSING"
+}

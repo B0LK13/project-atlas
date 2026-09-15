@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["schema_version","session","agent","skill","vault","events","pipeline"],"properties":{"schema_version":{"const":1},"session":{"type":"object"},"agent":{"type":"object"},"skill":{"type":"object"},"vault":{"type":"object"},"events":{"type":"object"},"pipeline":{"type":"object"}}}

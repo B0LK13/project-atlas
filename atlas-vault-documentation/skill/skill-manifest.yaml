@@ -1,0 +1,15 @@
+schema_version: 1
+skill:
+  id: atlas-vault-documentation
+  version: 1.0.0
+  file: SKILL.md
+  sha256: e830c4fcec547640ecb618c4d80d0256c39b49cf7075f4af57aaf7b38dc40ee9
+compatibility:
+  minimum_pipeline_version: 1
+  required_capabilities: capture,normalize,verify,route,receipt
+documentation:
+  required_events: session-start,implementation,validation,completion
+enforcement:
+  receipt_required: true
+  strict_validation: true
+  direct_vault_writes_allowed: false

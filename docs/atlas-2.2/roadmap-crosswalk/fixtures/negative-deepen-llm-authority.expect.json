@@ -1,0 +1,20 @@
+{
+  "_prep_note": "FX-2.2-CROSSWALK-DEEPEN-106 — expected rejection of llm_authority_stamp",
+  "action_id": "fx-llm_authority_stamp",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "LLM output cannot authorize crosswalk truth or unlock"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "crosswalk-llm-authority-forbidden",
+  "kind": "llm_authority_stamp",
+  "package_id": "AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "CROSSWALK \u2260 UNLOCK / \u2260 PRODUCTION / \u2260 PILOT / \u2260 RELEASE / \u2260 CERT"
+}

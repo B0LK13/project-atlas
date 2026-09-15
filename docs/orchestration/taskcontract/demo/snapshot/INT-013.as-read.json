@@ -1,0 +1,13 @@
+{
+  "blockers": [
+    "declared blocker language in title (external_blocked): Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate"
+  ],
+  "depends_on": [],
+  "has_acceptance_contract": true,
+  "item_digest": "54ba22388093de15e27b3442e1859f9063680fe3a800a32b2e2588f5d961813e",
+  "item_id": "INT-013",
+  "lifecycle": "READY",
+  "source_path": "docs/backlog.md",
+  "status": "NOT_STARTED",
+  "title": "Run the bounded multi-project integration pilot (EXTERNAL_BLOCKED \u2014 authentic INT-013 requires owner-provided authentic project roots; committed DEMO_FIXTURE projects (e.g. `tests/fixtures/demo/estate/`) do not satisfy this gate; see `docs/product/CODER-A\u2026"
+}

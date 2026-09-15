@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/kf2-entity.schema.json",
+  "title": "KF2 Entity Record",
+  "description": "AS-KF2-ENTITY-001 Knowledge Fabric entity. Derived; may reference XPROJ global ids; never automatic authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "entity_id",
+    "namespace_id",
+    "display_name",
+    "compat_snapshot_id",
+    "authority",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-KF2-ENTITY-001" },
+    "entity_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "namespace_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "xproj_global_entity_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "active" },
+    "truth_boundary": {
+      "type": "string",
+      "const": "KF2 ENTITY ≠ AUTHORITY"
+    },
+    "notes": { "type": "string", "maxLength": 240 }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/dispatch-receipt.schema.json",
+  "title": "DispatchReceipt",
+  "description": "AS-ORCH-001D single-hop receipt. DISPATCH_RECEIPT_IS_AUTHORITY = NO. next_handoff_autodispatched is always false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "status",
+    "process_started",
+    "execution_authorized",
+    "authority_granted",
+    "dispatch_receipt_is_authority",
+    "next_handoff_autodispatched"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-ORCH-001D" },
+    "dispatch_id": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "status": {
+      "enum": [
+        "prepared",
+        "running",
+        "result_received",
+        "finalizing",
+        "completed",
+        "failed",
+        "OWNER_REQUIRED",
+        "TERMINAL",
+        "REJECTED"
+      ]
+    },
+    "source_route_digest": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "source_task_id": { "type": ["string", "null"], "maxLength": 128 },
+    "dispatch_task_id": { "type": ["string", "null"], "maxLength": 128 },
+    "target_role": {
+      "oneOf": [
+        { "type": "null" },
+        { "enum": ["local", "integration", "autonomous"] }
+      ]
+    },
+    "task_type": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "candidate_verification",
+            "recertification",
+            "program_reconciliation",
+            "remediation"
+          ]
+        }
+      ]
+    },
+    "attempt": { "type": ["integer", "null"], "minimum": 1, "maximum": 10000 },
+    "process_started": { "type": "boolean" },
+    "process_terminal": { "type": "boolean" },
+    "process_timeout": { "type": "boolean" },
+    "process_exit_code": { "type": ["integer", "null"] },
+    "result_received": { "type": "boolean" },
+    "source_acknowledged": { "type": "boolean" },
+    "result_staged": { "type": "boolean" },
+    "next_handoff_state": {
+      "oneOf": [
+        { "type": "null" },
+        { "enum": ["HANDOFF_READY", "OWNER_REQUIRED", "TERMINAL"] }
+      ]
+    },
+    "next_route_digest": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "failure_code": { "type": ["string", "null"], "maxLength": 64 },
+    "mutating_remediation_auto_dispatch": { "type": ["string", "null"], "maxLength": 128 },
+    "execution_authorized": { "const": false },
+    "authority_granted": { "const": false },
+    "dispatch_receipt_is_authority": { "const": false },
+    "next_handoff_autodispatched": { "const": false }
+  }
+}

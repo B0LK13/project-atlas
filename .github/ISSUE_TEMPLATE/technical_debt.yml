@@ -1,0 +1,46 @@
+name: Technical debt
+description: Track a bounded debt item that should not silently expand scope.
+title: "[debt] "
+labels: ["technical-debt"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Technical debt items are for Owner/backlog prioritization.
+        Do not include secrets. Security → `SECURITY.md`.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: This report contains no secrets, credentials, or vulnerability exploit details.
+          required: true
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Path, module, or workflow name
+    validations:
+      required: true
+  - type: textarea
+    id: debt
+    attributes:
+      label: Debt description
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk of deferral
+    validations:
+      required: false
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Suggested urgency
+      options:
+        - Low
+        - Medium
+        - High (still non-security)
+    validations:
+      required: true

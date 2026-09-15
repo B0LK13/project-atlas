@@ -1,0 +1,389 @@
+schema_version: 1
+work_package: AS-GH-001
+title: GitHub Repository Governance Baseline
+status: artifact-closure-implementation-complete-independent-verification-required
+
+certified_baseline: a7a6ebc41ea884f7ce4ec2d70da89e6a44097381
+certified_architecture_source: 7e730042e646346773519cc0e5ffe60610f86f0b
+implementation_base: 42410e968cd3eb392afd66181d64ed3c25e36833
+implementation_branch: implementation/as-gh-001-governance-baseline
+# Kickoff authorized main (AS-CORE-008 tip at directive start):
+artifact_closure_kickoff_main: 59670bf33feede82dd85daa3da994f410a8d838e
+artifact_closure_kickoff_main_tree: 58a7235f250d562c7ebe705d7619b28df1a24ea4
+# Current authorized main at artifact-closure commit time (AS-MAINT-002 tip;
+# branch fast-forwarded before commit; workflows preserved / not edited here):
+artifact_closure_base: 895979f95c523cad205b8e3341dc135cd4dfec19
+artifact_closure_base_tree: fe755b68b42ef12506b782186be142879a8fa4d7
+artifact_closure_branch: docs/as-gh-001-artifact-closure
+adr: docs/adr/ADR-006-github-repository-governance-baseline.md
+work_package_doc: docs/work-packages/AS-GH-001.md
+
+scope:
+  authorized_paths:
+    - SECURITY.md
+    - CONTRIBUTING.md
+    - .github/CODEOWNERS
+    - .github/pull_request_template.md
+    - .github/dependabot.yml
+    - .github/workflows/ci.yml
+    - .github/workflows/atlas-documentation-gate.yml
+    - tests/unit/test_as_gh_001_governance.py
+    - docs/evidence/AS-GH-001-receipt.yaml
+    - docs/work-packages/AS-GH-001.md
+    - docs/backlog.md
+    - docs/master-roadmap.md
+  artifact_closure_authorized_paths:
+    - GOVERNANCE.md
+    - VERSIONING.md
+    - RELEASING.md
+    - SUPPORT.md
+    - CODE_OF_CONDUCT.md
+    - README.md
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/ISSUE_TEMPLATE/feature_request.yml
+    - .github/ISSUE_TEMPLATE/documentation.yml
+    - .github/ISSUE_TEMPLATE/architecture_proposal.yml
+    - .github/ISSUE_TEMPLATE/governance_gap.yml
+    - .github/ISSUE_TEMPLATE/technical_debt.yml
+    - .github/ISSUE_TEMPLATE/config.yml
+    - tests/unit/test_as_gh_001_governance.py
+    - docs/evidence/AS-GH-001-receipt.yaml
+    - docs/work-packages/AS-GH-001.md
+    - docs/backlog.md
+    - docs/master-roadmap.md
+  out_of_scope_confirmed_untouched:
+    - src/project_atlas/
+    - src/
+    - tests/fixtures/
+    - docs/adr/ADR-00[1-6]*.md (none modified)
+    - .github/workflows/ci.yml (preserved; not modified in artifact-closure)
+    - .github/workflows/atlas-documentation-gate.yml (preserved)
+    - .github/CODEOWNERS (preserved)
+    - .github/dependabot.yml (preserved)
+    - .github/pull_request_template.md (preserved)
+    - SECURITY.md (preserved)
+    - CONTRIBUTING.md (preserved)
+  production_behavior_modified: false
+  live_github_settings_modified_during_this_phase: false
+  live_github_settings_modified_during_artifact_closure: false
+
+deliverables:
+  security_policy:
+    file: SECURITY.md
+    status: implemented
+    external_private_intake: not_currently_operational
+    invented_or_personal_contact_published: false
+  contribution_policy:
+    file: CONTRIBUTING.md
+    status: implemented
+    documents_live_approval_count: 0
+  pull_request_template:
+    file: .github/pull_request_template.md
+    status: implemented
+  codeowners:
+    file: .github/CODEOWNERS
+    status: implemented
+    used_as_approval_gate: false
+    note: >-
+      Single-collaborator repository; require_code_owner_reviews is not
+      enabled and this file is documented as routing/ownership metadata
+      only, to avoid recreating the review-approval lockout.
+  dependabot:
+    file: .github/dependabot.yml
+    ecosystems:
+      - pip
+      - github-actions
+    status: implemented
+  workflow_hardening:
+    files:
+      - .github/workflows/ci.yml
+      - .github/workflows/atlas-documentation-gate.yml
+    changes:
+      - "added top-level permissions: {contents: read} to both workflows"
+      - >-
+        pinned actions/checkout and actions/setup-python to full commit
+        SHAs (resolved live from the actions/checkout and
+        actions/setup-python repositories' v4/v5 tags via
+        gh api repos/OWNER/REPO/git/refs/tags/TAG; not invented)
+    resolved_action_pins:
+      - action: actions/checkout
+        pinned_sha: 11d5960a326750d5838078e36cf38b85af677262
+        tag: v4
+      - action: actions/setup-python
+        pinned_sha: a26af69be951a213d495a4c3e4e4022e16d87065
+        tag: v5
+      - added `timeout-minutes` to both jobs
+      - added `concurrency` cancellation to ci.yml (push/pull_request-triggered)
+      - atlas-documentation-gate.yml left workflow_dispatch-only, unchanged trigger
+    ci_quality_job_name_preserved: true
+    pull_request_target_used: false
+  governance_validation:
+    file: tests/unit/test_as_gh_001_governance.py
+    test_count: 13
+    covers:
+      - SECURITY.md content and absence of invented contact
+      - CONTRIBUTING.md approval-count-0 documentation
+      - PR template required sections
+      - CODEOWNERS syntax
+      - Dependabot ecosystem scope
+      - workflow/dependabot YAML parse + duplicate-key detection
+      - docs/evidence/*.yaml duplicate-key detection
+      - action SHA pinning (every uses: line, full 40-hex-char SHA)
+      - workflow permissions least-privilege
+      - absence of pull_request_target
+      - preservation of the `quality` job name
+      - atlas-documentation-gate.yml remains workflow_dispatch-only
+
+validation:
+  ruff_command: python -m ruff check .
+  ruff_result: clean
+  mypy_command: python -m mypy src
+  mypy_result: "clean, 36 source files (unchanged; no src/ file added or modified)"
+  pytest_command: PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider tests --tb=short -q
+  pytest_result: "288 passed, 0 failed (275 pre-existing + 13 new AS-GH-001 governance tests; collect-only cross-checked at 288)"
+  compileall_command: python -m compileall -q src atlas-vault-documentation
+  compileall_result: clean
+  control_plane_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=short -q
+  control_plane_result: "146 passed, 0 failed (unchanged from baseline)"
+  documentation_gate_command: python atlas-vault-documentation/scripts/atlas_agent.py repository-gate --help
+  documentation_gate_result: >-
+    Confirmed real and invocable (exit 0, prints usage). A full
+    invocation requires a governed-session receipt (--receipt) that does
+    not apply to this direct-implementation PR; not fabricated as run.
+  yaml_and_duplicate_key_command: >-
+    python -c "import yaml, glob; [yaml.safe_load(open(p)) for p in
+    glob.glob('.github/**/*.yml', recursive=True) +
+    glob.glob('docs/evidence/*.yaml')]"
+  yaml_and_duplicate_key_result: "24 files parsed, no error, no duplicate key (also covered by tests/unit/test_as_gh_001_governance.py)"
+
+required_check_observation:
+  expected_project_owned_check: quality
+  note: >-
+    The exact check name reported by GitHub on this specific
+    implementation branch's own PR is observed only once that PR runs
+    through real GitHub Actions; not fabricated here. Prior independent
+    verification (AS-GH-001 architecture/post-integration certification
+    rounds) already confirmed the live, real check-run name on this
+    repository is `quality` (not `ci / quality`), via the GitHub Checks
+    API on the certified architecture commit.
+  atlas_documentation_gate_status: workflow_dispatch-only, not required, not automatic
+
+security_contact: not_provisioned_deferred
+required_approving_reviews_live: 0
+signed_commit_enforcement: deferred
+github_settings_changed_during_implementation: false
+
+artifact_closure:
+  directive: D-PROJECT-ATLAS-AS-GH-001-ARTIFACT-CLOSURE-001
+  status: implementation-complete-independent-verification-required
+  self_certified: false
+  merged: false
+  live_settings_activated: false
+  deliverables:
+    - GOVERNANCE.md
+    - VERSIONING.md
+    - RELEASING.md
+    - SUPPORT.md
+    - CODE_OF_CONDUCT.md
+    - README.md (navigation links only)
+    - .github/ISSUE_TEMPLATE/*
+  validation:
+    governance_pytest: "26 passed (tests/unit/test_as_gh_001_governance.py; includes AS-MAINT-002 control-plane job assertion + 12 artifact-closure tests)"
+    full_core_pytest_windows: "624 collected; 623 passed, 1 skipped, 0 failed (exit 0)"
+    full_core_pytest_wsl: "624 collected; exit 0 (CORE_WSL_EXIT=0)"
+    control_plane_pytest_wsl: "146 passed (CP_EXIT=0); Windows host fails fcntl/exe constraints — environment limitation"
+    ruff: clean
+    mypy: "Success: no issues found in 61 source files"
+    compileall: clean
+  deferred_to_as_gh_002_hint:
+    - live branch-protection hardenings (force-push/deletion off)
+    - required status check quality enablement
+    - approval-count restoration to 1 (blocked until second reviewer)
+    - CODEOWNERS review enforcement
+    - signed-commit enforcement
+  recommended_follow_up_not_required_for_this_closure_slice:
+    - BACKUP-AND-RECOVERY.md
+    - docs/policies/commit-signing.md
+    - docs/policies/branch-and-merge-policy.md
+  unrelated_changes: none
+  preserved_verified_slice_paths_untouched_in_closure:
+    - SECURITY.md
+    - CONTRIBUTING.md
+    - .github/CODEOWNERS
+    - .github/pull_request_template.md
+    - .github/dependabot.yml
+    - .github/workflows/ci.yml
+    - .github/workflows/atlas-documentation-gate.yml
+
+known_limitations:
+  - Artifact-closure documents and issue templates are implemented on
+    branch docs/as-gh-001-artifact-closure; independent verification and
+    Owner merge are still required before package closure.
+  - actionlint or an equivalent workflow-syntax linter was not added;
+    the governance test suite's own YAML-parse + regex-based checks
+    (action pin format, permissions block, trigger set, issue-template
+    YAML) cover the concrete risks this phase targets without adding a
+    new third-party dependency.
+  - The exact GitHub check name for this specific PR/branch is expected,
+    not yet freshly re-observed on this exact diff, until the PR
+    actually runs.
+  - CODEOWNERS review enforcement, required-check branch-protection
+    activation, and restoring required approving reviews to 1 all
+    remain separate, later, independently-verified phases (AS-GH-002
+    hint); none is claimed here.
+  - No dedicated conduct-enforcement email or external support intake
+    is published; CODE_OF_CONDUCT.md and SUPPORT.md document that
+    limitation truthfully rather than inventing contacts.
+
+rollback: >-
+  Every change in this package is additive or narrowly scoped to the
+  files listed in `scope.authorized_paths`. Revert via a normal PR from
+  the previous exact tip (this implementation branch's parent,
+  42410e968cd3eb392afd66181d64ed3c25e36833); no force-push or history
+  rewrite is required or used.
+
+merge_authorized: false
+implementation_merge_authorized: false
+historical_commits_rewritten: false
+fabricated_attestations_created: false
+
+# Complete remediation provenance, recorded explicitly rather than
+# relying on a bare "SELF" self-reference. Every hash below is a real,
+# resolvable commit; none was amended, rebased, squashed, or force-pushed.
+remediation_provenance:
+  pre_remediation_tip: 7c52e4635d091a1fe2896159bad5b0c991cecec2
+  implementation_remediation_tip: 4d628baf90b8b23b22dd17ab04278d3a565ffccb
+  remediation_lineage:
+    - commit: 6ae47d11c755738a10b1ba9bc66dbda047b0aa51
+      parent: 7c52e4635d091a1fe2896159bad5b0c991cecec2
+      subject: "fix(governance): address PR template and workflow review findings"
+    - commit: 97e9b0022d0fe39a6aa1000bb538dd699f9ef2b1
+      parent: 6ae47d11c755738a10b1ba9bc66dbda047b0aa51
+      subject: "test(governance): enforce exact workflow permission maps"
+    - commit: 4d628baf90b8b23b22dd17ab04278d3a565ffccb
+      parent: 97e9b0022d0fe39a6aa1000bb538dd699f9ef2b1
+      subject: "docs(evidence): record AS-GH-001 remediation validation"
+  evidence_correction_commit: SELF
+  evidence_correction_parent: 4d628baf90b8b23b22dd17ab04278d3a565ffccb
+  evidence_correction_subject: "docs(evidence): complete AS-GH-001 remediation provenance"
+  final_candidate_tip: SELF
+  final_candidate_tip_note: >-
+    This commit's own hash (not yet knowable while authoring this file)
+    is both evidence_correction_commit and final_candidate_tip. Resolve
+    it with `git rev-parse HEAD` immediately after this commit, or from
+    the corresponding completion report / WORKLOG.md entry; it is
+    recorded as "SELF" here only because it is genuinely self-referential,
+    not because the rest of this section's provenance is incomplete --
+    every other commit above is an explicit, independently resolvable
+    full hash.
+  authorized_changed_path_this_commit: docs/evidence/AS-GH-001-receipt.yaml
+  other_files_changed_this_commit: none
+
+# Bounded remediation, applied additively on top of pre-remediation tip
+# 7c52e4635d091a1fe2896159bad5b0c991cecec2 in response to four PR #2
+# review threads. No existing commit was amended, rebased, or squashed.
+remediation:
+  pre_remediation_tip: 7c52e4635d091a1fe2896159bad5b0c991cecec2
+  threads_addressed:
+    - thread: "ci.yml cache/permissions finding (thread 1)"
+      finding: >-
+        Reviewer asked whether pip-cache restore/save required broader
+        workflow permissions than contents:read.
+      disposition: cache_worked_without_additional_permission
+      evidence: >-
+        Inspected the real, already-successful "quality" run
+        (https://github.com/B0LK13/project-atlas/actions/runs/30905727068/job/91980229911).
+        Its "GITHUB_TOKEN Permissions" log group shows only "Contents:
+        read" / "Metadata: read"; the setup-python cache step logs
+        "Cache hit for: ..." and "Cache restored successfully" with no
+        permission warning or error anywhere in the job log. Per the
+        owner's rule ("cache worked without additional permission:
+        retain current permissions and document evidence"), cache:
+        pip and the existing contents:read permission are retained
+        unchanged; a documenting comment citing this exact run was
+        added directly above the cache: pip line in ci.yml. No
+        permission was broadened.
+    - thread: "final head-SHA refresh instruction (thread 2)"
+      finding: >-
+        PR template's head-SHA field had no instruction to refresh it
+        before requesting certification.
+      disposition: remediated
+      evidence: >-
+        Added an inline comment under "Source branch tip" in
+        .github/pull_request_template.md instructing authors to
+        refresh the value after the final push and before requesting
+        independent certification, and explicitly not to update it
+        continuously during active development.
+    - thread: "certification and owner-authorization fields (thread 3)"
+      finding: >-
+        PR template had no field for independent-certification state,
+        owner-authorization state, or migration/operational impact.
+      disposition: remediated
+      evidence: >-
+        Added a "Migration or operational impact" section (none /
+        described below) and a "Governance state" section
+        (Independent certification: pending/passed/blocked; Project
+        Owner integration authorization: not granted/granted) to
+        .github/pull_request_template.md, each pointing back to the
+        linked receipt for detailed evidence rather than embedding it
+        in the PR body.
+    - thread: "exact workflow-permission-map validation (thread 4)"
+      finding: >-
+        test_every_workflow_declares_explicit_least_privilege_permissions
+        accepted the string form "read-all" as least-privilege, which
+        is incorrect: "read-all" grants read on every permission
+        scope, not just contents, and is not the approved exact map.
+      disposition: remediated
+      evidence: >-
+        Replaced that test with
+        test_every_workflow_declares_exact_approved_permission_map in
+        tests/unit/test_as_gh_001_governance.py. The new test requires
+        every workflow-level AND job-level permissions block (when
+        present) to equal exactly {"contents": "read"}; it explicitly
+        rejects "read-all"/"write-all" string forms, any additional
+        permission key, any write permission, and any id-token
+        permission. This test validates static repository file
+        content only; it does not and cannot verify live GitHub
+        branch-protection or Actions run-time behavior.
+  files_changed:
+    - .github/workflows/ci.yml
+    - .github/pull_request_template.md
+    - tests/unit/test_as_gh_001_governance.py
+    - docs/evidence/AS-GH-001-receipt.yaml
+  files_not_changed_in_remediation:
+    - SECURITY.md
+    - CONTRIBUTING.md
+    - .github/CODEOWNERS
+    - .github/dependabot.yml
+    - .github/workflows/atlas-documentation-gate.yml
+  review_threads_resolved_by_this_remediation: 0
+  note: >-
+    All four review threads remain open/unresolved on GitHub; resolving
+    them is a separate Project-Owner-authorized action, not performed
+    here. Threads 5-9 (the additional P2-severity SECURITY.md scope,
+    migration-field, YAML-extension, and Phase-4-status-inversion
+    comments) were not in this remediation's authorized scope
+    (limited to threads 1-4 per the owner's disposition) and remain
+    open for a later, separately authorized remediation round.
+  validation_after_remediation:
+    focused_governance_tests_command: python -m pytest tests/unit/test_as_gh_001_governance.py -v
+    focused_governance_tests_result: "13 passed, 0 failed"
+    full_pytest_command: >-
+      PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider tests --tb=short
+    full_pytest_result: "288 passed, 0 failed (unchanged total; one test renamed, none added or removed)"
+    ruff_command: python -m ruff check .
+    ruff_result: clean
+    mypy_command: python -m mypy src
+    mypy_result: "clean, 36 source files"
+    compileall_command: python -m compileall -q src atlas-vault-documentation
+    compileall_result: clean
+    yaml_duplicate_key_command: >-
+      python -c "import yaml, glob; ... duplicate-key-sensitive loader over
+      .github/**/*.yml and docs/evidence/*.yaml"
+    yaml_duplicate_key_result: "25 files parsed, 0 duplicate keys, 0 errors"
+  live_github_settings_modified: false
+  origin_main_modified: false
+  pr2_merged: false
+  auto_merge_enabled: false
+  force_push_used: false
+  history_rewritten: false

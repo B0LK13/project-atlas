@@ -1,0 +1,4 @@
+interface:
+  display_name: "Atlas Governed Work"
+  short_description: "Execute Atlas governed work with validated lifecycle receipts"
+  default_prompt: "Use the Atlas governed-work lifecycle for bootstrap, evidence capture, validation, and receipt-gated completion."

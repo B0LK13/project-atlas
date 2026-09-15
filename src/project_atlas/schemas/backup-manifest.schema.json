@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/backup-manifest.schema.json",
+  "title": "Verified Atlas Snapshot Manifest",
+  "description": "AS-BACKUP-001 MANIFEST.json. Operational durability only; never project authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_epoch",
+    "snapshot_id",
+    "vault_logical_id",
+    "domains_included",
+    "member_count",
+    "members",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.backup.manifest.v1" },
+    "schema_epoch": { "type": "integer", "const": 1 },
+    "snapshot_id": { "type": "string", "minLength": 1 },
+    "vault_logical_id": { "type": "string", "minLength": 1 },
+    "domains_included": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["D1", "D2", "D3", "D4", "D5", "D6"] },
+      "uniqueItems": true
+    },
+    "member_count": { "type": "integer", "minimum": 0 },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["domain", "path", "sha256", "size"],
+        "properties": {
+          "domain": { "type": "string", "enum": ["D1", "D2", "D3", "D4", "D5", "D6"] },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "size": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "BACKUP/RESTORE = OPERATIONAL DURABILITY ≠ PROJECT AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

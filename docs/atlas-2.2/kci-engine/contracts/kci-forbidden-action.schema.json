@@ -1,0 +1,51 @@
+{
+  "": "atlas-2.2/kci-engine/kci-forbidden-action.schema.json",
+  "additionalProperties": false,
+  "description": "PREP STUB \u2014 KCI-engine deepen forbidden actions",
+  "properties": {
+    "action": {
+      "enum": [
+        "silent-pass-without-evidence",
+        "layer-b-write",
+        "release-cert-stamp",
+        "pilot-invent",
+        "llm-as-authority"
+      ],
+      "type": "string"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "expect": {
+      "const": "reject"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "reason": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "release_certified": {
+      "const": false
+    }
+  },
+  "required": [
+    "action",
+    "expect",
+    "reason",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "title": "KCI forbidden action (PREP STUB)",
+  "type": "object"
+}

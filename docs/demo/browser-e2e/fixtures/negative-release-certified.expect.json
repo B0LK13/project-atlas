@@ -1,0 +1,7 @@
+{
+  "expect": "reject",
+  "forbidden_field": {
+    "release_certified": true
+  },
+  "reason": "demo browser-E2E package never stamps RELEASE CERTIFIED"
+}

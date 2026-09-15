@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/schema-compat-report.schema.json",
+  "title": "Schema Compatibility / Migration Report",
+  "description": "AS-INT-012 deterministic schema compatibility scan and dry-run migration plan under generated/ops/. Operational only; never Layer B / never authority. No wall-clock stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "status",
+    "mode",
+    "findings",
+    "counts",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.schema_compat.report.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "SCHEMA COMPAT / MIGRATION REPORT ≠ PROJECT AUTHORITY"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "drift", "error", "dry-run"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["compat", "migrate-dry-run"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "result"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "result": {
+            "type": "string",
+            "enum": ["compatible", "unknown-schema", "malformed", "missing", "migrate-candidate"]
+          },
+          "detail": { "type": "string", "minLength": 1 },
+          "from_schema": { "type": "string", "minLength": 1 },
+          "to_schema": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scanned",
+        "compatible",
+        "unknown_schema",
+        "malformed",
+        "missing",
+        "migrate_candidate"
+      ],
+      "properties": {
+        "scanned": { "type": "integer", "minimum": 0 },
+        "compatible": { "type": "integer", "minimum": 0 },
+        "unknown_schema": { "type": "integer", "minimum": 0 },
+        "malformed": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "migrate_candidate": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

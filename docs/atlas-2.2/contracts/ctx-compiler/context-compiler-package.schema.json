@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/drafts/atlas-2.2/context-compiler-package.schema.json",
+  "title": "ContextCompilerPackageDraft",
+  "description": "AS-2.2-CTX-COMPILER-001 PREP draft output package + pipeline receipt. Not production package data. Not PILOT evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "draft",
+    "pack_id",
+    "task_id",
+    "profile_id",
+    "fixture_safe",
+    "estate_facts_invented",
+    "items",
+    "pipeline",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 0 },
+    "package_id": { "const": "AS-2.2-CTX-COMPILER-001" },
+    "draft": { "const": true },
+    "pack_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "profile_id": {
+      "type": "string",
+      "enum": [
+        "developer",
+        "architect",
+        "security",
+        "release",
+        "operations",
+        "research"
+      ]
+    },
+    "fixture_safe": { "const": true },
+    "estate_facts_invented": { "const": false },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "context-item.schema.json"
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stages",
+        "candidates_in",
+        "items_out",
+        "truncated",
+        "overflow"
+      ],
+      "properties": {
+        "stages": {
+          "type": "array",
+          "minItems": 7,
+          "prefixItems": [
+            { "const": "task" },
+            { "const": "candidates" },
+            { "const": "authority" },
+            { "const": "freshness" },
+            { "const": "conflicts" },
+            { "const": "budget" },
+            { "const": "package" }
+          ],
+          "items": {
+            "type": "string",
+            "enum": [
+              "task",
+              "candidates",
+              "authority",
+              "freshness",
+              "conflicts",
+              "relevance",
+              "privacy",
+              "budget",
+              "package"
+            ]
+          }
+        },
+        "candidates_in": { "type": "integer", "minimum": 0 },
+        "items_out": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" },
+        "overflow": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["occurred", "dropped_count"],
+          "properties": {
+            "occurred": { "type": "boolean" },
+            "dropped_count": { "type": "integer", "minimum": 0 },
+            "policy": { "type": "string", "enum": ["truncate", "fail", "none"] }
+          }
+        },
+        "unresolved_conflicts_retained": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "notes": { "type": "string", "maxLength": 240 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "CONTEXT COMPILER ≠ ESTATE FACTS / ≠ AUTHORITY / ≠ PILOT"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas-prep" } }
+    }
+  }
+}

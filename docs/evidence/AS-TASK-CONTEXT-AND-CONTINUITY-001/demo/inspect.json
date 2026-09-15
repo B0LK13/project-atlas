@@ -1,0 +1,272 @@
+{
+  "fragments": [
+    {
+      "chars": 73,
+      "exclusion": null,
+      "id": "policy-refs",
+      "included": true,
+      "reasons": [
+        {
+          "code": "policy-config",
+          "detail": "supplied via contract policy_refs / config \u2014 not retrieved text"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "policy"
+    },
+    {
+      "chars": 240,
+      "exclusion": null,
+      "id": "req-acceptance",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.acceptance"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 57,
+      "exclusion": null,
+      "id": "req-exclusions",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.exclusions"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 81,
+      "exclusion": null,
+      "id": "req-interfaces",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.interface_refs"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 219,
+      "exclusion": null,
+      "id": "req-mutation",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.mutation_paths \u2014 retrieved text cannot widen this set"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 74,
+      "exclusion": null,
+      "id": "req-objective",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.objective"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 74,
+      "exclusion": null,
+      "id": "req-outcome",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.observable_outcome"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 137,
+      "exclusion": null,
+      "id": "req-requirements",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.requirements"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 64,
+      "exclusion": null,
+      "id": "req-scope",
+      "included": true,
+      "reasons": [
+        {
+          "code": "contract-field",
+          "detail": "contract.scope"
+        }
+      ],
+      "tier": "mandatory",
+      "trust": "task_requirement"
+    },
+    {
+      "chars": 101,
+      "exclusion": null,
+      "id": "src-api",
+      "included": true,
+      "reasons": [
+        {
+          "code": "explicit-context-ref",
+          "detail": "Named interface symbol assemble_packet"
+        }
+      ],
+      "tier": "evidence",
+      "trust": "retrieved"
+    },
+    {
+      "chars": 128,
+      "exclusion": null,
+      "id": "src-arch",
+      "included": true,
+      "reasons": [
+        {
+          "code": "explicit-context-ref",
+          "detail": "Named architecture doc for the interface under change"
+        }
+      ],
+      "tier": "evidence",
+      "trust": "retrieved"
+    },
+    {
+      "chars": 128,
+      "exclusion": null,
+      "id": "src-arch-dup",
+      "included": true,
+      "reasons": [
+        {
+          "code": "explicit-context-ref",
+          "detail": "Duplicate reference retaining separate provenance"
+        }
+      ],
+      "tier": "background",
+      "trust": "retrieved"
+    },
+    {
+      "chars": 195,
+      "exclusion": null,
+      "id": "src-bait",
+      "included": true,
+      "reasons": [
+        {
+          "code": "explicit-context-ref",
+          "detail": "Negative control: instruction-shaped retrieved text"
+        },
+        {
+          "code": "injection-shaped-kept-as-retrieved",
+          "detail": "instruction-like text retained as quoted evidence; not policy"
+        }
+      ],
+      "tier": "background",
+      "trust": "retrieved"
+    },
+    {
+      "chars": 47,
+      "exclusion": null,
+      "id": "src-cfl-a",
+      "included": true,
+      "reasons": [
+        {
+          "code": "explicit-context-ref",
+          "detail": "Conflicting decision source A"
+        }
+      ],
+      "tier": "evidence",
+      "trust": "retrieved"
+    },
+    {
+      "chars": 47,
+      "exclusion": null,
+      "id": "src-cfl-b",
+      "included": true,
+      "reasons": [
+        {
+          "code": "explicit-context-ref",
+          "detail": "Conflicting decision source B"
+        }
+      ],
+      "tier": "evidence",
+      "trust": "retrieved"
+    },
+    {
+      "chars": 0,
+      "exclusion": "missing source: docs/does-not-exist.md",
+      "id": "src-missing",
+      "included": false,
+      "reasons": [
+        {
+          "code": "explicit-context-ref",
+          "detail": "Intentionally missing source"
+        }
+      ],
+      "tier": "evidence",
+      "trust": "retrieved"
+    }
+  ],
+  "selection_limits": [
+    "selection=explicit-contract-context-first",
+    "supplementary-search=optional-hook-only",
+    "no-full-repo-history",
+    "retrieved-cannot-widen-mutation-scope",
+    "no-command-execution-from-documents"
+  ],
+  "uncertainties": [
+    {
+      "kind": "open_question",
+      "source_ids": [
+        "bait"
+      ],
+      "statement": "docs/injection-bait.md contains instruction-shaped text; kept as RETRIEVED only",
+      "uncertainty_id": "injection-bait"
+    },
+    {
+      "kind": "missing_source",
+      "source_ids": [
+        "missing"
+      ],
+      "statement": "missing source: docs/does-not-exist.md",
+      "uncertainty_id": "missing-missing"
+    },
+    {
+      "kind": "open_question",
+      "source_ids": [
+        "arch",
+        "arch-dup"
+      ],
+      "statement": "duplicate path docs/architecture.md via sources arch, arch-dup",
+      "uncertainty_id": "dup-docs/architecture.md"
+    },
+    {
+      "kind": "open_question",
+      "source_ids": [],
+      "statement": "Should token counting bind a specific tokenizer in a follow-on package?",
+      "uncertainty_id": "oq-e56e3ac890fd"
+    }
+  ]
+}

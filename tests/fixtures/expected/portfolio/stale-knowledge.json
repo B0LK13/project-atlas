@@ -1,0 +1,94 @@
+{
+  "projects": {
+    "black-agency-os": {
+      "sources": [
+        {
+          "freshness": "stale",
+          "modified_at": "2024-01-01T00:00:00Z",
+          "path": "black-agency-os/README.md",
+          "source_id": "source-393059d91a5155e8"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "black-agency-os/.atlas-project.yaml",
+          "source_id": "source-e7e6f6b00f48f523"
+        }
+      ],
+      "stale_count": 1
+    },
+    "dark-factory": {
+      "sources": [
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "dark-factory/ROADMAP-A.md",
+          "source_id": "source-5e69f09b1bbedd2f"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "dark-factory/DEPENDENCIES.md",
+          "source_id": "source-6d9d988ba4d0b0d5"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "dark-factory/ROADMAP-B.md",
+          "source_id": "source-d25bc44223b4a562"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "dark-factory/.atlas-project.yaml",
+          "source_id": "source-f586ab5bbfc1f5e9"
+        }
+      ],
+      "stale_count": 0
+    },
+    "nebula": {
+      "sources": [
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/.atlas-project.yaml",
+          "source_id": "source-02760b0ad38eedc9"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/SECURITY.md",
+          "source_id": "source-1a590ffa5b6f369a"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/VALIDATION.md",
+          "source_id": "source-4f3080175416a795"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/ARCHITECTURE.md",
+          "source_id": "source-7e8b95d2670704bf"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/README.md",
+          "source_id": "source-9fc070623c2a55d3"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/DEPENDENCIES.md",
+          "source_id": "source-cad2cec8ea1fe8d6"
+        }
+      ],
+      "stale_count": 0
+    }
+  },
+  "reference_date": "2026-08-01T00:00:00+00:00",
+  "schema_version": 1,
+  "stale_after_days": 180
+}

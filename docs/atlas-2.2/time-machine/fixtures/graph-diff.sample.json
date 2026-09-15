@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TIME-MACHINE-001",
+  "entities_added": ["ent.module-b"],
+  "entities_removed": [],
+  "edges_added": [
+    {
+      "edge_id": "edge.demo-project.owns.module-b",
+      "from_entity": "ent.demo-project",
+      "to_entity": "ent.module-b",
+      "rel_type": "owns"
+    }
+  ],
+  "edges_removed": [],
+  "authority": {
+    "level": "derived",
+    "note": "Graph diff never elevates to Layer B authority"
+  },
+  "truth_boundary": "GRAPH DIFF ≠ AUTHORITY / ≠ LAYER B",
+  "_prep_note": "FX-2.2-TM-005 — graph diff block sketch"
+}

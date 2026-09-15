@@ -1,0 +1,39 @@
+schema_version: 1
+skill:
+  id: atlas-golden-estate-curator
+  name: Atlas Golden Estate Curator
+  version: 1.0.0
+  entrypoint: SKILL.md
+  sha256: 606e09d7c7901229c3c0d8123c887087a238054d1134176ebf6a2ded5df5e6b4
+purpose:
+  - discover candidate development projects
+  - inventory and qualify estates for Atlas acceptance testing
+  - recommend golden and challenge sets
+  - stop at owner gate without mutating sources
+requires:
+  commands:
+    - python
+  capabilities:
+    - filesystem-read
+optional_capabilities:
+  - filesystem-write
+  - test-execution
+lifecycle:
+  default_mode: DISCOVER_ONLY
+  stop_at: OWNER_GATE
+  mandatory_events:
+    - discover
+    - inventory
+    - qualify
+    - recommend
+    - owner-gate
+  owner_gated_events:
+    - copy
+    - baseline-freeze
+    - goldenize
+    - independent-verify
+    - freeze-estate
+completion:
+  receipt_required: false
+  source_mutation_allowed: false
+  authentic_d_drive: LOCAL_WINDOWS_REQUIRED

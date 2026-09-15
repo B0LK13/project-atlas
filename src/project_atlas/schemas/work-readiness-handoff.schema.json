@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project_atlas/schemas/work-readiness-handoff.schema.json",
+  "title": "WorkHandoffProposal",
+  "description": "AS-WORK-READINESS-001 idempotent handoff proposal. PROPOSAL != CLAIM.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "handoff_id",
+    "task_id",
+    "source_revisions",
+    "proposed_agent_or_capabilities",
+    "observed_at",
+    "reserves_work",
+    "execution_authorized",
+    "merge_authorized"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-WORK-READINESS-001" },
+    "handoff_id": { "type": "string", "minLength": 16, "maxLength": 128 },
+    "task_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "contract_id": { "type": ["string", "null"] },
+    "contract_digest": { "type": ["string", "null"] },
+    "source_revisions": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "proposed_agent_or_capabilities": { "type": "string" },
+    "dependency_evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "ownership_evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "mutation_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "execution_limits": { "type": "object" },
+    "acceptance_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "freshness_conditions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "observed_at": { "type": "string" },
+    "expired": { "type": "boolean" },
+    "expire_reason": { "type": ["string", "null"] },
+    "reserves_work": { "const": false },
+    "execution_authorized": { "const": false },
+    "merge_authorized": { "const": false }
+  }
+}

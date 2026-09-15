@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/chatgpt-capture-receipt.schema.json",
+  "title": "ChatgptCaptureReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+        "schema_version",
+        "package_id",
+        "compat_snapshot_id",
+        "receipt_id",
+        "live_api",
+        "turn_count",
+        "status",
+        "authority",
+        "truth_boundary",
+        "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-CHATGPT-CAPTURE-001" },
+    "compat_snapshot_id": { "type": "string", "minLength": 1 },
+
+    "receipt_id": { "type": "string" },
+    "live_api": { "const": false },
+    "turn_count": { "type": "integer", "minimum": 0 },
+    "status": { "type": "string", "enum": ["captured-fixture", "rejected"] },
+
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

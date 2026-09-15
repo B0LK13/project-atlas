@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/provenance.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["content_sha256", "normalized_sha256", "source_receipt_id"],
+  "properties": {
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalized_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_receipt_id": {"type": "string", "minLength": 1}
+  }
+}

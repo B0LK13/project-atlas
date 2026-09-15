@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/kf2-fabric-inventory.schema.json",
+  "title": "Kf2FabricInventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+        "schema_version",
+        "package_id",
+        "compat_snapshot_id",
+        "inventory_id",
+        "namespace_count",
+        "entity_count",
+        "relationship_count",
+        "cross_promote",
+        "authority",
+        "truth_boundary",
+        "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-KF2-002" },
+    "compat_snapshot_id": { "type": "string", "minLength": 1 },
+
+    "inventory_id": { "type": "string" },
+    "namespace_count": { "type": "integer", "minimum": 0 },
+    "entity_count": { "type": "integer", "minimum": 0 },
+    "relationship_count": { "type": "integer", "minimum": 0 },
+    "cross_promote": { "const": false },
+
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

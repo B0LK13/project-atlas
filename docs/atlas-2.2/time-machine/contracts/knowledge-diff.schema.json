@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/knowledge-diff.schema.json",
+  "title": "knowledge-diff (PREP STUB — not package data)",
+  "description": "AS-2.2-TIME-MACHINE-001 T1→T2 envelope bundling claim/graph/decision diffs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "scope",
+    "t1_valid_time",
+    "t2_valid_time",
+    "status",
+    "claim_diff",
+    "graph_diff",
+    "decision_diff",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TIME-MACHINE-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["project", "subject", "estate-slice"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "t1_valid_time": { "type": "string", "minLength": 4, "maxLength": 64 },
+    "t2_valid_time": { "type": "string", "minLength": 4, "maxLength": 64 },
+    "knowledge_compilation_id": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "status": {
+      "enum": ["ok", "partial", "rejected_malformed"]
+    },
+    "claim_diff": { "type": "object" },
+    "graph_diff": { "type": "object" },
+    "decision_diff": { "type": "object" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "KNOWLEDGE DIFF ≠ AUTHORITY / ≠ WALL-CLOCK NOW"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+# AS-2.1 ADV live suite (non-pilot)
+
+Adversarial / fail-closed checks for live 2.1 surfaces. **Does not** unlock
+authentic PILOT, SYNC-AUTH, TWIN-AUTH, or release certification.
+
+IDs ADV-2.1-23..35 restore distinct MCP / L3 / API ownership after merge
+collision of #166 → #164 → #165 (see AS-HARVEST-H02).
+
+| ID | Surface | Assertion |
+|---|---|---|
+| ADV-2.1-01 | PILOT prep | Fixture/tmp markers never count as authentic |
+| ADV-2.1-02 | API | Non-local bind rejected |
+| ADV-2.1-03 | API | Oversized POST → 413 |
+| ADV-2.1-04 | MCP | Write tools inventory empty |
+| ADV-2.1-05 | OAI POC | Unknown/write tool names rejected |
+| ADV-2.1-06 | OAI POC | Offline / rate-limit statuses honest; llm_authority=false |
+| ADV-2.1-07 | AUTHZ | vault.write denied by default; audit receipt reconstructable |
+| ADV-2.1-08 | SCHED | Dispatch without arm fails closed |
+| ADV-2.1-09 | ASK | Empty/oversized query fails closed |
+| ADV-2.1-10 | SCHED | Timeout fields present on dispatch receipt |
+| ADV-2.1-11 | L3 | Disable receipt reconstructable |
+| ADV-2.1-12 | CHATGPT | JSON / Human-AI export variants parse |
+| ADV-2.1-13 | WEB | Demo stub stamped `demo_isolated` / `data_source=demo_stub` |
+| ADV-2.1-14 | PERF | Baseline receipt non-release-blocking |
+| ADV-2.1-15 | COLLAB | Closed session rejects further actions |
+| ADV-2.1-16 | PROVIDER | Empty/secret prompts fail closed; output quarantined |
+| ADV-2.1-17 | API | Non-local Host header rejected |
+| ADV-2.1-18 | MCP | projects.list.read allow-listed; write tools empty |
+| ADV-2.1-19 | WEB-ACTIONS | Recent list read-only; invalid limit fails closed |
+| ADV-2.1-20 | API Host/CORS | OPTIONS CORS origin; evil Host→403; local Host:port OK |
+| ADV-2.1-21 | OPS receipts | Empty inventory honest unknown; no completion claim |
+| ADV-2.1-22 | L3 job-matrix | Allowed jobs run; forbidden/disabled fail closed |
+| ADV-2.1-23 | MCP ADV | AS-2.1-MCP-ADV-001: unknown/escalation/write-via-read/path/malformed/replay |
+| ADV-2.1-24 | L3 job-matrix ADV | Scope expansion (tampered max/allowed) fail closed |
+| ADV-2.1-25 | L3 job-matrix ADV | Arm overlap across enabled policies denied |
+| ADV-2.1-26 | L3 job-matrix ADV | Destructive jobs denied; L4/L5 stay false |
+| ADV-2.1-27 | L3 job-matrix ADV | Stale/disarmed arm context fail closed |
+| ADV-2.1-28 | L3 job-matrix ADV | Package/arm receipt mismatch fail closed |
+| ADV-2.1-29 | L3 job-matrix ADV | Duplicate dispatch in one loop denied |
+| ADV-2.1-30 | API | Invalid action IDs / forbidden types → 400 |
+| ADV-2.1-31 | API | Cross-project: foreign vault not listed; authority payload fields rejected |
+| ADV-2.1-32 | API | Oversized POST → 413; invalid Content-Length → 400 |
+| ADV-2.1-33 | API | Authz bypass: default deny web.action; header spoof ignored; non-action writes 405 |
+| ADV-2.1-34 | API | Duplicate action_id rejected; ledger stays single-txn |
+| ADV-2.1-35 | API | Traversal/404 and error bodies omit absolute vault / internal paths |
+
+Executable coverage includes `tests/unit/test_as_2_1_track_b_deepen_007.py`,
+`tests/unit/test_as_2_1_adv_host_cors_001.py`,
+`tests/unit/test_as_2_1_mcp_adv_001.py` (AS-2.1-MCP-ADV-001),
+`tests/unit/test_as_2_1_l3_job_matrix_adv.py` (AS-2.1-L3-JOB-MATRIX-ADV),
+`tests/unit/test_as_2_1_api_adv_deepen_001.py` (AS-2.1-API-ADV-DEEPEN).

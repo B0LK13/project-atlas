@@ -1,0 +1,7 @@
+{
+  "case_id": "EV-PUB-002",
+  "visibility": "public",
+  "score_mode": "prefix",
+  "query": "atlas discover source",
+  "expected": "discover-"
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/agent-memory-supersession.schema.json",
+  "title": "agent-memory-supersession (PREP STUB — not package data)",
+  "description": "AS-2.2-MEM-GOV-001 supersession edge between memory units sharing a memory_key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "memory_key",
+    "project_id",
+    "prior_memory_id",
+    "successor_memory_id",
+    "reciprocal",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.agent_memory.supersession.v0" },
+    "memory_key": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "project_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "prior_memory_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "successor_memory_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "reciprocal": {
+      "const": true,
+      "description": "Prior must record superseded_by; successor must record supersedes."
+    },
+    "reason": {
+      "type": "string",
+      "enum": ["correction", "refresh", "policy", "operator"]
+    },
+    "truth_boundary": {
+      "const": "MEMORY SUPERSESSION ≠ PROJECT AUTHORITY"
+    }
+  }
+}

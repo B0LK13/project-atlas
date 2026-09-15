@@ -1,0 +1,49 @@
+schema_version: 1
+package: AS-CORE-003
+receipt_type: isolated-technical-review
+candidate:
+  tag: candidate/CAND-AS-CORE-003-V2-003
+  commit: ca4975fe4355ac68533ad9aaa1fab57db07846eb
+  tree: 5b881a737f87d11ed708bcbd93d01364d7d1367c
+  merge_base: c12ac61665bef5c692b338add5b4936e845e12e5
+review:
+  result: fail-remediation-required
+  environment: Windows with Python 3.13
+  full_delta_reviewed: true
+  tracked_worktree_clean_after_review: true
+findings:
+  - severity: critical
+    id: V2-003-R1
+    summary: Historical migration did not reconstruct real compiler identities.
+    details:
+      - imported evidence filenames were confused with original registry paths
+      - v1 explicit anchors were removed before legacy digest derivation
+      - non-Markdown history and architecture fallback claims were omitted
+      - unresolved historical claims were silently skipped
+  - severity: critical
+    id: V2-003-R2
+    summary: Alias state could be promoted before its receipt and replay could not repair the loss.
+  - severity: high
+    id: V2-003-R3
+    summary: The project CLI value could escape migration state and receipt roots.
+  - severity: high
+    id: V2-003-R4
+    summary: A global alias map conflicted with project-scoped locks and mixed project history.
+  - severity: high
+    id: V2-003-R5
+    summary: OCC evidence stopped before promotion and did not prove mid-promotion rollback.
+  - severity: medium
+    id: V2-003-R6
+    summary: Existing alias maps could contain the same v1 ID in resolved and ambiguous collections.
+gates:
+  ruff: passed
+  mypy: passed
+  pytest_full: 307-passed-1-skipped
+  pytest_integration: 106-passed-1-skipped-201-deselected
+  compileall: passed
+  cli_smoke: passed
+disposition:
+  candidate_accepted: false
+  tag_moved: false
+  historical_evidence_preserved: true
+  next_candidate: candidate/CAND-AS-CORE-003-V2-004

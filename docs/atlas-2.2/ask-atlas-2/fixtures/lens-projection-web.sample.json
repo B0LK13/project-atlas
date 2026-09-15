@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ASK2-DEEPEN-PREP-001",
+  "projection_id": "lens-web-fx-ask2-001",
+  "answer_id": "ans-fx-ask2-deepen-001",
+  "surface": "web",
+  "fields_present": [
+    "ANSWER",
+    "WHY",
+    "WHY_NOT",
+    "EVIDENCE",
+    "AUTHORITY",
+    "TEMPORAL_VALIDITY",
+    "CONFLICTS",
+    "UNKNOWN"
+  ],
+  "render_mode": "citations_first",
+  "canonical_write": false,
+  "ui_truth": false,
+  "llm_authority": false,
+  "live_path_owned": false,
+  "authority": {
+    "level": "derived",
+    "note": "Web lens is consume-only"
+  },
+  "truth_boundary": "ASK LENS ≠ CANONICAL WRITE / ≠ AUTHORITY / UI ≠ TRUTH",
+  "evidence_class": "fixture-only",
+  "_prep_note": "FX-2.2-ASK2-003 — web lens projection"
+}

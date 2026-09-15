@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CONFLICT-UX-PREP-001",
+  "action_id": "action.demo.ui-write.forbidden",
+  "conflict_id": "conflict.demo.package-status.001",
+  "kind": "ui_canonical_write",
+  "status": "rejected_forbidden",
+  "expected_error": "conflict-ux-ui-canonical-write-forbidden",
+  "canonical_writes": true,
+  "authority": {
+    "level": "derived",
+    "note": "UI≠canonical — cockpit must not write Layer B"
+  },
+  "truth_boundary": "DISPOSITION ACTION ≠ AUTO-RESOLVE / ≠ LAYER B WRITE / ≠ AUTHORITY",
+  "_prep_note": "FX-2.2-CUX-005 — expected rejection of UI canonical write"
+}

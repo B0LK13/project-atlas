@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/compat-pin-forbidden-action.schema.json",
+  "title": "compat-pin-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-COMPAT-PIN-DEEPEN-PREP-001 fail-closed action proposal. Reject release-cert stamps, PILOT invent, premature 2.1 anchor publish, runtime mutation, and future-pin-as-live claims.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-COMPAT-PIN-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "kind": {
+      "enum": [
+        "release_cert_stamp",
+        "pilot_invent",
+        "anchor_publish",
+        "runtime_mutation",
+        "future_pin_as_live"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "compat-pin-release-cert-stamp-forbidden",
+        "compat-pin-pilot-invent-forbidden",
+        "compat-pin-anchor-publish-forbidden",
+        "compat-pin-runtime-mutation-forbidden",
+        "compat-pin-future-pin-as-live-forbidden"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "release_certified": { "const": false },
+    "pilot_pass": { "const": false },
+    "canonical_writes": { "const": false },
+    "pilot_roots": { "const": 0 },
+    "truth_boundary": {
+      "const": "COMPAT PIN PREP ≠ RELEASE ANCHOR / ≠ PILOT PASS / ≠ RUNTIME MUTATION"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

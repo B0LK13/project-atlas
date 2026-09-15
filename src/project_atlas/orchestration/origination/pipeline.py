@@ -1,0 +1,240 @@
+"""End-to-end origination pipeline: NORMAL PROJECT SOURCES -> proposal ->
+policy-evaluated outcome. Pure, deterministic, no LLM call.
+
+``originate_all()`` is the top-level entry point both Process A
+(first-time origination) and Process C (successor discovery) use.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict
+
+from project_atlas.orchestration.origination.adapter import (
+    ADAPTER_VERSION,
+    EligibleRoadmapItem,
+    extract_corroborating_facts,
+)
+from project_atlas.orchestration.origination.facts import SourceFact, SourceFactKind
+from project_atlas.orchestration.origination.identity import origination_identity, work_id_for
+from project_atlas.orchestration.origination.policy import PolicyResult, evaluate
+from project_atlas.orchestration.origination.proposal import (
+    AuthorityClass,
+    EvidenceCompleteness,
+    OriginationProposal,
+    Provenance,
+)
+from project_atlas.orchestration.origination.risk import classify
+from project_atlas.orchestration.origination.sources import eligible_work_items
+
+_MAX_EXCERPT = 400
+
+
+class OriginationOutcome(BaseModel):
+    """One originated proposal plus its policy evaluation. What
+    ``originate_all()`` returns per eligible roadmap item."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    proposal: OriginationProposal
+    policy: PolicyResult
+
+
+def originate_all(project_root: Path, project_id: str) -> tuple[OriginationOutcome, ...]:
+    """Scan ``project_root`` for specification-backed work across every
+    explicitly declared origination source (``sources.py`` --
+    ``docs/ROADMAP.md`` alone when none are declared, unchanged from this
+    function's original behavior) and return one ``OriginationOutcome``
+    per eligible item found, policy-evaluated.
+
+    Returns an empty tuple when nothing is eligible -- the correct,
+    honest ``NO_ELIGIBLE_WORK`` outcome, not an error.
+    """
+    return tuple(
+        _build_outcome(project_root, project_id, item)
+        for item in eligible_work_items(project_root)
+    )
+
+
+def originate_new_only(
+    project_root: Path, project_id: str, projection_store: Path
+) -> tuple[OriginationOutcome, ...]:
+    """``originate_all()``, filtered to outcomes whose
+    ``origination_identity`` is not already durably resolved
+    (``TERMINAL``) in ``projection_store``.
+
+    This is what a real successor-discovery scan (Process C) should call,
+    not ``originate_all()`` directly: a project's own roadmap record can
+    lag reality (e.g. a completed item whose status field was never
+    updated -- see ADR-033's O1 mutation-surface note: the roadmap file
+    itself is deliberately not in a leased node's authorized scope, so
+    "implement the feature" and "declare the roadmap item done" can be
+    separate authorities). Without this filter, a stale roadmap record
+    would make every successor scan "re-discover" already-completed work
+    -- this is exactly the case ``NO_DUPLICATE_ORIGINATION`` /
+    ``RESTART_REPLAY`` must hold under, not just the simpler case where
+    nothing on disk changed at all.
+    """
+    from project_atlas.orchestration.origination.projection import load_projection
+
+    try:
+        projection = load_projection(projection_store)
+    except Exception:
+        # No durable record at all yet (or an unreadable store) -- every
+        # candidate is "new" from this scan's point of view; fail open
+        # toward re-deriving rather than silently hiding real work behind
+        # a store this scan cannot trust anyway.
+        resolved_identities: frozenset[str] = frozenset()
+    else:
+        resolved_identities = frozenset(
+            row.origination_identity for row in projection.records if row.state == "TERMINAL"
+        )
+    return tuple(
+        outcome
+        for outcome in originate_all(project_root, project_id)
+        if outcome.proposal.origination_identity not in resolved_identities
+    )
+
+
+def effective_authority_fields(
+    item: EligibleRoadmapItem,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The ``(proposed_scope, success_criteria)`` pair this pipeline
+    derives for ``item`` -- its complete authority-bearing surface
+    downstream of the roadmap item itself.
+
+    Single source of truth for this derivation (owner directive
+    D-ATLAS-AUTHORITY-SNAPSHOT-CONVERGENCE, P1 finding on PR #678): both
+    ``_build_outcome()`` (proposal construction) and
+    ``cli.py::_source_identity_still_current()`` (the freshness
+    recheck ``reconcile_revision()`` runs before any write) MUST derive
+    these two fields identically from a live ``EligibleRoadmapItem``, or
+    the freshness check could pass/fail on a derivation that silently
+    disagrees with what was actually proposed -- exactly the "second,
+    drift-prone copy of the payload format" ``identity.py`` already
+    warns against for the sibling identity formula.
+
+    AS-ORIGIN-ACCEPTANCE-001 (PR-D): when an explicit acceptance
+    contract (``acceptance_contracts.py``) attached these overrides at
+    the ``sources.py`` merge step, they are used INSTEAD OF the derived
+    defaults below, never in addition to them -- an explicit,
+    human-authored scope/criteria is authoritative over a generically
+    derived one. Every other item (the overwhelming majority, with no
+    contract) is completely unaffected: both fields stay ``None`` and
+    this branch is not taken, identical to this pipeline's behavior
+    before PR-D existed.
+    """
+    if item.contract_success_criteria is not None:
+        success_criteria = item.contract_success_criteria
+    else:
+        success_criteria = (
+            f"Implement {item.item_id} exactly per its declared evidence",
+            *(f"Evidence available: {path}" for path in item.evidence),
+        )
+    proposed_scope = (
+        item.contract_proposed_scope
+        if item.contract_proposed_scope is not None
+        else _proposed_scope(item.evidence)
+    )
+    return proposed_scope, success_criteria
+
+
+def _build_outcome(
+    project_root: Path, project_id: str, item: EligibleRoadmapItem
+) -> OriginationOutcome:
+    excerpt = f"id={item.item_id} title={item.title} evidence=[{','.join(item.evidence)}]"
+    authoritative_fact = SourceFact(
+        kind=SourceFactKind.AUTHORITATIVE_ROADMAP_ITEM,
+        project_id=project_id,
+        location=item.source_path,
+        content_digest=item.roadmap_digest,
+        excerpt=excerpt[:_MAX_EXCERPT],
+        subject_id=item.item_id,
+        subject_digest=item.item_digest,
+    )
+    acceptance_facts = extract_corroborating_facts(project_root, project_id, item.evidence)
+
+    source_evidence = (authoritative_fact, *acceptance_facts)
+    source_locations = tuple(dict.fromkeys(fact.location for fact in source_evidence))
+
+    proposed_scope, success_criteria = effective_authority_fields(item)
+
+    risk = classify(
+        proposed_scope=proposed_scope,
+        success_criteria=success_criteria,
+    )
+
+    evidence_completeness = (
+        EvidenceCompleteness.COMPLETE if acceptance_facts else EvidenceCompleteness.INTENT_ONLY
+    )
+
+    origination_id = origination_identity(
+        project_id,
+        authoritative_fact,
+        proposed_scope=proposed_scope,
+        success_criteria=success_criteria,
+    )
+    work_id = work_id_for(project_id, item.item_id)
+
+    if item.depends_on:
+        why_now = (
+            f"{item.item_id!r} depends on {list(item.depends_on)}, which are not yet "
+            "IMPLEMENTED/VERIFIED_COMPLETION; origination's own policy gate refuses "
+            "execution_ready while any of these package ids remain outstanding "
+            "(the governed DAG's lease/mark_ready machinery does not itself enforce "
+            "dependency completion -- see policy.py)."
+        )
+    elif item.blockers:
+        why_now = f"{item.item_id!r} declares unresolved blockers and cannot execute yet."
+    else:
+        why_now = f"{item.item_id!r} has no declared dependency and is the currently-eligible item."
+
+    proposal = OriginationProposal(
+        work_id=work_id,
+        project_id=project_id,
+        title=item.title,
+        intent=(
+            f"Implement roadmap item {item.item_id!r} ({item.title!r}) "
+            "per its declared evidence."
+        ),
+        why_this_work=(
+            f"{item.source_path} declares {item.item_id!r} as status={item.status} "
+            f"lifecycle={item.lifecycle}"
+            + (f" (section: {item.section_context})" if item.section_context else "")
+            + " -- the project's own authoritative next-work record."
+        ),
+        why_now=why_now,
+        source_evidence=source_evidence,
+        source_locations=source_locations,
+        authoritative_source=authoritative_fact,
+        acceptance_evidence=acceptance_facts,
+        success_criteria=success_criteria,
+        dependencies=tuple(work_id_for(project_id, dep) for dep in item.depends_on),
+        blockers=item.blockers,
+        contradictions=(),
+        proposed_scope=proposed_scope,
+        risk_class=risk.risk_class,
+        authority_class=AuthorityClass.AUTHORITATIVE,
+        evidence_completeness=evidence_completeness,
+        provenance=Provenance(
+            adapter_version=ADAPTER_VERSION,
+            consulted_digests=tuple(dict.fromkeys(fact.content_digest for fact in source_evidence)),
+        ),
+        origination_identity=origination_id,
+    )
+    policy = evaluate(proposal)
+    return OriginationOutcome(proposal=proposal, policy=policy)
+
+
+def _proposed_scope(evidence_paths: tuple[str, ...]) -> tuple[str, ...]:
+    """Conservative default mutation surface: the evidence paths
+    themselves plus a top-level ``src/`` allowance whenever a test-file
+    evidence path implies source code needs to change. Generic -- derived
+    from the evidence paths' own structure, never from project-specific
+    knowledge."""
+    scope: set[str] = set(evidence_paths)
+    for path in evidence_paths:
+        if path.startswith("tests/"):
+            scope.add("src/")
+    return tuple(sorted(scope))

@@ -1,0 +1,20 @@
+{
+  "_prep_note": "FX-2.2-KF2-DEEPEN-101 — expected rejection of authority_elevate",
+  "action_id": "fx-kf2-authority_elevate",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "must not elevate KF fabric rows to Layer B authority"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "kf2-fabric-authority-elevate-forbidden",
+  "kind": "authority_elevate",
+  "package_id": "AS-2.2-KF2-FABRIC-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "KF2 FABRIC ≠ AUTHORITY / ≠ CROSS PROMOTE / ≠ PROJECTION WRITE / ≠ LAYER B / ≠ PILOT / ≠ RELEASE"
+}

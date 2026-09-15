@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/scheduler-dry-run.schema.json",
+  "title": "SchedulerDryRun",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+        "schema_version",
+        "package_id",
+        "compat_snapshot_id",
+        "plan_id",
+        "live_dispatch",
+        "jobs",
+        "authority",
+        "truth_boundary",
+        "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-SCHED-001" },
+    "compat_snapshot_id": { "type": "string", "minLength": 1 },
+
+    "plan_id": { "type": "string" },
+    "live_dispatch": { "const": false },
+    "jobs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["job_id", "kind", "enabled"],
+        "properties": {
+          "job_id": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": ["validate", "build-indexes", "retention", "health"]
+          },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

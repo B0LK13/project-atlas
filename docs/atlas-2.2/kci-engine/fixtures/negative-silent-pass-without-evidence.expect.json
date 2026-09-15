@@ -1,0 +1,10 @@
+{
+  "action": "silent-pass-without-evidence",
+  "authentic_estate": false,
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "KCI must not report pass without evidence refs",
+  "release_certified": false
+}

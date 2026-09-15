@@ -1,0 +1,10 @@
+{
+  "schema": "atlas.2.2.agent_memory.supersession.v0",
+  "memory_key": "episodic.last-decision",
+  "project_id": "proj-fixture-001",
+  "prior_memory_id": "mem-prior-001",
+  "successor_memory_id": "mem-successor-001",
+  "reciprocal": true,
+  "reason": "correction",
+  "truth_boundary": "MEMORY SUPERSESSION ≠ PROJECT AUTHORITY"
+}

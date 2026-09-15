@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-INTEL-SLICE-PREP-001",
+  "action_id": "action.demo.intel-slice.llm-authority.forbidden",
+  "slice_id": "intel-slice.demo.estate-alpha.001",
+  "kind": "llm_authority",
+  "status": "rejected_forbidden",
+  "expected_error": "intel-slice-llm-authority-forbidden",
+  "canonical_write": false,
+  "authority": {
+    "level": "derived",
+    "note": "LLM ≠ authority; narrative cannot stamp authority"
+  },
+  "truth_boundary": "LLM ≠ AUTHORITY / INTEL SLICE ≠ AUTHORITY",
+  "_prep_note": "FX-2.2-ISL-006 — expected rejection of LLM-as-authority"
+}

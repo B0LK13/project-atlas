@@ -1,0 +1,222 @@
+diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
+index e185a1279..ef83f6aae 100644
+--- a/packages/coding-agent/src/core/agent-session.ts
++++ b/packages/coding-agent/src/core/agent-session.ts
+@@ -71,6 +71,7 @@ import {
+ 	normalizeObserveMaxChars,
+ 	ORCHESTRATION_HEARTBEAT_SKILL_NAME,
+ } from "./agent-observe.js";
++import { type AtlasChildAdmission, requestAtlasChildAdmission } from "./atlas-child-admission.js";
+ import {
+ 	addLoginGuidanceToAuthError,
+ 	formatAuthenticationFailedMessage,
+@@ -11621,6 +11622,7 @@ export class AgentSession {
+ 				`RLM recursion depth limit reached (RLM_DEPTH=${this._rlmDepth}, RLM_MAX_DEPTH=${this._rlmMaxDepth})`,
+ 			);
+ 		}
++		let atlasAdmission: AtlasChildAdmission | undefined;
+ 		if (requestedSessionName) {
+ 			if (this._pendingRlmSubagentSessionNames.has(requestedSessionName)) {
+ 				throw new Error(formatAgentSessionNameUnavailable(requestedSessionName, this._rlmDepth + 1));
+@@ -11648,11 +11650,57 @@ export class AgentSession {
+ 			}
+ 		}
+ 		if (this._disposed || this._disposing) throw new Error("Cannot spawn a subagent after its parent was disposed");
++		atlasAdmission = await requestAtlasChildAdmission({
++			phase: "reserve",
++			missionId: process.env.ATLAS_PRIME_MISSION_ID,
++			taskId: process.env.ATLAS_PRIME_TASK_ID,
++			attemptId: process.env.ATLAS_PRIME_ATTEMPT_ID,
++			parentSessionId: this.sessionId,
++			prompt,
++			name: requestedSessionName ?? "subagent",
++			model: modelSelection.model.id,
++			depth: this._rlmDepth,
++		});
+ 
+ 		const childSessionDir = this._createChildRlmSessionDir();
+ 		const childNodeId = basename(childSessionDir);
+ 		const sessionName = requestedSessionName ?? createDefaultRlmSubagentSessionName(prompt, childNodeId);
+ 		if (!requestedSessionName) await this._assertRlmSubagentSessionNameAvailable(sessionName);
++		if (atlasAdmission) {
++			try {
++				await requestAtlasChildAdmission({
++					phase: "commit",
++					missionId: process.env.ATLAS_PRIME_MISSION_ID,
++					taskId: process.env.ATLAS_PRIME_TASK_ID,
++					attemptId: process.env.ATLAS_PRIME_ATTEMPT_ID,
++					parentSessionId: this.sessionId,
++					admissionId: atlasAdmission.admission_id,
++					fencingToken: atlasAdmission.fencing_token,
++					childId: childNodeId,
++					sessionDir: childSessionDir,
++				});
++			} catch (error) {
++				// A rejected commit must not leak the reservation: release it
++				// best-effort before the original error propagates.
++				try {
++					await requestAtlasChildAdmission({
++						phase: "release",
++						missionId: process.env.ATLAS_PRIME_MISSION_ID,
++						taskId: process.env.ATLAS_PRIME_TASK_ID,
++						attemptId: process.env.ATLAS_PRIME_ATTEMPT_ID,
++						parentSessionId: this.sessionId,
++						admissionId: atlasAdmission.admission_id,
++						fencingToken: atlasAdmission.fencing_token,
++						childId: childNodeId,
++						sessionDir: childSessionDir,
++						status: "error",
++					});
++				} catch {
++					// The reservation release is best-effort; the commit error stands.
++				}
++				throw error;
++			}
++		}
+ 		const startedAt = Date.now();
+ 		const parentAssistantForUsage = this._findLastAssistantMessage();
+ 		if (parentAssistantForUsage && !this._rlmDurableParentUsage.has(parentAssistantForUsage)) {
+@@ -12030,6 +12078,18 @@ export class AgentSession {
+ 					}
+ 				}
+ 			} finally {
++				if (atlasAdmission) {
++					await requestAtlasChildAdmission({
++						phase: "release",
++						missionId: process.env.ATLAS_PRIME_MISSION_ID,
++						taskId: process.env.ATLAS_PRIME_TASK_ID,
++						attemptId: process.env.ATLAS_PRIME_ATTEMPT_ID,
++						parentSessionId: this.sessionId,
++						admissionId: atlasAdmission.admission_id,
++						fencingToken: atlasAdmission.fencing_token,
++						status: run.status === "cancelled" ? "cancelled" : run.status === "done" ? "done" : "error",
++					});
++				}
+ 				flushPendingChildUsageAttribution();
+ 				if (run.detachedDeletion) {
+ 					run.deletionRunFinished = true;
+diff --git a/packages/coding-agent/src/core/atlas-child-admission.ts b/packages/coding-agent/src/core/atlas-child-admission.ts
+new file mode 100644
+index 000000000..f6198f9fe
+--- /dev/null
++++ b/packages/coding-agent/src/core/atlas-child-admission.ts
+@@ -0,0 +1,119 @@
++import { createHash } from "node:crypto";
++import net from "node:net";
++
++const SOCKET_ENV = "ATLAS_PRIME_CHILD_ADMISSION_SOCKET";
++const MAX_RESPONSE_BYTES = 64 * 1024;
++
++export interface AtlasChildAdmission {
++	admission_id: string;
++	fencing_token?: number;
++}
++
++interface AtlasAdmissionResponse {
++	ok?: boolean;
++	error?: string;
++	admission_id?: string;
++	fencing_token?: number;
++}
++
++/**
++ * Ask the Atlas-owned adapter gate before creating a native Prime child.
++ *
++ * The hook is inert unless the adapter explicitly supplies its Unix socket;
++ * when supplied, a missing or malformed response fails the spawn closed.
++ */
++export async function requestAtlasChildAdmission(options: {
++	phase: "reserve" | "commit" | "release";
++	missionId: string | undefined;
++	taskId: string | undefined;
++	attemptId: string | undefined;
++	parentSessionId: string;
++	prompt?: string;
++	name?: string;
++	model?: string;
++	depth?: number;
++	admissionId?: string;
++	fencingToken?: number;
++	childId?: string;
++	sessionDir?: string;
++	status?: "done" | "error" | "cancelled";
++}): Promise<AtlasChildAdmission | undefined> {
++	const socketPath = process.env[SOCKET_ENV];
++	if (!socketPath) return undefined;
++	if (!options.missionId || !options.taskId || !options.attemptId) {
++		throw new Error("Atlas child admission binding is incomplete");
++	}
++	const payload: Record<string, unknown> = {
++		protocol: "atlas-prime-child-admission",
++		version: 1,
++		phase: options.phase,
++		mission_id: options.missionId,
++		task_id: options.taskId,
++		attempt_id: options.attemptId,
++		parent_session_id: options.parentSessionId,
++		role: process.env.ATLAS_PRIME_ROLE,
++		scope_hash: process.env.ATLAS_PRIME_SCOPE_HASH,
++		max_child_seconds: Number(process.env.ATLAS_PRIME_MAX_CHILD_SECONDS),
++		max_child_tokens: process.env.ATLAS_PRIME_MAX_CHILD_TOKENS
++			? Number(process.env.ATLAS_PRIME_MAX_CHILD_TOKENS)
++			: null,
++	};
++	if (options.phase === "reserve") {
++		if (!options.prompt || !options.name) throw new Error("Atlas child admission request is incomplete");
++		const model = options.model?.trim();
++		if (!model) throw new Error("Atlas child admission reserve requires a non-empty model");
++		const depth = options.depth;
++		if (typeof depth !== "number" || !Number.isInteger(depth) || depth < 0) {
++			throw new Error("Atlas child admission reserve requires a non-negative integer depth");
++		}
++		payload.name = options.name;
++		payload.model = model;
++		payload.depth = depth;
++		payload.prompt_sha256 = createHash("sha256").update(options.prompt, "utf8").digest("hex");
++	}
++	if (options.admissionId) payload.admission_id = options.admissionId;
++	if (options.fencingToken !== undefined) payload.fencing_token = options.fencingToken;
++	if (options.childId) payload.child_id = options.childId;
++	if (options.sessionDir) payload.session_dir = options.sessionDir;
++	if (options.status) payload.status = options.status;
++
++	const response = await new Promise<AtlasAdmissionResponse>((resolve, reject) => {
++		const client = net.createConnection(socketPath);
++		let buffer = "";
++		let settled = false;
++		const fail = (error: Error) => {
++			if (settled) return;
++			settled = true;
++			client.destroy();
++			reject(error);
++		};
++		client.setTimeout(2_000, () => fail(new Error("Atlas child admission timed out")));
++		client.on("error", (error) => fail(error));
++		client.on("close", () => fail(new Error("Atlas child admission closed before a response")));
++		client.on("connect", () => client.end(`${JSON.stringify(payload)}\n`));
++		client.on("data", (chunk) => {
++			buffer += chunk.toString("utf8");
++			if (Buffer.byteLength(buffer, "utf8") > MAX_RESPONSE_BYTES) {
++				fail(new Error("Atlas child admission response is too large"));
++				return;
++			}
++			const newline = buffer.indexOf("\n");
++			if (newline < 0) return;
++			try {
++				const parsed = JSON.parse(buffer.slice(0, newline)) as AtlasAdmissionResponse;
++				if (!parsed || typeof parsed !== "object") throw new Error("response is not an object");
++				if (settled) return;
++				settled = true;
++				client.destroy();
++				resolve(parsed);
++			} catch (error) {
++				fail(error instanceof Error ? error : new Error(String(error)));
++			}
++		});
++	});
++	if (response.ok !== true) throw new Error(response.error || "Atlas child admission denied");
++	if (!response.admission_id) return undefined;
++	const admission: AtlasChildAdmission = { admission_id: response.admission_id };
++	if (response.fencing_token !== undefined) admission.fencing_token = response.fencing_token;
++	return admission;
++}

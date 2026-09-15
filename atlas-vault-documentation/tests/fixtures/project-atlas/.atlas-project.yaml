@@ -1,0 +1,28 @@
+schema_version: 1
+
+project:
+  id: project-atlas
+  name: Project Atlas
+  aliases:
+    - atlas-vault
+  type: documentation-platform
+  status: active
+
+discovery:
+  documentation_roots:
+    - .
+    - docs
+  include:
+    - "**/*.md"
+    - "**/*.yaml"
+    - "**/*.json"
+  exclude:
+    - ".git/**"
+    - ".tmp/**"
+
+authority:
+  primary:
+    - "docs/ARCHITECTURE.md"
+    - "docs/VALIDATION_REPORT.md"
+  derived:
+    - "graphify-out/**"

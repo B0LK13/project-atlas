@@ -1,0 +1,7 @@
+schema_version: 1
+project:
+  id: monorepo
+  name: Monorepo
+discovery:
+  documentation_roots:
+    - .

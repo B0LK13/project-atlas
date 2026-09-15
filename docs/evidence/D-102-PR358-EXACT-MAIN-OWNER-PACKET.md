@@ -1,0 +1,157 @@
+# D-102 — PR #358 exact-main owner authorization packet
+
+```
+DIRECTIVE = D-PROJECT-ATLAS-CLOUD-D102-D100-ROADMAP-RECONCILIATION-AND-PR358-EXACT-MAIN-READINESS
+AUTHORIZED_PR_CANDIDATE = 358
+MERGE_AUTHORIZATION = NOT_GRANTED
+PR358_MERGED = NO
+PR358_STATE = CERTIFIED — EXACT-MAIN MERGE READY
+```
+
+This is a **candidate packet**, not authorization.
+`CERTIFIED != AUTHORIZED`. `EXACT MAIN > OLD QUEUE PACKET`.
+
+Cloud does not merge `#358` under D-102.
+
+---
+
+## Exact pins (fill CI after green run)
+
+```
+EXPECTED_PARENT_MAIN = 4da4a4ed6028583021c22b24eb11a47a4bdf0fe0
+EXPECTED_PARENT_MAIN_TREE = 4dfab1548eb7fe37fef438d3a626780451a319dc
+AUTHORIZED_PR_CANDIDATE = 358
+CANDIDATE_HEAD = <docs-stamp commit after this packet>
+CANDIDATE_TREE = <docs-stamp tree after this packet>
+CI_RUN = <green push/PR run>
+CI_RESULT = <pending GitHub>
+MERGE_METHOD = GitHub merge commit
+SQUASH = NO
+REBASE = NO
+FORCE_PUSH = NO
+```
+
+Refresh (merge, not rebase):
+
+```
+PR358_HEAD_BEFORE = e44de58cb79db138c8a62427fa3febeb82502ab6
+PR358_TREE_BEFORE = 3db024fafe1553bf75680a8d87b8e3d32e2fecc3
+PRODUCTION_TIP_UNCHANGED = ba2fc7f373ba54f31dc0b1093e11d5309153fc5e
+PRODUCTION_TREE_UNCHANGED = 35d2c46b9905b4c1b671bab0f781b67ed450dccc
+REFRESH_MERGE = 89fc59cc7e006447e98e81fda943b4b1be935469
+REFRESH_MERGE_PARENT_1 = e44de58cb79db138c8a62427fa3febeb82502ab6
+REFRESH_MERGE_PARENT_2 = 4da4a4ed6028583021c22b24eb11a47a4bdf0fe0
+PR358_REFRESH_METHOD = MERGE_CURRENT_MAIN
+```
+
+---
+
+## #359 post-merge seal (prerequisite)
+
+```
+PR359_MERGED = YES
+PR359_MERGE_COMMIT = 4da4a4ed6028583021c22b24eb11a47a4bdf0fe0
+PARENT_1 = 689f740f6ebe1bd8c2f5be956235369c924021dc
+PARENT_2 = 4ff5774a4eaba7ef943dd6088c3f03fce044e03b
+LATEST_MAIN_CI_RUN = 31874624031
+LATEST_MAIN_CI_RESULT = PASS
+UBUNTU_312_FULL = PASS
+CONTROL_PLANE = PASS
+UBUNTU_313_COMPAT = PASS
+WINDOWS_312 = PASS
+CURRENT_MAIN_CI_REPAIRED = YES
+```
+
+---
+
+## Conflicts
+
+```
+PATH = WORKLOG.md
+TYPE = DOCS_ADDITIVE
+RESOLUTION = keep-both (#358 honesty + #359 Context + D-096/#360 + D-100/D-102)
+PR358_REFRESH_CONFLICTS = 1
+PR358_PRODUCTION_SEMANTIC_CONFLICTS = 0
+PR358_UNCLASSIFIED_CONFLICTS = 0
+```
+
+No Web overlap conflict. ProdNav auto-merged from main (`#/context` kept).
+Hook files had no conflict.
+
+---
+
+## Preservation
+
+```
+PR359_CONTEXT_FEATURE_PRESERVED = YES
+PR359_YAML_CLOSER_PRESERVED = YES
+D096_HISTORY_PRESERVED = YES
+HOOKS_BYTE_EQUAL_TO_BA2FC7F = YES
+```
+
+---
+
+## Validation (refreshed tree)
+
+```
+HOOK_HONESTY = PASS
+FOCUSED_TESTS = PASS
+CONTEXT_REGRESSION = PASS
+YAML_RUNTIME = PASS
+RUFF = PASS
+MYPY = PASS
+WEB_TYPECHECK = PASS
+WEB_BUILD = PASS
+```
+
+D-098 `test_as_project_roadmap_nav.py` / `test_as_project_roadmap_web.py`
+are not in this tree (`D098_NAV_TESTS_IN_TREE = NO`). Not copied.
+D-100 authentic session was not re-run.
+
+---
+
+## D-100 vs #358
+
+```
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_HEAD = 6041b79332c49a56894dca4d45619253e54ef51c
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_TREE = 78e24d48024f26c55d741f00689e788f1ec0fc01
+D100_ROADMAP_SEMANTIC_DELTA_FROM_358 = 0
+D100_REUSE_REQUIRES_RECHECK = NO
+```
+
+`#358` does not touch `RoadmapPage.tsx` or `useLiveRoadmap.ts` (absent
+on main and on refreshed `#358`). `ProdNav.tsx` after refresh equals
+post-`#359` main. Pre-existing `#354` project-aware ProdNav remains
+unintegrated; that is the `#354` integration hold, not an `#358` delta.
+
+---
+
+## #354 (Lane A)
+
+```
+PR354_AUTHENTIC_HOLD = CLEARED
+PR354_INTEGRATION_HOLD = YES
+PR354_PRODUCT_BLOCKER = NONE
+PR354_INTEGRATION_BLOCKER = STALE/CONFLICTING BRANCH
+PR354_MERGED = NO
+PR354_MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+`#354` head was not moved.
+
+---
+
+## Later PRs
+
+```
+PR356_MERGE_AUTHORIZATION = NOT_GRANTED
+PR357_MERGE_AUTHORIZATION = NOT_GRANTED
+PR354_MERGE_AUTHORIZATION = NOT_GRANTED
+NEW_PRODUCTION_PR_CREATED = 0
+```
+
+Queue remains `#358 → #356 → #357 → #354`.
+`#352` = CLOSE WITHOUT MERGE. `#355` = SUPERSEDED BY `#360` / D-096.
+
+If the owner authorizes `#358`, require exact-main post-merge CI PASS
+before any `#356` refresh/authorization.

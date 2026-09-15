@@ -1,0 +1,20 @@
+{
+  "read_plane": "fixture",
+  "data_source": "fixture",
+  "fixture_isolated": true,
+  "demo_isolated": false,
+  "workspace_board_available": false,
+  "rollup": "unknown",
+  "project_count": 0,
+  "knowledge_count": 0,
+  "empty_projects": true,
+  "empty_knowledge": true,
+  "surfaces": {},
+  "ui_canonical": false,
+  "graph_authority": false,
+  "unknown_equals_healthy": false,
+  "authentic_pilot": false,
+  "pilot_estate_rows": [],
+  "note": "AS-2.1-WEB-MISSION-WORKSPACE-UX fixture — flags only; no PILOT estate invent",
+  "disclaimer": "UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy; FIXTURE isolated"
+}

@@ -1,0 +1,21 @@
+{
+  "_prep_note": "FX-2.2-CUX-103 \u2014 expected rejection of llm_authority_stamp on conflict cockpit",
+  "action_id": "action.demo.conflict-ux.llm-authority.forbidden",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "LLM prose must not stamp conflict winners or authority.level elevation"
+  },
+  "canonical_writes": false,
+  "conflict_id": "conflict.demo.package-status.001",
+  "evidence_class": "fixture-only",
+  "expected_error": "conflict-ux-llm-authority-forbidden",
+  "kind": "llm_authority_stamp",
+  "package_id": "AS-2.2-CONFLICT-UX-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "CONFLICT UX ACTION \u2260 RELEASE CERT / \u2260 PILOT PASS / \u2260 LLM AUTHORITY / \u2260 CANONICAL WRITE"
+}

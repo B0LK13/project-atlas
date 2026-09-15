@@ -1,0 +1,159 @@
+schema_version: 1
+package: AS-CORE-003
+status: implementation-complete-pending-isolated-review
+receipt_type: v2-identity-candidate-evidence
+work_package: AS-CORE-003
+directive_id: D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+author: Codex
+role: Implementation Agent
+recorded_at: "2026-08-04T22:56:04+02:00"
+candidate:
+  branch: remediation/as-core-003-claim-identity-v2
+  tag: candidate/CAND-AS-CORE-003-V2-003
+  commit: SELF
+  tree: SELF
+  iteration_base: d356b7ad1bbc06e08279fe5a57915cdc9ea2f841
+  merge_base_with_origin_main: c12ac61665bef5c692b338add5b4936e845e12e5
+  supersedes:
+    - candidate/CAND-AS-CORE-003-V2-001
+    - candidate/CAND-AS-CORE-003-V2-002
+  supersession_reason: >-
+    V2-001 and V2-002 predate delimiter-safe canonical identity serialization,
+    mutually exclusive ambiguous aliases, mechanically shared compiler/migration
+    parsing, streaming text hash normalization, ADR-007, and deterministic OCC retry proof.
+scope:
+  summary: >-
+    Close the remaining Claim Identity v2 correctness findings without rewriting
+    historical candidates or receipts.
+  changed_path_count: 17
+  changed_path_inventory_sha256: 40eb76190f62a655565885c72a6313dc96ad119f7d4804d42c983dbe873ab924
+  changed_subsystems:
+    - claim identity serialization and stable locator extraction
+    - v1-to-v2 migration alias classification
+    - canonical text-source hashing across discovery, ingestion, and validation
+    - ingestion optimistic-concurrency rollback and retry evidence
+    - golden fixtures and authoritative AS-CORE-003 documentation
+identity_contract:
+  encoding: compact JSON array
+  ordered_components:
+    - v2
+    - project_identity
+    - source_identity
+    - claim_type
+    - normalized_field
+    - stable_semantic_locator
+  digest: SHA-256
+  public_id: first 20 lowercase hexadecimal digest characters prefixed with claim-
+  mutable_value_in_identity: false
+  mutable_position_in_identity: false
+  compiler_migration_parser_source: project_atlas.claim_identity.extract_claims
+alias_invariant:
+  resolved_collection: aliases
+  ambiguous_collection: ambiguous
+  overlap_permitted: false
+  ambiguous_promotion_permitted: false
+source_hash_contract:
+  text_extensions:
+    - .html
+    - .json
+    - .md
+    - .toml
+    - .txt
+    - .yaml
+    - .yml
+  text_normalization: CRLF to LF before SHA-256
+  binary_normalization: none
+  implementation: streaming with cross-chunk CRLF handling
+  discovery_ingestion_validation_parity: true
+occ_contract:
+  no_partial_promotion: tested
+  external_state_preserved_on_compare_and_swap_failure: tested
+  temporary_output_not_promoted: tested
+  project_identity_lock_released: tested
+  retry_converges_to_byte_identical_replay: tested
+baseline_failure:
+  environment_problem:
+    claim: Declared test and type-check dependencies were missing from the active Python environment.
+    command: python -m pytest -p no:cacheprovider --tb=no
+    output: pytest rejected the configured pytest-cov arguments before collection
+    remediation: python -m pip install -e ".[dev]"
+  implementation_problem:
+    claim: The inherited source-hash change broke real pipeline provenance.
+    command: python -m pytest -p no:cacheprovider --tb=no
+    output: 34 failed, 272 passed, 1 skipped
+    cause: >-
+      Discovery normalized text hashes while ingestion compared raw bytes; on Windows,
+      .atlas-project.yaml was therefore treated as a changed marker and its evidence
+      projection was withheld.
+    remediation: >-
+      Introduced one streaming canonical_source_sha256 boundary and used it in
+      discovery, ingestion precondition comparison, and validation.
+validation:
+  environment:
+    os: Microsoft Windows NT 10.0.28000.0
+    shell: PowerShell 7.5.8
+    python: 3.13.14
+    repository: D:/project-atlas-vault
+    worktree_state: intentionally dirty AS-CORE-003 candidate before freeze
+  ruff:
+    command: python -m ruff check .
+    exit_code: 0
+    result: All checks passed
+  mypy:
+    command: python -m mypy src
+    exit_code: 0
+    result: Success, no issues in 39 source files
+  pytest_full:
+    command: python -m pytest -p no:cacheprovider --tb=no
+    exit_code: 0
+    passed: 307
+    skipped: 1
+    failed: 0
+    coverage_percent: 91
+  pytest_integration:
+    command: python -m pytest -p no:cacheprovider -m integration --tb=no
+    exit_code: 0
+    passed: 106
+    skipped: 1
+    deselected: 201
+    failed: 0
+    coverage_percent: 88
+  compileall:
+    command: python -m compileall -q src tests
+    exit_code: 0
+  cli_smoke:
+    commands:
+      - atlas --help
+      - atlas version
+      - atlas init --output .tmp/atlas-vault-v2-003 --dry-run
+      - atlas init --output .tmp/atlas-vault-v2-003
+    exit_codes:
+      - 0
+      - 0
+      - 0
+      - 0
+    required_files_present: true
+integration_semantics:
+  modules_inspected: 14
+  runtime_tests: 107
+  real_pipeline_modules: 11
+  functional_integration_modules: 3
+  modules_with_real_filesystem: 14
+  modules_with_mock_signals: 1
+  marker_coverage_complete: true
+  conclusion: >-
+    The integration marker is meaningful: all modules exercise the real filesystem,
+    eleven drive a multi-component Atlas pipeline, three exercise functional CLI,
+    Git-history, or migration boundaries, and only the OCC module injects one mock
+    at the transaction compare-and-swap seam.
+limitations:
+  - Local candidate validation was executed on Windows and Python 3.13; CI must reproduce Python 3.12 on Linux and Windows and Python 3.13 on Linux.
+  - The governed session uses the approved local spool because the shared Atlas Vault was unavailable; strict receipt completion remains pending synchronization.
+  - Final isolated technical review, remote CI, PR-head verification, and Project Owner merge authorization remain pending.
+certification:
+  isolated_technical_review: pending
+  final_certification_issued: false
+  merge_authorized: false
+  historical_commits_rewritten: false
+  force_push_used: false
+  fabricated_attestations_created: false

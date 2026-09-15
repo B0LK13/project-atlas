@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/handoff-packet.schema.json",
+  "title": "HandoffPacket",
+  "description": "AS-ORCH-001C-R1 transport-neutral completion packet. Usable by the optional Cursor stop-hook adapter and future AS-ORCH-001D. Transport cannot choose the route. HANDOFF != DISPATCH; PACKET != AUTHORITY; execution_authorized and dispatch_performed are always false. additionalProperties:false fails closed against executable payloads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "state",
+    "transport",
+    "route_digest",
+    "source_task",
+    "target_role",
+    "task_type",
+    "dispatch_performed",
+    "execution_authorized"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-ORCH-001C" },
+    "state": { "enum": ["HANDOFF_READY", "OWNER_REQUIRED", "TERMINAL"] },
+    "transport": { "enum": ["hook", "explicit"] },
+    "route_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_task": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      ]
+    },
+    "target_role": {
+      "oneOf": [
+        { "type": "null" },
+        { "enum": ["local", "integration", "autonomous"] }
+      ]
+    },
+    "task_type": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "candidate_verification",
+            "recertification",
+            "program_reconciliation",
+            "remediation"
+          ]
+        }
+      ]
+    },
+    "dispatch_performed": { "const": false },
+    "execution_authorized": { "const": false }
+  }
+}

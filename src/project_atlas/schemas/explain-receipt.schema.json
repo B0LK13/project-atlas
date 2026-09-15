@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/explain-receipt.schema.json",
+  "title": "ExplainReceipt",
+  "description": "AS-EXPLAIN-001 Band A structured explainability / provenance receipt (operational metadata only; never Layer-B/C truth; never trust scores)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package",
+    "receipt_kind",
+    "project_id",
+    "reason_categories",
+    "provenance_refs",
+    "evidence_refs",
+    "omissions",
+    "inspected_artifacts",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package": { "const": "AS-EXPLAIN-001" },
+    "receipt_kind": {
+      "type": "string",
+      "enum": ["query_point", "query_multifield_item", "query_diagnostic"]
+    },
+    "project_id": { "type": ["string", "null"] },
+    "subject": { "type": ["string", "null"] },
+    "field": { "type": ["string", "null"] },
+    "query_kind": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "enum": ["authoritative", "temporal", "explain"] }
+      ]
+    },
+    "answer_status": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": [
+            "ok",
+            "not_found",
+            "authority-pending",
+            "authority-conflict",
+            "unresolved",
+            "temporal_state_missing"
+          ]
+        }
+      ]
+    },
+    "outcome_class": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": ["answer", "nonanswer", "integrity_failure", "request_invalid"]
+        }
+      ]
+    },
+    "compilation_id": { "type": ["string", "null"] },
+    "reason_categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "authority_disposition",
+          "temporal_status",
+          "reason_code",
+          "outcome_class",
+          "error_code",
+          "missing_evidence",
+          "persisted_rationale"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "provenance_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref_kind", "ref_id"],
+        "properties": {
+          "ref_kind": {
+            "type": "string",
+            "enum": [
+              "claim_id",
+              "source_id",
+              "source_lineage_id",
+              "rule_id",
+              "trust_root",
+              "error_code"
+            ]
+          },
+          "ref_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref_kind"],
+        "properties": {
+          "ref_kind": {
+            "type": "string",
+            "enum": ["authority_evidence", "temporal_current", "inspected_artifact"]
+          },
+          "claim_id": { "type": ["string", "null"] },
+          "source_id": { "type": ["string", "null"] },
+          "rule_id": { "type": ["string", "null"] },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "omissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "authority_rationale_absent",
+          "temporal_rationale_absent",
+          "claim_projection_absent",
+          "evidence_absent",
+          "compilation_id_absent",
+          "authority_layer_absent",
+          "temporal_layer_absent",
+          "value_omitted_non_authoritative"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "inspected_artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

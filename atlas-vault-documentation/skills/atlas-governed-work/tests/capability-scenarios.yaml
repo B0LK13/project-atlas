@@ -1,0 +1,11 @@
+schema_version: 1
+scenarios:
+  - id: implementation-ready
+    level: 2
+    required: [filesystem-read, atlas-command-execution, filesystem-write]
+  - id: documentation-only
+    level: 1
+    required: [filesystem-read, atlas-command-execution]
+  - id: advisory
+    level: 0
+    required: [filesystem-read]

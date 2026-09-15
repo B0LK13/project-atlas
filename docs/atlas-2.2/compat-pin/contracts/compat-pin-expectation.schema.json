@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/compat-pin-expectation.schema.json",
+  "title": "compat-pin-expectation (PREP STUB — not package data)",
+  "description": "AS-2.2-COMPAT-PIN-PREP-001 docs-only compatibility expectation inventory. Future v2.1.0 anchor; ATLAS_2_1_RELEASE_CERTIFIED=NO; no runtime mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "package_id",
+    "live_compat_snapshot_id",
+    "future_compat_snapshot_id",
+    "future_tag",
+    "pilot_roots",
+    "authentic_estate_pilot_passed",
+    "atlas_2_1_release_certified",
+    "atlas_2_2_intelligence_unlocked",
+    "scenarios",
+    "scenario_count",
+    "invariants",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.compat-pin-expectation.v0" },
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-COMPAT-PIN-PREP-001" },
+    "live_compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "future_compat_snapshot_id": { "const": "atlas-2.1.0-compat" },
+    "future_tag": { "const": "v2.1.0" },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate_pilot_passed": { "const": false },
+    "atlas_2_1_release_certified": { "const": false },
+    "atlas_2_2_intelligence_unlocked": { "const": false },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "compat-pin-scenario.schema.json"
+      }
+    },
+    "scenario_count": { "type": "integer", "minimum": 1 },
+    "invariants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prep_ne_anchor",
+        "no_2_1_release_stamp",
+        "future_pin_only",
+        "no_pilot_invent",
+        "no_runtime_mutation"
+      ],
+      "properties": {
+        "prep_ne_anchor": { "const": true },
+        "no_2_1_release_stamp": { "const": true },
+        "future_pin_only": { "const": true },
+        "no_pilot_invent": { "const": true },
+        "no_runtime_mutation": { "const": true }
+      }
+    },
+    "truth_boundary": {
+      "const": "PREP EXPECTATION ≠ PUBLISHED 2.1 ANCHOR / ≠ v2.1.0 RELEASED / ≠ 2.1 RELEASE CERTIFIED"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" },
+        "package": { "const": "AS-2.2-COMPAT-PIN-PREP-001" }
+      }
+    }
+  }
+}

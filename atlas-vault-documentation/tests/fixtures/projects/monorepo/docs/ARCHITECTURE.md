@@ -1,0 +1,3 @@
+# Architecture
+
+Applications share packages.

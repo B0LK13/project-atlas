@@ -1,0 +1,45 @@
+schema_version: 1
+skill:
+  id: atlas-governed-work
+  name: Atlas Governed Work Lifecycle
+  version: 1.0.0
+  entrypoint: SKILL.md
+  sha256: 2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123
+purpose:
+  - execute governed project work
+  - document material changes
+  - operate the Atlas lifecycle
+  - recover from controlled failures
+  - produce validated receipts
+requires:
+  commands:
+    - atlas-agent bootstrap
+    - atlas-agent preflight
+    - atlas-agent document
+    - atlas-agent status
+    - atlas-agent validate
+    - atlas-agent receipt
+    - atlas-agent postflight
+  capabilities:
+    - filesystem-read
+    - atlas-command-execution
+optional_capabilities:
+  - shell
+  - source-control
+  - filesystem-write
+  - test-execution
+lifecycle:
+  mandatory_events:
+    - session-start
+    - implementation
+    - validation
+    - completion
+  conditional_events:
+    - decision
+    - blocker
+    - failure
+    - recovery
+completion:
+  receipt_required: true
+  strict_validation_required: true
+  pending_spool_allowed: false

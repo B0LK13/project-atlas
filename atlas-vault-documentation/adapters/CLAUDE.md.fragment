@@ -1,0 +1,5 @@
+# Atlas Vault Documentation
+
+Apply the `atlas-vault-documentation` skill throughout project work, not only at the end.
+
+Use `atlas-agent.yaml` to locate the vault and project. Capture meaningful state transitions as immutable source evidence, normalize through mda-cli, route them to affected Atlas concepts, validate them, and include an `ATLAS-DOC-RECEIPT`.

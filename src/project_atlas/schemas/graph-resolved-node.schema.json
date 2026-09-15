@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-resolved-node.schema.json",
+  "title": "Graph Resolved Node",
+  "description": "AS-GRAPH-002 deterministic resolved-node / quarantine-candidate record. Derived-only; GRAPH RELATIONSHIP ≠ AUTOMATIC AUTHORITY.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "project_id",
+    "graphify_node_id",
+    "entity_class",
+    "resolution_step",
+    "authority",
+    "status",
+    "source_artifact_refs"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-002" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "graphify_node_id": { "type": "string", "minLength": 1 },
+    "resolved_entity_id": { "type": "string", "minLength": 1 },
+    "entity_class": {
+      "type": "string",
+      "enum": [
+        "project",
+        "document",
+        "work-package",
+        "decision",
+        "requirement",
+        "unknown",
+        "extension"
+      ]
+    },
+    "resolution_step": {
+      "type": "string",
+      "enum": [
+        "explicit_atlas_id",
+        "durable_core_id",
+        "mapping_table",
+        "graphify_stable",
+        "none"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["resolved", "quarantine_candidate"]
+    },
+    "quarantine_category": {
+      "type": "string",
+      "enum": [
+        "ambiguous-identity",
+        "unresolved-identity",
+        "cross-project-resolution-forbidden"
+      ]
+    },
+    "source_artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "sha256"],
+        "properties": {
+          "relative_path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH RELATIONSHIP ≠ AUTOMATIC AUTHORITY"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "resolved" } } },
+      "then": {
+        "required": ["resolved_entity_id"],
+        "not": { "required": ["quarantine_category"] }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "quarantine_candidate" } } },
+      "then": {
+        "required": ["quarantine_category"],
+        "not": { "required": ["resolved_entity_id"] }
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "scenario_id": "FX-2.2-RG-004",
+  "kind": "negative",
+  "title": "PILOT invent forbidden",
+  "forbidden_inventory": {
+    "pilot_roots": 1,
+    "invent_pilot_roots": true,
+    "authentic_estate_pilot_passed": true
+  },
+  "expected_error": "reality-gap-prep-pilot-invent-forbidden",
+  "invariant": "no PILOT invent",
+  "notes": "PREP rehearsal only — fixture twin ≠ authentic estate PILOT PASSED",
+  "atlas_2_1_release_certified": false
+}

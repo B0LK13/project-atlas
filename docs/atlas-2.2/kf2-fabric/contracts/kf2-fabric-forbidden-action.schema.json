@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/kf2-fabric-forbidden-action.schema.json",
+  "title": "kf2-fabric-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-KF2-FABRIC-DEEPEN-PREP-001 fail-closed action proposal. Reject authority_elevate, cross_promote, projection_write, layer_b_write, release_cert_stamp, pilot_invent, llm_authority_stamp, kf2_runtime_mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-KF2-FABRIC-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "kind": {
+      "enum": [
+        "authority_elevate",
+        "cross_promote",
+        "projection_write",
+        "layer_b_write",
+        "release_cert_stamp",
+        "pilot_invent",
+        "llm_authority_stamp",
+        "kf2_runtime_mutation"
+      ]
+    },
+    "status": { "const": "rejected_forbidden" },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "kf2-fabric-authority-elevate-forbidden",
+        "kf2-fabric-cross-promote-forbidden",
+        "kf2-fabric-projection-write-forbidden",
+        "kf2-fabric-layer-b-write-forbidden",
+        "kf2-fabric-release-cert-stamp-forbidden",
+        "kf2-fabric-pilot-invent-forbidden",
+        "kf2-fabric-llm-authority-forbidden",
+        "kf2-fabric-runtime-mutation-forbidden"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "release_certified": { "const": false },
+    "pilot_pass": { "const": false },
+    "canonical_writes": { "const": false },
+    "pilot_roots": { "const": 0 },
+    "truth_boundary": {
+      "const": "KF2 FABRIC ≠ AUTHORITY / ≠ CROSS PROMOTE / ≠ PROJECTION WRITE / ≠ LAYER B / ≠ PILOT / ≠ RELEASE"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "outcome": "fail",
+  "error_code": "context-compiler-budget-overflow",
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "note": "PREP expected negative — no package body emitted on hard overflow."
+}

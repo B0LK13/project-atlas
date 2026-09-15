@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/quarantine-envelope.schema.json",
+  "title": "quarantine-envelope (PREP STUB — not package data)",
+  "description": "AS-2.2-CHATGPT-LIVE-PREP-001 mandatory quarantine envelope for live ChatGPT payloads. Bypass is forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "envelope_id",
+    "adapter_id",
+    "status",
+    "payload_kind",
+    "payload_sha256",
+    "bypass_quarantine",
+    "layer_b_write",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-CHATGPT-LIVE-PREP-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "envelope_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "adapter_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "status": {
+      "enum": ["quarantined", "rejected-secret", "rejected-disabled"]
+    },
+    "payload_kind": {
+      "enum": ["text", "structured-json", "unknown"]
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "findings_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bypass_quarantine": { "const": false },
+    "layer_b_write": { "const": false },
+    "llm_authority": { "const": false },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "QUARANTINE ENVELOPE ≠ BYPASS / ≠ LAYER B / ≠ AUTHORITY"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" }
+      }
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/xproj-fabric-scenario.schema.json",
+  "title": "xproj-fabric-scenario (PREP STUB — not package data)",
+  "description": "AS-2.2-XPROJ-CONTRACT-PREP-001 scenario row citing AS-XPROJ-* substrate conceptually. CROSS-PROJECT ≠ AUTHORITY.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scenario_id",
+    "substrate_package",
+    "bucket",
+    "status",
+    "evidence_class",
+    "authentic_estate",
+    "autocollapse",
+    "authority_elevated"
+  ],
+  "properties": {
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^FX-2\\.2-XPROJ-[0-9]{3}$"
+    },
+    "substrate_package": {
+      "type": "string",
+      "enum": [
+        "AS-XPROJ-001",
+        "AS-XPROJ-002",
+        "AS-XPROJ-003",
+        "AS-XPROJ-004"
+      ]
+    },
+    "bucket": {
+      "type": "string",
+      "enum": [
+        "entities",
+        "joins",
+        "edges",
+        "duplicate-candidates",
+        "indexes",
+        "conflicts"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["retained", "quarantine", "reject", "review-candidate"]
+    },
+    "cited_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "autocollapse": { "const": false },
+    "authority_elevated": { "const": false },
+    "notes": { "type": "string", "maxLength": 240 }
+  }
+}

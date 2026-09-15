@@ -1,0 +1,48 @@
+{
+  "scenario": "D-192-ACCEPT-PG",
+  "project_id": "harbor-api",
+  "current_state_text": "Repository config and deployment evidence: PostgreSQL 15",
+  "stronger_evidence": [
+    {"kind": "repository", "text": "postgresql 15 in docker-compose.yml"},
+    {"kind": "deployment", "text": "production deployment observes PostgreSQL 15"}
+  ],
+  "conversations": [
+    {
+      "provider": "chatgpt",
+      "conversation_id": "chatgpt-pg-16",
+      "turns": [
+        {"role": "assistant", "text": "Project uses PostgreSQL 16"}
+      ]
+    },
+    {
+      "provider": "claude",
+      "conversation_id": "claude-pg-rollback",
+      "turns": [
+        {"role": "assistant", "text": "Owner decided to rollback to PostgreSQL 15"}
+      ]
+    },
+    {
+      "provider": "gemini",
+      "conversation_id": "gemini-pg-plan",
+      "turns": [
+        {"role": "assistant", "text": "Migration to PostgreSQL 16 remains planned"}
+      ]
+    },
+    {
+      "provider": "cursor",
+      "conversation_id": "owner-keep-15",
+      "import_mode": "STRUCTURED_SUBMISSION",
+      "owner_origin": {
+        "evidence_kind": "explicit_owner_statement",
+        "origin": "owner",
+        "statement": "Keep production on 15 for now; migrate after extension replacement."
+      },
+      "turns": [
+        {
+          "role": "owner",
+          "text": "Keep production on 15 for now; migrate after extension replacement."
+        }
+      ]
+    }
+  ]
+}

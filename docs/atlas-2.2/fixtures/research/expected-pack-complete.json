@@ -1,0 +1,26 @@
+{
+  "schema": "atlas.research.evidence_pack.v0",
+  "pack_id": "pack-fx-res-001",
+  "question_id": "q-fx-res-001",
+  "status": "COMPLETE",
+  "pipeline": [
+    "question",
+    "hypotheses",
+    "evidence",
+    "conflicts",
+    "synthesis",
+    "packs"
+  ],
+  "hypothesis_ids": ["h-compat-pinned", "h-release-certified"],
+  "evidence_ref_ids": ["ev-compat-doc", "ev-board-state"],
+  "conflict_ids": [],
+  "synthesis_id": "syn-fx-res-001",
+  "canonical_write": false,
+  "authority_promoted": false,
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "truth_boundary": "RESEARCH PACK ≠ LAYER B AUTHORITY / ≠ PILOT PASS",
+  "generated": {
+    "by": "project-atlas"
+  }
+}

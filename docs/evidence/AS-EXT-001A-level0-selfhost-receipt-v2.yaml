@@ -1,0 +1,216 @@
+schema_version: 1
+receipt_type: atlas-integration-work-package
+work_package_id: AS-EXT-001A
+status: level-0-achieved-remediated
+branch: feat/as-ext-001a-structured-evidence
+base_commit: 6d874751d3ed9cb05433a8d50ab372a997418d84
+experiment_id: EXP-ATLAS-SELFHOST-AS-EXT-001A-001
+rerun: remediation-v2
+baseline_experiment_id: EXP-ATLAS-SELFHOST-BASELINE-001
+package_contract: docs/work-packages/AS-EXT-001A.md
+supersedes: docs/evidence/AS-EXT-001A-level0-selfhost-receipt.yaml
+supersession_note: >-
+  V1 receipt preserved untouched as historical evidence. This V2 receipt
+  records the adversarial-review remediation, re-run experiment, corrected
+  wording, and re-frozen gate numbers.
+adversarial_review:
+  verdict: FAIL (one blocking executable violation, five concerns) — remediated
+  blocking_violation: >-
+    Intra-source yamlpath locator collisions escaped per-source failure
+    isolation: a single source containing two records whose canonical locators
+    collide raised from the compiler and aborted the whole batch, contradicting
+    the §7.7/§7.8 contract (withhold + diagnostic + PARTIAL_CANDIDATE, no
+    abort, independent sources unaffected).
+  remediation_commit: 33bc65a
+  repro_a_nfc_collision:
+    fixture: "status: {café(NFC): alpha, café(NFD): beta}"
+    before: whole-batch abort via compiler duplicate-ID raise
+    after: >-
+      Source compiles PARTIAL_CANDIDATE; both colliding candidates withheld
+      with DUPLICATE_LOCATOR diagnostics (severity warning, continued,
+      staging-only canonical impact); no exception escapes; sibling sources
+      promote normally.
+    tests:
+      - test_repro_a_nfc_collided_locators_withheld_not_abort
+      - test_colliding_source_never_blocks_good_sibling (NFC variant)
+  repro_b_sequence_key_collision:
+    fixture: "status: [{id: same, x: alpha}, {id: same, x: beta}]"
+    before: whole-batch abort via compiler duplicate-ID raise
+    after: >-
+      Source compiles PARTIAL_CANDIDATE; the two colliding .x leaf candidates
+      are withheld with DUPLICATE_LOCATOR diagnostics; the identical-value
+      status[id=same].id leaf deduplicates to one kept record per §7.7
+      identical-value semantics; no abort; siblings unaffected.
+    tests:
+      - test_repro_b_repeated_stable_sequence_keys_withheld_not_abort
+      - test_identical_value_collision_keeps_first_statement
+      - test_colliding_source_never_blocks_good_sibling (sequence variant)
+  recursion_exhaustion:
+    before: raw RecursionError escaped yaml.compose at adversarial depth
+    after: >-
+      Structured ResourceLimitError (max_depth, "nesting exceeds the parser
+      recursion bound") at depths 500/2000/5000; fail-closed, never an
+      unhandled exception.
+    tests:
+      - test_parser_recursion_exhaustion_is_structured_error
+remediation:
+  blocking_locator_collisions: >-
+    New _withhold_locator_collisions in evidence_compiler mirrors §7.7
+    disambiguation semantics on yamlpath records: identical-value groups keep
+    the first statement (dedupe); different-value collisions withhold all
+    members with DUPLICATE_LOCATOR diagnostics and mark the source
+    PARTIAL_CANDIDATE. The compiler-level duplicate-ID raise remains as an
+    unreachable fail-closed guard (cross-source ids are lineage-namespaced).
+  concern_a_unreachable_bounds: >-
+    Parser defaults made reachable and meaningful: max_nodes 4096 (was 8192),
+    max_node_references 8192 (was 4096). Distinct nodes never exceed
+    references, so the node bound is now the tighter one; alias-free documents
+    trip max_nodes, alias bombs trip max_node_references. Depth-32 semantics
+    clarified (node-visit levels, ≈30–31 user-visible mapping levels).
+    Tests: test_limits_actually_enforced_not_documented_only,
+    test_default_node_bound_reachable_without_aliases.
+  concern_b_recursion_error: see adversarial_review.recursion_exhaustion
+  concern_3_promotion_failed_reachable: >-
+    ingestion wraps promotion in try/except; on failure the promotable
+    candidates are recorded as PROMOTION_FAILED through the governed
+    transition edges (COMPLETE_CANDIDATE → PROMOTING → PROMOTION_FAILED) and a
+    schema-validated PROMOTION_FAILURE report is written to
+    quarantine/promotion-failures/index.json (best-effort, never masks the
+    original error); a later successful ingest clears the stale report.
+    Rollback of canonical state is unchanged and fully covered.
+    Tests: test_promotion_failure_yields_promotion_failed_outcome,
+    test_ingestion_mid_promotion_failure_rolls_back_every_file.
+  concern_4_wording: see corrections below
+  concern_5_unknown_profile_sentence: >-
+    docs/work-packages/AS-EXT-001A.md §7.5 now states explicitly that an
+    unknown-profile receipt still contributes canonical claims from recognized
+    root keys as COMPLETE_CANDIDATE with an unknown-receipt-profile warning
+    diagnostic.
+  concern_6_classification_persistence: >-
+    CompilationCandidate carries the classification record and render_bundle
+    persists it per candidate into state/compilation-outcomes/{project}.json;
+    all 65 self-host candidates now carry classification records.
+corrections:
+  quarantine_wording: >-
+    Corrected finding accounting: 6 injection findings across 4 files
+    (WORKLOG.md, docs/backlog.md,
+    docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md,
+    docs/evidence/AS-SEC-001-receipt.yaml) plus 1 secret finding in 1 file
+    (docs/evidence/AS-MVP-001-receipt.yaml) = 5 distinct quarantined files.
+    The V1 receipt's "4 injection findings" phrase counted files, not
+    findings; the quarantined-file total of 5 was and remains correct.
+  replay_wording: >-
+    Settled-replay semantics stated precisely: the first replay (second
+    ingest) mutates via lifecycle NEW→UNCHANGED re-observation (3 state files;
+    vault grows 132 → 133 files); the third and subsequent ingests are
+    byte-stable. "Zero-mutation replay" refers to the settled (3rd+) run.
+self_host_experiment:
+  corpus_files: 70
+  corpus_lines: 14269
+  corpus_bytes: 641925
+  corpus_source: D:\atlas-selfhost\baseline-6d87475\corpus (read-only P0 staging)
+  staged_copy: .tmp/as-ext-001a-selfhost/corpus (worktree-local, gitignored)
+  pipeline:
+    init: {exit: 0, seconds: 1.420}
+    discover: {exit: 0, seconds: 1.095}
+    ingest: {exit: 0, seconds: 3.168}
+    build_indexes: {exit: 0, seconds: 0.944}
+    validate: {exit: 0, seconds: 1.595}
+    total_seconds: 8.222
+  outcomes:
+    complete_candidate: 64
+    partial_candidate: 1
+    failed: 0
+    security_quarantined: 5
+    security_quarantine_note: >-
+      Pre-existing fail-closed security quarantine (NFR-004, AS-SEC-001):
+      1 secret finding (1 file) + 6 injection findings (4 files) = 5
+      quarantined files. 70 = 65 compiled + 5 quarantined.
+  partial_detail:
+    source_path: docs/prp.md
+    withheld_claims: 1
+    reason: architecture-fallback claim without a stable locator; staging-only
+  claims:
+    canonical_state: 91
+    index_crosscheck: 91
+    index_matches_state: true
+    withheld: 1
+    missing_provenance: 0
+    yield_per_1000_lines: 6.38
+  diagnostics:
+    total: 35
+    unknown_structured_field: 29
+    unknown_receipt_profile: 5
+    unresolved_locator: 1
+  conflicts_preserved: 5
+  classification_records_persisted: 65
+  determinism:
+    two_independent_vaults_byte_identical: true
+    vault_file_count: 132
+    first_replay_mutates: true
+    first_replay_detail: lifecycle NEW→UNCHANGED re-observation; 132 → 133 files
+    settled_replay_zero_mutation: true
+reconciliation_vs_frozen_v1:
+  corpus: identical (70 / 14,269 / 641,925)
+  pipeline: identical (5 steps exit 0)
+  outcomes: identical (64 COMPLETE / 1 PARTIAL / 0 FAILED + 5 quarantined)
+  claims: identical (91 canonical == 91 index; 1 withheld)
+  diagnostics: identical (35 = 29 + 5 + 1)
+  conflicts: identical (5)
+  yield: identical (6.38 claims per 1,000 lines)
+  determinism: identical (two vaults byte-identical, 132 files; settled replay stable)
+  note: >-
+    Outcomes state files now additionally carry per-candidate classification
+    records (concern 6); the §12 metrics reconcile exactly, vault hashes are
+    not expected to match the pre-remediation run.
+baseline_comparison:
+  before:
+    batch: aborted closed at ingest on first bad file
+    per_file_ok: 39
+    per_file_fail: 31
+    locator_failures: 29
+    ambiguous_identity_failures: 2
+    claims_total: 15
+    yield_per_1000_lines: 1.05
+  after:
+    batch: completed exit 0 on all five pipeline steps
+    per_file_fail: 0
+    claims_total: 91
+    yield_per_1000_lines: 6.38
+level_0_status: ACHIEVED
+level_0_definition: >-
+  Directive section 13: the full RAW 70-file corpus completes without an
+  unhandled abort. Restated after adversarial remediation: repros A and B and
+  parser recursion exhaustion now fail closed per source with structured
+  diagnostics; no whole-batch abort path remains reachable from per-source
+  extraction or parsing.
+conflict_preservation_validation: NOT YET EXERCISED beyond preserved counts
+known_limitations:
+  - >-
+    Corpus has no .atlas-project.yaml marker, so all sources compiled under
+    the legacy unknown-project compatibility path (no source_lineage_id
+    allocation); identity-locked project ingestion was not exercised by this
+    corpus.
+  - >-
+    Receipt claim subjects are project-scoped; cross-receipt same-field
+    differences surface as conflicts by design and are preserved, not
+    suppressed (5 observed).
+  - >-
+    18 COMPLETE sources yield zero claims (line-rule coverage boundary);
+    zero-claim files are visible in state/compilation-outcomes.
+  - >-
+    validate previously failed closed on source-relative links inside Layer
+    A imported evidence; exempted in aeb09f6 per the three-layer vault
+    model. Generated layers keep 100 percent link resolution.
+validation:
+  ruff: passed
+  mypy: "passed: 48 source files"
+  compileall: passed
+  full_pytest: "454 passed, 1 skipped (coverage TOTAL 92%)"
+  integration_pytest: "117 passed, 1 skipped"
+  cli_smoke: "atlas --help exit 0; atlas version project-atlas 0.1.0"
+  corpus_pipeline: "5 steps, all exit 0 (8.222 s)"
+  determinism: >-
+    two independent vaults byte-identical (132 files); first replay mutates
+    (lifecycle re-observation, 132 → 133), settled replay zero-mutation
+merge_authorized: false

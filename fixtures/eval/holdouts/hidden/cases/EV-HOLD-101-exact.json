@@ -1,0 +1,6 @@
+{
+  "case_id": "EV-HOLD-101",
+  "visibility": "holdout",
+  "score_mode": "exact",
+  "query": "hidden freshness horizon probe"
+}

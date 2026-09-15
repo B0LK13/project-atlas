@@ -1,0 +1,10 @@
+{
+  "action": "llm-as-authority",
+  "authentic_estate": false,
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "LLM output is not KCI authority",
+  "release_certified": false
+}

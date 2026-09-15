@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-XPROJ-CONTRACT-PREP-001",
+  "lens_id": "xlens-conflict-index-sample-v1",
+  "scope": {
+    "kind": "estate-slice",
+    "project_ids": ["proj-alpha", "proj-beta"]
+  },
+  "buckets": ["indexes", "conflicts"],
+  "cited_ids": [
+    "indexes/technologies",
+    "xconflict-version-postgres-v1"
+  ],
+  "status": "selected",
+  "authority": {
+    "level": "derived",
+    "note": "AS-XPROJ-004 derived refs only; never writes generated/indexes/"
+  },
+  "truth_boundary": "XPROJ ESTATE LENS ≠ AUTHORITY / ≠ LAYER B MUTATION",
+  "evidence_class": "fixture-only",
+  "atlas_2_1_release_certified": false,
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" }
+}

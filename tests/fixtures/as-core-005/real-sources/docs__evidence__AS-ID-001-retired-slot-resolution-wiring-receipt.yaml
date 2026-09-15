@@ -1,0 +1,90 @@
+package: AS-ID-001
+title: Retired-slot resolution control-flow remediation
+previous_blocked_candidate: 74470f8870719803ac6b9a28146933d3b6ee5f1a
+remediation_implementation_commit: dd1bc0ef4b13511edcc548409d25bf62c3ad0d0d
+evidence_commit: SELF
+status: implementation-complete-targeted-rereview-required
+architecture_rereview: pending
+defect:
+  prior_branch_order:
+    - compatibility source_id located existing retired record
+    - existing-record branch rejected changed content or reused old lineage
+    - explicit create_new_generation was never evaluated
+  correction: retired compatibility records are routed to explicit or automatic historical-slot resolution before ordinary existing-record handling
+  compatibility_source_id: preserved; same-path recreations use the same source_id before and after recreation
+production_scenarios:
+  same_path_different_content:
+    result: passed
+    generation: 2
+    new_lineage: true
+    prior_generation_retained: true
+    reciprocal_supersession: true
+    generation_receipt: one deterministic receipt
+    replay: zero snapshot drift
+  same_path_identical_content:
+    result: passed
+    resolution_controls_identity: true
+    generation: 2
+    new_lineage: true
+  multiple_retired_generations:
+    result: passed
+    policy: max_retained_generation_plus_one
+    observed_generation: 3
+  same_path_restoration:
+    result: covered by existing restoration and resolution tests
+    supersession_links: none for continuation
+  no_resolution:
+    result: existing changed-retired-path unresolved behavior remains fail-closed
+  invalid_resolution:
+    result: cross-project, active-destination, invalid authority/outcome, unavailable candidate, and ineligible lineage cases fail closed
+validation:
+  focused_command: ./.venv/bin/python -m pytest tests/unit/test_source_identity.py tests/integration/test_core_semantic_lifecycle.py -q
+  focused_result: 36 passed
+  new_production_tests:
+    - test_public_same_path_explicit_new_generation_uses_resolution[identical-content]
+    - test_public_same_path_explicit_new_generation_uses_resolution[different-content]
+    - test_public_same_path_explicit_new_generation_uses_highest_retired_generation
+  core_command: ./.venv/bin/python -m pytest -q
+  core_result: 117 passed
+  prior_core_result: 114 passed
+  test_reconciliation:
+    added: 3 production-path cases
+    removed: 0
+    renamed: 0
+    deselected: 0
+    arithmetic: 114 previous tests + 3 new cases = 117 current tests
+  control_plane_command: ./.venv/bin/python -m pytest atlas-vault-documentation/tests -q
+  control_plane_result: 146 passed
+  control_plane_diff: zero
+  control_plane_permission_disclosure:
+    affected_path: atlas-vault-documentation/tests/fixtures/bin/mda
+    tracked_git_mode: 100644
+    clean_detached_observation: direct subprocess invocation returned permission-denied
+    local_correction: temporary chmod +x in detached review worktree, then restored; no Control Plane file changed
+    classification: repository/environmental and unrelated to AS-ID-001
+  public_multiprocess: passed
+  public_cli_workflow: passed
+  post_state_verification: passed in Core lifecycle coverage
+  strict_registry_validation: passed
+  strict_vault_validation: passed
+  replay: passed with zero writes/snapshot drift
+  rollback: passed in transaction and multi-project coverage
+  migration_evidence_edges: passed in source-identity coverage
+  same_run_move: passed
+  mypy: clean, 31 source files
+  ruff: passed
+  compilation: passed
+receipt_correction:
+  prior_false_claim: retired-slot canonical and changed-content reoccupation were represented as real-workflow coverage
+  correction: prior coverage was not production-representative because the branch-order defect made same-path resolution unreachable; this receipt records the new public-path proof
+protected_refs:
+  main: 313712ee28083693ae39470b2d7148dc74617322
+  previous_implementation: cc49619d16decd089975ecdd4972fab5f034362e
+  previous_evidence: 74470f8870719803ac6b9a28146933d3b6ee5f1a
+  original_as_core_003: 04a62fe
+  adapted_as_core_003_implementation: 49e9a91
+  adapted_as_core_003_evidence: c120c03
+  architecture: ae98fba
+notes:
+  - No merge or certification claim is made.
+  - Agent Three has not been contacted; architecture rereview remains pending.

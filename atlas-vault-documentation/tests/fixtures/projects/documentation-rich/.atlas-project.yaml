@@ -1,0 +1,14 @@
+schema_version: 1
+project:
+  id: documentation-rich
+  name: Documentation Rich
+  type: service
+  status: active
+authority:
+  primary:
+    - "ARCHITECTURE.md"
+    - "REQUIREMENTS.md"
+    - "docs/decisions/**"
+    - "**/VALIDATION_REPORT.md"
+  derived:
+    - "generated/**"

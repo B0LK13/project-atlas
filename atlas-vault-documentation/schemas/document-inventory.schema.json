@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Document inventory","type":"object","required":["schema_version","project_id","documents","inventory_sha256"],"properties":{"schema_version":{"const":1},"project_id":{"type":"string"},"documents":{"type":"array"},"inventory_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}}}

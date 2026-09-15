@@ -1,0 +1,16 @@
+{
+  "scenario_id": "FX-2.2-XPROJ-007",
+  "attempt": "rewrite-project-uuid",
+  "input": {
+    "rewrite_uuids": true,
+    "winner_project_id": "proj-widgets-a",
+    "loser_project_id": "proj-widgets-b"
+  },
+  "expected_error": "xproj-prep-autocollapse-forbidden",
+  "expected_status": "reject",
+  "atlas_2_1_release_certified": false,
+  "invariants": {
+    "no_autocollapse": true
+  },
+  "notes": "DUPLICATE CANDIDATE ≠ UUID COLLAPSE; AS-XPROJ-INV-NO-AUTOCOLLAPSE-001"
+}

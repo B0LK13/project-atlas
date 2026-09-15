@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graphify-metadata.schema.json",
+  "title": "Graphify Metadata",
+  "description": "AS-GRAPH-001 metadata artifact. Inventoriable and schema-checkable; emits zero nodes/edges (FR-005).",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": ["integer", "string"]
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    }
+  }
+}

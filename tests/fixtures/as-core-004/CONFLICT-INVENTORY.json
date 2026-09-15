@@ -1,0 +1,3090 @@
+[
+  {
+    "claim_ids": [
+      "claim-3937564a6cee0d153bc4",
+      "claim-a655c3d802e4aeb83334"
+    ],
+    "claims": [
+      {
+        "claim": "alpha-phase",
+        "source_id": "source-88a6fb41cccf2648",
+        "source_lineage_id": "sline-a264f8546aba4ff88018"
+      },
+      {
+        "claim": "beta-phase",
+        "source_id": "source-a01446f84e3f6022",
+        "source_lineage_id": "sline-68a2cc4852cf0a81bb09"
+      }
+    ],
+    "conflict_id": "conflict-1206a69904bd485243c9",
+    "conflict_type": "materially-incompatible",
+    "field": "roadmap",
+    "project_id": "dark-factory",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "dark-factory",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-88a6fb41cccf2648.md",
+        "schema_version": 1,
+        "sha256": "6befa4a457542cb2df827727e77b3ca62fd3652581898ab840f83aee068b2c25",
+        "source_id": "source-88a6fb41cccf2648",
+        "source_lineage_id": "sline-a264f8546aba4ff88018",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "dark-factory",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a01446f84e3f6022.md",
+        "schema_version": 1,
+        "sha256": "a468e9a9a2f6feb476b6780319ab6665cb2b1fe89586072381ce881dfcb1cf43",
+        "source_id": "source-a01446f84e3f6022",
+        "source_lineage_id": "sline-68a2cc4852cf0a81bb09",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-68a2cc4852cf0a81bb09",
+      "sline-a264f8546aba4ff88018"
+    ],
+    "state": "unresolved",
+    "subject": "dark-factory"
+  },
+  {
+    "claim_ids": [
+      "claim-473601d41e9dfdd58c6c",
+      "claim-8c8e3e6c9470e9d98ff6",
+      "claim-d5832ae5e06b71a2bc1b",
+      "claim-f1b15c3ca285236be9b9"
+    ],
+    "claims": [
+      {
+        "claim": "certified",
+        "source_id": "source-b6b3b1f6b255a829",
+        "source_lineage_id": "sline-616ea511d88367a7b30a"
+      },
+      {
+        "claim": "active",
+        "source_id": "source-3e7137f8ada40273",
+        "source_lineage_id": "sline-e2cf2792e9ac3eca86fa"
+      },
+      {
+        "claim": "active",
+        "source_id": "source-02718d3473e6bd9e",
+        "source_lineage_id": "sline-a81adf27561015508137"
+      },
+      {
+        "claim": "accepted",
+        "source_id": "source-c9cddecbd71829c1",
+        "source_lineage_id": "sline-989fbce0e5a4cce189ed"
+      }
+    ],
+    "conflict_id": "conflict-f1b4b22b94985a86751a",
+    "conflict_type": "materially-incompatible",
+    "field": "roadmap",
+    "project_id": "documentation-rich",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "documentation-rich",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-b6b3b1f6b255a829.md",
+        "schema_version": 1,
+        "sha256": "7b160e3711b63bd44d6821a5a2bd25ac871f92c545ed9608c301a153e65fa18c",
+        "source_id": "source-b6b3b1f6b255a829",
+        "source_lineage_id": "sline-616ea511d88367a7b30a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "documentation-rich",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-3e7137f8ada40273.yaml",
+        "schema_version": 1,
+        "sha256": "37ffd59f2b116ff381ffba3a34185f7475644821280d43d6299ef1a15c834918",
+        "source_id": "source-3e7137f8ada40273",
+        "source_lineage_id": "sline-e2cf2792e9ac3eca86fa",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "documentation-rich",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-02718d3473e6bd9e.md",
+        "schema_version": 1,
+        "sha256": "edcd7af4e94d9c3b9232cf7a55984f143b1323c5947e99bb9b740d73590e18a3",
+        "source_id": "source-02718d3473e6bd9e",
+        "source_lineage_id": "sline-a81adf27561015508137",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "documentation-rich",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-c9cddecbd71829c1.md",
+        "schema_version": 1,
+        "sha256": "b591b08bb4934f6d01d54845b6065b4334885418c170d28861516acc504e9ee9",
+        "source_id": "source-c9cddecbd71829c1",
+        "source_lineage_id": "sline-989fbce0e5a4cce189ed",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-616ea511d88367a7b30a",
+      "sline-989fbce0e5a4cce189ed",
+      "sline-a81adf27561015508137",
+      "sline-e2cf2792e9ac3eca86fa"
+    ],
+    "state": "unresolved",
+    "subject": "documentation-rich"
+  },
+  {
+    "claim_ids": [
+      "claim-78db727cd354ccbd5fb4",
+      "claim-c1fcb589b7cda2090bcc"
+    ],
+    "claims": [
+      {
+        "claim": "Primary architecture evidence.",
+        "source_id": "source-55b358fb9faa8bce",
+        "source_lineage_id": "sline-243aa470fc2a09af1d4e"
+      },
+      {
+        "claim": "schema_version: 1",
+        "source_id": "source-6955411c3604e037",
+        "source_lineage_id": "sline-9fcc6dd23927316ecf9e"
+      }
+    ],
+    "conflict_id": "conflict-e319b7924971dd6bcf10",
+    "conflict_type": "materially-incompatible",
+    "field": "architecture",
+    "project_id": "graphify-present",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "graphify-present",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-55b358fb9faa8bce.md",
+        "schema_version": 1,
+        "sha256": "2f0f18ee4debd80c92d922d28c169b096a22da671f30370161739e00eb21dfd1",
+        "source_id": "source-55b358fb9faa8bce",
+        "source_lineage_id": "sline-243aa470fc2a09af1d4e",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "graphify-present",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-6955411c3604e037.yaml",
+        "schema_version": 1,
+        "sha256": "ba0554d4246fe04693f739de1995f80cfd9d5186b3a67d81533f2d2afeca15a5",
+        "source_id": "source-6955411c3604e037",
+        "source_lineage_id": "sline-9fcc6dd23927316ecf9e",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-243aa470fc2a09af1d4e",
+      "sline-9fcc6dd23927316ecf9e"
+    ],
+    "state": "unresolved",
+    "subject": "graphify-present"
+  },
+  {
+    "claim_ids": [
+      "claim-020234202dcc155f2413",
+      "claim-07486f7d98d4d8b0488d",
+      "claim-1921b69fad1024d56001",
+      "claim-1f67eb9848441c808c25",
+      "claim-24e6d9a2fb821347bdea",
+      "claim-27e72985f56c598e536f",
+      "claim-30d97764deb263397b86",
+      "claim-4d0a49a9f2c09ec744e9",
+      "claim-64ae6d15be3c10692897",
+      "claim-6fe180b62cd0751f812d",
+      "claim-70fa9317ad1fa026d453",
+      "claim-7196eec58e83261d53cf",
+      "claim-7ee97be16dcd5e06a7e1",
+      "claim-8e60b06bb4c694e54389",
+      "claim-8e6e47b307fb1808a7bb",
+      "claim-8f5407a05dd8c802e335",
+      "claim-90a3855098f15c1b37c2",
+      "claim-910094ab04dbd318f387",
+      "claim-cf65f68d6fc52dd55e02",
+      "claim-d130b12e51ffed5cb6a3",
+      "claim-d87a1d4650a5d38d6ff9",
+      "claim-da339ce5eb1d5a5adb5b",
+      "claim-ea0eae4688e71d45926e"
+    ],
+    "claims": [
+      {
+        "claim": "This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.",
+        "source_id": "source-6ebdb617a8104a77",
+        "source_lineage_id": "sline-98ea6a5e6f6b3a4dedb4"
+      },
+      {
+        "claim": "**Roadmap version:** 1.0",
+        "source_id": "source-2a55a2ceaf186ff3",
+        "source_lineage_id": "sline-507f05591f881e99dfb6"
+      },
+      {
+        "claim": "Frozen fixtures for directive D-PROJECT-ATLAS-KIMI-AS-EXT-001A-001 \u00a79.",
+        "source_id": "source-04f9cd8a04bc6191",
+        "source_lineage_id": "sline-d8d2b984c982a8ce1ca0"
+      },
+      {
+        "claim": "- **Status:** Proposed architecture; implementation and settings activation pending",
+        "source_id": "source-438f86996b35e463",
+        "source_lineage_id": "sline-4d5a9e41ac37129cc62b"
+      },
+      {
+        "claim": "```",
+        "source_id": "source-7962bd91eae0f88f",
+        "source_lineage_id": "sline-8d2b058ff43e1ba79544"
+      },
+      {
+        "claim": "- **Package:** AS-EXT-001A",
+        "source_id": "source-dfd5147c3ff138a1",
+        "source_lineage_id": "sline-f02c692931ad91623f52"
+      },
+      {
+        "claim": "**Status:** Completed",
+        "source_id": "source-31747815c9589450",
+        "source_lineage_id": "sline-f5430db64e4269f4ecc2"
+      },
+      {
+        "claim": "**Status**: Authorized Architecture Amendment",
+        "source_id": "source-3f82dac50b751732",
+        "source_lineage_id": "sline-0df703ffab010fa1429a"
+      },
+      {
+        "claim": "How one raw Atlas agent event becomes a verified, provenance-backed",
+        "source_id": "source-478bba3760fb6eb4",
+        "source_lineage_id": "sline-f4b57a66ea164860abdd"
+      },
+      {
+        "claim": "Create a validated repository foundation and domain model.",
+        "source_id": "source-a089a556004aac00",
+        "source_lineage_id": "sline-a8052e2b99f153cbc41a"
+      },
+      {
+        "claim": "Given an empty target directory, `atlas init` creates the required root structure and system notes.",
+        "source_id": "source-a3f140957a27d232",
+        "source_lineage_id": "sline-39a87db6b50fe9cfe510"
+      },
+      {
+        "claim": "- **Package:** AS-GH-001",
+        "source_id": "source-9d44656ba169685c",
+        "source_lineage_id": "sline-13d8ebac3e9f7a743ba4"
+      },
+      {
+        "claim": "**Disposition:** AS-WP-003 CERTIFIED \u2014 all router, regression, lint, compilation,",
+        "source_id": "source-10169aea286611b8",
+        "source_lineage_id": "sline-a18a3e9bd98c56eddb38"
+      },
+      {
+        "claim": "Make project documentation part of execution rather than reconstructing it from memory after the fact.",
+        "source_id": "source-6c504e4b8740743e",
+        "source_lineage_id": "sline-72496ee78e64ef11cfa5"
+      },
+      {
+        "claim": "Guidance for AI coding agents working in this repository. Written for a reader who knows nothing about the project.",
+        "source_id": "source-a54ff182c7e8acf5",
+        "source_lineage_id": "sline-d8ab01b4a35c2969b0be"
+      },
+      {
+        "claim": "The fixture has a deterministic inventory and governed ingestion pipeline.",
+        "source_id": "source-11b678a9559ed93c",
+        "source_lineage_id": "sline-11bcbeb3ff0a10c4056a"
+      },
+      {
+        "claim": "**Status:** accepted for implementation",
+        "source_id": "source-fede539b8ed31a53",
+        "source_lineage_id": "sline-2967215f732813c13df6"
+      },
+      {
+        "claim": "`session-start` is automatic. `implementation` records material file or behavior changes. `decision` records scope, architecture, compatibility, security, or data-policy decisions. `validation` records exact checks and outcomes. `blocked` records meaningful blockers or failures. `completion` records what finished, limitations, and pending work.",
+        "source_id": "source-bc96b4e142d3477a",
+        "source_lineage_id": "sline-9749188e7143e67d4fec"
+      },
+      {
+        "claim": "- **Status:** Proposed architecture; implementation and settings activation pending",
+        "source_id": "source-1dd0f8faceb274b5",
+        "source_lineage_id": "sline-ea12fad1d1cbb0ca7780"
+      },
+      {
+        "claim": "**Disposition:** AS-WP-004 IMPLEMENTATION COMPLETE \u2014 CERTIFICATION PENDING.",
+        "source_id": "source-84854517f0e7d2f9",
+        "source_lineage_id": "sline-2b6c8630c4542c54a120"
+      },
+      {
+        "claim": "This is currently a private repository maintained by a single owner",
+        "source_id": "source-eca12c0a30e25b4b",
+        "source_lineage_id": "sline-1943bac1619e624a1f96"
+      },
+      {
+        "claim": "**Status:** accepted",
+        "source_id": "source-3ae8423df8c47c68",
+        "source_lineage_id": "sline-de900722a25aac5ca71e"
+      },
+      {
+        "claim": "**Status:** accepted for implementation",
+        "source_id": "source-efed785b2a352fe2",
+        "source_lineage_id": "sline-12389dfe5595d5396324"
+      }
+    ],
+    "conflict_id": "conflict-ee101ef66159eb9a35c4",
+    "conflict_type": "materially-incompatible",
+    "field": "architecture",
+    "project_id": "project-atlas",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-6ebdb617a8104a77.md",
+        "schema_version": 1,
+        "sha256": "5b3dac73c79063d5cad6f3bb88fb19dafe35c3701efad5890fd205ca2f7c343a",
+        "source_id": "source-6ebdb617a8104a77",
+        "source_lineage_id": "sline-98ea6a5e6f6b3a4dedb4",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-2a55a2ceaf186ff3.md",
+        "schema_version": 1,
+        "sha256": "10c9065593cebdc1a27d320f91056f1a33448a51a2c8fdade6636fba7d64ba59",
+        "source_id": "source-2a55a2ceaf186ff3",
+        "source_lineage_id": "sline-507f05591f881e99dfb6",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-04f9cd8a04bc6191.md",
+        "schema_version": 1,
+        "sha256": "e4cedd06982f39fa3f9e0967bb4e1897838c694a4b3f9a1cc3b8440e546b2bc3",
+        "source_id": "source-04f9cd8a04bc6191",
+        "source_lineage_id": "sline-d8d2b984c982a8ce1ca0",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-438f86996b35e463.md",
+        "schema_version": 1,
+        "sha256": "5c7a4ad952b7af55401ea277a793e60d90b5021fe808c304ab0b7c074864d1e6",
+        "source_id": "source-438f86996b35e463",
+        "source_lineage_id": "sline-4d5a9e41ac37129cc62b",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-7962bd91eae0f88f.md",
+        "schema_version": 1,
+        "sha256": "afa0ddd1a63cdde91869f032b4ee54bb703d179111adfd834fbcf9c159ed426b",
+        "source_id": "source-7962bd91eae0f88f",
+        "source_lineage_id": "sline-8d2b058ff43e1ba79544",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-dfd5147c3ff138a1.md",
+        "schema_version": 1,
+        "sha256": "870374d17e4114cbc4fd16bf24b89fa8b3b9995cf3cdc528e086c6826bec2d53",
+        "source_id": "source-dfd5147c3ff138a1",
+        "source_lineage_id": "sline-f02c692931ad91623f52",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-31747815c9589450.md",
+        "schema_version": 1,
+        "sha256": "89bd5b59d940d2c819c2167420dbab030400474248e6d62ed5c93aa27a70ada3",
+        "source_id": "source-31747815c9589450",
+        "source_lineage_id": "sline-f5430db64e4269f4ecc2",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-3f82dac50b751732.md",
+        "schema_version": 1,
+        "sha256": "bc5a8b3c594dd11a3e8bc7a326a28705510aefdeb0ca8a7c1945cf32b435f825",
+        "source_id": "source-3f82dac50b751732",
+        "source_lineage_id": "sline-0df703ffab010fa1429a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-478bba3760fb6eb4.md",
+        "schema_version": 1,
+        "sha256": "4a6170d5c90e820db5dbf49f147decaecf589dc519d4927ec54dcd6b154ec0c5",
+        "source_id": "source-478bba3760fb6eb4",
+        "source_lineage_id": "sline-f4b57a66ea164860abdd",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a089a556004aac00.md",
+        "schema_version": 1,
+        "sha256": "992ad5c51a5b1253927f607266034ed585cc63c3cd77aee37d9a7f56501bcba5",
+        "source_id": "source-a089a556004aac00",
+        "source_lineage_id": "sline-a8052e2b99f153cbc41a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a3f140957a27d232.md",
+        "schema_version": 1,
+        "sha256": "fdcacfebf1a39b1d4ae6e4f1404c45ee2c742c21fb22c9f9210201be4de42056",
+        "source_id": "source-a3f140957a27d232",
+        "source_lineage_id": "sline-39a87db6b50fe9cfe510",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9d44656ba169685c.md",
+        "schema_version": 1,
+        "sha256": "3ad3125826adf55a2cf6a4d757ad5333b92029caca032be1b55e2b196df0b288",
+        "source_id": "source-9d44656ba169685c",
+        "source_lineage_id": "sline-13d8ebac3e9f7a743ba4",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-10169aea286611b8.md",
+        "schema_version": 1,
+        "sha256": "0c7535b90998cf8fc5cb46835dd51939b0463009d1a673d3627cf92e2f520aae",
+        "source_id": "source-10169aea286611b8",
+        "source_lineage_id": "sline-a18a3e9bd98c56eddb38",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-6c504e4b8740743e.md",
+        "schema_version": 1,
+        "sha256": "05c4b8064fcf1fc5c4553418bd3d7a668fcbdf3ae98da2cfc2028076d67dc574",
+        "source_id": "source-6c504e4b8740743e",
+        "source_lineage_id": "sline-72496ee78e64ef11cfa5",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a54ff182c7e8acf5.md",
+        "schema_version": 1,
+        "sha256": "cdc958644f7f063a83c37726ecb4b4c7c46eae656be749807ae1c0bc0f5c9860",
+        "source_id": "source-a54ff182c7e8acf5",
+        "source_lineage_id": "sline-d8ab01b4a35c2969b0be",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-11b678a9559ed93c.md",
+        "schema_version": 1,
+        "sha256": "30ae745e50d0a769c4c0dba3162e3ab587e8da6fdbd9a7dd0ea1bd369ede177b",
+        "source_id": "source-11b678a9559ed93c",
+        "source_lineage_id": "sline-11bcbeb3ff0a10c4056a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-fede539b8ed31a53.md",
+        "schema_version": 1,
+        "sha256": "c1d4c7926e14cc21df9379add32a64165d5bcb519306a8c3578e6a4d4d4b6d46",
+        "source_id": "source-fede539b8ed31a53",
+        "source_lineage_id": "sline-2967215f732813c13df6",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-bc96b4e142d3477a.md",
+        "schema_version": 1,
+        "sha256": "e41ff9367c29c7d85a09c9640f373c7b289beab511955463fbf998c3c0a9f21b",
+        "source_id": "source-bc96b4e142d3477a",
+        "source_lineage_id": "sline-9749188e7143e67d4fec",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-1dd0f8faceb274b5.md",
+        "schema_version": 1,
+        "sha256": "5c7a4ad952b7af55401ea277a793e60d90b5021fe808c304ab0b7c074864d1e6",
+        "source_id": "source-1dd0f8faceb274b5",
+        "source_lineage_id": "sline-ea12fad1d1cbb0ca7780",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-84854517f0e7d2f9.md",
+        "schema_version": 1,
+        "sha256": "862e3c1addac7aefa40de54f09d83eaf15d4481e22af1b3384ceb501dbeaec54",
+        "source_id": "source-84854517f0e7d2f9",
+        "source_lineage_id": "sline-2b6c8630c4542c54a120",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-eca12c0a30e25b4b.md",
+        "schema_version": 1,
+        "sha256": "e778e09214066fb91931d1269c564843c17138f59f033c727309a81eaf5baade",
+        "source_id": "source-eca12c0a30e25b4b",
+        "source_lineage_id": "sline-1943bac1619e624a1f96",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-3ae8423df8c47c68.md",
+        "schema_version": 1,
+        "sha256": "509530ce9688a7d2c34b29f975bea372a1b5dc2aadf26a2547f8ad111794ce48",
+        "source_id": "source-3ae8423df8c47c68",
+        "source_lineage_id": "sline-de900722a25aac5ca71e",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-efed785b2a352fe2.md",
+        "schema_version": 1,
+        "sha256": "b56addb6bdedc21e7cd89f3bf3df3ca98e8b8be1b64b535ec263d238c9313935",
+        "source_id": "source-efed785b2a352fe2",
+        "source_lineage_id": "sline-12389dfe5595d5396324",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-0df703ffab010fa1429a",
+      "sline-11bcbeb3ff0a10c4056a",
+      "sline-12389dfe5595d5396324",
+      "sline-13d8ebac3e9f7a743ba4",
+      "sline-1943bac1619e624a1f96",
+      "sline-2967215f732813c13df6",
+      "sline-2b6c8630c4542c54a120",
+      "sline-39a87db6b50fe9cfe510",
+      "sline-4d5a9e41ac37129cc62b",
+      "sline-507f05591f881e99dfb6",
+      "sline-72496ee78e64ef11cfa5",
+      "sline-8d2b058ff43e1ba79544",
+      "sline-9749188e7143e67d4fec",
+      "sline-98ea6a5e6f6b3a4dedb4",
+      "sline-a18a3e9bd98c56eddb38",
+      "sline-a8052e2b99f153cbc41a",
+      "sline-d8ab01b4a35c2969b0be",
+      "sline-d8d2b984c982a8ce1ca0",
+      "sline-de900722a25aac5ca71e",
+      "sline-ea12fad1d1cbb0ca7780",
+      "sline-f02c692931ad91623f52",
+      "sline-f4b57a66ea164860abdd",
+      "sline-f5430db64e4269f4ecc2"
+    ],
+    "state": "unresolved",
+    "subject": "project-atlas"
+  },
+  {
+    "claim_ids": [
+      "claim-1ca96e8a7b81e27c8459",
+      "claim-1fda21e69dcc4aca5b7e",
+      "claim-2075a265e2b2c66e72d8",
+      "claim-349423ad2fbf4f2cea70",
+      "claim-529726fd8fc2790d934e",
+      "claim-6e1afd593a83653e8370",
+      "claim-6e79a6eb82889fdd673e",
+      "claim-6ea830676a9b973642ad",
+      "claim-83c1e5c1af9bf63f6ba1",
+      "claim-9047ffb4465380e7bbd5",
+      "claim-99914c8283689310cf9b",
+      "claim-a22bdf14f05fe367eae0",
+      "claim-a9a7617d13687337f2c6",
+      "claim-b3a0853167df02a50e86",
+      "claim-b4a9d73f297f09025a9b",
+      "claim-b6852bb712910dad6e41",
+      "claim-c0dd5436ca2813b91a60",
+      "claim-c9b9f9c553004a988e98",
+      "claim-d615bb2082b93ae31d0e",
+      "claim-e087d2b80e1c668f53d8"
+    ],
+    "claims": [
+      {
+        "claim": "final bounded remediation complete \u2014 independent rereview required.",
+        "source_id": "source-fcb48476ce167a33",
+        "source_lineage_id": "sline-bdf996b429859883ae73"
+      },
+      {
+        "claim": "may-proceed-to-governance-rereview",
+        "source_id": "source-139a5adbbe4be7f2",
+        "source_lineage_id": "sline-0e4e6fe5a9c868a57fda"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-10d10df896930815",
+        "source_lineage_id": "sline-edc2afb2bda26e36113e"
+      },
+      {
+        "claim": "active",
+        "source_id": "source-ec4fdff691b493a1",
+        "source_lineage_id": "sline-04bb3c7a17560280047a"
+      },
+      {
+        "claim": "superseded",
+        "source_id": "source-10d10df896930815",
+        "source_lineage_id": "sline-edc2afb2bda26e36113e"
+      },
+      {
+        "claim": "implementation complete; governor review required.",
+        "source_id": "source-4f462914db777856",
+        "source_lineage_id": "sline-c596b83c86e1b0dd72ec"
+      },
+      {
+        "claim": "superseded",
+        "source_id": "source-a5eddbf0d5acc3c7",
+        "source_lineage_id": "sline-9f1b9cc95864bac1f2fd"
+      },
+      {
+        "claim": "may-proceed-to-governance-rereview",
+        "source_id": "source-a5eddbf0d5acc3c7",
+        "source_lineage_id": "sline-9f1b9cc95864bac1f2fd"
+      },
+      {
+        "claim": "superseded",
+        "source_id": "source-139a5adbbe4be7f2",
+        "source_lineage_id": "sline-0e4e6fe5a9c868a57fda"
+      },
+      {
+        "claim": "prototype",
+        "source_id": "source-d3b382348aeee46f",
+        "source_lineage_id": "sline-97836c11292ae3ee4ffb"
+      },
+      {
+        "claim": "implementation complete \u2014 governor review required.",
+        "source_id": "source-3dd17861a03a3ca9",
+        "source_lineage_id": "sline-120b3f839322349afac0"
+      },
+      {
+        "claim": "decided",
+        "source_id": "source-a5eddbf0d5acc3c7",
+        "source_lineage_id": "sline-9f1b9cc95864bac1f2fd"
+      },
+      {
+        "claim": "active",
+        "source_id": "source-61bf200863ca1adb",
+        "source_lineage_id": "sline-0277a20c4a9cdf4ce5d3"
+      },
+      {
+        "claim": "certified. Stage 1 and Stage 2 correctness gates passed; the provisional local performance budgets passed for discovery/inventory, no-op replay and single-file incremental inventory. Full first-ingestion throughput is reported rather than treated as a hard SLA.",
+        "source_id": "source-7ebff21df929e6cf",
+        "source_lineage_id": "sline-21e4a33ec8efe6581b17"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-5c9bbc12655831f1",
+        "source_lineage_id": "sline-2c53872c00a2894ba932"
+      },
+      {
+        "claim": "decided",
+        "source_id": "source-139a5adbbe4be7f2",
+        "source_lineage_id": "sline-0e4e6fe5a9c868a57fda"
+      },
+      {
+        "claim": "active",
+        "source_id": "source-61bf200863ca1adb",
+        "source_lineage_id": "sline-0277a20c4a9cdf4ce5d3"
+      },
+      {
+        "claim": "\"<completed | in-progress | blocked | failed | informational>\"",
+        "source_id": "source-df21a731d1f758ba",
+        "source_lineage_id": "sline-368d13154c59dfe34b42"
+      },
+      {
+        "claim": "partial",
+        "source_id": "source-61bf200863ca1adb",
+        "source_lineage_id": "sline-0277a20c4a9cdf4ce5d3"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-57730a1bd1121a73",
+        "source_lineage_id": "sline-80d60b04424bfdc14e4f"
+      }
+    ],
+    "conflict_id": "conflict-6a2ddcbcb3748172eed8",
+    "conflict_type": "materially-incompatible",
+    "field": "roadmap",
+    "project_id": "project-atlas",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-fcb48476ce167a33.md",
+        "schema_version": 1,
+        "sha256": "a58f21eb45cf4f5bb197866e1066a611c12cefe41ffb935a3fa3d7d5d2300d47",
+        "source_id": "source-fcb48476ce167a33",
+        "source_lineage_id": "sline-bdf996b429859883ae73",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-139a5adbbe4be7f2.md",
+        "schema_version": 1,
+        "sha256": "9a2a09886716313e028ecee9e8258202a1771ae65e5568b6a4f7c2b58537b4fa",
+        "source_id": "source-139a5adbbe4be7f2",
+        "source_lineage_id": "sline-0e4e6fe5a9c868a57fda",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-10d10df896930815.md",
+        "schema_version": 1,
+        "sha256": "c16e1369cfab389705b4e8b414acbb4ccb8793c2e3eb1fd8091810c961891ee5",
+        "source_id": "source-10d10df896930815",
+        "source_lineage_id": "sline-edc2afb2bda26e36113e",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-ec4fdff691b493a1.yaml",
+        "schema_version": 1,
+        "sha256": "21b0c83961cc80a1384bad8658846788805f1f9f17d52592301f5586a486b20d",
+        "source_id": "source-ec4fdff691b493a1",
+        "source_lineage_id": "sline-04bb3c7a17560280047a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-10d10df896930815.md",
+        "schema_version": 1,
+        "sha256": "c16e1369cfab389705b4e8b414acbb4ccb8793c2e3eb1fd8091810c961891ee5",
+        "source_id": "source-10d10df896930815",
+        "source_lineage_id": "sline-edc2afb2bda26e36113e",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-4f462914db777856.md",
+        "schema_version": 1,
+        "sha256": "678667c67c9341d1b0ab79760bd843c3abd6f6a2e24988258e489d0c5d329718",
+        "source_id": "source-4f462914db777856",
+        "source_lineage_id": "sline-c596b83c86e1b0dd72ec",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a5eddbf0d5acc3c7.md",
+        "schema_version": 1,
+        "sha256": "93f60938c096133833db521c0575c7ad934f75be002e135dec7631bd6822023b",
+        "source_id": "source-a5eddbf0d5acc3c7",
+        "source_lineage_id": "sline-9f1b9cc95864bac1f2fd",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a5eddbf0d5acc3c7.md",
+        "schema_version": 1,
+        "sha256": "93f60938c096133833db521c0575c7ad934f75be002e135dec7631bd6822023b",
+        "source_id": "source-a5eddbf0d5acc3c7",
+        "source_lineage_id": "sline-9f1b9cc95864bac1f2fd",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-139a5adbbe4be7f2.md",
+        "schema_version": 1,
+        "sha256": "9a2a09886716313e028ecee9e8258202a1771ae65e5568b6a4f7c2b58537b4fa",
+        "source_id": "source-139a5adbbe4be7f2",
+        "source_lineage_id": "sline-0e4e6fe5a9c868a57fda",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-d3b382348aeee46f.md",
+        "schema_version": 1,
+        "sha256": "a681ca75176bbca38a93c68f3ba5ce5c6cc6ab97055d85d44e83d179af1a4adc",
+        "source_id": "source-d3b382348aeee46f",
+        "source_lineage_id": "sline-97836c11292ae3ee4ffb",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-3dd17861a03a3ca9.md",
+        "schema_version": 1,
+        "sha256": "337028577dc2f7cd7f01451b41a474d9e047471ab21c60eb59b162190d5b8349",
+        "source_id": "source-3dd17861a03a3ca9",
+        "source_lineage_id": "sline-120b3f839322349afac0",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a5eddbf0d5acc3c7.md",
+        "schema_version": 1,
+        "sha256": "93f60938c096133833db521c0575c7ad934f75be002e135dec7631bd6822023b",
+        "source_id": "source-a5eddbf0d5acc3c7",
+        "source_lineage_id": "sline-9f1b9cc95864bac1f2fd",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-61bf200863ca1adb.md",
+        "schema_version": 1,
+        "sha256": "62b6d1127e6e288f16a1e017358ffe126aee29c6edbe6d9f27f4a7f2a7121abf",
+        "source_id": "source-61bf200863ca1adb",
+        "source_lineage_id": "sline-0277a20c4a9cdf4ce5d3",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-7ebff21df929e6cf.md",
+        "schema_version": 1,
+        "sha256": "321e2905dbc450eb5b0c70faec735a09dbbed7fe6452b3c42ac7c39de3fe4a96",
+        "source_id": "source-7ebff21df929e6cf",
+        "source_lineage_id": "sline-21e4a33ec8efe6581b17",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-5c9bbc12655831f1.md",
+        "schema_version": 1,
+        "sha256": "64081caacd7b391fa529dcedf51717358409cdd69a0039f60df01e1c5a2c7096",
+        "source_id": "source-5c9bbc12655831f1",
+        "source_lineage_id": "sline-2c53872c00a2894ba932",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-139a5adbbe4be7f2.md",
+        "schema_version": 1,
+        "sha256": "9a2a09886716313e028ecee9e8258202a1771ae65e5568b6a4f7c2b58537b4fa",
+        "source_id": "source-139a5adbbe4be7f2",
+        "source_lineage_id": "sline-0e4e6fe5a9c868a57fda",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-61bf200863ca1adb.md",
+        "schema_version": 1,
+        "sha256": "62b6d1127e6e288f16a1e017358ffe126aee29c6edbe6d9f27f4a7f2a7121abf",
+        "source_id": "source-61bf200863ca1adb",
+        "source_lineage_id": "sline-0277a20c4a9cdf4ce5d3",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-df21a731d1f758ba.md",
+        "schema_version": 1,
+        "sha256": "5bcc484d68a57c1ccb42743fe415f3de80996c43a5f7d4e585230f88d3f89d8f",
+        "source_id": "source-df21a731d1f758ba",
+        "source_lineage_id": "sline-368d13154c59dfe34b42",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-61bf200863ca1adb.md",
+        "schema_version": 1,
+        "sha256": "62b6d1127e6e288f16a1e017358ffe126aee29c6edbe6d9f27f4a7f2a7121abf",
+        "source_id": "source-61bf200863ca1adb",
+        "source_lineage_id": "sline-0277a20c4a9cdf4ce5d3",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-57730a1bd1121a73.md",
+        "schema_version": 1,
+        "sha256": "8476501f19dbdce68c13a6f04a13abefdc09c8091d53c5e18b282f603287a897",
+        "source_id": "source-57730a1bd1121a73",
+        "source_lineage_id": "sline-80d60b04424bfdc14e4f",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-0277a20c4a9cdf4ce5d3",
+      "sline-04bb3c7a17560280047a",
+      "sline-0e4e6fe5a9c868a57fda",
+      "sline-120b3f839322349afac0",
+      "sline-21e4a33ec8efe6581b17",
+      "sline-2c53872c00a2894ba932",
+      "sline-368d13154c59dfe34b42",
+      "sline-80d60b04424bfdc14e4f",
+      "sline-97836c11292ae3ee4ffb",
+      "sline-9f1b9cc95864bac1f2fd",
+      "sline-bdf996b429859883ae73",
+      "sline-c596b83c86e1b0dd72ec",
+      "sline-edc2afb2bda26e36113e"
+    ],
+    "state": "unresolved",
+    "subject": "project-atlas"
+  },
+  {
+    "claim_ids": [
+      "claim-0786d49835bac686575a",
+      "claim-0c61a6848e4c403ad9b0",
+      "claim-0f73091214b266e43cb9",
+      "claim-11c49c28f5cce99358b0",
+      "claim-2e25d4e21181af9143ff",
+      "claim-2ea649eeb7f59f851679",
+      "claim-2fa91e155f768f8255d0",
+      "claim-306846a40807c3bccd16",
+      "claim-34ae6cd363f03f38de72",
+      "claim-384c7895d14091d830af",
+      "claim-3cb1b709a8386649a11b",
+      "claim-3d585bc92f5ebf228af8",
+      "claim-50a77565b8bff6948e1a",
+      "claim-53e52abc09339a3b6eef",
+      "claim-541e61f7264aba36981e",
+      "claim-542a78c022b5c7df285d",
+      "claim-5490577aea389c8f2376",
+      "claim-56499d92b057f0ff6f4a",
+      "claim-60b33f39eec1d3a97e34",
+      "claim-63539e21dbf384072126",
+      "claim-7ebd4e5468a9c9f16e96",
+      "claim-83c1cca8d0a351175c22",
+      "claim-86cfeb03df8d928763ff",
+      "claim-985745f320e18016625c",
+      "claim-9aadc7f21be7cd654c27",
+      "claim-9e1f14dd90c05fc04225",
+      "claim-a0937d1711c609045172",
+      "claim-a93129405ddef82b8f31",
+      "claim-b9682cb570cfecab1d9a",
+      "claim-becc6470cfcc7693cd0f",
+      "claim-c14651a4d70141ee54c4",
+      "claim-c31b15dcb07e8f560d6d",
+      "claim-d3e0e0434c8162495e4b",
+      "claim-d5a04290218e68442852",
+      "claim-e12789c8f4b457487362",
+      "claim-e4217abe89458407dc61",
+      "claim-e85b34e8baa3e80a91c1",
+      "claim-ebd02bafb28498917cf1",
+      "claim-ee0e54ecf930a54173c2",
+      "claim-fa4c86756a35a7192e10",
+      "claim-fe6ccd0273f1f2680cf4"
+    ],
+    "claims": [
+      {
+        "claim": "certified-merge-eligible",
+        "source_id": "source-396dec5c1f361a46",
+        "source_lineage_id": "sline-24e3d2be97088005d6a4"
+      },
+      {
+        "claim": "implementation-complete-independent-review-required",
+        "source_id": "source-27df1572fdc22afc",
+        "source_lineage_id": "sline-1444594d80e394dbbd86"
+      },
+      {
+        "claim": "superseded",
+        "source_id": "source-187d28173225e6b4",
+        "source_lineage_id": "sline-d70ab3cbb773580e1c3f"
+      },
+      {
+        "claim": "implemented-evidence-recorded-pending-owner-merge",
+        "source_id": "source-aefc61f4554f8122",
+        "source_lineage_id": "sline-32536a073c27f562dd87"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-1277ef63212f411f",
+        "source_lineage_id": "sline-1cc3c0049cded5c15b97"
+      },
+      {
+        "claim": "superseded-before-isolated-review",
+        "source_id": "source-bcb96da9f5b9c555",
+        "source_lineage_id": "sline-b1b4fa0531366f78e270"
+      },
+      {
+        "claim": "implementation-complete",
+        "source_id": "source-9d7ca524bffd2249",
+        "source_lineage_id": "sline-27d5692895da3208b0ed"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-36eb1cb7d1681d75",
+        "source_lineage_id": "sline-12114d289ee7acdb20c1"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-23c651571a498bf2",
+        "source_lineage_id": "sline-c8867b4e8ab62cd9d1a2"
+      },
+      {
+        "claim": "implementation-complete-independent-rereview-required",
+        "source_id": "source-d3ba53044edcfdbc",
+        "source_lineage_id": "sline-f409a8cb9743aa1fdb85"
+      },
+      {
+        "claim": "passed",
+        "source_id": "source-76b8342030b8ae0b",
+        "source_lineage_id": "sline-aab807dab23eeae78fcb"
+      },
+      {
+        "claim": "decided",
+        "source_id": "source-187d28173225e6b4",
+        "source_lineage_id": "sline-d70ab3cbb773580e1c3f"
+      },
+      {
+        "claim": "merged-and-post-merge-validated",
+        "source_id": "source-9e0b28eb2f371fcd",
+        "source_lineage_id": "sline-0bea16b1107996d813a8"
+      },
+      {
+        "claim": "implementation-complete",
+        "source_id": "source-9e774dd48f24876c",
+        "source_lineage_id": "sline-aa2f77ef9eb86edc33ac"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-0b15aecd2e13edf3",
+        "source_lineage_id": "sline-5b6e3933e1af623f92c7"
+      },
+      {
+        "claim": "passed",
+        "source_id": "source-49418f4bc3931635",
+        "source_lineage_id": "sline-2262019dac18e4ece847"
+      },
+      {
+        "claim": "may-proceed-to-governance-rereview",
+        "source_id": "source-187d28173225e6b4",
+        "source_lineage_id": "sline-d70ab3cbb773580e1c3f"
+      },
+      {
+        "claim": "local-validation-complete-pending-remote-ci",
+        "source_id": "source-d1eb2067a272bc88",
+        "source_lineage_id": "sline-b2c3d86c8e8c00923db9"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-7d4a9eb80d487eaa",
+        "source_lineage_id": "sline-97d85ec9c3046f82ed02"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-af30244991e4989d",
+        "source_lineage_id": "sline-baa86a6c3c4cf4c52ae9"
+      },
+      {
+        "claim": "certification-carry-forward-approved",
+        "source_id": "source-a9c2eed0ccc6d6d3",
+        "source_lineage_id": "sline-735e84746c66736c84aa"
+      },
+      {
+        "claim": "level-0-achieved",
+        "source_id": "source-84c34384595393f9",
+        "source_lineage_id": "sline-9f98a798afbca3efd01d"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-0cce0c245b2d7759",
+        "source_lineage_id": "sline-863089df30e2da3da847"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-1aef03da8bda7271",
+        "source_lineage_id": "sline-486e33e1038fb8dcbc6e"
+      },
+      {
+        "claim": "implementation-complete",
+        "source_id": "source-21f43c3f7b6d5a0c",
+        "source_lineage_id": "sline-e736e8ef6fafb733b147"
+      },
+      {
+        "claim": "architecture-review-passed",
+        "source_id": "source-0cfdc764abb3139e",
+        "source_lineage_id": "sline-7abceecdaf323c3e057d"
+      },
+      {
+        "claim": "level-0-achieved-remediated",
+        "source_id": "source-504c835b6d1f800f",
+        "source_lineage_id": "sline-e3ad2e656b727c7ed537"
+      },
+      {
+        "claim": "level-0-achieved-remediated",
+        "source_id": "source-09a6f4dc35e9c52f",
+        "source_lineage_id": "sline-3023aa48fa8deb7f8be9"
+      },
+      {
+        "claim": "implementation-complete-pending-certification",
+        "source_id": "source-74be02fb88c3b419",
+        "source_lineage_id": "sline-e82d7a6c903fefc9e955"
+      },
+      {
+        "claim": "merged-post-merge-validated",
+        "source_id": "source-fc7066e446ae5ac8",
+        "source_lineage_id": "sline-63cc814032b089b8db0c"
+      },
+      {
+        "claim": "repository-implementation-complete-independent-verification-pending",
+        "source_id": "source-9cd7fdff0a4dba27",
+        "source_lineage_id": "sline-a258b2a587ee1ca71505"
+      },
+      {
+        "claim": "implementation-complete-pending-isolated-review",
+        "source_id": "source-bd224ed3d036584c",
+        "source_lineage_id": "sline-ac918088737874265e4a"
+      },
+      {
+        "claim": "superseded-by-AS-RET-001",
+        "source_id": "source-0aad25b3bc543784",
+        "source_lineage_id": "sline-1cac76d0a17a298cdbd7"
+      },
+      {
+        "claim": "implementation-complete-targeted-rereview-required",
+        "source_id": "source-78e8f0c13381cf0c",
+        "source_lineage_id": "sline-2a25ee486c18f0a5fd34"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-635ea1955e1dbd22",
+        "source_lineage_id": "sline-3a3eb3f5ccb900613096"
+      },
+      {
+        "claim": "Planned",
+        "source_id": "source-abe2b4e8b7e4225c",
+        "source_lineage_id": "sline-0fc1b4072dd2a22b4334"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-9a9b4b177c56cb96",
+        "source_lineage_id": "sline-132ee532b7e7f024992b"
+      },
+      {
+        "claim": "implementation-complete-governor-review-required",
+        "source_id": "source-90c74733be1e8113",
+        "source_lineage_id": "sline-4970da05385811dcf8df"
+      },
+      {
+        "claim": "certified",
+        "source_id": "source-4da19bf4bf47e20e",
+        "source_lineage_id": "sline-82479193d549071bf4e9"
+      },
+      {
+        "claim": "local-validation-complete-pending-isolated-review",
+        "source_id": "source-4d44b8d95ff1e6ad",
+        "source_lineage_id": "sline-062d18e0c18f02aa1ced"
+      },
+      {
+        "claim": "recertified-merge-eligible",
+        "source_id": "source-e3a00e48a5472186",
+        "source_lineage_id": "sline-2f187af5ba02503b84be"
+      }
+    ],
+    "conflict_id": "conflict-0156b0179de3db14dfaf",
+    "conflict_type": "materially-incompatible",
+    "field": "status",
+    "project_id": "project-atlas",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-396dec5c1f361a46.yaml",
+        "schema_version": 1,
+        "sha256": "d0effdaaec03d83889a1a17923f612d3ed1aa6873be01d3376ab89eb10dd62fb",
+        "source_id": "source-396dec5c1f361a46",
+        "source_lineage_id": "sline-24e3d2be97088005d6a4",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-27df1572fdc22afc.yaml",
+        "schema_version": 1,
+        "sha256": "bf781d22908d141bb2d7f224c8d18d485872406c01f857b6f6ace523e2e39745",
+        "source_id": "source-27df1572fdc22afc",
+        "source_lineage_id": "sline-1444594d80e394dbbd86",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-187d28173225e6b4.md",
+        "schema_version": 1,
+        "sha256": "9a2a09886716313e028ecee9e8258202a1771ae65e5568b6a4f7c2b58537b4fa",
+        "source_id": "source-187d28173225e6b4",
+        "source_lineage_id": "sline-d70ab3cbb773580e1c3f",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-aefc61f4554f8122.yaml",
+        "schema_version": 1,
+        "sha256": "7de0b68a410144db115ae6f747932aedb3b1a534556893548ea6a51a79b75509",
+        "source_id": "source-aefc61f4554f8122",
+        "source_lineage_id": "sline-32536a073c27f562dd87",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-1277ef63212f411f.yaml",
+        "schema_version": 1,
+        "sha256": "8a2a2962277955782f9de4b96ad380eca18a009a4f0ae8d78bb37ced17d0b205",
+        "source_id": "source-1277ef63212f411f",
+        "source_lineage_id": "sline-1cc3c0049cded5c15b97",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-bcb96da9f5b9c555.yaml",
+        "schema_version": 1,
+        "sha256": "522f91ea51863c508bb6533d07affd3862b496b9e1864794890c86484864c545",
+        "source_id": "source-bcb96da9f5b9c555",
+        "source_lineage_id": "sline-b1b4fa0531366f78e270",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9d7ca524bffd2249.yaml",
+        "schema_version": 1,
+        "sha256": "d02e7ddb64b4ebcc6a74361ee6b333ce0578efc6fffee4a926bf3c9f3e02e835",
+        "source_id": "source-9d7ca524bffd2249",
+        "source_lineage_id": "sline-27d5692895da3208b0ed",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-36eb1cb7d1681d75.yaml",
+        "schema_version": 1,
+        "sha256": "ae31d670cae56f979c0d76d806e9c9fa039b809b1839c10ebc9e8f52fba9ffb9",
+        "source_id": "source-36eb1cb7d1681d75",
+        "source_lineage_id": "sline-12114d289ee7acdb20c1",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-23c651571a498bf2.yaml",
+        "schema_version": 1,
+        "sha256": "0d17cd2eff6aff8239a78ef0b0b6baebf66b3703119c3fbde997311a40483102",
+        "source_id": "source-23c651571a498bf2",
+        "source_lineage_id": "sline-c8867b4e8ab62cd9d1a2",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-d3ba53044edcfdbc.yaml",
+        "schema_version": 1,
+        "sha256": "68ebaddb071a08019fe09838fbe086d49a1619703f629369078d4acf496bfaf1",
+        "source_id": "source-d3ba53044edcfdbc",
+        "source_lineage_id": "sline-f409a8cb9743aa1fdb85",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-76b8342030b8ae0b.yaml",
+        "schema_version": 1,
+        "sha256": "8039d3dab97c210ea6ba5a9788ca53615813787d12ec8526343f36b3fb0065e4",
+        "source_id": "source-76b8342030b8ae0b",
+        "source_lineage_id": "sline-aab807dab23eeae78fcb",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-187d28173225e6b4.md",
+        "schema_version": 1,
+        "sha256": "9a2a09886716313e028ecee9e8258202a1771ae65e5568b6a4f7c2b58537b4fa",
+        "source_id": "source-187d28173225e6b4",
+        "source_lineage_id": "sline-d70ab3cbb773580e1c3f",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9e0b28eb2f371fcd.yaml",
+        "schema_version": 1,
+        "sha256": "b41109f0023ca265333ed06810456d0d59cafad77cc8caa2b24d520c951752e7",
+        "source_id": "source-9e0b28eb2f371fcd",
+        "source_lineage_id": "sline-0bea16b1107996d813a8",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9e774dd48f24876c.yaml",
+        "schema_version": 1,
+        "sha256": "d02e7ddb64b4ebcc6a74361ee6b333ce0578efc6fffee4a926bf3c9f3e02e835",
+        "source_id": "source-9e774dd48f24876c",
+        "source_lineage_id": "sline-aa2f77ef9eb86edc33ac",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0b15aecd2e13edf3.yaml",
+        "schema_version": 1,
+        "sha256": "ac159d2b43ee2627fa1cfb76079f178c5ef775b9480ebc56b339bcb8dae2b3ad",
+        "source_id": "source-0b15aecd2e13edf3",
+        "source_lineage_id": "sline-5b6e3933e1af623f92c7",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-49418f4bc3931635.yaml",
+        "schema_version": 1,
+        "sha256": "32ec37304ee2fb4b14a0b8d3b64d86d530b8277cff90032de8dcead135191c68",
+        "source_id": "source-49418f4bc3931635",
+        "source_lineage_id": "sline-2262019dac18e4ece847",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-187d28173225e6b4.md",
+        "schema_version": 1,
+        "sha256": "9a2a09886716313e028ecee9e8258202a1771ae65e5568b6a4f7c2b58537b4fa",
+        "source_id": "source-187d28173225e6b4",
+        "source_lineage_id": "sline-d70ab3cbb773580e1c3f",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-d1eb2067a272bc88.yaml",
+        "schema_version": 1,
+        "sha256": "9700fe2c9a3a0078472fc31cb4e7754f886cb82762ff62ce49dd508ea78459d6",
+        "source_id": "source-d1eb2067a272bc88",
+        "source_lineage_id": "sline-b2c3d86c8e8c00923db9",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-7d4a9eb80d487eaa.yaml",
+        "schema_version": 1,
+        "sha256": "68d376cccc3548d993c2ffda4459ed2e2f5f11519cb10f01e36894a74a309098",
+        "source_id": "source-7d4a9eb80d487eaa",
+        "source_lineage_id": "sline-97d85ec9c3046f82ed02",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-af30244991e4989d.yaml",
+        "schema_version": 1,
+        "sha256": "adfd898fd3ebf094d28f16b20e0d7bd4a9415cbb65af7d74ff5552c405264eff",
+        "source_id": "source-af30244991e4989d",
+        "source_lineage_id": "sline-baa86a6c3c4cf4c52ae9",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a9c2eed0ccc6d6d3.yaml",
+        "schema_version": 1,
+        "sha256": "091af104e3a636a1e38dc5572f76df7e44cf1dcfe4227cfcc182a8a115182f27",
+        "source_id": "source-a9c2eed0ccc6d6d3",
+        "source_lineage_id": "sline-735e84746c66736c84aa",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-84c34384595393f9.yaml",
+        "schema_version": 1,
+        "sha256": "cdf5b1fe7e58e6c8df019aa20c59c9518e91b0df8c5ede251d3a343bbe7635c7",
+        "source_id": "source-84c34384595393f9",
+        "source_lineage_id": "sline-9f98a798afbca3efd01d",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0cce0c245b2d7759.yaml",
+        "schema_version": 1,
+        "sha256": "c627436e3c33f854d0d53e5c727c66131c6959e8c30229f19e82aee3bc580b45",
+        "source_id": "source-0cce0c245b2d7759",
+        "source_lineage_id": "sline-863089df30e2da3da847",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-1aef03da8bda7271.yaml",
+        "schema_version": 1,
+        "sha256": "d716cccb997ffacb7f71a30b80cd37e81b321b523edf7e95c93bc671a092db8e",
+        "source_id": "source-1aef03da8bda7271",
+        "source_lineage_id": "sline-486e33e1038fb8dcbc6e",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-21f43c3f7b6d5a0c.yaml",
+        "schema_version": 1,
+        "sha256": "16985cb698e2738dae84fd30ee0cd59d5a3d0cf4d3bb983e513600220c03e621",
+        "source_id": "source-21f43c3f7b6d5a0c",
+        "source_lineage_id": "sline-e736e8ef6fafb733b147",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0cfdc764abb3139e.yaml",
+        "schema_version": 1,
+        "sha256": "6d54bc1c8c67c13e0c23f8893c2bb8883604502549dbca8df86c1386e62e89d3",
+        "source_id": "source-0cfdc764abb3139e",
+        "source_lineage_id": "sline-7abceecdaf323c3e057d",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-504c835b6d1f800f.yaml",
+        "schema_version": 1,
+        "sha256": "8bf27c1d1f80447285af7a0e385c095a1b5156bfebcf5f322b6fc67bc334f729",
+        "source_id": "source-504c835b6d1f800f",
+        "source_lineage_id": "sline-e3ad2e656b727c7ed537",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-09a6f4dc35e9c52f.yaml",
+        "schema_version": 1,
+        "sha256": "9e99f2a6e760db0b07cd51fd1ed7a852bb2786d44a07200a24b7171870fcc1a9",
+        "source_id": "source-09a6f4dc35e9c52f",
+        "source_lineage_id": "sline-3023aa48fa8deb7f8be9",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-74be02fb88c3b419.yaml",
+        "schema_version": 1,
+        "sha256": "38b056e631ad4c6d793c5e15880e5cb83ff358efc44a766dba8a85ed1e542cec",
+        "source_id": "source-74be02fb88c3b419",
+        "source_lineage_id": "sline-e82d7a6c903fefc9e955",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-fc7066e446ae5ac8.yaml",
+        "schema_version": 1,
+        "sha256": "aecdfd35223c3d9ecc5ced702d44a383ceb99680f0bb6c6d7fdf1324e9c06caa",
+        "source_id": "source-fc7066e446ae5ac8",
+        "source_lineage_id": "sline-63cc814032b089b8db0c",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9cd7fdff0a4dba27.yaml",
+        "schema_version": 1,
+        "sha256": "017d3f36e1fdceee3e8a577f3597dbb0a3b7683f3eda8bab2e7dc5be4da62769",
+        "source_id": "source-9cd7fdff0a4dba27",
+        "source_lineage_id": "sline-a258b2a587ee1ca71505",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-bd224ed3d036584c.yaml",
+        "schema_version": 1,
+        "sha256": "043102437a0ce285ba1270d5e4227e608823f4a906893b2bf5978931f7103a22",
+        "source_id": "source-bd224ed3d036584c",
+        "source_lineage_id": "sline-ac918088737874265e4a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0aad25b3bc543784.yaml",
+        "schema_version": 1,
+        "sha256": "a383e8ea8ce2a526a84adaf843822c2238a093ae22c439715bee19a7d2632d74",
+        "source_id": "source-0aad25b3bc543784",
+        "source_lineage_id": "sline-1cac76d0a17a298cdbd7",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-78e8f0c13381cf0c.yaml",
+        "schema_version": 1,
+        "sha256": "f4dd14fe550fba15b60d14b5df83b297f5e2d97991559746fd5533b21bd5070e",
+        "source_id": "source-78e8f0c13381cf0c",
+        "source_lineage_id": "sline-2a25ee486c18f0a5fd34",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-635ea1955e1dbd22.yaml",
+        "schema_version": 1,
+        "sha256": "ae31d670cae56f979c0d76d806e9c9fa039b809b1839c10ebc9e8f52fba9ffb9",
+        "source_id": "source-635ea1955e1dbd22",
+        "source_lineage_id": "sline-3a3eb3f5ccb900613096",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-abe2b4e8b7e4225c.yaml",
+        "schema_version": 1,
+        "sha256": "71ce9f7fba3f9e2787be868ecb725f01da68d3293e85b33f3a428c9c268edb91",
+        "source_id": "source-abe2b4e8b7e4225c",
+        "source_lineage_id": "sline-0fc1b4072dd2a22b4334",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9a9b4b177c56cb96.yaml",
+        "schema_version": 1,
+        "sha256": "8ea2403d60629b36ec18842cf8563e48b2bbaafb95049d98dd6a65313e3a5618",
+        "source_id": "source-9a9b4b177c56cb96",
+        "source_lineage_id": "sline-132ee532b7e7f024992b",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-90c74733be1e8113.yaml",
+        "schema_version": 1,
+        "sha256": "6d6db60b9e25dba420210341dc32bc54fe4f670234de84a6fa58e46ea577f350",
+        "source_id": "source-90c74733be1e8113",
+        "source_lineage_id": "sline-4970da05385811dcf8df",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-4da19bf4bf47e20e.yaml",
+        "schema_version": 1,
+        "sha256": "a795ec03dcfee13ecc8a6237a69d3cd417bd85298a8cea201ed35f01ec65f9e4",
+        "source_id": "source-4da19bf4bf47e20e",
+        "source_lineage_id": "sline-82479193d549071bf4e9",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-4d44b8d95ff1e6ad.yaml",
+        "schema_version": 1,
+        "sha256": "bbc7620400323f816f30c23ff6a326070acb87ad6205f98365ce7a993f74414b",
+        "source_id": "source-4d44b8d95ff1e6ad",
+        "source_lineage_id": "sline-062d18e0c18f02aa1ced",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-e3a00e48a5472186.yaml",
+        "schema_version": 1,
+        "sha256": "65705266443deb8b925d263c842fcbf35197bd4282296d4b7a9f6e2f37dc16fd",
+        "source_id": "source-e3a00e48a5472186",
+        "source_lineage_id": "sline-2f187af5ba02503b84be",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-062d18e0c18f02aa1ced",
+      "sline-0bea16b1107996d813a8",
+      "sline-0fc1b4072dd2a22b4334",
+      "sline-12114d289ee7acdb20c1",
+      "sline-132ee532b7e7f024992b",
+      "sline-1444594d80e394dbbd86",
+      "sline-1cac76d0a17a298cdbd7",
+      "sline-1cc3c0049cded5c15b97",
+      "sline-2262019dac18e4ece847",
+      "sline-24e3d2be97088005d6a4",
+      "sline-27d5692895da3208b0ed",
+      "sline-2a25ee486c18f0a5fd34",
+      "sline-2f187af5ba02503b84be",
+      "sline-3023aa48fa8deb7f8be9",
+      "sline-32536a073c27f562dd87",
+      "sline-3a3eb3f5ccb900613096",
+      "sline-486e33e1038fb8dcbc6e",
+      "sline-4970da05385811dcf8df",
+      "sline-5b6e3933e1af623f92c7",
+      "sline-63cc814032b089b8db0c",
+      "sline-735e84746c66736c84aa",
+      "sline-7abceecdaf323c3e057d",
+      "sline-82479193d549071bf4e9",
+      "sline-863089df30e2da3da847",
+      "sline-97d85ec9c3046f82ed02",
+      "sline-9f98a798afbca3efd01d",
+      "sline-a258b2a587ee1ca71505",
+      "sline-aa2f77ef9eb86edc33ac",
+      "sline-aab807dab23eeae78fcb",
+      "sline-ac918088737874265e4a",
+      "sline-b1b4fa0531366f78e270",
+      "sline-b2c3d86c8e8c00923db9",
+      "sline-baa86a6c3c4cf4c52ae9",
+      "sline-c8867b4e8ab62cd9d1a2",
+      "sline-d70ab3cbb773580e1c3f",
+      "sline-e3ad2e656b727c7ed537",
+      "sline-e736e8ef6fafb733b147",
+      "sline-e82d7a6c903fefc9e955",
+      "sline-f409a8cb9743aa1fdb85"
+    ],
+    "state": "unresolved",
+    "subject": "project-atlas"
+  },
+  {
+    "claim_ids": [
+      "claim-03c816e7d5ec43870c56",
+      "claim-1dc738d3afe6538e51dc",
+      "claim-405147ab46da87c86521",
+      "claim-6b9c8bc0a8ed03883bd9",
+      "claim-8e593c7ac2615ad430d6",
+      "claim-ccb70f6af7b84330af7b",
+      "claim-cdcc433782a0cd0d56ca",
+      "claim-d576e5e2381f22867a19",
+      "claim-e78d6ba287637fdcf136"
+    ],
+    "claims": [
+      {
+        "claim": "Final bounded certification remediation",
+        "source_id": "source-d3ba53044edcfdbc",
+        "source_lineage_id": "sline-f409a8cb9743aa1fdb85"
+      },
+      {
+        "claim": "Control Plane Test Fixture Executable-Bit Portability",
+        "source_id": "source-aefc61f4554f8122",
+        "source_lineage_id": "sline-32536a073c27f562dd87"
+      },
+      {
+        "claim": "Portfolio Intelligence and Pilot Onboarding Closure",
+        "source_id": "source-0cfdc764abb3139e",
+        "source_lineage_id": "sline-7abceecdaf323c3e057d"
+      },
+      {
+        "claim": "Lexical Retrieval Index",
+        "source_id": "source-9e0b28eb2f371fcd",
+        "source_lineage_id": "sline-0bea16b1107996d813a8"
+      },
+      {
+        "claim": "Governor-bounded remediation",
+        "source_id": "source-27df1572fdc22afc",
+        "source_lineage_id": "sline-1444594d80e394dbbd86"
+      },
+      {
+        "claim": "Durable Source Lineage Identity",
+        "source_id": "source-90c74733be1e8113",
+        "source_lineage_id": "sline-4970da05385811dcf8df"
+      },
+      {
+        "claim": "GitHub Repository Governance Baseline",
+        "source_id": "source-9cd7fdff0a4dba27",
+        "source_lineage_id": "sline-a258b2a587ee1ca71505"
+      },
+      {
+        "claim": "Retired-slot resolution control-flow remediation",
+        "source_id": "source-78e8f0c13381cf0c",
+        "source_lineage_id": "sline-2a25ee486c18f0a5fd34"
+      },
+      {
+        "claim": "Lexical Retrieval Index",
+        "source_id": "source-396dec5c1f361a46",
+        "source_lineage_id": "sline-24e3d2be97088005d6a4"
+      }
+    ],
+    "conflict_id": "conflict-9e8effd046434b39e849",
+    "conflict_type": "materially-incompatible",
+    "field": "title",
+    "project_id": "project-atlas",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-d3ba53044edcfdbc.yaml",
+        "schema_version": 1,
+        "sha256": "68ebaddb071a08019fe09838fbe086d49a1619703f629369078d4acf496bfaf1",
+        "source_id": "source-d3ba53044edcfdbc",
+        "source_lineage_id": "sline-f409a8cb9743aa1fdb85",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-aefc61f4554f8122.yaml",
+        "schema_version": 1,
+        "sha256": "7de0b68a410144db115ae6f747932aedb3b1a534556893548ea6a51a79b75509",
+        "source_id": "source-aefc61f4554f8122",
+        "source_lineage_id": "sline-32536a073c27f562dd87",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0cfdc764abb3139e.yaml",
+        "schema_version": 1,
+        "sha256": "6d54bc1c8c67c13e0c23f8893c2bb8883604502549dbca8df86c1386e62e89d3",
+        "source_id": "source-0cfdc764abb3139e",
+        "source_lineage_id": "sline-7abceecdaf323c3e057d",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9e0b28eb2f371fcd.yaml",
+        "schema_version": 1,
+        "sha256": "b41109f0023ca265333ed06810456d0d59cafad77cc8caa2b24d520c951752e7",
+        "source_id": "source-9e0b28eb2f371fcd",
+        "source_lineage_id": "sline-0bea16b1107996d813a8",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-27df1572fdc22afc.yaml",
+        "schema_version": 1,
+        "sha256": "bf781d22908d141bb2d7f224c8d18d485872406c01f857b6f6ace523e2e39745",
+        "source_id": "source-27df1572fdc22afc",
+        "source_lineage_id": "sline-1444594d80e394dbbd86",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-90c74733be1e8113.yaml",
+        "schema_version": 1,
+        "sha256": "6d6db60b9e25dba420210341dc32bc54fe4f670234de84a6fa58e46ea577f350",
+        "source_id": "source-90c74733be1e8113",
+        "source_lineage_id": "sline-4970da05385811dcf8df",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9cd7fdff0a4dba27.yaml",
+        "schema_version": 1,
+        "sha256": "017d3f36e1fdceee3e8a577f3597dbb0a3b7683f3eda8bab2e7dc5be4da62769",
+        "source_id": "source-9cd7fdff0a4dba27",
+        "source_lineage_id": "sline-a258b2a587ee1ca71505",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-78e8f0c13381cf0c.yaml",
+        "schema_version": 1,
+        "sha256": "f4dd14fe550fba15b60d14b5df83b297f5e2d97991559746fd5533b21bd5070e",
+        "source_id": "source-78e8f0c13381cf0c",
+        "source_lineage_id": "sline-2a25ee486c18f0a5fd34",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-396dec5c1f361a46.yaml",
+        "schema_version": 1,
+        "sha256": "d0effdaaec03d83889a1a17923f612d3ed1aa6873be01d3376ab89eb10dd62fb",
+        "source_id": "source-396dec5c1f361a46",
+        "source_lineage_id": "sline-24e3d2be97088005d6a4",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-0bea16b1107996d813a8",
+      "sline-1444594d80e394dbbd86",
+      "sline-24e3d2be97088005d6a4",
+      "sline-2a25ee486c18f0a5fd34",
+      "sline-32536a073c27f562dd87",
+      "sline-4970da05385811dcf8df",
+      "sline-7abceecdaf323c3e057d",
+      "sline-a258b2a587ee1ca71505",
+      "sline-f409a8cb9743aa1fdb85"
+    ],
+    "state": "unresolved",
+    "subject": "project-atlas"
+  },
+  {
+    "claim_ids": [
+      "claim-3c6fad57d63f171ddf4f",
+      "claim-bf4506fa10d634c045ea"
+    ],
+    "claims": [
+      {
+        "claim": "passed",
+        "source_id": "source-10d10df896930815",
+        "source_lineage_id": "sline-edc2afb2bda26e36113e"
+      },
+      {
+        "claim": "<passed | warnings | failed>",
+        "source_id": "source-f5e1426cdeabbf3b",
+        "source_lineage_id": "sline-4d2ee522d4ddb46a235a"
+      }
+    ],
+    "conflict_id": "conflict-45bf6f992b1f4bae833e",
+    "conflict_type": "materially-incompatible",
+    "field": "validation",
+    "project_id": "project-atlas",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-10d10df896930815.md",
+        "schema_version": 1,
+        "sha256": "c16e1369cfab389705b4e8b414acbb4ccb8793c2e3eb1fd8091810c961891ee5",
+        "source_id": "source-10d10df896930815",
+        "source_lineage_id": "sline-edc2afb2bda26e36113e",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-f5e1426cdeabbf3b.md",
+        "schema_version": 1,
+        "sha256": "fe76f37ef8c33d089bac7b1ce94572711b74c14082d4473535d392082b226bf3",
+        "source_id": "source-f5e1426cdeabbf3b",
+        "source_lineage_id": "sline-4d2ee522d4ddb46a235a",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-4d2ee522d4ddb46a235a",
+      "sline-edc2afb2bda26e36113e"
+    ],
+    "state": "unresolved",
+    "subject": "project-atlas"
+  },
+  {
+    "claim_ids": [
+      "claim-018dee6d022129020a69",
+      "claim-093eeede10d2e4c4c6f2",
+      "claim-18ac8bee45a28955aa0f",
+      "claim-22b8d842a7257316289a",
+      "claim-2aedf1dab7f52ef82166",
+      "claim-3be8c7b643cb9e50ea09",
+      "claim-4039ad1d92f7a5323cab",
+      "claim-47365bf8bfac3f1aecfe",
+      "claim-50ac4c0b4a3a011b1ba0",
+      "claim-5748ac3028405abe0493",
+      "claim-5a1af43a3d25a02061df",
+      "claim-5a79f558395f10425a3d",
+      "claim-5c44624c8b2aa73b95d7",
+      "claim-5c4a49175067753713c8",
+      "claim-5da14e13e3a2e01da479",
+      "claim-5f9994a6468f7ecc8ff8",
+      "claim-6dfbac7fa63ae1cfa5d2",
+      "claim-810315e454d22053001d",
+      "claim-9060fe2191fc4f975e8c",
+      "claim-90da94c1aef09bcbb61d",
+      "claim-948436a8b02a3cdb0aec",
+      "claim-96e124f771f219bc445d",
+      "claim-9b44c5afcdf570c7973a",
+      "claim-9c2d27999203e202f183",
+      "claim-a212a00c0063d6355fa5",
+      "claim-af0bdf006a8de61761b5",
+      "claim-b4089dc967c77347f4b8",
+      "claim-b7c2c651b606f4b23d63",
+      "claim-c177f9a884dd0dcd313f",
+      "claim-c1bc1d5de27e57a4df60",
+      "claim-ca28521569487812cc37",
+      "claim-caa855b211208c93b2a5",
+      "claim-cc54b33ee41fca9d4c69",
+      "claim-cd3d3a11917811928c37",
+      "claim-d6c3cc1c101e3e27c64b",
+      "claim-dad4761dc435a4f56d81",
+      "claim-dc3b682fe6bdbcb94fbb",
+      "claim-e7b09cdb6d04c473804b",
+      "claim-ea37648dc16b9bb74d37",
+      "claim-eca8efb73dfb4cdc68a1",
+      "claim-ecdf25c9ede758c83793",
+      "claim-ee50d2e7185a69708000",
+      "claim-f4ff453e5f1f7cb8f1a4",
+      "claim-f6cf24d43707bef79f1a"
+    ],
+    "claims": [
+      {
+        "claim": "AS-CORE-002",
+        "source_id": "source-e3a00e48a5472186",
+        "source_lineage_id": "sline-2f187af5ba02503b84be"
+      },
+      {
+        "claim": "AS-GH-001",
+        "source_id": "source-9cd7fdff0a4dba27",
+        "source_lineage_id": "sline-a258b2a587ee1ca71505"
+      },
+      {
+        "claim": "AS-MAINT-001",
+        "source_id": "source-aefc61f4554f8122",
+        "source_lineage_id": "sline-32536a073c27f562dd87"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-4d44b8d95ff1e6ad",
+        "source_lineage_id": "sline-062d18e0c18f02aa1ced"
+      },
+      {
+        "claim": "AS-CORE-003-A",
+        "source_id": "source-abe2b4e8b7e4225c",
+        "source_lineage_id": "sline-0fc1b4072dd2a22b4334"
+      },
+      {
+        "claim": "AS-EXT-001A",
+        "source_id": "source-84c34384595393f9",
+        "source_lineage_id": "sline-9f98a798afbca3efd01d"
+      },
+      {
+        "claim": "AS-MVP-001",
+        "source_id": "source-0cfdc764abb3139e",
+        "source_lineage_id": "sline-7abceecdaf323c3e057d"
+      },
+      {
+        "claim": "AS-ID-001",
+        "source_id": "source-d3ba53044edcfdbc",
+        "source_lineage_id": "sline-f409a8cb9743aa1fdb85"
+      },
+      {
+        "claim": "AS-ID-001",
+        "source_id": "source-90c74733be1e8113",
+        "source_lineage_id": "sline-4970da05385811dcf8df"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-217bc2cc4d879a81",
+        "source_lineage_id": "sline-15b5c7926c1ff38954f5"
+      },
+      {
+        "claim": "AS-SYNTH-003",
+        "source_id": "source-7d4a9eb80d487eaa",
+        "source_lineage_id": "sline-97d85ec9c3046f82ed02"
+      },
+      {
+        "claim": "AS-ID-001",
+        "source_id": "source-27df1572fdc22afc",
+        "source_lineage_id": "sline-1444594d80e394dbbd86"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-0a9af96bb12edf31",
+        "source_lineage_id": "sline-cf143f025b30753f7cfe"
+      },
+      {
+        "claim": "AS-SYNTH-002",
+        "source_id": "source-af30244991e4989d",
+        "source_lineage_id": "sline-baa86a6c3c4cf4c52ae9"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-74be02fb88c3b419",
+        "source_lineage_id": "sline-e82d7a6c903fefc9e955"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-bd224ed3d036584c",
+        "source_lineage_id": "sline-ac918088737874265e4a"
+      },
+      {
+        "claim": "atlas-core-vertical-slice",
+        "source_id": "source-49418f4bc3931635",
+        "source_lineage_id": "sline-2262019dac18e4ece847"
+      },
+      {
+        "claim": "AS-CORE-002",
+        "source_id": "source-36eb1cb7d1681d75",
+        "source_lineage_id": "sline-12114d289ee7acdb20c1"
+      },
+      {
+        "claim": "AS-EXT-001A",
+        "source_id": "source-504c835b6d1f800f",
+        "source_lineage_id": "sline-e3ad2e656b727c7ed537"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-4d44b8d95ff1e6ad",
+        "source_lineage_id": "sline-062d18e0c18f02aa1ced"
+      },
+      {
+        "claim": "AS-SYNTH-003",
+        "source_id": "source-9a9b4b177c56cb96",
+        "source_lineage_id": "sline-132ee532b7e7f024992b"
+      },
+      {
+        "claim": "AS-ENG-005",
+        "source_id": "source-0aad25b3bc543784",
+        "source_lineage_id": "sline-1cac76d0a17a298cdbd7"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-bcb96da9f5b9c555",
+        "source_lineage_id": "sline-b1b4fa0531366f78e270"
+      },
+      {
+        "claim": "AS-RET-001",
+        "source_id": "source-9e0b28eb2f371fcd",
+        "source_lineage_id": "sline-0bea16b1107996d813a8"
+      },
+      {
+        "claim": "AS-ID-001",
+        "source_id": "source-78e8f0c13381cf0c",
+        "source_lineage_id": "sline-2a25ee486c18f0a5fd34"
+      },
+      {
+        "claim": "AS-SKILL-001",
+        "source_id": "source-0b15aecd2e13edf3",
+        "source_lineage_id": "sline-5b6e3933e1af623f92c7"
+      },
+      {
+        "claim": "AS-CORE-002",
+        "source_id": "source-635ea1955e1dbd22",
+        "source_lineage_id": "sline-3a3eb3f5ccb900613096"
+      },
+      {
+        "claim": "AS-SPEC-004",
+        "source_id": "source-21f43c3f7b6d5a0c",
+        "source_lineage_id": "sline-e736e8ef6fafb733b147"
+      },
+      {
+        "claim": "AS-SEC-001",
+        "source_id": "source-fc7066e446ae5ac8",
+        "source_lineage_id": "sline-63cc814032b089b8db0c"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-bd224ed3d036584c",
+        "source_lineage_id": "sline-ac918088737874265e4a"
+      },
+      {
+        "claim": "AS-EXT-001A",
+        "source_id": "source-09a6f4dc35e9c52f",
+        "source_lineage_id": "sline-3023aa48fa8deb7f8be9"
+      },
+      {
+        "claim": "AS-INT-001",
+        "source_id": "source-23c651571a498bf2",
+        "source_lineage_id": "sline-c8867b4e8ab62cd9d1a2"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-d1eb2067a272bc88",
+        "source_lineage_id": "sline-b2c3d86c8e8c00923db9"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-5dd04ef2c0964594",
+        "source_lineage_id": "sline-93abb7535387195ea195"
+      },
+      {
+        "claim": "AS-SEC-001",
+        "source_id": "source-a9c2eed0ccc6d6d3",
+        "source_lineage_id": "sline-735e84746c66736c84aa"
+      },
+      {
+        "claim": "AS-SYNTH-005",
+        "source_id": "source-5c9bbc12655831f1",
+        "source_lineage_id": "sline-2c53872c00a2894ba932"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-74be02fb88c3b419",
+        "source_lineage_id": "sline-e82d7a6c903fefc9e955"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-bcb96da9f5b9c555",
+        "source_lineage_id": "sline-b1b4fa0531366f78e270"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-9e774dd48f24876c",
+        "source_lineage_id": "sline-aa2f77ef9eb86edc33ac"
+      },
+      {
+        "claim": "AS-INT-001",
+        "source_id": "source-1277ef63212f411f",
+        "source_lineage_id": "sline-1cc3c0049cded5c15b97"
+      },
+      {
+        "claim": "AS-RET-001",
+        "source_id": "source-396dec5c1f361a46",
+        "source_lineage_id": "sline-24e3d2be97088005d6a4"
+      },
+      {
+        "claim": "AS-CTRL-001",
+        "source_id": "source-1aef03da8bda7271",
+        "source_lineage_id": "sline-486e33e1038fb8dcbc6e"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-9d7ca524bffd2249",
+        "source_lineage_id": "sline-27d5692895da3208b0ed"
+      },
+      {
+        "claim": "AS-CORE-003",
+        "source_id": "source-d1eb2067a272bc88",
+        "source_lineage_id": "sline-b2c3d86c8e8c00923db9"
+      }
+    ],
+    "conflict_id": "conflict-8f138e2b6c962499a740",
+    "conflict_type": "materially-incompatible",
+    "field": "work-package",
+    "project_id": "project-atlas",
+    "provenance": [
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-e3a00e48a5472186.yaml",
+        "schema_version": 1,
+        "sha256": "65705266443deb8b925d263c842fcbf35197bd4282296d4b7a9f6e2f37dc16fd",
+        "source_id": "source-e3a00e48a5472186",
+        "source_lineage_id": "sline-2f187af5ba02503b84be",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9cd7fdff0a4dba27.yaml",
+        "schema_version": 1,
+        "sha256": "017d3f36e1fdceee3e8a577f3597dbb0a3b7683f3eda8bab2e7dc5be4da62769",
+        "source_id": "source-9cd7fdff0a4dba27",
+        "source_lineage_id": "sline-a258b2a587ee1ca71505",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-aefc61f4554f8122.yaml",
+        "schema_version": 1,
+        "sha256": "7de0b68a410144db115ae6f747932aedb3b1a534556893548ea6a51a79b75509",
+        "source_id": "source-aefc61f4554f8122",
+        "source_lineage_id": "sline-32536a073c27f562dd87",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-4d44b8d95ff1e6ad.yaml",
+        "schema_version": 1,
+        "sha256": "bbc7620400323f816f30c23ff6a326070acb87ad6205f98365ce7a993f74414b",
+        "source_id": "source-4d44b8d95ff1e6ad",
+        "source_lineage_id": "sline-062d18e0c18f02aa1ced",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-abe2b4e8b7e4225c.yaml",
+        "schema_version": 1,
+        "sha256": "71ce9f7fba3f9e2787be868ecb725f01da68d3293e85b33f3a428c9c268edb91",
+        "source_id": "source-abe2b4e8b7e4225c",
+        "source_lineage_id": "sline-0fc1b4072dd2a22b4334",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-84c34384595393f9.yaml",
+        "schema_version": 1,
+        "sha256": "cdf5b1fe7e58e6c8df019aa20c59c9518e91b0df8c5ede251d3a343bbe7635c7",
+        "source_id": "source-84c34384595393f9",
+        "source_lineage_id": "sline-9f98a798afbca3efd01d",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0cfdc764abb3139e.yaml",
+        "schema_version": 1,
+        "sha256": "6d54bc1c8c67c13e0c23f8893c2bb8883604502549dbca8df86c1386e62e89d3",
+        "source_id": "source-0cfdc764abb3139e",
+        "source_lineage_id": "sline-7abceecdaf323c3e057d",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-d3ba53044edcfdbc.yaml",
+        "schema_version": 1,
+        "sha256": "68ebaddb071a08019fe09838fbe086d49a1619703f629369078d4acf496bfaf1",
+        "source_id": "source-d3ba53044edcfdbc",
+        "source_lineage_id": "sline-f409a8cb9743aa1fdb85",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-90c74733be1e8113.yaml",
+        "schema_version": 1,
+        "sha256": "6d6db60b9e25dba420210341dc32bc54fe4f670234de84a6fa58e46ea577f350",
+        "source_id": "source-90c74733be1e8113",
+        "source_lineage_id": "sline-4970da05385811dcf8df",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-217bc2cc4d879a81.yaml",
+        "schema_version": 1,
+        "sha256": "05a9d47e4c7674326bd18e73c6c509786738836fa4416f69553970d27a400e5b",
+        "source_id": "source-217bc2cc4d879a81",
+        "source_lineage_id": "sline-15b5c7926c1ff38954f5",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-7d4a9eb80d487eaa.yaml",
+        "schema_version": 1,
+        "sha256": "68d376cccc3548d993c2ffda4459ed2e2f5f11519cb10f01e36894a74a309098",
+        "source_id": "source-7d4a9eb80d487eaa",
+        "source_lineage_id": "sline-97d85ec9c3046f82ed02",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-27df1572fdc22afc.yaml",
+        "schema_version": 1,
+        "sha256": "bf781d22908d141bb2d7f224c8d18d485872406c01f857b6f6ace523e2e39745",
+        "source_id": "source-27df1572fdc22afc",
+        "source_lineage_id": "sline-1444594d80e394dbbd86",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0a9af96bb12edf31.yaml",
+        "schema_version": 1,
+        "sha256": "1254d2d2a30b5438a7b627919602ab51c4129e91b18df7e550dadd2c9c5c097e",
+        "source_id": "source-0a9af96bb12edf31",
+        "source_lineage_id": "sline-cf143f025b30753f7cfe",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-af30244991e4989d.yaml",
+        "schema_version": 1,
+        "sha256": "adfd898fd3ebf094d28f16b20e0d7bd4a9415cbb65af7d74ff5552c405264eff",
+        "source_id": "source-af30244991e4989d",
+        "source_lineage_id": "sline-baa86a6c3c4cf4c52ae9",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-74be02fb88c3b419.yaml",
+        "schema_version": 1,
+        "sha256": "38b056e631ad4c6d793c5e15880e5cb83ff358efc44a766dba8a85ed1e542cec",
+        "source_id": "source-74be02fb88c3b419",
+        "source_lineage_id": "sline-e82d7a6c903fefc9e955",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-bd224ed3d036584c.yaml",
+        "schema_version": 1,
+        "sha256": "043102437a0ce285ba1270d5e4227e608823f4a906893b2bf5978931f7103a22",
+        "source_id": "source-bd224ed3d036584c",
+        "source_lineage_id": "sline-ac918088737874265e4a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-49418f4bc3931635.yaml",
+        "schema_version": 1,
+        "sha256": "32ec37304ee2fb4b14a0b8d3b64d86d530b8277cff90032de8dcead135191c68",
+        "source_id": "source-49418f4bc3931635",
+        "source_lineage_id": "sline-2262019dac18e4ece847",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-36eb1cb7d1681d75.yaml",
+        "schema_version": 1,
+        "sha256": "ae31d670cae56f979c0d76d806e9c9fa039b809b1839c10ebc9e8f52fba9ffb9",
+        "source_id": "source-36eb1cb7d1681d75",
+        "source_lineage_id": "sline-12114d289ee7acdb20c1",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-504c835b6d1f800f.yaml",
+        "schema_version": 1,
+        "sha256": "8bf27c1d1f80447285af7a0e385c095a1b5156bfebcf5f322b6fc67bc334f729",
+        "source_id": "source-504c835b6d1f800f",
+        "source_lineage_id": "sline-e3ad2e656b727c7ed537",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-4d44b8d95ff1e6ad.yaml",
+        "schema_version": 1,
+        "sha256": "bbc7620400323f816f30c23ff6a326070acb87ad6205f98365ce7a993f74414b",
+        "source_id": "source-4d44b8d95ff1e6ad",
+        "source_lineage_id": "sline-062d18e0c18f02aa1ced",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9a9b4b177c56cb96.yaml",
+        "schema_version": 1,
+        "sha256": "8ea2403d60629b36ec18842cf8563e48b2bbaafb95049d98dd6a65313e3a5618",
+        "source_id": "source-9a9b4b177c56cb96",
+        "source_lineage_id": "sline-132ee532b7e7f024992b",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0aad25b3bc543784.yaml",
+        "schema_version": 1,
+        "sha256": "a383e8ea8ce2a526a84adaf843822c2238a093ae22c439715bee19a7d2632d74",
+        "source_id": "source-0aad25b3bc543784",
+        "source_lineage_id": "sline-1cac76d0a17a298cdbd7",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-bcb96da9f5b9c555.yaml",
+        "schema_version": 1,
+        "sha256": "522f91ea51863c508bb6533d07affd3862b496b9e1864794890c86484864c545",
+        "source_id": "source-bcb96da9f5b9c555",
+        "source_lineage_id": "sline-b1b4fa0531366f78e270",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9e0b28eb2f371fcd.yaml",
+        "schema_version": 1,
+        "sha256": "b41109f0023ca265333ed06810456d0d59cafad77cc8caa2b24d520c951752e7",
+        "source_id": "source-9e0b28eb2f371fcd",
+        "source_lineage_id": "sline-0bea16b1107996d813a8",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-78e8f0c13381cf0c.yaml",
+        "schema_version": 1,
+        "sha256": "f4dd14fe550fba15b60d14b5df83b297f5e2d97991559746fd5533b21bd5070e",
+        "source_id": "source-78e8f0c13381cf0c",
+        "source_lineage_id": "sline-2a25ee486c18f0a5fd34",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-0b15aecd2e13edf3.yaml",
+        "schema_version": 1,
+        "sha256": "ac159d2b43ee2627fa1cfb76079f178c5ef775b9480ebc56b339bcb8dae2b3ad",
+        "source_id": "source-0b15aecd2e13edf3",
+        "source_lineage_id": "sline-5b6e3933e1af623f92c7",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-635ea1955e1dbd22.yaml",
+        "schema_version": 1,
+        "sha256": "ae31d670cae56f979c0d76d806e9c9fa039b809b1839c10ebc9e8f52fba9ffb9",
+        "source_id": "source-635ea1955e1dbd22",
+        "source_lineage_id": "sline-3a3eb3f5ccb900613096",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-21f43c3f7b6d5a0c.yaml",
+        "schema_version": 1,
+        "sha256": "16985cb698e2738dae84fd30ee0cd59d5a3d0cf4d3bb983e513600220c03e621",
+        "source_id": "source-21f43c3f7b6d5a0c",
+        "source_lineage_id": "sline-e736e8ef6fafb733b147",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-fc7066e446ae5ac8.yaml",
+        "schema_version": 1,
+        "sha256": "aecdfd35223c3d9ecc5ced702d44a383ceb99680f0bb6c6d7fdf1324e9c06caa",
+        "source_id": "source-fc7066e446ae5ac8",
+        "source_lineage_id": "sline-63cc814032b089b8db0c",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-bd224ed3d036584c.yaml",
+        "schema_version": 1,
+        "sha256": "043102437a0ce285ba1270d5e4227e608823f4a906893b2bf5978931f7103a22",
+        "source_id": "source-bd224ed3d036584c",
+        "source_lineage_id": "sline-ac918088737874265e4a",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-09a6f4dc35e9c52f.yaml",
+        "schema_version": 1,
+        "sha256": "9e99f2a6e760db0b07cd51fd1ed7a852bb2786d44a07200a24b7171870fcc1a9",
+        "source_id": "source-09a6f4dc35e9c52f",
+        "source_lineage_id": "sline-3023aa48fa8deb7f8be9",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-23c651571a498bf2.yaml",
+        "schema_version": 1,
+        "sha256": "0d17cd2eff6aff8239a78ef0b0b6baebf66b3703119c3fbde997311a40483102",
+        "source_id": "source-23c651571a498bf2",
+        "source_lineage_id": "sline-c8867b4e8ab62cd9d1a2",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-d1eb2067a272bc88.yaml",
+        "schema_version": 1,
+        "sha256": "9700fe2c9a3a0078472fc31cb4e7754f886cb82762ff62ce49dd508ea78459d6",
+        "source_id": "source-d1eb2067a272bc88",
+        "source_lineage_id": "sline-b2c3d86c8e8c00923db9",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-5dd04ef2c0964594.yaml",
+        "schema_version": 1,
+        "sha256": "efc61a7765a79f0753adff50d9ca9c1b7447811a289ff453db496649238de1c5",
+        "source_id": "source-5dd04ef2c0964594",
+        "source_lineage_id": "sline-93abb7535387195ea195",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-a9c2eed0ccc6d6d3.yaml",
+        "schema_version": 1,
+        "sha256": "091af104e3a636a1e38dc5572f76df7e44cf1dcfe4227cfcc182a8a115182f27",
+        "source_id": "source-a9c2eed0ccc6d6d3",
+        "source_lineage_id": "sline-735e84746c66736c84aa",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-5c9bbc12655831f1.md",
+        "schema_version": 1,
+        "sha256": "64081caacd7b391fa529dcedf51717358409cdd69a0039f60df01e1c5a2c7096",
+        "source_id": "source-5c9bbc12655831f1",
+        "source_lineage_id": "sline-2c53872c00a2894ba932",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-74be02fb88c3b419.yaml",
+        "schema_version": 1,
+        "sha256": "38b056e631ad4c6d793c5e15880e5cb83ff358efc44a766dba8a85ed1e542cec",
+        "source_id": "source-74be02fb88c3b419",
+        "source_lineage_id": "sline-e82d7a6c903fefc9e955",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-bcb96da9f5b9c555.yaml",
+        "schema_version": 1,
+        "sha256": "522f91ea51863c508bb6533d07affd3862b496b9e1864794890c86484864c545",
+        "source_id": "source-bcb96da9f5b9c555",
+        "source_lineage_id": "sline-b1b4fa0531366f78e270",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9e774dd48f24876c.yaml",
+        "schema_version": 1,
+        "sha256": "d02e7ddb64b4ebcc6a74361ee6b333ce0578efc6fffee4a926bf3c9f3e02e835",
+        "source_id": "source-9e774dd48f24876c",
+        "source_lineage_id": "sline-aa2f77ef9eb86edc33ac",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-1277ef63212f411f.yaml",
+        "schema_version": 1,
+        "sha256": "8a2a2962277955782f9de4b96ad380eca18a009a4f0ae8d78bb37ced17d0b205",
+        "source_id": "source-1277ef63212f411f",
+        "source_lineage_id": "sline-1cc3c0049cded5c15b97",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-396dec5c1f361a46.yaml",
+        "schema_version": 1,
+        "sha256": "d0effdaaec03d83889a1a17923f612d3ed1aa6873be01d3376ab89eb10dd62fb",
+        "source_id": "source-396dec5c1f361a46",
+        "source_lineage_id": "sline-24e3d2be97088005d6a4",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-1aef03da8bda7271.yaml",
+        "schema_version": 1,
+        "sha256": "d716cccb997ffacb7f71a30b80cd37e81b321b523edf7e95c93bc671a092db8e",
+        "source_id": "source-1aef03da8bda7271",
+        "source_lineage_id": "sline-486e33e1038fb8dcbc6e",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-9d7ca524bffd2249.yaml",
+        "schema_version": 1,
+        "sha256": "d02e7ddb64b4ebcc6a74361ee6b333ce0578efc6fffee4a926bf3c9f3e02e835",
+        "source_id": "source-9d7ca524bffd2249",
+        "source_lineage_id": "sline-27d5692895da3208b0ed",
+        "title": null
+      },
+      {
+        "author": null,
+        "last_modified": null,
+        "locator": null,
+        "project_id": "project-atlas",
+        "receipt_id": null,
+        "resource": "sources/imported-documents/source-d1eb2067a272bc88.yaml",
+        "schema_version": 1,
+        "sha256": "9700fe2c9a3a0078472fc31cb4e7754f886cb82762ff62ce49dd508ea78459d6",
+        "source_id": "source-d1eb2067a272bc88",
+        "source_lineage_id": "sline-b2c3d86c8e8c00923db9",
+        "title": null
+      }
+    ],
+    "resolution": null,
+    "schema_version": 1,
+    "source_lineage_ids": [
+      "sline-062d18e0c18f02aa1ced",
+      "sline-0bea16b1107996d813a8",
+      "sline-0fc1b4072dd2a22b4334",
+      "sline-12114d289ee7acdb20c1",
+      "sline-132ee532b7e7f024992b",
+      "sline-1444594d80e394dbbd86",
+      "sline-15b5c7926c1ff38954f5",
+      "sline-1cac76d0a17a298cdbd7",
+      "sline-1cc3c0049cded5c15b97",
+      "sline-2262019dac18e4ece847",
+      "sline-24e3d2be97088005d6a4",
+      "sline-27d5692895da3208b0ed",
+      "sline-2a25ee486c18f0a5fd34",
+      "sline-2c53872c00a2894ba932",
+      "sline-2f187af5ba02503b84be",
+      "sline-3023aa48fa8deb7f8be9",
+      "sline-32536a073c27f562dd87",
+      "sline-3a3eb3f5ccb900613096",
+      "sline-486e33e1038fb8dcbc6e",
+      "sline-4970da05385811dcf8df",
+      "sline-5b6e3933e1af623f92c7",
+      "sline-63cc814032b089b8db0c",
+      "sline-735e84746c66736c84aa",
+      "sline-7abceecdaf323c3e057d",
+      "sline-93abb7535387195ea195",
+      "sline-97d85ec9c3046f82ed02",
+      "sline-9f98a798afbca3efd01d",
+      "sline-a258b2a587ee1ca71505",
+      "sline-aa2f77ef9eb86edc33ac",
+      "sline-ac918088737874265e4a",
+      "sline-b1b4fa0531366f78e270",
+      "sline-b2c3d86c8e8c00923db9",
+      "sline-baa86a6c3c4cf4c52ae9",
+      "sline-c8867b4e8ab62cd9d1a2",
+      "sline-cf143f025b30753f7cfe",
+      "sline-e3ad2e656b727c7ed537",
+      "sline-e736e8ef6fafb733b147",
+      "sline-e82d7a6c903fefc9e955",
+      "sline-f409a8cb9743aa1fdb85"
+    ],
+    "state": "unresolved",
+    "subject": "project-atlas"
+  }
+]

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/xproj-conflict-report.schema.json",
+  "title": "XPROJ Conflict Intelligence Report",
+  "description": "AS-XPROJ-004 derived conflict intelligence. CROSS-PROJECT INDEX ≠ AUTOMATIC AUTHORITY. Never auto-resolves; never synthesizes Core claim conflicts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "conflict_id",
+    "kind",
+    "summary",
+    "global_entity_ids",
+    "project_ids",
+    "evidence_links",
+    "edge_ids",
+    "authority",
+    "status",
+    "truth_boundary",
+    "resolution"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-XPROJ-004" },
+    "conflict_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["explicit-conflicts-with", "version-divergence"]
+    },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 480 },
+    "global_entity_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+      }
+    },
+    "project_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "evidence_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "sha256", "kind"],
+        "properties": {
+          "relative_path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "kind": { "type": "string", "enum": ["source", "join", "edge"] }
+        }
+      }
+    },
+    "edge_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+      }
+    },
+    "display_name": { "type": "string", "minLength": 1 },
+    "entity_class": {
+      "type": "string",
+      "enum": [
+        "technology",
+        "service",
+        "library",
+        "infrastructure",
+        "environment",
+        "external-api",
+        "organization",
+        "extension"
+      ]
+    },
+    "versions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "reported" },
+    "truth_boundary": {
+      "type": "string",
+      "const": "CROSS-PROJECT INDEX ≠ AUTOMATIC AUTHORITY"
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auto_resolve", "winning_choice"],
+      "properties": {
+        "auto_resolve": { "const": false },
+        "winning_choice": { "type": ["string", "null"], "const": null }
+      }
+    }
+  }
+}

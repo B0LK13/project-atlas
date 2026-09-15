@@ -1,0 +1,105 @@
+{
+  "$id": "https://project-atlas.local/prep/atlas-2.2/roadmap-crosswalk-forbidden-action.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001 fail-closed action proposal. Reject unlock_claim, production_ready_claim, release_cert_stamp, pilot_invent, runtime_mutation, llm_authority_stamp, fixture_as_certification.",
+  "properties": {
+    "_prep_note": {
+      "type": "string"
+    },
+    "action_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "type": "string"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "const": "derived"
+        },
+        "note": {
+          "maxLength": 400,
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "type": "object"
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "expected_error": {
+      "enum": [
+        null,
+        "crosswalk-unlock-claim-forbidden",
+        "crosswalk-production-ready-claim-forbidden",
+        "crosswalk-release-cert-stamp-forbidden",
+        "crosswalk-pilot-invent-forbidden",
+        "crosswalk-runtime-mutation-forbidden",
+        "crosswalk-llm-authority-forbidden",
+        "crosswalk-fixture-as-certification-forbidden"
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "unlock_claim",
+        "production_ready_claim",
+        "release_cert_stamp",
+        "pilot_invent",
+        "runtime_mutation",
+        "llm_authority_stamp",
+        "fixture_as_certification"
+      ]
+    },
+    "package_id": {
+      "const": "AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "pilot_roots": {
+      "const": 0
+    },
+    "release_certified": {
+      "const": false
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "const": "rejected_forbidden"
+    },
+    "truth_boundary": {
+      "const": "CROSSWALK \u2260 UNLOCK / \u2260 PRODUCTION / \u2260 PILOT / \u2260 RELEASE / \u2260 CERT"
+    }
+  },
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "title": "roadmap-crosswalk-forbidden-action (PREP STUB \u2014 not package data)",
+  "type": "object"
+}

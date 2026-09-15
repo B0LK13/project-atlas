@@ -1,0 +1,21 @@
+{
+  "name": "Project Atlas",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "web-dev-server",
+      "command": "npm --prefix apps/web run dev -- --host 127.0.0.1",
+      "description": "Project Atlas Web development server"
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 5173
+    },
+    {
+      "name": "atlas-api",
+      "port": 8765
+    }
+  ]
+}
