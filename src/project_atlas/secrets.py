@@ -8,6 +8,7 @@ string must be retained after detection.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 # Fixed placeholder — never includes matched secret material (CODEX-SEC-006).
@@ -55,12 +56,26 @@ _PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
 )
 
 
+def _compatibility_view(text: str) -> str:
+    """NFKC-fold compatibility lookalikes (AS-SEC-SCAN-NFKC-001).
+
+    Fullwidth Latin (U+FF42..U+FF52 ``bearer``), fullwidth ``=`` / ``_``,
+    and ideographic space become the ASCII forms the existing detectors
+    already match. Distinct from format-control (Cf) separator folding:
+    NFKC does not insert spaces for ZERO WIDTH SPACE, and Cf folding does
+    not map fullwidth letters. True confusables (Cyrillic/Greek
+    lookalikes) are out of scope.
+    """
+    return unicodedata.normalize("NFKC", text)
+
+
 def scan_text(text: str) -> list[SecretFinding]:
     """Return metadata-only findings; matched content is never returned."""
+    folded = _compatibility_view(text)
     return [
         SecretFinding(name, confidence, "content redacted")
         for name, confidence, pattern in _PATTERNS
-        if pattern.search(text)
+        if pattern.search(text) or pattern.search(folded)
     ]
 
 
@@ -68,8 +83,10 @@ def redact_text(text: str) -> str:
     """Replace matched secret spans with ``REDACTED_PLACEHOLDER`` (CODEX-SEC-006).
 
     Safe for persistence of surrounding context. Does not return raw matches.
+    Compatibility characters are NFKC-folded first so a fullwidth ``bearer``
+    token cannot survive redaction.
     """
-    result = text
+    result = _compatibility_view(text)
     for _name, _confidence, pattern in _PATTERNS:
         result = pattern.sub(REDACTED_PLACEHOLDER, result)
     return result

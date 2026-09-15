@@ -14915,3 +14915,21 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-NFKC-001 — compatibility lookalikes must not hide secrets
+
+Independent leftover hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 persist:
+`scan_text("Authorization: ｂｅａｒｅｒ " + 32×A)` returned `[]` because
+detectors match ASCII only. ChatGPT bridge then persisted the token under
+`generated/`. Same miss for fullwidth `ａｐｉ＿ｋｅｙ=` and `ＡＫＩＡ`.
+
+Remediation: NFKC-fold before scan and redact (union with the original
+view). Distinct from #934 (Cf separator fold) and #895 (missing prefixes).
+Cyrillic/Greek confusables remain out of scope.
+
+Does not merge. Does not start remaining token-prefix clones. Does not
+remedi #933/#934 P2 leftovers.
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+
