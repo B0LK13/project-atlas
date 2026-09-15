@@ -506,6 +506,70 @@ def test_attempt_budget_exhaustion_releases_active_lease(
     ), events
 
 
+def test_sibling_task_obtains_lease_after_attempt_budget_exhaustion_releases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Budget exhaustion on A must not FOREIGN_WORKER-starve sibling B.
+
+    Same agent, two independent tasks. After A's attempt budget is exhausted
+    the durable lease must already be RELEASED so B can be granted / chosen.
+    Distinct mutation paths keep the surface-overlap gate out of the picture.
+    """
+    workspace = _make_workspace(tmp_path)
+    monkeypatch.setenv("ATLAS_FIXTURE_MODE", "claim-only")
+    program = _write_program(
+        tmp_path,
+        workspace,
+        tasks=[
+            _task("budget-a", output="never-a.txt"),
+            _task("budget-b", output="never-b.txt", surface="surface-b"),
+        ],
+        profiles={"implementer": _profile(max_attempts=1)},
+        limits={
+            "max_cycles": 12,
+            "idle_sleep_seconds": 0.0,
+            "max_attempts_per_task": 1,
+        },
+    )
+    supervisor = _supervisor(program, tmp_path)
+    report = supervisor.start()
+
+    state = load_state(tmp_path / "state")
+    assert state is not None
+    assert state.tasks["budget-a"].state is NodeState.BLOCKED
+    assert state.tasks["budget-b"].state is NodeState.BLOCKED
+
+    dispatched = [
+        row["task_id"] for row in report.to_public_dict()["tasks_dispatched"]
+    ]
+    assert dispatched == ["budget-a", "budget-b"], dispatched
+
+    events = read_events(tmp_path / "state")
+    release_a_idx = next(
+        i
+        for i, row in enumerate(events)
+        if row.get("event") == "LEASE_RELEASED" and row.get("task_id") == "budget-a"
+    )
+    grant_b_idx = next(
+        i
+        for i, row in enumerate(events)
+        if row.get("event") == "LEASE_GRANTED" and row.get("task_id") == "budget-b"
+    )
+    assert release_a_idx < grant_b_idx, events
+
+    foreign = [
+        row
+        for row in events
+        if row.get("event") == "DISPATCH_DEFERRED"
+        and row.get("task_id") == "budget-b"
+        and row.get("code") == "FOREIGN_WORKER"
+    ]
+    assert foreign == [], foreign
+
+    projection = load_projection(state_dir(tmp_path / "state"))
+    assert active_rows(projection) == ()
+
+
 def test_worker_claiming_completion_without_doing_the_work_fails_acceptance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

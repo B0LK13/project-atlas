@@ -114,6 +114,14 @@ whole attempt budget on it helps nobody. Runtimes that cannot report denials
 structurally report `0`, which means **not observed**, never "definitely none"
 — see `SUPPORT-MATRIX.md`.
 
+**Attempt-budget exhaustion and leases.** When a task reaches
+`REMEDIATING` with `attempts >= budget`, the supervisor must
+`RELEASE` its durable lease at or before the transition to `BLOCKED`.
+Leaving an `ACTIVE` projection row for that agent rejects later grants for
+sibling tasks as `FOREIGN_WORKER`, starving the rest of the program. Bound by
+`test_attempt_budget_exhaustion_releases_active_lease` and
+`test_sibling_task_obtains_lease_after_attempt_budget_exhaustion_releases`.
+
 ## Switching runtimes
 
 Only when authorized, and the authorization is durable. `agent assign
