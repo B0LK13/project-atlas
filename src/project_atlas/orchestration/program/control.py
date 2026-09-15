@@ -31,6 +31,10 @@ from project_atlas.orchestration.autonomy.lease_projection import (
     load_projection,
 )
 from project_atlas.orchestration.program import service
+from project_atlas.orchestration.program.adapters.prime_agent import (
+    PrimeFrameParser,
+    diagnose_prime_toolcall,
+)
 from project_atlas.orchestration.program.enrollment import load_registry
 from project_atlas.orchestration.program.loader import LoadedProgram
 from project_atlas.orchestration.program.models import (
@@ -67,7 +71,7 @@ CONTRACT_ID: Final[str] = "atlas.program.control"
 #: Bumped when fields are ADDED. Nothing is ever renamed or repurposed, so a
 #: consumer pinned to an older version keeps working against a newer producer;
 #: the number tells it what it may rely on being present.
-CONTRACT_VERSION: Final[int] = 2
+CONTRACT_VERSION: Final[int] = 3
 
 #: What a consumer may ask for. Each is a request routed through existing
 #: governance, never a direct mutation, and none of them can grant anything.
@@ -138,6 +142,42 @@ def _runtime_metadata(root: Path, attempt: Any) -> dict[str, Any] | None:
     return None
 
 
+def _prime_toolcall_diagnostic(root: Path, attempt: Any) -> dict[str, Any] | None:
+    """Derive diagnostics without modifying evidence, task state, or confidence."""
+    if attempt.adapter != "prime-agent":
+        return None
+    sources: list[dict[str, Any]] = []
+    unavailable = False
+    base = evidence_dir(root).resolve()
+    for relative in attempt.evidence_paths:
+        if not isinstance(relative, str) or not relative.endswith(
+            (".prime-rpc.jsonl", ".prime-daemon.jsonl")
+        ):
+            continue
+        try:
+            candidate = (base / relative).resolve()
+            if (Path(relative).is_absolute() or not candidate.is_relative_to(base)
+                    or not candidate.is_file()):
+                unavailable = True
+                continue
+            # Bound diagnostic reads independently of the stored attempt size.
+            with candidate.open("rb") as handle:
+                data = handle.read(8 * 1024 * 1024 + 1)
+            if len(data) > 8 * 1024 * 1024:
+                unavailable = True
+                continue
+            parser = PrimeFrameParser()
+            records = parser.feed(data)
+            parser.finish()
+        except (OSError, ValueError, RuntimeError):
+            unavailable = True
+            continue
+        sources.append({"path": relative, **diagnose_prime_toolcall(records)})
+    statuses = {source["status"] for source in sources}
+    return {"status": next(iter(statuses)) if len(statuses) == 1 and not unavailable else "unknown",
+            "sources": sources, "read_only": True}
+
+
 def control_view(
     root: Path, loaded: LoadedProgram, *, event_limit: int = 25
 ) -> dict[str, Any]:
@@ -202,6 +242,7 @@ def control_view(
                         "estimated_cost_usd": attempt.estimated_cost_usd,
                         "evidence_paths": list(attempt.evidence_paths),
                         "runtime_metadata": _runtime_metadata(root, attempt),
+                        "toolcall_diagnostic": _prime_toolcall_diagnostic(root, attempt),
                         "policy_denials": attempt.policy_denials,
                         "started_at": attempt.started_at,
                         "ended_at": attempt.ended_at,

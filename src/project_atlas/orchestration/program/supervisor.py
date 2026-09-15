@@ -27,6 +27,7 @@ the overlap gate is still consulted so adding it later cannot silently skip it.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -57,6 +58,7 @@ from project_atlas.orchestration.autonomy.models import (
 from project_atlas.orchestration.autonomy.owner_gates import evaluate_owner_action
 from project_atlas.orchestration.program.acceptance import (
     AcceptanceResult,
+    evaluate_checks,
     evaluate_task,
     progress_fingerprint,
 )
@@ -84,6 +86,7 @@ from project_atlas.orchestration.program.enrollment import (
 from project_atlas.orchestration.program.loader import LoadedProgram, profile_digest
 from project_atlas.orchestration.program.models import (
     PERMANENT_FAILURES,
+    AcceptanceCheck,
     AttemptPhase,
     ExecutionConfidence,
     FailureClass,
@@ -111,6 +114,15 @@ from project_atlas.orchestration.program.store import (
     record_launch_intent,
     state_dir,
     write_evidence,
+)
+from project_atlas.orchestration.program.verification import (
+    REVIEW_ENGINE_VERSION,
+    ReviewProposal,
+    ReviewRecord,
+    ReviewVerdict,
+    VerificationSubject,
+    publish_review_record,
+    validate_subject,
 )
 from project_atlas.orchestration.program.waiting import (
     WaitOutcome,
@@ -417,9 +429,7 @@ class ProgramSupervisor:
         prevent.
         """
         if self._instance_id is None:
-            raise SupervisorError(
-                "supervisor lock was never acquired", code="SUPERVISOR_NOT_OWNED"
-            )
+            raise SupervisorError("supervisor lock was never acquired", code="SUPERVISOR_NOT_OWNED")
         if not acquire_supervisor_lock(self.lock_root, instance_id=self._instance_id):
             raise SupervisorError(
                 "this supervisor no longer owns the program lock",
@@ -438,10 +448,7 @@ class ProgramSupervisor:
             program_id=self.program.program_id,
             program_digest=self.loaded.digest,
             base_pin=self.program.base_pin,
-            tasks={
-                task.task_id: TaskRecord(task_id=task.task_id)
-                for task in self.program.tasks
-            },
+            tasks={task.task_id: TaskRecord(task_id=task.task_id) for task in self.program.tasks},
         )
 
     def load_or_init_state(self) -> ProgramStateRecord:
@@ -461,8 +468,7 @@ class ProgramSupervisor:
             return state
         if state.program_id != self.program.program_id:
             raise SupervisorError(
-                f"state root holds program {state.program_id}, not "
-                f"{self.program.program_id}",
+                f"state root holds program {state.program_id}, not {self.program.program_id}",
                 code="PROGRAM_MISMATCH",
             )
         if state.program_digest != self.loaded.digest:
@@ -648,9 +654,7 @@ class ProgramSupervisor:
                     "clears_with": "program control --action resume",
                 }
             )
-        sentinel = read_supervisor_pause(
-            self.lock_root, program_id=self.program.program_id
-        )
+        sentinel = read_supervisor_pause(self.lock_root, program_id=self.program.program_id)
         if sentinel is not None:
             reasons.append(
                 {
@@ -707,15 +711,11 @@ class ProgramSupervisor:
             elif record.state is NodeState.BLOCKED:
                 blocked.append(task.task_id)
             elif record.pending_observer_id:
-                waiting.append(
-                    {"task_id": task.task_id, "observer_id": record.pending_observer_id}
-                )
+                waiting.append({"task_id": task.task_id, "observer_id": record.pending_observer_id})
             elif record.state is NodeState.READY:
                 ready.append(task.task_id)
             if task.owner_gate is not None and record.state not in DONE_STATES:
-                owner_required.append(
-                    {"task_id": task.task_id, "gate": task.owner_gate.value}
-                )
+                owner_required.append({"task_id": task.task_id, "gate": task.owner_gate.value})
 
         # The same classifier `reconcile` uses, so the two cannot disagree
         # about the same bytes on disk. See `_interrupted_findings`.
@@ -730,10 +730,7 @@ class ProgramSupervisor:
                 )
 
         last_progress = max(
-            (
-                attempt.ended_at or attempt.started_at
-                for attempt in state.attempts.values()
-            ),
+            (attempt.ended_at or attempt.started_at for attempt in state.attempts.values()),
             default=None,
         )
         limits = self.program.limits
@@ -743,9 +740,7 @@ class ProgramSupervisor:
             "program_complete": state.complete,
             "current_task": running[0] if running else None,
             "last_verified_progress_at": last_progress,
-            "last_stop_reason": (
-                state.last_stop_reason.value if state.last_stop_reason else None
-            ),
+            "last_stop_reason": (state.last_stop_reason.value if state.last_stop_reason else None),
             "ready": sorted(ready),
             "running": sorted(running),
             "blocked": sorted(blocked),
@@ -754,9 +749,7 @@ class ProgramSupervisor:
             "awaiting_independent_verification": sorted(awaiting_iv),
             "owner_decision_required": owner_required,
             "needs_reconciliation": needs_reconcile,
-            "dispatch_withheld_because": self._dispatch_withheld_because(
-                state, needs_reconcile
-            ),
+            "dispatch_withheld_because": self._dispatch_withheld_because(state, needs_reconcile),
             "remaining_limits": {
                 "launches": max(0, limits.max_task_launches - state.total_launches),
                 "max_task_launches": limits.max_task_launches,
@@ -769,8 +762,7 @@ class ProgramSupervisor:
             "estimated_cost_note": (
                 "client-side estimate reported by the runtime; not billed spend"
             ),
-            "cancel_requested": state.cancel_requested
-            or stop_requested(self.lock_root),
+            "cancel_requested": state.cancel_requested or stop_requested(self.lock_root),
             "supervisor_pid": state.supervisor_pid,
             "supervisor_alive": _supervisor_alive(state),
             "merge_authorized": False,
@@ -839,8 +831,7 @@ class ProgramSupervisor:
         existing = state.handoffs.get(task_id)
         if existing is not None and existing.consumed_by_attempt_id is None:
             raise SupervisorError(
-                f"task {task_id} already has a pending handoff to session "
-                f"{existing.session_id}",
+                f"task {task_id} already has a pending handoff to session {existing.session_id}",
                 code="HANDOFF_ALREADY_PENDING",
             )
         record = state.tasks[task_id]
@@ -959,9 +950,7 @@ class ProgramSupervisor:
                     "attempt_id": attempt.attempt_id,
                     "task_id": attempt.task_id,
                     "phase": attempt.phase.value,
-                    "confidence": (
-                        attempt.confidence.value if attempt.confidence else None
-                    ),
+                    "confidence": (attempt.confidence.value if attempt.confidence else None),
                     "recovery_action": verdict.action.value,
                     "reason": verdict.reason,
                     "runtime_session_id": attempt.runtime_session_id,
@@ -1013,11 +1002,7 @@ class ProgramSupervisor:
             # ran and its effect is unknown, which is a BLOCKED task needing a
             # human look -- not something to hand back to the scheduler.
             if record.state in IN_FLIGHT_STATES:
-                target = (
-                    NodeState.READY
-                    if record.state is NodeState.LEASED
-                    else NodeState.BLOCKED
-                )
+                target = NodeState.READY if record.state is NodeState.LEASED else NodeState.BLOCKED
                 self._transition(
                     state,
                     settling.task_id,
@@ -1057,6 +1042,19 @@ class ProgramSupervisor:
         if self._collect_finished(state, result, block=False):
             result.progressed = True
 
+        if not self._running and all(
+            record.state in DONE_STATES for record in state.tasks.values()
+        ):
+            state.complete = True
+            result.stop_reason = ProgramStopReason.PROGRAM_COMPLETE
+            persist_state(self.root, state)
+            self._notify(
+                "PROGRAM_COMPLETE",
+                "every task in the approved program reached an accepted state",
+                {"tasks": sorted(state.tasks)},
+            )
+            return result
+
         # 3. Cancellation and program limits.
         if state.cancel_requested or stop_requested(self.lock_root):
             state.cancel_requested = True
@@ -1067,9 +1065,7 @@ class ProgramSupervisor:
             self._collect_finished(state, result, block=True)
             result.stop_reason = ProgramStopReason.CANCELLED
             result.notes.append(f"cancelled; {cancelled} pending observer(s) stood down")
-            self._notify(
-                "CANCELLED", "the program was cancelled", {}
-            )
+            self._notify("CANCELLED", "the program was cancelled", {})
             return result
         # A pause may arrive from OUTSIDE this process while the run is live.
         # `state` here is this supervisor's in-memory copy, and it is rewritten
@@ -1078,9 +1074,7 @@ class ProgramSupervisor:
         # sentinel is read from disk on each cycle for that reason, exactly as
         # the stop file already is, and it is scoped to this program so another
         # program's leftover file cannot halt this one.
-        sentinel = read_supervisor_pause(
-            self.lock_root, program_id=self.program.program_id
-        )
+        sentinel = read_supervisor_pause(self.lock_root, program_id=self.program.program_id)
         if state.paused or sentinel is not None:
             # A pause lets running workers finish. Interrupting them would
             # convert a reversible operator decision into a set of uncertain
@@ -1090,12 +1084,9 @@ class ProgramSupervisor:
                 self._drain(state, result)
                 result.progressed = True
             result.stop_reason = ProgramStopReason.PAUSED
-            paused_by = state.paused_by or (
-                sentinel.get("requested_by") if sentinel else None
-            )
+            paused_by = state.paused_by or (sentinel.get("requested_by") if sentinel else None)
             result.notes.append(
-                f"paused by {paused_by or 'an operator'}; running workers "
-                "were allowed to finish"
+                f"paused by {paused_by or 'an operator'}; running workers were allowed to finish"
             )
             return result
         if state.total_launches >= self.program.limits.max_task_launches:
@@ -1216,9 +1207,7 @@ class ProgramSupervisor:
             # very thing concurrency is for. Every slot that could be filled
             # was filled above, before this wait. A stop reason that survived
             # the clearing above is real (cancelled, a limit) and skips it.
-            if result.stop_reason is None and self._collect_finished(
-                state, result, block=True
-            ):
+            if result.stop_reason is None and self._collect_finished(state, result, block=True):
                 result.progressed = True
         return result
 
@@ -1233,9 +1222,7 @@ class ProgramSupervisor:
             )
         future = self._executor.submit(running.adapter.run, running.request)
         self._running[running.attempt_id] = (running, future)
-        self._max_concurrent_observed = max(
-            self._max_concurrent_observed, len(self._running)
-        )
+        self._max_concurrent_observed = max(self._max_concurrent_observed, len(self._running))
 
     def _collect_finished(
         self, state: ProgramStateRecord, result: CycleResult, *, block: bool
@@ -1348,13 +1335,10 @@ class ProgramSupervisor:
                         reason=f"external precondition {precondition.precondition_id} passed",
                     )
                     changed = True
-                    result.notes.append(
-                        f"{task.task_id}: external event resolved, now eligible"
-                    )
+                    result.notes.append(f"{task.task_id}: external event resolved, now eligible")
                 else:
                     result.notes.append(
-                        f"{task.task_id}: external event already consumed once; "
-                        "not promoted again"
+                        f"{task.task_id}: external event already consumed once; not promoted again"
                     )
             elif wait.outcome in {WaitOutcome.FAILED, WaitOutcome.TIMED_OUT}:
                 if wait.newly_terminal:
@@ -1384,11 +1368,25 @@ class ProgramSupervisor:
                 )
         return changed
 
-    def _choose(
-        self, state: ProgramStateRecord, result: CycleResult
-    ) -> DispatchChoice | None:
+    def _choose(self, state: ProgramStateRecord, result: CycleResult) -> DispatchChoice | None:
         """Pick one action. In-flight work first, then newly eligible work."""
         busy = self._busy_agents()
+
+        for task in self.program.tasks:
+            if task.task_kind != "VERIFY_SUBJECT":
+                continue
+            record = state.tasks[task.task_id]
+            verifier = self.loaded.verifiers.get(task.task_id)
+            if (
+                record.state is NodeState.READY
+                and verifier is not None
+                and verifier.agent_id not in busy
+            ):
+                return DispatchChoice(
+                    task_id=task.task_id,
+                    mode=DispatchMode.VERIFY,
+                    reason="frozen terminal subject admitted for verification-only review",
+                )
 
         # Independent verification of work that already passed acceptance.
         for task in self.program.tasks:
@@ -1419,9 +1417,7 @@ class ProgramSupervisor:
             profile = self.loaded.effective_profile(task.task_id)
             if profile.agent_id in busy:
                 continue
-            budget = min(
-                self.program.limits.max_attempts_per_task, profile.limits.max_attempts
-            )
+            budget = min(self.program.limits.max_attempts_per_task, profile.limits.max_attempts)
             if record.attempts >= budget:
                 self._transition(
                     state,
@@ -1500,8 +1496,7 @@ class ProgramSupervisor:
                     task_id=decision.next_package_id,
                     mode=DispatchMode.RESUME,
                     reason=(
-                        f"continuing session {handoff.session_id} enrolled by "
-                        f"{handoff.enrolled_by}"
+                        f"continuing session {handoff.session_id} enrolled by {handoff.enrolled_by}"
                     ),
                     resume_session_id=handoff.session_id,
                 )
@@ -1524,9 +1519,7 @@ class ProgramSupervisor:
         well means that refusal is never reached in the ordinary case, so a
         busy agent produces "not eligible right now" rather than an exception.
         """
-        return frozenset(
-            running.profile.agent_id for running, _future in self._running.values()
-        )
+        return frozenset(running.profile.agent_id for running, _future in self._running.values())
 
     def _nodes_for_selection(self, state: ProgramStateRecord) -> tuple[WorkNode, ...]:
         """The node list `select_next` sees, with busy agents' work held back.
@@ -1600,9 +1593,7 @@ class ProgramSupervisor:
             used.append((task.verifier_profile_ref, "verifier"))
         return used
 
-    def _role_authority_withheld(
-        self, registry: AgentRegistry, role: str, kind: str
-    ) -> str | None:
+    def _role_authority_withheld(self, registry: AgentRegistry, role: str, kind: str) -> str | None:
         """Refuse a role this roster governs but no ACTIVE agent is bound to.
 
         Suspended, retired and re-roled agents are filtered out before they
@@ -1623,15 +1614,10 @@ class ProgramSupervisor:
         """
         bound = {agent.agent_id for agent in self.enrolled_agents}
         known = [agent for agent in registry.agents.values() if agent.role == role]
-        if any(
-            agent.agent_id in bound and agent.status is AgentStatus.ACTIVE
-            for agent in known
-        ):
+        if any(agent.agent_id in bound and agent.status is AgentStatus.ACTIVE for agent in known):
             return None
         standing = (
-            ", ".join(
-                sorted(f"{agent.agent_id} is {agent.status.value}" for agent in known)
-            )
+            ", ".join(sorted(f"{agent.agent_id} is {agent.status.value}" for agent in known))
             if known
             else "the roster holds no agent in this role"
         )
@@ -1665,9 +1651,7 @@ class ProgramSupervisor:
         self, registry: AgentRegistry, agent_id: str, kind: str
     ) -> str | None:
         """Re-read one agent's standing. Returns a reason, or None."""
-        launched_as = next(
-            (a for a in self.enrolled_agents if a.agent_id == agent_id), None
-        )
+        launched_as = next((a for a in self.enrolled_agents if a.agent_id == agent_id), None)
         if launched_as is None:
             # Not an enrolled identity at all: the program's own placeholder.
             # Nothing was bound to it, so there is no enrollment to withdraw.
@@ -1773,8 +1757,7 @@ class ProgramSupervisor:
 
         if waiting:
             result.notes.append(
-                "no eligible work right now; "
-                f"{len(waiting)} task(s) waiting on an external event"
+                f"no eligible work right now; {len(waiting)} task(s) waiting on an external event"
             )
             # Deliberately not a stop: the loop sleeps and polls again, which
             # is what lets independent work start the moment the event lands.
@@ -1812,8 +1795,7 @@ class ProgramSupervisor:
             "no task is eligible and nothing is pending",
             {
                 "states": {
-                    task_id: record.state.value
-                    for task_id, record in sorted(state.tasks.items())
+                    task_id: record.state.value for task_id, record in sorted(state.tasks.items())
                 }
             },
         )
@@ -1874,9 +1856,7 @@ class ProgramSupervisor:
             sequence=sequence,
         )
         try:
-            project_grant(
-                state_dir(self.root), lease, live_main=self.program.base_pin
-            )
+            project_grant(state_dir(self.root), lease, live_main=self.program.base_pin)
         except ProjectionError as exc:
             raise SupervisorError(
                 f"could not durably record ownership of {task.task_id}: {exc}",
@@ -1884,9 +1864,7 @@ class ProgramSupervisor:
             ) from exc
         self._leases[task.task_id] = lease
         state.tasks[task.task_id].last_attempt_id = None
-        self._transition(
-            state, task.task_id, NodeState.LEASED, reason="ownership granted"
-        )
+        self._transition(state, task.task_id, NodeState.LEASED, reason="ownership granted")
         append_event(
             self.root,
             "LEASE_GRANTED",
@@ -1929,9 +1907,7 @@ class ProgramSupervisor:
                 )
                 return None
             try:
-                capabilities = tuple(
-                    AgentCapability(item) for item in row.capabilities
-                )
+                capabilities = tuple(AgentCapability(item) for item in row.capabilities)
             except ValueError:
                 return None
             lease = AgentLease(
@@ -1980,9 +1956,7 @@ class ProgramSupervisor:
             )
             return
         release_lease(lease)
-        append_event(
-            self.root, "LEASE_RELEASED", {"task_id": task_id, "lease_id": lease.lease_id}
-        )
+        append_event(self.root, "LEASE_RELEASED", {"task_id": task_id, "lease_id": lease.lease_id})
         _ = state
 
     def _build_request(
@@ -2003,9 +1977,7 @@ class ProgramSupervisor:
                     "profile working_subdir escapes the workspace",
                     code="WORKSPACE_ESCAPE",
                 )
-        timeout = min(
-            self.program.limits.max_task_seconds, profile.limits.max_seconds
-        )
+        timeout = min(self.program.limits.max_task_seconds, profile.limits.max_seconds)
         return AdapterRequest(
             program_id=self.program.program_id,
             task_id=task.task_id,
@@ -2071,9 +2043,7 @@ class ProgramSupervisor:
         root = self.root
 
         def record(pid: int, start_identity: str) -> None:
-            record_launch(
-                root, attempt_id=attempt_id, pid=pid, start_identity=start_identity
-            )
+            record_launch(root, attempt_id=attempt_id, pid=pid, start_identity=start_identity)
 
         return record
 
@@ -2119,10 +2089,7 @@ class ProgramSupervisor:
             result.stop_reason = ProgramStopReason.OWNER_DECISION_REQUIRED
             self._notify(
                 "AUTHORITY_REVOKED",
-                (
-                    f"task {task.task_id} was not dispatched: {revoked}. "
-                    "Nothing was launched"
-                ),
+                (f"task {task.task_id} was not dispatched: {revoked}. Nothing was launched"),
                 {"task_id": task.task_id, "agent_id": profile.agent_id},
             )
             return None
@@ -2149,7 +2116,24 @@ class ProgramSupervisor:
             )
             return None
 
-        if not verifying:
+        if task.task_kind == "VERIFY_SUBJECT":
+            try:
+                subject = VerificationSubject.model_validate(task.review_subject)
+                validate_subject(subject)
+            except (ValueError, ProgramError) as exc:
+                self._transition(
+                    state, task.task_id, NodeState.BLOCKED, reason=f"review subject rejected: {exc}"
+                )
+                result.stop_reason = ProgramStopReason.HARD_BLOCKER
+                self._notify(
+                    "REVIEW_REJECTED",
+                    f"verification subject for {task.task_id} was rejected before launch",
+                    {"task_id": task.task_id, "reason": str(exc)[:512]},
+                )
+                persist_state(self.root, state)
+                return None
+
+        if not verifying or task.task_kind == "VERIFY_SUBJECT":
             try:
                 self._ensure_lease(state, task, profile)
             except SupervisorError as exc:
@@ -2172,8 +2156,7 @@ class ProgramSupervisor:
                     },
                 )
                 result.notes.append(
-                    f"{task.task_id}: deferred, ownership already held "
-                    f"({getattr(exc, 'code', '')})"
+                    f"{task.task_id}: deferred, ownership already held ({getattr(exc, 'code', '')})"
                 )
                 return None
 
@@ -2202,7 +2185,11 @@ class ProgramSupervisor:
             adapter=capabilities.adapter_id,
             profile_digest=sha,
             base_pin=self.program.base_pin,
-            lease_id=_lease_id_for(self._leases, task.task_id, verifying=verifying),
+            lease_id=_lease_id_for(
+                self._leases,
+                task.task_id,
+                verifying=verifying and task.task_kind != "VERIFY_SUBJECT",
+            ),
             # A session id is pre-assigned only for a runtime that will accept
             # the one we hand it. Codex mints its own and announces it on its
             # event stream, so writing a made-up id into the checkpoint here
@@ -2252,7 +2239,9 @@ class ProgramSupervisor:
             },
         )
 
-        if not verifying and record.state is NodeState.LEASED:
+        if task.task_kind == "VERIFY_SUBJECT" and record.state is NodeState.LEASED:
+            self._transition(state, task.task_id, NodeState.ACTIVE, reason="review worker starting")
+        elif not verifying and record.state is NodeState.LEASED:
             self._transition(state, task.task_id, NodeState.ACTIVE, reason="worker starting")
         elif not verifying and record.state is NodeState.REMEDIATING:
             self._transition(
@@ -2260,9 +2249,7 @@ class ProgramSupervisor:
             )
         persist_state(self.root, state)
 
-        instruction = (
-            _verification_instruction(task) if verifying else task.instruction
-        )
+        instruction = _verification_instruction(task) if verifying else task.instruction
         request = self._build_request(
             task=task,
             profile=profile,
@@ -2323,7 +2310,7 @@ class ProgramSupervisor:
             self._notify(
                 "UNCERTAIN_OUTCOME",
                 f"the adapter for {task.task_id} raised; its effect is unknown",
-                {"task_id": task.task_id, "attempt_id": attempt_id},
+                {"task_id": task.task_id, "attempt_id": attempt_id, "error": str(outcome)[:512]},
             )
             return
 
@@ -2357,9 +2344,7 @@ class ProgramSupervisor:
                 "terminal_state": outcome.terminal_state,
                 "exit_status": outcome.exit_status,
                 "confidence": outcome.confidence.value,
-                "failure_class": (
-                    outcome.failure_class.value if outcome.failure_class else None
-                ),
+                "failure_class": (outcome.failure_class.value if outcome.failure_class else None),
             },
         )
 
@@ -2370,7 +2355,11 @@ class ProgramSupervisor:
         self._evaluate_and_settle(
             state,
             task=task,
-            profile=self.loaded.effective_profile(task.task_id),
+            profile=(
+                profile
+                if task.task_kind == "VERIFY_SUBJECT"
+                else self.loaded.effective_profile(task.task_id)
+            ),
             attempt=attempt,
             verifying=verifying,
             verifier_agent_id=profile.agent_id if verifying else None,
@@ -2431,6 +2420,23 @@ class ProgramSupervisor:
         """Acceptance, then the task's next DAG state. Evidence decides both."""
         record = state.tasks[task.task_id]
 
+        if task.task_kind == "VERIFY_SUBJECT":
+            if attempt.confidence is ExecutionConfidence.FAILED:
+                record.last_failure_class = (
+                    attempt.failure_class or FailureClass.TRANSIENT_INFRASTRUCTURE
+                )
+                attempt.phase = AttemptPhase.TERMINAL
+                self._transition(
+                    state, task.task_id, NodeState.BLOCKED, reason="verification worker failed"
+                )
+                self._release_lease(state, task.task_id)
+                persist_state(self.root, state)
+                return
+            self._settle_subject_review(
+                state, task=task, profile=profile, attempt=attempt, result=result
+            )
+            return
+
         if attempt.confidence is ExecutionConfidence.FAILED:
             failure = attempt.failure_class or FailureClass.TRANSIENT_INFRASTRUCTURE
             record.last_failure_class = failure
@@ -2466,9 +2472,7 @@ class ProgramSupervisor:
 
         acceptance = evaluate_task(task, workspace=self.workspace, profile=profile)
         attempt.acceptance_passed = acceptance.passed
-        attempt.acceptance_detail = tuple(
-            check.to_public_dict() for check in acceptance.checks
-        )
+        attempt.acceptance_detail = tuple(check.to_public_dict() for check in acceptance.checks)
         attempt.phase = AttemptPhase.ACCEPTANCE_EVALUATED
         fingerprint = progress_fingerprint(self.workspace, profile)
         persist_state(self.root, state)
@@ -2674,6 +2678,31 @@ class ProgramSupervisor:
                 f"task {task.task_id} would be certified by its own implementer",
                 code="IMPLEMENTER_CANNOT_VERIFY",
             )
+        verifier_profile = (
+            self.loaded.profiles.profiles.get(task.verifier_profile_ref)
+            if task.verifier_profile_ref
+            else None
+        )
+        if verifier_profile is not None and verifier_profile.result_schema is not None:
+            try:
+                proposal = json.loads((attempt.worker_reported or "").strip())
+            except (TypeError, json.JSONDecodeError):
+                proposal = None
+            if not isinstance(proposal, dict) or proposal.get("verdict") != "PASS":
+                record.awaiting_independent_verification = False
+                self._transition(
+                    state,
+                    task.task_id,
+                    NodeState.BLOCKED,
+                    reason="independent verifier did not return a bound PASS proposal",
+                )
+                persist_state(self.root, state)
+                self._notify(
+                    "VERIFICATION_FAILED",
+                    f"the verifier proposal for {task.task_id} was not PASS",
+                    {"task_id": task.task_id, "verifier_agent_id": verifier_agent_id},
+                )
+                return
         if not acceptance.passed:
             record.awaiting_independent_verification = False
             self._transition(
@@ -2708,6 +2737,108 @@ class ProgramSupervisor:
             },
         )
         result.notes.append(f"{task.task_id}: independently verified")
+
+    def _settle_subject_review(
+        self,
+        state: ProgramStateRecord,
+        *,
+        task: ProgramTask,
+        profile: AgentProfile,
+        attempt: AttemptRecord,
+        result: CycleResult,
+    ) -> None:
+        """Publish a verifier proposal as a new receipt, never edit subject state."""
+        subject = VerificationSubject.model_validate(task.review_subject)
+        snapshot = validate_subject(subject)
+        try:
+            proposal = ReviewProposal.model_validate(
+                json.loads((attempt.worker_reported or "").strip())
+            )
+            proposal.bind_to(
+                subject.subject_attempt_id,
+                task.review_engine_version or REVIEW_ENGINE_VERSION,
+            )
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            proposal = ReviewProposal(
+                review_engine_id="atlas-verification-route",
+                review_engine_version=task.review_engine_version or REVIEW_ENGINE_VERSION,
+                subject_attempt_id=subject.subject_attempt_id,
+                verdict=ReviewVerdict.UNKNOWN,
+                rationale=f"verifier proposal was invalid: {exc}",
+            )
+        checks = tuple(AcceptanceCheck.model_validate(item) for item in subject.acceptance)
+        acceptance = evaluate_checks(
+            checks, workspace=Path(subject.subject_workspace), profile=profile
+        )
+        verdict = (
+            ReviewVerdict.PASS
+            if proposal.verdict is ReviewVerdict.PASS and acceptance.passed
+            else ReviewVerdict.FAIL
+            if proposal.verdict is ReviewVerdict.FAIL or not acceptance.passed
+            else ReviewVerdict.UNKNOWN
+        )
+        proposal = proposal.model_copy(update={"verdict": verdict})
+        evidence_name = f"{attempt.attempt_id}.review.json"
+        write_evidence(
+            self.root,
+            evidence_name,
+            {
+                "subject": subject.model_dump(mode="json"),
+                "snapshot": snapshot.model_dump(mode="json"),
+                "proposal": proposal.model_dump(mode="json"),
+                "acceptance": acceptance.to_public_dict(),
+            },
+        )
+        review = ReviewRecord.create(
+            program_id=self.program.program_id,
+            task_id=task.task_id,
+            subject=subject,
+            reviewer_agent_id=profile.agent_id,
+            verifier_attempt_id=attempt.attempt_id,
+            proposal=proposal,
+            acceptance=acceptance,
+            evidence_paths=(evidence_name,),
+        )
+        publication = publish_review_record(state_dir(self.root), review)
+        attempt.acceptance_passed = verdict is ReviewVerdict.PASS
+        attempt.acceptance_detail = tuple(check.to_public_dict() for check in acceptance.checks)
+        attempt.evidence_paths = (
+            *attempt.evidence_paths,
+            evidence_name,
+            f"reviews/{review.review_id}.json",
+        )
+        attempt.phase = AttemptPhase.TERMINAL
+        record = state.tasks[task.task_id]
+        record.last_failure_class = (
+            None if verdict is ReviewVerdict.PASS else FailureClass.ACCEPTANCE_FAILED
+        )
+        self._transition(
+            state,
+            task.task_id,
+            NodeState.VERIFYING,
+            reason="review proposal evaluated by supervisor",
+        )
+        self._transition(
+            state,
+            task.task_id,
+            NodeState.CERTIFIED if verdict is ReviewVerdict.PASS else NodeState.BLOCKED,
+            reason="verification review passed"
+            if verdict is ReviewVerdict.PASS
+            else f"verification review {verdict.value}",
+        )
+        self._release_lease(state, task.task_id)
+        persist_state(self.root, state)
+        append_event(
+            self.root,
+            "VERIFICATION_REVIEW_PUBLISHED",
+            {
+                "review_id": review.review_id,
+                "created": publication.created,
+                "verdict": verdict.value,
+                "subject_attempt_id": subject.subject_attempt_id,
+            },
+        )
+        result.notes.append(f"{task.task_id}: review {verdict.value}; receipt read back")
 
     # -------------------------------------------------------------- recovery
 
@@ -2831,9 +2962,7 @@ class ProgramSupervisor:
 
     # ----------------------------------------------------------------- misc
 
-    def _notify_unless_busy(
-        self, kind: str, message: str, detail: dict[str, Any]
-    ) -> None:
+    def _notify_unless_busy(self, kind: str, message: str, detail: dict[str, Any]) -> None:
         """Raise a notification only if it is still true with workers in flight.
 
         Found by the systemwide acceptance run, not by reasoning: selection
@@ -2884,9 +3013,7 @@ class ProgramSupervisor:
         )
 
 
-def _lease_id_for(
-    leases: Mapping[str, AgentLease], task_id: str, *, verifying: bool
-) -> str | None:
+def _lease_id_for(leases: Mapping[str, AgentLease], task_id: str, *, verifying: bool) -> str | None:
     """The lease id to stamp on an attempt.
 
     A verification run holds no lease: it does not mutate the surface, and
@@ -2899,9 +3026,7 @@ def _lease_id_for(
     return lease.lease_id if lease is not None else None
 
 
-def _apply_enrollments(
-    loaded: LoadedProgram, agents: Sequence[EnrolledAgent]
-) -> LoadedProgram:
+def _apply_enrollments(loaded: LoadedProgram, agents: Sequence[EnrolledAgent]) -> LoadedProgram:
     """Substitute enrolled agents' bound profiles for the roles they fill.
 
     What changes is the principal and any narrowing the enrollment carries.
@@ -2951,9 +3076,7 @@ def _apply_enrollments(
                 update={
                     "agent_id": bound.agent_id,
                     "adapter": bound.adapter,
-                    "permission_mode": _tighter(
-                        base.permission_mode, bound.permission_mode
-                    ),
+                    "permission_mode": _tighter(base.permission_mode, bound.permission_mode),
                     "allowed_tools": tuple(
                         sorted(set(base.allowed_tools) & set(bound.allowed_tools))
                     )
@@ -2964,9 +3087,7 @@ def _apply_enrollments(
                 }
             )
         verifier_agent: EnrolledAgent | None = (
-            by_role.get(task.verifier_profile_ref)
-            if task.verifier_profile_ref
-            else None
+            by_role.get(task.verifier_profile_ref) if task.verifier_profile_ref else None
         )
         if verifier_agent is not None and task.task_id in verifiers:
             # The verifier gets the SAME treatment as the implementer above.
@@ -2990,10 +3111,7 @@ def _apply_enrollments(
                         base_verifier.permission_mode, bound_verifier.permission_mode
                     ),
                     "allowed_tools": tuple(
-                        sorted(
-                            set(base_verifier.allowed_tools)
-                            & set(bound_verifier.allowed_tools)
-                        )
+                        sorted(set(base_verifier.allowed_tools) & set(bound_verifier.allowed_tools))
                     )
                     if base_verifier.allowed_tools and bound_verifier.allowed_tools
                     else (bound_verifier.allowed_tools or base_verifier.allowed_tools),
@@ -3052,6 +3170,17 @@ def _verification_instruction(task: ProgramTask) -> str:
     did. A verifier that starts from the implementer's story is checking the
     story, not the work.
     """
+    if task.task_kind == "VERIFY_SUBJECT":
+        subject = VerificationSubject.model_validate(task.review_subject)
+        return (
+            "You are an independent, read-only reviewer. Inspect only the frozen subject "
+            f"attempt {subject.subject_attempt_id} in {subject.subject_workspace}.\n"
+            f"Expected HEAD={subject.candidate_head}; TREE={subject.candidate_tree}.\n"
+            "Do not modify the subject, its state, policy, receipts, or acceptance. "
+            "Return exactly one JSON object with review_engine_id, review_engine_version, "
+            "subject_attempt_id, verdict (PASS, FAIL, or UNKNOWN), and rationale. "
+            "A worker proposal is not an acceptance decision.\n"
+        )
     conditions = "\n".join(
         f"  - [{check.kind.value}] {check.description}" for check in task.acceptance
     )

@@ -36,9 +36,7 @@ from project_atlas.orchestration.autonomy.models import (
 )
 from project_atlas.orchestration.sdk.external_observers import ObserverType
 
-PACKAGE_ID: Final[Literal["AS-ORCH-PROGRAM-SUPERVISOR-001"]] = (
-    "AS-ORCH-PROGRAM-SUPERVISOR-001"
-)
+PACKAGE_ID: Final[Literal["AS-ORCH-PROGRAM-SUPERVISOR-001"]] = "AS-ORCH-PROGRAM-SUPERVISOR-001"
 DIRECTIVE_ID: Final[Literal["ATLAS-CONTINUOUS-EXECUTION-SUPERVISOR-001"]] = (
     "ATLAS-CONTINUOUS-EXECUTION-SUPERVISOR-001"
 )
@@ -196,6 +194,7 @@ class AcceptanceKind(StrEnum):
     #: A workspace-relative file must match a regular expression.
     FILE_MATCHES = "FILE_MATCHES"
     #: `git diff --quiet` against the recorded base must report a change.
+    #: When path is present, the change must be in that declared path.
     GIT_TREE_CHANGED = "GIT_TREE_CHANGED"
 
 
@@ -353,6 +352,9 @@ class ProgramTask(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     task_id: str = Field(min_length=1, max_length=128)
+    #: Verification tasks use the ordinary supervisor dispatch with a
+    #: read-only subject instead of opening a coding successor.
+    task_kind: Literal["EXECUTE", "VERIFY_SUBJECT"] = "EXECUTE"
     title: str = Field(min_length=1, max_length=512)
     #: The instruction handed to the worker. Data for the worker, never an
     #: instruction to Atlas: nothing a worker reads or writes can enlarge the
@@ -392,6 +394,11 @@ class ProgramTask(BaseModel):
     contract_digest: str | None = Field(default=None, min_length=64, max_length=64)
     source_item_digest: str | None = Field(default=None, min_length=8, max_length=128)
     origination_identity: str | None = Field(default=None, min_length=64, max_length=64)
+    #: JSON representation of a frozen VerificationSubject. Kept as a plain
+    #: mapping here to avoid a model import cycle; the verification module
+    #: validates it immediately before any review launch.
+    review_subject: dict[str, object] | None = None
+    review_engine_version: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("task_id", "profile_ref", "surface_id")
     @classmethod
@@ -445,16 +452,30 @@ class ProgramTask(BaseModel):
     def _coherent(self) -> ProgramTask:
         if self.task_id in self.depends_on:
             raise ValueError("a task cannot depend on itself")
+        if self.task_kind == "VERIFY_SUBJECT":
+            if self.review_subject is None:
+                raise ValueError("verification task requires review_subject")
+            if self.review_engine_version is None:
+                raise ValueError("verification task requires review_engine_version")
+            if self.mutation_paths:
+                raise ValueError("verification task cannot declare mutation paths")
+            if AgentCapability.VERIFY not in self.capabilities_required:
+                raise ValueError("verification task requires VERIFY capability")
+            if self.verifier_profile_ref is None:
+                raise ValueError("verification task requires verifier_profile_ref")
+            if self.requires_independent_verification:
+                raise ValueError("verification task cannot require a second verifier")
+        elif self.review_subject is not None or self.review_engine_version is not None:
+            raise ValueError("review fields are only valid for verification tasks")
         if self.verifier_profile_ref is not None:
-            if not self.requires_independent_verification:
+            if self.task_kind != "VERIFY_SUBJECT" and not self.requires_independent_verification:
                 raise ValueError(
                     "verifier_profile_ref is only meaningful when "
                     "requires_independent_verification is true"
                 )
             if self.verifier_profile_ref == self.profile_ref:
                 raise AuthorityExpansionError(
-                    "the implementer's own profile cannot satisfy an "
-                    "independent verification gate",
+                    "the implementer's own profile cannot satisfy an independent verification gate",
                     code="IMPLEMENTER_CANNOT_VERIFY",
                 )
         return self
@@ -478,9 +499,7 @@ class ProgramTask(BaseModel):
             ),
             execution_host_class=ExecutionHostClass.LOCAL_PROCESS,
             agent_capabilities_required=self.capabilities_required,
-            acceptance_criteria=tuple(
-                check.description[:512] for check in self.acceptance[:16]
-            ),
+            acceptance_criteria=tuple(check.description[:512] for check in self.acceptance[:16]),
             iv_requirements=IvRequirements(
                 certification_required=self.requires_independent_verification,
                 implementer_cannot_verify=True,
@@ -544,8 +563,7 @@ class WorkProgram(BaseModel):
             unknown = sorted(set(task.depends_on) - known)
             if unknown:
                 raise ValueError(
-                    f"task {task.task_id} depends on unknown task(s): "
-                    f"{', '.join(unknown)}"
+                    f"task {task.task_id} depends on unknown task(s): {', '.join(unknown)}"
                 )
         _reject_cycles(self.tasks)
         return self

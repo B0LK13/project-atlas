@@ -49,6 +49,7 @@ import re
 import shutil
 import subprocess
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
 
@@ -69,6 +70,47 @@ from project_atlas.orchestration.program.profiles import (
 )
 
 ADAPTER_ID: Final[str] = AdapterKind.CODEX.value
+
+
+def validate_output_schema(schema: Mapping[str, Any]) -> None:
+    """Validate the subset Codex Structured Outputs accepts before launch."""
+    if not isinstance(schema, dict):
+        raise ValueError("output schema must be an object")
+
+    def visit(node: object, pointer: str, *, top_level: bool = False) -> None:
+        if not isinstance(node, dict):
+            raise ValueError(f"schema {pointer} must be an object")
+        if top_level and "anyOf" in node:
+            raise ValueError(f"schema {pointer} cannot use top-level anyOf")
+        if "const" in node and "type" not in node:
+            raise ValueError(f"schema {pointer} const requires a type")
+        node_type = node.get("type")
+        if node_type == "object":
+            if node.get("additionalProperties") is not False:
+                raise ValueError(f"schema {pointer} object requires additionalProperties:false")
+            properties = node.get("properties", {})
+            if not isinstance(properties, dict):
+                raise ValueError(f"schema {pointer}/properties must be an object")
+            required = node.get("required")
+            if not isinstance(required, list) or set(required) != set(properties):
+                raise ValueError(f"schema {pointer} required must contain every property")
+            for name, child in properties.items():
+                visit(child, f"{pointer}/properties/{name}")
+        elif node_type == "array":
+            if "items" not in node:
+                raise ValueError(f"schema {pointer} array requires items")
+            visit(node["items"], f"{pointer}/items")
+        elif node_type is None and "anyOf" not in node:
+            raise ValueError(f"schema {pointer} requires a type")
+        if "anyOf" in node:
+            branches = node["anyOf"]
+            if not isinstance(branches, list):
+                raise ValueError(f"schema {pointer}/anyOf must be an array")
+            for index, child in enumerate(branches):
+                visit(child, f"{pointer}/anyOf/{index}")
+
+    visit(schema, "#", top_level=True)
+
 EXECUTABLE: Final[str] = "codex"
 
 #: ``codex exec resume <SESSION_ID>`` is the resume contract this adapter uses.
@@ -188,6 +230,14 @@ class CodexAdapter:
                 f"adapter_min_version {profile.adapter_min_version}",
                 code="RUNTIME_TOO_OLD",
             )
+        if profile.result_schema is not None:
+            try:
+                validate_output_schema(profile.result_schema)
+            except ValueError as exc:
+                raise AdapterUnavailableError(
+                    f"Codex output schema rejected locally: {exc}",
+                    code="INVALID_RESULT_SCHEMA",
+                ) from exc
 
     def events_path(self, request: AdapterRequest) -> Path:
         return request.evidence_dir / f"{request.attempt_id}.codex-events.jsonl"
@@ -242,6 +292,7 @@ class CodexAdapter:
         if profile.isolated_runtime:
             argv += ["--ignore-user-config"]
         if profile.result_schema is not None:
+            validate_output_schema(profile.result_schema)
             schema_file = request.evidence_dir / f"{request.attempt_id}.schema.json"
             schema_file.parent.mkdir(parents=True, exist_ok=True)
             schema_file.write_text(

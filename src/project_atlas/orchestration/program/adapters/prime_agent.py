@@ -36,6 +36,9 @@ from project_atlas.orchestration.program.adapters.base import (
     process_start_identity,
 )
 from project_atlas.orchestration.program.models import ExecutionConfidence, FailureClass
+from project_atlas.orchestration.program.prime_inference_proxy import (
+    InferenceOnlyUnixProxy,
+)
 from project_atlas.orchestration.program.profiles import (
     AdapterKind,
     AgentProfile,
@@ -43,7 +46,7 @@ from project_atlas.orchestration.program.profiles import (
 )
 
 ADAPTER_ID: Final[str] = AdapterKind.PRIME_AGENT.value
-ADAPTER_VERSION: Final[str] = "prime-agent-atlas-adapter-v1"
+ADAPTER_VERSION: Final[str] = "prime-agent-atlas-adapter-v2"
 PRIME_UPSTREAM_SHA: Final[str] = (
     "5d25a44bd22e1c1fe8321e141cd6c3932563d14c"
 )
@@ -81,6 +84,169 @@ PILOT_MIN_AVAILABLE_BYTES: Final[int] = 2 * 1024**3
 
 class PrimeFrameError(ValueError):
     """A malformed or unsafe Prime JSONL record."""
+
+
+def diagnose_prime_toolcall(
+    records: list[dict[str, Any]], *, request: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """AS-PRIME-TOOLCALL-DIAGNOSTICS-001: observe stored ipython evidence only.
+
+    No execution, inference, or authority promotion. A valid call without a
+    result has an unknown outcome. Record offsets refer to the supplied input;
+    argument values, model prose, and error text never enter the projection.
+    The pinned Prime ipython schema requires an object with a string `code`.
+    """
+    from project_atlas.orchestration.program.prime_inference_proxy import stored_tool_offer
+
+    offered = stored_tool_offer(request, "ipython")
+    calls: dict[str, bool] = {}
+    pending: set[int] = set()
+    fragments: dict[tuple[int, int], dict[str, Any]] = {}
+    observations: list[dict[str, Any]] = []
+    completed_message = False
+    malformed_call = False
+
+    def call(value: Any) -> None:
+        nonlocal malformed_call
+        if not isinstance(value, dict):
+            malformed_call = True
+            return
+        if not isinstance(value.get("name"), str) or not value.get("name"):
+            malformed_call = True
+            return
+        if value.get("name") != "ipython":
+            return
+        identifier = value.get("id")
+        arguments = value.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except ValueError:
+                arguments = None
+        valid = (isinstance(identifier, str) and bool(identifier)
+                 and isinstance(arguments, dict) and isinstance(arguments.get("code"), str))
+        if isinstance(identifier, str) and identifier:
+            calls[identifier] = valid
+        malformed_call |= not valid
+
+    for offset, record in enumerate(records, 1):
+        # Public daemon events wrap the same RPC payload; never search arbitrary
+        # nested prose or a prompt ACK for strings resembling tool calls.
+        event = record.get("event") if record.get("type") == "event" else record
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("type")
+        if kind == "message_update":
+            update = event.get("assistantMessageEvent")
+            if isinstance(update, dict):
+                index = update.get("contentIndex", 0)
+                if isinstance(index, int):
+                    if update.get("type") in ("toolcall_start", "toolcall_delta"):
+                        pending.add(index)
+                    elif update.get("type") == "toolcall_end":
+                        pending.discard(index)
+                        call(update.get("toolCall"))
+        message = event.get("message")
+        if kind in ("message_end", "message") and isinstance(message, dict):
+            if message.get("role") == "assistant":
+                content = message.get("content")
+                if isinstance(content, (str, list)):
+                    completed_message = True
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "toolCall":
+                            call(block)
+            elif message.get("role") == "toolResult":
+                event = {**message, "type": "tool_execution_end", "result": message}
+                kind = "tool_execution_end"
+        if kind == "tool_execution_start":
+            call({"id": event.get("toolCallId"), "name": event.get("toolName"),
+                  "arguments": event.get("args")})
+        if kind == "tool_execution_end" and event.get("toolName") == "ipython":
+            result = event.get("result")
+            identifier = event.get("toolCallId")
+            if (not isinstance(result, dict) or not isinstance(identifier, str)
+                    or not identifier or not isinstance(event.get("isError"), bool)):
+                continue
+            content = result.get("content")
+            if not isinstance(content, list):
+                continue
+            texts = [b["text"] for b in content if isinstance(b, dict)
+                     and b.get("type") == "text" and isinstance(b.get("text"), str)]
+            status = "tool_result_received"
+            if event["isError"]:
+                if any(t.startswith(
+                    "PRIME_AGENT_KERNEL_PYTHON points to a Python missing a current "
+                    "prime-agent-runtime") for t in texts):
+                    status = "kernel_start_failure"
+                elif calls.get(identifier) and "Tool execution was blocked" in texts:
+                    status = "valid_call_rejected"
+                elif identifier in calls and not calls[identifier]:
+                    status = "invalid_or_incomplete_toolcall"
+            observations.append({"record": offset, "status": status,
+                                 "is_error": event["isError"]})
+        # Stored OpenAI-compatible response objects/SSE data objects. Accumulate
+        # arguments by choice and tool index, and require a terminal tool_calls
+        # finish reason; a syntactically closed prefix is not a completed call.
+        choices = event.get("choices")
+        if not isinstance(choices, list):
+            continue
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            choice_index = choice.get("index", 0)
+            if not isinstance(choice_index, int):
+                continue
+            full = choice.get("message")
+            delta = choice.get("delta")
+            part = full if isinstance(full, dict) else delta
+            if not isinstance(part, dict):
+                continue
+            tool_calls = part.get("tool_calls", [])
+            if not isinstance(tool_calls, list):
+                malformed_call = True
+                continue
+            for number, tool in enumerate(tool_calls):
+                if not isinstance(tool, dict) or not isinstance(tool.get("function"), dict):
+                    malformed_call = True
+                    continue
+                function = tool["function"]
+                if isinstance(full, dict):
+                    call({**function, "id": tool.get("id")})
+                    continue
+                index = tool.get("index", number)
+                if not isinstance(index, int):
+                    malformed_call = True
+                    continue
+                item = fragments.setdefault((choice_index, index), {"arguments": ""})
+                for key in ("name", "arguments"):
+                    value = function.get(key)
+                    if isinstance(value, str):
+                        item[key] = item.get(key, "") + value
+                    elif value is not None:
+                        malformed_call = True
+                if "id" in tool:
+                    item["id"] = tool["id"]
+            if choice.get("finish_reason") == "tool_calls":
+                for fragment_key in list(fragments):
+                    if fragment_key[0] == choice_index:
+                        call(fragments.pop(fragment_key))
+            if choice.get("finish_reason") == "stop":
+                completed_message = True
+
+    incomplete = malformed_call or bool(pending) or bool(fragments)
+    call_state = ("invalid_or_incomplete" if incomplete else "valid" if any(calls.values())
+                  else "absent" if completed_message else "unknown")
+    status = ("invalid_or_incomplete_toolcall" if incomplete else
+              "tool_not_offered" if offered is False and not calls else
+              "no_structured_toolcall" if call_state == "absent" else "unknown")
+    if observations:
+        # Latest observed result, not a best-ever success. Duplicate result
+        # messages remain traceable without affecting execution state.
+        status = observations[-1]["status"]
+    return {"status": status, "tool": "ipython", "tool_offered": offered,
+            "structured_call": call_state, "result_events": observations,
+            "read_only": True}
 
 
 class PrimeFrameParser:
@@ -1425,6 +1591,23 @@ class PrimeExecutorAdapter:
                     f"local-only Prime model {profile.model!r} is not advertised",
                     code="LOCAL_MODEL_UNAVAILABLE",
                 )
+            proxy = profile.adapter_options.get("inference_proxy")
+            if (
+                not isinstance(proxy, dict)
+                or not isinstance(proxy.get("worker_port"), int)
+                or isinstance(proxy.get("worker_port"), bool)
+                or not 1024 <= proxy["worker_port"] <= 65535
+            ):
+                raise AdapterUnavailableError(
+                    "local-only Prime requires a bounded mission inference proxy",
+                    code="INFERENCE_PROXY_REQUIRED",
+                )
+            _validate_resource_limits(profile.adapter_options.get("resource_limits"))
+            if _available_memory_bytes() < PILOT_MIN_AVAILABLE_BYTES:
+                raise AdapterUnavailableError(
+                    "local-only Prime requires at least 2 GiB available host memory",
+                    code="INSUFFICIENT_HOST_MEMORY",
+                )
 
     def probe_run_started(self, request: AdapterRequest) -> bool | None:
         markers = (
@@ -1453,7 +1636,10 @@ class PrimeExecutorAdapter:
 
     def _argv(self, request: AdapterRequest) -> list[str]:
         options = request.profile.adapter_options
-        argv = [self._resolve(), "--mode", "rpc"]
+        argv = [self._resolve()]
+        if options.get("use_dist") is True:
+            argv.append("--dist")
+        argv += ["--mode", "rpc"]
         session_dir = options.get("session_dir")
         if isinstance(session_dir, str) and session_dir:
             argv += ["--session-dir", session_dir]
@@ -1467,8 +1653,10 @@ class PrimeExecutorAdapter:
         if isinstance(sandbox_argv, (list, tuple)) and all(
             isinstance(item, str) for item in sandbox_argv
         ):
-            return [*sandbox_argv, *argv]
-        return argv
+            command = [*sandbox_argv, *argv]
+        else:
+            command = argv
+        return _resource_limited_argv(request.profile, command)
 
     def run(self, request: AdapterRequest) -> AdapterOutcome:
         if self._daemon_socket is not None:
@@ -1477,17 +1665,26 @@ class PrimeExecutorAdapter:
         request.evidence_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = request.evidence_dir / f"{request.attempt_id}.prime-rpc.jsonl"
         env = build_child_env(request.profile, extra=dict(request.extra_env))
-        env.setdefault("PRIME_AGENT_CODING_AGENT_DIR", str(request.evidence_dir / "prime-config"))
+        _add_kernel_python_environment(request.profile, env)
+        _add_user_scope_environment(request.profile, env)
+        agent_dir = request.evidence_dir / "prime-config"
+        env.setdefault("PRIME_AGENT_CODING_AGENT_DIR", str(agent_dir))
         env.setdefault("PRIME_AGENT_SESSION_DIR", str(request.evidence_dir / "prime-sessions"))
-        process = subprocess.Popen(
-            self._argv(request),
-            cwd=str(request.workspace),
-            env=env,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=hasattr(os, "setsid"),
-        )
+        inference_proxy = _start_inference_proxy(request, env, agent_dir)
+        try:
+            process = subprocess.Popen(
+                self._argv(request),
+                cwd=str(request.workspace),
+                env=env,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=hasattr(os, "setsid"),
+            )
+        except BaseException:
+            if inference_proxy is not None:
+                inference_proxy.close()
+            raise
         pid = process.pid
         if request.process_launched is not None:
             request.process_launched(pid)
@@ -1558,6 +1755,8 @@ class PrimeExecutorAdapter:
             frames.extend(parser.feed(stdout))
         parser.finish()
         stderr_text = b"".join(stderr_chunks) + stderr
+        if inference_proxy is not None:
+            inference_proxy.close()
         transcript_path.write_text(
             "".join(
                 json.dumps(frame, ensure_ascii=False, sort_keys=True) + "\n"
@@ -1594,7 +1793,17 @@ class PrimeExecutorAdapter:
             structured=None,
             usage={"status": "not-reported-by-public-rpc"},
             estimated_cost_usd=None,
-            evidence=(transcript_path.name,),
+            evidence=tuple(
+                [transcript_path.name]
+                + (
+                    [f"{request.attempt_id}.inference-audit.jsonl"]
+                    if (
+                        request.evidence_dir
+                        / f"{request.attempt_id}.inference-audit.jsonl"
+                    ).is_file()
+                    else []
+                )
+            ),
             failure_class=failure,
             duration_seconds=time.monotonic() - started,
             notes=(f"Prime Agent source pinned to {self.upstream_sha}",),
@@ -1617,10 +1826,13 @@ class PrimeExecutorAdapter:
         metadata_path = request.evidence_dir / f"{request.attempt_id}.prime-daemon.json"
         capture_path = request.evidence_dir / "prime-knowledge-capture.jsonl"
         env = build_child_env(request.profile, extra=dict(request.extra_env))
+        _add_kernel_python_environment(request.profile, env)
+        _add_user_scope_environment(request.profile, env)
         agent_dir = request.evidence_dir / "prime-config"
         session_dir = request.evidence_dir / "prime-sessions"
         env.setdefault("PRIME_AGENT_CODING_AGENT_DIR", str(agent_dir))
         env.setdefault("PRIME_AGENT_SESSION_DIR", str(session_dir))
+        inference_proxy = _start_inference_proxy(request, env, agent_dir)
         candidate_sha, tree_sha = _git_identity(request.workspace)
         broker: PrimeChildAdmissionBroker | None = None
         child_options = request.profile.adapter_options.get("child_admission")
@@ -1782,6 +1994,8 @@ class PrimeExecutorAdapter:
             exit_status = None
             active_session_id = request.resume_session_id
         finally:
+            if inference_proxy is not None:
+                inference_proxy.close()
             transcript = "".join(
                 json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
                 for record in client.records
@@ -1921,6 +2135,10 @@ class PrimeExecutorAdapter:
         session_dir.mkdir(parents=True, exist_ok=True)
         daemon_argv = [
             self._resolve(),
+        ]
+        if request.profile.adapter_options.get("use_dist") is True:
+            daemon_argv.append("--dist")
+        daemon_argv += [
             "--mode",
             "daemon",
             "--daemon-socket",
@@ -1935,6 +2153,7 @@ class PrimeExecutorAdapter:
             isinstance(item, str) for item in sandbox_argv
         ):
             daemon_argv = [*sandbox_argv, *daemon_argv]
+        daemon_argv = _resource_limited_argv(request.profile, daemon_argv)
         process = subprocess.Popen(
             daemon_argv,
             cwd=str(request.workspace),
@@ -1973,6 +2192,170 @@ def _session_id(frames: list[dict[str, Any]]) -> str | None:
         if isinstance(data, dict) and isinstance(data.get("sessionId"), str):
             return str(data["sessionId"])
     return None
+
+
+def _write_local_provider_config(
+    agent_dir: Path,
+    *,
+    provider: str,
+    port: int,
+    model: str,
+) -> None:
+    """Write only non-secret, mission-owned custom-provider configuration."""
+    if not 1024 <= port <= 65535:
+        raise PrimeDaemonError("local inference proxy port is outside the user range")
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    config = {
+        "providers": {
+            provider: {
+                "baseUrl": f"http://127.0.0.1:{port}/v1",
+                "api": "openai-completions",
+                "apiKey": "atlas-local-proxy",
+                "compat": {
+                    "supportsDeveloperRole": False,
+                    "supportsReasoningEffort": False,
+                },
+                "models": [
+                    {
+                        "id": model,
+                        "input": ["text"],
+                        "contextWindow": 4096,
+                        "maxTokens": 512,
+                        "reasoning": False,
+                    }
+                ],
+            }
+        }
+    }
+    (agent_dir / "models.json").write_text(
+        json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _start_inference_proxy(
+    request: AdapterRequest,
+    env: dict[str, str],
+    agent_dir: Path,
+) -> InferenceOnlyUnixProxy | None:
+    if request.profile.adapter_options.get("inference_mode") not in LOCAL_ONLY_MODES:
+        return None
+    proxy_options = request.profile.adapter_options.get("inference_proxy")
+    if not isinstance(proxy_options, dict):
+        raise AdapterUnavailableError(
+            "local-only Prime requires the mission-owned inference proxy",
+            code="INFERENCE_PROXY_REQUIRED",
+        )
+    proxy_port = proxy_options.get("worker_port")
+    if not isinstance(proxy_port, int) or isinstance(proxy_port, bool):
+        raise AdapterUnavailableError(
+            "local inference proxy port is not bounded",
+            code="INFERENCE_PROXY_REQUIRED",
+        )
+    proxy_socket = request.evidence_dir / f"{request.attempt_id}.inference.sock"
+    proxy = InferenceOnlyUnixProxy(
+        proxy_socket,
+        audit_path=request.evidence_dir / f"{request.attempt_id}.inference-audit.jsonl",
+    )
+    proxy.start()
+    env["ATLAS_PRIME_INFERENCE_PROXY_SOCKET"] = str(proxy_socket)
+    env["ATLAS_PRIME_INFERENCE_PROXY_PORT"] = str(proxy_port)
+    _write_local_provider_config(
+        agent_dir,
+        provider=str(request.profile.adapter_options["provider"]),
+        port=proxy_port,
+        model=str(request.profile.model),
+    )
+    return proxy
+
+
+def _available_memory_bytes() -> int:
+    """Read Linux's conservative available-memory estimate without a library."""
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        return 0
+    return 0
+
+
+def _validate_resource_limits(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise AdapterUnavailableError(
+            "local-only Prime requires explicit user cgroup resource limits",
+            code="RESOURCE_LIMITS_REQUIRED",
+        )
+    memory = value.get("memory_max_bytes")
+    cpu = value.get("cpu_quota_percent")
+    tasks = value.get("tasks_max")
+    if (
+        not isinstance(memory, int)
+        or isinstance(memory, bool)
+        or memory < 1
+        or memory > PILOT_MEMORY_MAX_BYTES
+        or not isinstance(cpu, int)
+        or isinstance(cpu, bool)
+        or not 1 <= cpu <= PILOT_CPU_QUOTA_PERCENT
+        or not isinstance(tasks, int)
+        or isinstance(tasks, bool)
+        or not 1 <= tasks <= 256
+        or shutil.which("systemd-run") is None
+    ):
+        raise AdapterUnavailableError(
+            "Prime resource limits must use bounded user systemd cgroup settings",
+            code="RESOURCE_LIMITS_UNAVAILABLE",
+        )
+
+
+def _resource_limited_argv(profile: AgentProfile, command: list[str]) -> list[str]:
+    limits = profile.adapter_options.get("resource_limits")
+    if not isinstance(limits, dict):
+        return command
+    _validate_resource_limits(limits)
+    return [
+        str(shutil.which("systemd-run") or "systemd-run"),
+        "--user",
+        "--scope",
+        "--quiet",
+        "--property",
+        f"MemoryMax={limits['memory_max_bytes']}",
+        "--property",
+        f"CPUQuota={limits['cpu_quota_percent']}%",
+        "--property",
+        f"TasksMax={limits['tasks_max']}",
+        "--",
+        *command,
+    ]
+
+
+def _add_user_scope_environment(profile: AgentProfile, env: dict[str, str]) -> None:
+    """Give systemd-run only the non-secret user-bus coordinates it needs."""
+    if not isinstance(profile.adapter_options.get("resource_limits"), dict):
+        return
+    for name in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"):
+        value = os.environ.get(name)
+        if value:
+            env[name] = value
+
+
+def _add_kernel_python_environment(profile: AgentProfile, env: dict[str, str]) -> None:
+    """Bind Prime's persistent kernel to an explicit, prevalidated interpreter."""
+    value = profile.adapter_options.get("kernel_python")
+    if value is None:
+        return
+    if not isinstance(value, str) or not value.strip():
+        raise AdapterUnavailableError(
+            "Prime kernel_python must be an explicit Python executable",
+            code="INVALID_KERNEL_PYTHON",
+        )
+    python = Path(value).expanduser()
+    if not python.is_absolute() or not python.is_file() or not os.access(python, os.X_OK):
+        raise AdapterUnavailableError(
+            "Prime kernel_python must point to an executable interpreter",
+            code="INVALID_KERNEL_PYTHON",
+        )
+    env["PRIME_AGENT_KERNEL_PYTHON"] = str(python)
 
 
 def _git_identity(workspace: Path) -> tuple[str | None, str | None]:

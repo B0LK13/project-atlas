@@ -110,6 +110,45 @@ def _run(tmp_path: Path, program: Path) -> Any:
     return supervisor.start()
 
 
+def test_prime_diagnostic_projection_reads_only_attempt_owned_evidence(tmp_path: Path) -> None:
+    """AS-PRIME-TOOLCALL-DIAGNOSTICS-001: no state writes or path escape."""
+    from project_atlas.orchestration.program.store import evidence_dir
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    program = _program(tmp_path, workspace, tasks=["alpha"])
+    _run(tmp_path, program)
+    root = tmp_path / "state"
+    state = load_state(root)
+    assert state is not None
+    attempt = next(iter(state.attempts.values()))
+    attempt.adapter = "prime-agent"
+    name = "attempt.prime-rpc.jsonl"
+    attempt.evidence_paths = (name,)
+    persist_state(root, state)
+    evidence = evidence_dir(root) / name
+    evidence.write_text(json.dumps({"type": "message_end", "message": {
+        "role": "assistant", "content": [{"type": "text", "text": "ipython()"}]}}) + "\n")
+    before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    view = control.control_view(root, load_program(program))
+    diagnostic = view["tasks"][0]["last_attempt"]["toolcall_diagnostic"]
+    assert diagnostic["status"] == "no_structured_toolcall"
+    assert diagnostic["sources"][0]["path"] == name
+    assert {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
+
+    evidence.write_text('{"type":"message_end"')
+    assert control.control_view(root, load_program(program))["tasks"][0][
+        "last_attempt"]["toolcall_diagnostic"]["status"] == "unknown"
+    evidence.unlink()
+    outside = tmp_path / "outside.prime-rpc.jsonl"
+    outside.write_text('{"type":"agent_end"}\n')
+    evidence.symlink_to(outside)
+    diagnostic = control.control_view(root, load_program(program))["tasks"][0][
+        "last_attempt"]["toolcall_diagnostic"]
+    assert diagnostic["status"] == "unknown"
+    assert diagnostic["sources"] == []
+
+
 # ---------------------------------------------------------------- the view
 
 

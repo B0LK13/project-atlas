@@ -130,7 +130,9 @@ def _run_command(
     )
 
 
-def _git_tree_changed(workspace: Path, profile: AgentProfile) -> CheckResult:
+def _git_tree_changed(
+    workspace: Path, profile: AgentProfile, path: str | None = None
+) -> CheckResult:
     """Did the worker change anything tracked, at all?
 
     A weak condition on purpose: it is the answer to "did this run do
@@ -140,8 +142,11 @@ def _git_tree_changed(workspace: Path, profile: AgentProfile) -> CheckResult:
     untouched.
     """
     try:
+        command = ["git", "status", "--porcelain"]
+        if path is not None:
+            command += ["--", path]
         completed = subprocess.run(
-            ["git", "status", "--porcelain"],
+            command,
             cwd=str(workspace),
             env=build_child_env(profile),
             capture_output=True,
@@ -164,7 +169,13 @@ def _git_tree_changed(workspace: Path, profile: AgentProfile) -> CheckResult:
             detail=(completed.stderr or "")[-_MAX_CAPTURE:] or "git status failed",
             exit_status=completed.returncode,
         )
-    changed = [line for line in (completed.stdout or "").splitlines() if line.strip()]
+    # Tracked changes only. Untracked artifacts (??) must not satisfy
+    # GIT_TREE_CHANGED — that loophole certified an empty Prime candidate.
+    changed = [
+        line
+        for line in (completed.stdout or "").splitlines()
+        if line.strip() and not line.startswith("??")
+    ]
     return CheckResult(
         check_id="git_tree_changed",
         kind=AcceptanceKind.GIT_TREE_CHANGED,
@@ -184,15 +195,13 @@ def evaluate_check(
         return _run_command(check, workspace=workspace, profile=profile)
 
     if check.kind is AcceptanceKind.GIT_TREE_CHANGED:
-        return _git_tree_changed(workspace, profile)
+        return _git_tree_changed(workspace, profile, check.path)
 
     assert check.path is not None  # guaranteed by the model validator
     try:
         target = _resolve_inside(workspace, check.path)
     except AcceptanceError as exc:
-        return CheckResult(
-            check_id=check.check_id, kind=check.kind, passed=False, detail=str(exc)
-        )
+        return CheckResult(check_id=check.check_id, kind=check.kind, passed=False, detail=str(exc))
 
     if check.kind is AcceptanceKind.FILE_EXISTS:
         exists = target.is_file()
@@ -226,9 +235,7 @@ def evaluate_check(
         check_id=check.check_id,
         kind=check.kind,
         passed=matched,
-        detail=(
-            f"{check.path} {'matches' if matched else 'does not match'} the pattern"
-        ),
+        detail=(f"{check.path} {'matches' if matched else 'does not match'} the pattern"),
     )
 
 
@@ -244,13 +251,18 @@ def evaluate_task(
     task did not pass is worse than a complete one, and the checks are read
     operations over a workspace the worker has already finished with.
     """
-    results = tuple(
-        evaluate_check(check, workspace=workspace, profile=profile)
-        for check in task.acceptance
-    )
-    return AcceptanceResult(
-        passed=all(result.passed for result in results), checks=results
-    )
+    return evaluate_checks(task.acceptance, workspace=workspace, profile=profile)
+
+
+def evaluate_checks(
+    checks: tuple[AcceptanceCheck, ...] | list[AcceptanceCheck],
+    *,
+    workspace: Path,
+    profile: AgentProfile,
+) -> AcceptanceResult:
+    """Evaluate an approved check set without manufacturing a coding task."""
+    results = tuple(evaluate_check(check, workspace=workspace, profile=profile) for check in checks)
+    return AcceptanceResult(passed=all(result.passed for result in results), checks=results)
 
 
 def progress_fingerprint(workspace: Path, profile: AgentProfile) -> str:

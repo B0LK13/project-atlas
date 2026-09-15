@@ -7,6 +7,7 @@ import json
 import socket
 import threading
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,6 +23,7 @@ from project_atlas.orchestration.program.adapters.prime_agent import (
     PrimeExecutorAdapter,
     PrimeFrameError,
     PrimeFrameParser,
+    _add_kernel_python_environment,
     _git_identity,
     _prime_failure_class,
     _resume_cursor_for_session,
@@ -31,6 +33,141 @@ from project_atlas.orchestration.program.adapters.prime_agent import (
     probe_local_model_endpoint,
 )
 from project_atlas.orchestration.program.profiles import AdapterKind, AgentProfile
+
+# AS-PRIME-TOOLCALL-DIAGNOSTICS-001: minimized stored capability-1 events,
+# lines 264, 266, 268. Variants below are parser fixtures, never executed code.
+_CALL = {"id": "call_5skd626n", "name": "ipython", "type": "toolCall",
+         "arguments": {"code": 'print("ATLAS_PRIME_KERNEL_TOOLCALL_OK")'}}
+_CALL_END = {"type": "message_update", "assistantMessageEvent": {
+    "type": "toolcall_end", "contentIndex": 1, "toolCall": _CALL}}
+_KERNEL_END = {"type": "tool_execution_end", "toolCallId": "call_5skd626n",
+               "toolName": "ipython", "isError": True, "result": {
+                   "content": [{"type": "text", "text":
+                       "PRIME_AGENT_KERNEL_PYTHON points to a Python missing a current "
+                       "prime-agent-runtime with callable rlm.spawn, rlm.create_session, "
+                       "rlm.host_request, and explicit harness CRUD methods: "
+                       "/tmp/atlas-prime-pilot.JF33Zo/kernel-venv/bin/python"}],
+                   "details": {}}}
+
+
+@pytest.mark.parametrize(("records", "status", "call_state"), [
+    ([], "unknown", "unknown"),
+    ([{"type": "response", "command": "prompt", "success": True}], "unknown", "unknown"),
+    ([{"type": "message_end", "message": {"role": "assistant", "content": [
+        {"type": "text", "text": 'ipython({"code":"print(1)"})'}]}}],
+     "no_structured_toolcall", "absent"),
+    ([_CALL_END], "unknown", "valid"),
+    ([{"type": "message_update", "assistantMessageEvent": {
+        "type": "toolcall_start", "contentIndex": 1}}],
+     "invalid_or_incomplete_toolcall", "invalid_or_incomplete"),
+    ([{"type": "message_update", "assistantMessageEvent": {
+        "type": "toolcall_end", "toolCall": {**_CALL, "arguments": {"code": 4}}}}],
+     "invalid_or_incomplete_toolcall", "invalid_or_incomplete"),
+    ([_CALL_END, _KERNEL_END], "kernel_start_failure", "valid"),
+    ([_CALL_END, {**_KERNEL_END, "result": {"content": [
+        {"type": "text", "text": "Tool execution was blocked"}]}}],
+     "valid_call_rejected", "valid"),
+    ([{**_KERNEL_END, "isError": False}], "tool_result_received", "unknown"),
+    ([_KERNEL_END], "kernel_start_failure", "unknown"),
+    ([{"type": "message_end", "message": {"role": "toolResult",
+        "toolCallId": "call_5skd626n", "toolName": "ipython", "isError": False,
+        "content": [{"type": "text", "text": "result"}]}}],
+     "tool_result_received", "unknown"),
+    ([{"type": "tool_execution_start", "toolCallId": "call_5skd626n",
+       "toolName": "ipython", "args": _CALL["arguments"]}], "unknown", "valid"),
+])
+def test_toolcall_diagnostic_uses_structured_evidence(
+    records: list[dict[str, Any]], status: str, call_state: str,
+) -> None:
+    from project_atlas.orchestration.program.adapters import prime_agent
+
+    before = json.dumps(records, sort_keys=True)
+    result = prime_agent.diagnose_prime_toolcall(records)
+    assert result["status"] == status
+    assert result["structured_call"] == call_state
+    assert json.dumps(records, sort_keys=True) == before
+    assert "print(" not in json.dumps(result)
+    assert "kernel-venv" not in json.dumps(result)
+
+
+def test_provider_fragments_are_assembled_only_with_terminal_evidence() -> None:
+    from project_atlas.orchestration.program.adapters import prime_agent
+
+    chunks = [
+        {"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0,
+            "id": "call_5skd626n", "type": "function", "function": {
+                "name": "ipython", "arguments": '{"co'}}]}, "finish_reason": None}]},
+        {"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0,
+            "function": {"arguments": 'de":"print(1)"}'}}]}, "finish_reason": None}]},
+    ]
+    assert prime_agent.diagnose_prime_toolcall(chunks)["status"] == (
+        "invalid_or_incomplete_toolcall")
+    chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+    result = prime_agent.diagnose_prime_toolcall(chunks)
+    assert result["status"] == "unknown"
+    assert result["structured_call"] == "valid"
+
+
+def test_missing_offer_is_not_inferred_from_missing_transcript_fields() -> None:
+    from project_atlas.orchestration.program.adapters import prime_agent
+
+    assert prime_agent.diagnose_prime_toolcall([])["status"] == "unknown"
+    assert prime_agent.diagnose_prime_toolcall([], request={})["status"] == "tool_not_offered"
+    assert prime_agent.diagnose_prime_toolcall(
+        [{"event": "forwarded", "method": "POST", "target": "/v1/chat/completions"}]
+    )["status"] == "unknown"
+
+
+def test_daemon_envelope_and_incomplete_schema_keep_their_meaning() -> None:
+    from project_atlas.orchestration.program.adapters import prime_agent
+
+    assert prime_agent.diagnose_prime_toolcall([
+        {"type": "event", "event": _CALL_END}, {"type": "event", "event": _KERNEL_END}
+    ])["status"] == "kernel_start_failure"
+    invalid = {"type": "message_update", "assistantMessageEvent": {
+        "type": "toolcall_end", "toolCall": {**_CALL, "arguments": {}}}}
+    error_result = {**_KERNEL_END, "result": {"content": [
+        {"type": "text", "text": "Validation failed for tool ipython"}]}}
+    assert prime_agent.diagnose_prime_toolcall([invalid, error_result])["status"] == (
+        "invalid_or_incomplete_toolcall")
+
+
+def test_complete_provider_response_and_unrelated_rejection() -> None:
+    from project_atlas.orchestration.program.adapters import prime_agent
+
+    response = {"choices": [{"index": 0, "finish_reason": "stop", "message": {
+        "role": "assistant", "content": "Tool execution was blocked"}}]}
+    assert prime_agent.diagnose_prime_toolcall([response])["status"] == (
+        "no_structured_toolcall")
+    response["choices"][0]["message"] = {"role": "assistant", "content": None,
+        "tool_calls": [{"id": "call_5skd626n", "type": "function", "function": {
+            "name": "ipython", "arguments": '{"code":"print(1)"}'}}]}
+    result = prime_agent.diagnose_prime_toolcall([response])
+    assert result["structured_call"] == "valid"
+    assert result["status"] == "unknown"
+    unrelated = {**_KERNEL_END, "toolCallId": "another-call", "result": {
+        "content": [{"type": "text", "text": "Tool execution was blocked"}]}}
+    assert prime_agent.diagnose_prime_toolcall([_CALL_END, unrelated])["status"] == (
+        "tool_result_received")
+
+
+def test_native_fragment_completion_and_result_receipt() -> None:
+    from project_atlas.orchestration.program.adapters import prime_agent
+
+    records = [
+        {"type": "message_update", "assistantMessageEvent": {
+            "type": "toolcall_start", "contentIndex": 1}},
+        {"type": "message_update", "assistantMessageEvent": {
+            "type": "toolcall_delta", "contentIndex": 1, "delta": '{"code":'}},
+        {"type": "message_update", "assistantMessageEvent": {
+            "type": "toolcall_delta", "contentIndex": 1, "delta": '"print(1)"}'}},
+        _CALL_END,
+        _KERNEL_END,
+    ]
+    result = prime_agent.diagnose_prime_toolcall(records)
+    assert result["structured_call"] == "valid"
+    assert result["result_events"] == [
+        {"record": 5, "status": "kernel_start_failure", "is_error": True}]
 
 
 def test_parser_accepts_lf_and_crlf_but_not_unicode_record_separators() -> None:
@@ -65,6 +202,25 @@ def test_prompt_ack_is_not_a_terminal_result() -> None:
     assert adapter.capabilities.accepts_assigned_session is False
     assert adapter.capabilities.version == ADAPTER_VERSION
     assert adapter.upstream_sha == PRIME_UPSTREAM_SHA
+
+
+def test_kernel_python_is_explicitly_bound_and_rejects_missing_interpreter(tmp_path: Path) -> None:
+    profile = AgentProfile(
+        profile_id="prime",
+        agent_id="prime-agent",
+        adapter=AdapterKind.PRIME_AGENT,
+        capabilities=("IMPLEMENT",),
+        adapter_options={"kernel_python": str(tmp_path / "python")},
+    )
+    env: dict[str, str] = {}
+    with pytest.raises(AdapterUnavailableError, match="executable interpreter"):
+        _add_kernel_python_environment(profile, env)
+
+    interpreter = tmp_path / "python"
+    interpreter.write_text("#!/bin/sh\n", encoding="utf-8")
+    interpreter.chmod(0o755)
+    _add_kernel_python_environment(profile, env)
+    assert env["PRIME_AGENT_KERNEL_PYTHON"] == str(interpreter)
 
 
 def test_command_ids_are_stable_for_reconnect_replay() -> None:

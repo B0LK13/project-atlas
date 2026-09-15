@@ -57,8 +57,9 @@ from project_atlas.orchestration.program.runtimes import (
     describe_all,
     inventory_unimplemented,
 )
-from project_atlas.orchestration.program.store import read_events
+from project_atlas.orchestration.program.store import read_events, state_dir
 from project_atlas.orchestration.program.supervisor import ProgramSupervisor
+from project_atlas.orchestration.program.verification import read_review_record
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -158,9 +159,7 @@ def run_validate(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                     if task.external_precondition
                     else None
                 ),
-                "requires_independent_verification": (
-                    task.requires_independent_verification
-                ),
+                "requires_independent_verification": (task.requires_independent_verification),
                 "verifier_profile_ref": task.verifier_profile_ref,
             }
         )
@@ -187,9 +186,7 @@ def run_start(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     supervisor = _supervisor(args)
     report = supervisor.start()
     payload = report.to_public_dict()
-    payload["enrolled_agents_bound"] = [
-        agent.agent_id for agent in supervisor.enrolled_agents
-    ]
+    payload["enrolled_agents_bound"] = [agent.agent_id for agent in supervisor.enrolled_agents]
     return payload, EXIT_OK
 
 
@@ -206,9 +203,7 @@ def run_cancel(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 def run_reconcile(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     supervisor = _supervisor(args)
     return (
-        supervisor.reconcile(
-            resolve_uncertain=getattr(args, "resolve_uncertain", None)
-        ),
+        supervisor.reconcile(resolve_uncertain=getattr(args, "resolve_uncertain", None)),
         EXIT_OK,
     )
 
@@ -269,6 +264,19 @@ def run_events(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return {"program_id": loaded.program.program_id, "events": rows}, EXIT_OK
 
 
+def run_reviews(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """Read verification receipts; this command never dispatches or writes."""
+    loaded = load_program(Path(args.program))
+    root = _state_root(args, loaded)
+    review_root = state_dir(root) / "reviews"
+    records = []
+    for path in sorted(review_root.glob("*.json")):
+        record = read_review_record(root=state_dir(root), review_id=path.stem)
+        if record is not None:
+            records.append(record.model_dump(mode="json"))
+    return {"program_id": loaded.program.program_id, "reviews": records}, EXIT_OK
+
+
 # ------------------------------------------------------------------ control
 
 
@@ -279,9 +287,7 @@ def run_control(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     action = getattr(args, "action", None)
     if not action:
         return (
-            control.control_view(
-                root, loaded, event_limit=int(getattr(args, "events", 25) or 25)
-            ),
+            control.control_view(root, loaded, event_limit=int(getattr(args, "events", 25) or 25)),
             EXIT_OK,
         )
     return (
@@ -356,9 +362,7 @@ def run_agent_enroll(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 f"--narrow is not valid JSON: {exc}", code="NARROWING_MALFORMED"
             ) from exc
         if not isinstance(parsed, dict):
-            raise EnrollmentError(
-                "--narrow must be a JSON object", code="NARROWING_MALFORMED"
-            )
+            raise EnrollmentError("--narrow must be a JSON object", code="NARROWING_MALFORMED")
         narrowing = parsed
     agent = enroll(
         _registry_root(args),
@@ -391,9 +395,7 @@ def run_agent_list(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "registry": str(_registry_root(args)),
             "agents": [
                 agent.model_dump(mode="json")
-                for agent in sorted(
-                    registry.agents.values(), key=lambda item: item.agent_id
-                )
+                for agent in sorted(registry.agents.values(), key=lambda item: item.agent_id)
             ],
         },
         EXIT_OK,
@@ -406,9 +408,7 @@ def run_agent_assign(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         agent_id=str(args.agent_id),
         program_path=Path(args.program),
         assigned_by=str(args.assigned_by),
-        allow_runtime_substitution=bool(
-            getattr(args, "allow_runtime_substitution", False)
-        ),
+        allow_runtime_substitution=bool(getattr(args, "allow_runtime_substitution", False)),
     )
     effective = bind(agent, loaded, allow_runtime_substitution=True)
     return (
@@ -435,9 +435,7 @@ def run_agent_status(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     registry = load_registry(_registry_root(args))
     agent = registry.agents.get(str(args.agent_id))
     if agent is None:
-        raise EnrollmentError(
-            f"unknown agent {args.agent_id}", code="UNKNOWN_AGENT"
-        )
+        raise EnrollmentError(f"unknown agent {args.agent_id}", code="UNKNOWN_AGENT")
     assigned = agent.assigned_program
     loaded = load_program(Path(assigned)) if assigned is not None else None
     payload = identity_view(agent, loaded)
@@ -448,9 +446,7 @@ def run_agent_status(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 
 def run_agent_set_status(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
-    agent = set_status(
-        _registry_root(args), agent_id=str(args.agent_id), status=str(args.status)
-    )
+    agent = set_status(_registry_root(args), agent_id=str(args.agent_id), status=str(args.status))
     return (
         {
             "agent_id": agent.agent_id,
@@ -470,9 +466,7 @@ def run_agent_launch(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     registry = load_registry(_registry_root(args))
     agent = registry.agents.get(str(args.agent_id))
     if agent is None:
-        raise EnrollmentError(
-            f"unknown agent {args.agent_id}", code="UNKNOWN_AGENT"
-        )
+        raise EnrollmentError(f"unknown agent {args.agent_id}", code="UNKNOWN_AGENT")
     if agent.status is not AgentStatus.ACTIVE:
         raise EnrollmentError(
             f"agent {agent.agent_id} is {agent.status.value}", code="AGENT_NOT_ACTIVE"
@@ -482,15 +476,16 @@ def run_agent_launch(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             f"agent {agent.agent_id} has no assigned program", code="NO_ASSIGNMENT"
         )
     loaded = load_program(Path(agent.assigned_program))
+    enrolled_agents, registry_root = _enrolled_for(
+        argparse.Namespace(registry=args.registry), loaded
+    )
     supervisor = ProgramSupervisor(
         loaded,
-        state_root=Path(
-            getattr(args, "state_root", None) or Path(agent.assigned_program).parent
-        ),
-        enrolled_agents=(agent,),
+        state_root=Path(getattr(args, "state_root", None) or Path(agent.assigned_program).parent),
+        enrolled_agents=enrolled_agents,
         # So a suspension, retirement or withdrawn grant recorded while the
         # program runs is seen before the NEXT dispatch, not cached from here.
-        registry_root=_registry_root(args),
+        registry_root=registry_root,
     )
     report = supervisor.start()
     payload = report.to_public_dict()
@@ -505,6 +500,7 @@ _HANDLERS = {
     "cancel": run_cancel,
     "reconcile": run_reconcile,
     "events": run_events,
+    "reviews": run_reviews,
     "runtimes": run_runtimes,
     "capabilities": run_capabilities,
     "credentials": run_credentials,
@@ -530,6 +526,7 @@ _PROGRAM_SCOPED = (
     "cancel",
     "reconcile",
     "events",
+    "reviews",
     "handoff",
     "service",
     "control",
@@ -565,6 +562,7 @@ def register_program_parser(
         ("cancel", "Ask a running supervisor to stop before its next launch."),
         ("reconcile", "Inspect interrupted attempts; optionally settle one."),
         ("events", "Print the tail of the durable event log."),
+        ("reviews", "Read verification-only review receipts (dispatches nothing)."),
         ("runtimes", "Report supported runtimes and what they cannot do."),
         (
             "capabilities",
@@ -612,8 +610,7 @@ def register_program_parser(
                 "--session-id",
                 required=True,
                 help=(
-                    "The runtime's own id for a session it has STORED. No live "
-                    "process is adopted."
+                    "The runtime's own id for a session it has STORED. No live process is adopted."
                 ),
             )
             child.add_argument(
@@ -794,9 +791,7 @@ def register_agent_parser(
         "--status", required=True, choices=[item.value for item in AgentStatus]
     )
 
-    launch_cmd = _with_registry(
-        sub.add_parser("launch", help="Run this agent's assigned program.")
-    )
+    launch_cmd = _with_registry(sub.add_parser("launch", help="Run this agent's assigned program."))
     launch_cmd.add_argument("--agent-id", required=True)
     launch_cmd.add_argument("--state-root", type=Path, default=None)
     return parser
@@ -850,8 +845,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m project_atlas.orchestration.program.cli",
         description=(
-            "AS-ORCH-PROGRAM-SUPERVISOR-001 -- continuous execution of an "
-            "approved work program."
+            "AS-ORCH-PROGRAM-SUPERVISOR-001 -- continuous execution of an approved work program."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
