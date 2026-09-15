@@ -310,9 +310,11 @@ For iteration `n`:
    contains the grant. Read the directive and `autonomy/verdicts/V-<n-1>.md` (if any).
    Ignore chat memory. A stale `origin/main` is not a clean gate.
 2. **Preflight.** `python autonomy/tools/preflight.py preflight --iteration <n>`. The tool
-   also fetches a remote-tracking `--grant-ref` before judging `HALT` / `HALT-REQUEST` and
-   the grant, policy, and granted-directive pins. A non-zero exit stops the iteration with
-   no code changes.
+   also fetches a remote-tracking `--grant-ref` (including `refs/remotes/<remote>/<branch>`)
+   and then judges `HALT` / `HALT-REQUEST` and the grant, policy, and granted-directive pins
+   on the unambiguous remotes ref, so a local branch named `origin/main` cannot shadow the
+   fetched tip. Scope also rejects edits to the granted directive; propose `D-<n+1>`
+   instead. A non-zero exit stops the iteration with no code changes.
 3. **Plan.** Write a plan of at most 10 lines at the top of the packet before touching code:
    target, files, tests to add, verification command per lane.
 4. **Execute.** Branch `iter/<n>`. Stay inside the section 4 scopes. Stop at budget. Every

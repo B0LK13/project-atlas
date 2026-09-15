@@ -15101,5 +15101,11 @@ segments.
 `autonomy/loop.yaml` re-pinned:
 `policy_sha: d2731e88c3571560cd97b6918322f2a94c865b5db479a3a0ee11f0d03afea6e8`.
 
+Independent IV on `7ace1fe0` then reproduced a remedi-introduced fail-open: a local
+branch named `origin/main` shadowed the fetched `refs/remotes/origin/main`, so
+`git show origin/main:autonomy/HALT` missed the owner kill switch. Follow-up remedi
+returns the unambiguous remotes ref after fetch, still fetches `refs/remotes/…`
+grant refs, and rejects granted-directive edits at the scope gate.
+
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**

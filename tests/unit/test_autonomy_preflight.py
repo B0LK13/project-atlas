@@ -412,8 +412,13 @@ def test_git_preflight_fetches_stale_origin_before_judging_halt(tmp_path: Path) 
     grant = pf.load_grant(work, 1)
     grant = replace(grant, base_sha=base)
     problems = pf.check_git_preflight(work, pf.load_policy(work), grant, "origin/main")
-    assert any("HALT exists on origin/main" in problem for problem in problems)
-    assert _git(work, "rev-parse", "origin/main").strip() == remote_tip
+    assert any("HALT exists on refs/remotes/origin/main" in problem for problem in problems)
+    assert _git(work, "rev-parse", "refs/remotes/origin/main").strip() == remote_tip
+    _git(work, "branch", "origin/main", stale)
+    shadowed = pf.check_git_preflight(work, pf.load_policy(work), grant, "origin/main")
+    assert any("HALT exists on refs/remotes/origin/main" in problem for problem in shadowed)
+    fullref = pf.check_git_preflight(work, pf.load_policy(work), grant, "refs/remotes/origin/main")
+    assert any("HALT exists on refs/remotes/origin/main" in problem for problem in fullref)
 
 
 @NEEDS_GIT
@@ -435,12 +440,12 @@ def test_git_preflight_rejects_a_rewritten_granted_directive(tmp_path: Path) -> 
     )
     assert any("D-ATLAS-ITER-1.md differs from grant-ref" in problem for problem in problems)
     _write(tmp_path / "autonomy/directives/D-ATLAS-ITER-2.md", "# next\n")
-    next_ok = pf.check_scope(
-        pf.load_policy(tmp_path),
-        pf.load_grant(tmp_path, 1),
-        [_change("autonomy/directives/D-ATLAS-ITER-2.md", "A")],
-    )
+    policy = pf.load_policy(tmp_path)
+    grant = pf.load_grant(tmp_path, 1)
+    next_ok = pf.check_scope(policy, grant, [_change("autonomy/directives/D-ATLAS-ITER-2.md", "A")])
     assert next_ok == []
+    pinned = pf.check_scope(policy, grant, [_change("autonomy/directives/D-ATLAS-ITER-1.md")])
+    assert any("granted directive is pinned" in problem for problem in pinned)
 
 
 @NEEDS_GIT

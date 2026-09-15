@@ -444,30 +444,42 @@ def _blob(root: Path, ref: str, rel: str) -> bytes | None:
     return result.stdout if result.returncode == 0 else None
 
 
+def _remote_tracking(grant_ref: str, remotes: list[str]) -> tuple[str, str] | None:
+    """Return ``(remote, branch)`` for a remote-tracking grant ref, else None."""
+    rest = grant_ref
+    if rest.startswith("refs/remotes/"):
+        rest = rest[len("refs/remotes/") :]
+    for remote in sorted(remotes, key=len, reverse=True):
+        prefix = f"{remote}/"
+        if rest.startswith(prefix):
+            name = rest[len(prefix) :]
+            if name:
+                return remote, name
+    return None
+
+
 def refresh_grant_ref(root: Path, grant_ref: str) -> str:
     """Fetch a remote-tracking grant ref before judging HALT and pins.
 
-    A name ``<remote>/<branch>`` for a configured remote is refreshed from that
-    remote. Fetch failure is fail-closed. Local branches and raw SHAs are unchanged.
+    A name ``<remote>/<branch>`` or ``refs/remotes/<remote>/<branch>`` is
+    refreshed from that remote and returned as the unambiguous remotes ref so a
+    local branch of the same name cannot shadow the fetched tip. Fetch failure
+    is fail-closed. Local branches and raw SHAs are unchanged.
     """
     remotes = [line for line in _git_ok(root, "remote").decode("utf-8").splitlines() if line]
-    for remote in sorted(remotes, key=len, reverse=True):
-        prefix = f"{remote}/"
-        if not grant_ref.startswith(prefix):
-            continue
-        name = grant_ref[len(prefix) :]
-        if not name:
-            continue
-        _git_ok(
-            root,
-            "fetch",
-            "--no-tags",
-            "--update-head-ok",
-            remote,
-            f"+refs/heads/{name}:refs/remotes/{remote}/{name}",
-        )
+    parsed = _remote_tracking(grant_ref, remotes)
+    if parsed is None:
         return grant_ref
-    return grant_ref
+    remote, name = parsed
+    _git_ok(
+        root,
+        "fetch",
+        "--no-tags",
+        "--update-head-ok",
+        remote,
+        f"+refs/heads/{name}:refs/remotes/{remote}/{name}",
+    )
+    return f"refs/remotes/{remote}/{name}"
 
 
 def check_git_preflight(root: Path, policy: Policy, grant: Grant, grant_ref: str) -> list[str]:
@@ -572,7 +584,11 @@ def check_scope(
     problems: list[str] = []
     for change in changes:
         path = change.path
-        if path in KILL_SWITCHES:
+        if path == grant.directive:
+            problems.append(
+                f"{path}: granted directive is pinned; propose D-{grant.iteration + 1} instead"
+            )
+        elif path in KILL_SWITCHES:
             if change.status != "A":
                 problems.append(f"{path}: may be created, never modified or removed")
         elif matches_any(path, NEVER_WRITABLE):
