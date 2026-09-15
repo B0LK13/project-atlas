@@ -1,25 +1,30 @@
-"""D-ATLAS-RSI-GOVERNED-LOOP-001: governed RSI loop preflight and scope gate.
+"""D-ATLAS-RSI-GOVERNED-LOOP-001 / D-ATLAS-AUTONOMY-LADDER-001: governed loop gate.
 
-Pins the owner-controlled gate in ``autonomy/tools/preflight.py`` against the rules in
-``autonomy/policy.md`` section 4-5, and fails CI if the ``loop.yaml`` pin drifts from
+Pins the owner-controlled gate in ``autonomy/tools/preflight.py`` against
+``autonomy/policy.md`` sections 4, 5 and 8.1 (scopes per role and autonomy level, role
+separation, ledger rules and retry cap), and fails CI if the ``loop.yaml`` pin drifts from
 the policy bytes.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOL = REPO_ROOT / "autonomy" / "tools" / "preflight.py"
 BASE_SHA = "b87b4a226f4aa8b2f669edf112aa3476454f754f"
+NEEDS_GIT = pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
 
 
 def _load_tool() -> ModuleType:
@@ -39,7 +44,7 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def _grant_text(sha: str, *, iteration: int = 1, extra: str = "") -> str:
+def _grant_text(sha: str, *, iteration: int = 1) -> str:
     return (
         "---\n"
         f"grant: G-{iteration}\n"
@@ -48,15 +53,14 @@ def _grant_text(sha: str, *, iteration: int = 1, extra: str = "") -> str:
         f"policy_sha: {sha}\n"
         f"base_sha: {BASE_SHA}\n"
         f"directive: autonomy/directives/D-ATLAS-ITER-{iteration}.md\n"
-        f"{extra}"
         "---\n\nOwner grant.\n"
     )
 
 
 @pytest.fixture
 def loop_root(tmp_path: Path) -> Path:
-    """A granted iteration-1 loop tree built from the real policy and loop.yaml."""
-    for rel in (pf.POLICY_PATH, pf.LOOP_PATH):
+    """A granted iteration-1 loop tree built from the real policy, loop.yaml and ledger."""
+    for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / rel, tmp_path / rel)
     _write(tmp_path / pf.grant_path(1), _grant_text(pf.policy_sha(tmp_path)))
@@ -64,8 +68,16 @@ def loop_root(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _grant(**overrides: object) -> object:
-    fields: dict[str, object] = {
+def _repin(root: Path) -> None:
+    sha = pf.policy_sha(root)
+    loop = root / pf.LOOP_PATH
+    pinned = re.sub(r"^policy_sha: .*$", f"policy_sha: {sha}", loop.read_text("utf-8"), flags=re.M)
+    _write(loop, pinned)
+    _write(root / pf.grant_path(1), _grant_text(sha))
+
+
+def _grant(**overrides: Any) -> Any:
+    fields: dict[str, Any] = {
         "iteration": 1,
         "policy_sha": "0" * 64,
         "base_sha": BASE_SHA,
@@ -75,8 +87,33 @@ def _grant(**overrides: object) -> object:
     return pf.Grant(**fields)
 
 
-def _change(path: str, status: str = "M", added: int = 1, deleted: int = 0) -> object:
+def _change(path: str, status: str = "M", added: int = 1, deleted: int = 0) -> Any:
     return pf.Change(path, status, added, deleted)
+
+
+def _verdict(iteration: int, verdict: str) -> dict[str, Any]:
+    return {"event": "verdict", "iteration": iteration, "verdict": verdict}
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=loop-test",
+            "-c",
+            "user.email=loop-test@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.autocrlf=false",
+            *args,
+        ],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
 
 
 def test_glob_semantics_keep_single_star_within_a_segment() -> None:
@@ -93,11 +130,17 @@ def test_repo_loop_yaml_pins_the_current_policy_bytes() -> None:
     assert pf.load_loop(REPO_ROOT)["max_iterations_per_grant"] == 1
 
 
-def test_repo_policy_forbids_the_never_grantable_floor() -> None:
+def test_repo_policy_starts_at_level_0_with_role_floors_closed() -> None:
     policy = pf.load_policy(REPO_ROOT)
-    assert set(pf.NEVER_GRANTABLE) <= set(policy.forbidden)
+    assert policy.level == 0
+    assert set(pf.NEVER_WRITABLE + pf.EXECUTOR_NEVER) <= set(policy.forbidden)
     assert not set(policy.allowed) & set(policy.forbidden)
-    assert not any(pf.matches_any(glob, pf.NEVER_GRANTABLE) for glob in policy.allowed)
+    top = replace(policy, level=pf.MAX_AUTONOMY_LEVEL)
+    for role in pf.ROLES:
+        for glob in top.scopes_for(role, 1):
+            assert not pf.matches_any(glob, pf.NEVER_WRITABLE), (role, glob)
+            if role != "executor":
+                assert not pf.matches_any(glob, pf.NON_EXECUTOR_NEVER), (role, glob)
 
 
 def test_policy_sha_rejects_crlf_bytes(tmp_path: Path) -> None:
@@ -111,9 +154,10 @@ def test_preflight_passes_for_a_matching_grant(loop_root: Path) -> None:
     assert pf.check_preflight(loop_root, 1) == []
 
 
-def test_preflight_stops_on_halt(loop_root: Path) -> None:
-    _write(loop_root / pf.HALT_PATH, "stop\n")
-    assert any("HALT" in problem for problem in pf.check_preflight(loop_root, 1))
+@pytest.mark.parametrize("switch", ["autonomy/HALT", "autonomy/HALT-REQUEST"])
+def test_preflight_stops_on_either_kill_switch(loop_root: Path, switch: str) -> None:
+    _write(loop_root / switch, "stop\n")
+    assert pf.check_preflight(loop_root, 1) == [f"{switch} exists: the loop is stopped"]
 
 
 def test_preflight_requires_a_grant(loop_root: Path) -> None:
@@ -141,7 +185,73 @@ def test_preflight_rejects_mislabelled_grant_and_missing_directive(loop_root: Pa
     assert any("must declare grant: G-1" in problem for problem in pf.check_preflight(loop_root, 1))
 
 
-def test_scope_allows_granted_work_and_halt_creation() -> None:
+def test_multi_iteration_grants_need_autonomy_level_3(loop_root: Path) -> None:
+    loop = loop_root / pf.LOOP_PATH
+    text = loop.read_text("utf-8").replace(
+        "max_iterations_per_grant: 1", "max_iterations_per_grant: 3"
+    )
+    _write(loop, text)
+    assert any("autonomy level 3" in problem for problem in pf.check_preflight(loop_root, 1))
+    policy = loop_root / pf.POLICY_PATH
+    raised = policy.read_text("utf-8").replace("autonomy_level: 0\n", "autonomy_level: 3\n", 1)
+    _write(policy, raised)
+    _repin(loop_root)
+    assert pf.load_policy(loop_root).level == 3
+    assert pf.check_preflight(loop_root, 1) == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"not json\n",
+        b'{"event": "packet"}',
+        b'{"iteration": 1}\n',
+        b'{"event": "verdict", "iteration": 1, "verdict": "MERGE"}\n',
+        b'{"event": "verdict", "iteration": "1", "verdict": "CONTINUE"}\n',
+        b'{"event": "packet"}\n\n{"event": "packet"}\n',
+        b'{"event": "packet"}\r\n',
+    ],
+)
+def test_preflight_treats_a_malformed_ledger_as_tampering(loop_root: Path, content: bytes) -> None:
+    (loop_root / pf.LEDGER_PATH).write_bytes(content)
+    problems = pf.check_preflight(loop_root, 1)
+    assert len(problems) == 1 and pf.LEDGER_PATH in problems[0]
+
+
+@pytest.mark.parametrize(("redesigns", "capped"), [(0, False), (1, False), (2, False), (3, True)])
+def test_retry_cap_allows_two_redesign_reworks_then_stops(redesigns: int, capped: bool) -> None:
+    problems = pf.check_ledger([_verdict(1, "REDESIGN")] * redesigns, 1)
+    assert bool(problems) is capped
+    assert all("retry cap" in problem and "HALT-REQUEST" in problem for problem in problems)
+
+
+def test_preflight_enforces_the_retry_cap_from_the_ledger_file(loop_root: Path) -> None:
+    lines = "".join(json.dumps(_verdict(1, "REDESIGN")) + "\n" for _ in range(3))
+    _write(loop_root / pf.LEDGER_PATH, lines)
+    assert any("retry cap" in problem for problem in pf.check_preflight(loop_root, 1))
+
+
+def test_ledger_closes_pauses_and_sequences_iterations() -> None:
+    closed = pf.check_ledger([_verdict(1, "CONTINUE")], 1)
+    assert closed == ["iteration 1 is already closed by verdict CONTINUE"]
+    paused = [_verdict(1, "REDESIGN"), _verdict(1, "OWNER_DECISION_REQUIRED")]
+    assert pf.check_ledger(paused, 1) == ["iteration 1 is paused awaiting an owner decision"]
+    answered = [_verdict(1, "OWNER_DECISION_REQUIRED"), _verdict(1, "REDESIGN")]
+    assert pf.check_ledger(answered, 1) == []
+    assert any("iteration 1 has no CONTINUE" in p for p in pf.check_ledger([], 2))
+    assert any("iteration 1 has no CONTINUE" in p for p in pf.check_ledger(paused, 2))
+    for verdict in pf.NEXT_OPENING_VERDICTS:
+        assert pf.check_ledger([_verdict(1, verdict)], 2) == []
+
+
+def test_stop_verdict_holds_until_an_owner_resume_event() -> None:
+    stopped = [_verdict(1, "STOP")]
+    assert any("loop is stopped" in problem for problem in pf.check_ledger(stopped, 2))
+    resumed = [*stopped, {"event": "resume", "by": "owner"}]
+    assert not any("loop is stopped" in problem for problem in pf.check_ledger(resumed, 2))
+
+
+def test_scope_allows_granted_work_and_kill_switch_creation() -> None:
     policy = pf.load_policy(REPO_ROOT)
     changes = [
         _change("src/project_atlas/ask2.py"),
@@ -149,17 +259,27 @@ def test_scope_allows_granted_work_and_halt_creation() -> None:
         _change("autonomy/packets/RP-1.md", "A"),
         _change("autonomy/ledger.jsonl"),
         _change(pf.HALT_PATH, "A"),
+        _change(pf.HALT_REQUEST_PATH, "A"),
     ]
     assert pf.check_scope(policy, _grant(), changes) == []
 
 
 @pytest.mark.parametrize(
     "path",
-    ["autonomy/policy.md", "autonomy/grants/G-2.md", "autonomy/tools/preflight.py", ".github/x"],
+    [
+        "autonomy/policy.md",
+        "autonomy/loop.yaml",
+        "autonomy/tools/preflight.py",
+        ".github/workflows/ci.yml",
+        "autonomy/grants/G-2.md",
+        "autonomy/verdicts/V-1.md",
+        "autonomy/certs/C-1.md",
+        "autonomy/drift/D-1.md",
+    ],
 )
-def test_scope_floor_cannot_be_opened_by_a_grant(path: str) -> None:
-    policy = pf.load_policy(REPO_ROOT)
-    grant = _grant(scope_exceptions=(path, "autonomy/**", ".github/**"))
+def test_scope_executor_floor_cannot_be_opened_by_level_or_grant(path: str) -> None:
+    policy = replace(pf.load_policy(REPO_ROOT), level=pf.MAX_AUTONOMY_LEVEL)
+    grant = _grant(scope_exceptions=(path, "autonomy/**", ".github/**", "**"))
     assert pf.check_scope(policy, grant, [_change(path)])
 
 
@@ -171,18 +291,28 @@ def test_scope_forbidden_and_unlisted_paths_need_an_owner_exception() -> None:
     assert pf.check_scope(policy, opened, [_change("pyproject.toml"), _change("README.md")]) == []
 
 
-def test_scope_protects_halt_and_ledger_history() -> None:
+@pytest.mark.parametrize("switch", ["autonomy/HALT", "autonomy/HALT-REQUEST"])
+@pytest.mark.parametrize("role", ["executor", "verifier", "instrument", "supervisor"])
+def test_scope_protects_kill_switches_and_ledger_history(switch: str, role: str) -> None:
     policy = pf.load_policy(REPO_ROOT)
-    assert pf.check_scope(policy, _grant(), [_change(pf.HALT_PATH, "D", 0, 1)])
-    assert pf.check_scope(policy, _grant(), [_change(pf.LEDGER_PATH, "M", 1, 1)])
+    assert pf.check_scope(policy, _grant(), [_change(switch, "A")], role) == []
+    assert pf.check_scope(policy, _grant(), [_change(switch, "D", 0, 1)], role)
+    assert pf.check_scope(policy, _grant(), [_change(switch, "M", 1, 1)], role)
+    assert pf.check_scope(policy, _grant(), [_change(pf.LEDGER_PATH, "M", 1, 1)], role)
 
 
-def test_scope_phase_gates_the_verification_instruments() -> None:
-    policy = replace(pf.load_policy(REPO_ROOT), phase=0)
-    checklist = [_change("autonomy/instruments/verify-checklist.md")]
-    assert pf.check_scope(policy, _grant(), checklist)
-    assert pf.check_scope(replace(policy, phase=3), _grant(), checklist) == []
-    assert pf.check_scope(policy, _grant(), [_change("autonomy/instruments/skills/x.md")]) == []
+@pytest.mark.parametrize(
+    ("path", "level"),
+    [
+        ("autonomy/instruments/skills/x.md", 1),
+        ("autonomy/instruments/directive-template.md", 2),
+        ("autonomy/instruments/verify-checklist.md", 3),
+    ],
+)
+def test_scope_autonomy_level_unlocks_instruments_one_rung_at_a_time(path: str, level: int) -> None:
+    policy = pf.load_policy(REPO_ROOT)
+    assert pf.check_scope(replace(policy, level=level - 1), _grant(), [_change(path)])
+    assert pf.check_scope(replace(policy, level=level), _grant(), [_change(path)]) == []
 
 
 def test_scope_budget_counts_files_and_lines_with_grant_override() -> None:
@@ -196,46 +326,95 @@ def test_scope_budget_counts_files_and_lines_with_grant_override() -> None:
     assert pf.check_scope(policy, raised, big) == []
 
 
-@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
-def test_git_changes_and_ledger_append_only_against_a_real_repo(tmp_path: Path) -> None:
-    def git(*args: str) -> None:
-        subprocess.run(
-            [
-                "git",
-                "-c",
-                "user.name=loop-test",
-                "-c",
-                "user.email=loop-test@example.invalid",
-                "-c",
-                "commit.gpgsign=false",
-                "-c",
-                "core.autocrlf=false",
-                *args,
-            ],
-            cwd=tmp_path,
-            check=True,
-            capture_output=True,
-        )
+def test_scope_verifier_and_instrument_write_only_their_own_outputs() -> None:
+    policy = pf.load_policy(REPO_ROOT)
+    assert (
+        pf.check_scope(policy, _grant(), [_change("autonomy/certs/C-1.md", "A")], "verifier") == []
+    )
+    for path in ("autonomy/certs/C-2.md", "autonomy/packets/RP-1.md", "src/project_atlas/cli.py"):
+        assert pf.check_scope(policy, _grant(), [_change(path, "A")], "verifier"), path
+    drift = [_change("autonomy/drift/D-1.md", "A")]
+    assert pf.check_scope(policy, _grant(), drift, "instrument") == []
+    assert pf.check_scope(policy, _grant(), [_change("autonomy/certs/C-1.md", "A")], "instrument")
 
-    git("init", "-q")
+
+def test_scope_supervisor_issues_grants_from_level_2_and_never_edits_code() -> None:
+    policy = pf.load_policy(REPO_ROOT)
+    verdict = [_change("autonomy/verdicts/V-1.md", "A")]
+    grant_file = [_change("autonomy/grants/G-2.md", "A")]
+    assert pf.check_scope(policy, _grant(), verdict, "supervisor") == []
+    assert pf.check_scope(replace(policy, level=1), _grant(), grant_file, "supervisor")
+    assert pf.check_scope(replace(policy, level=2), _grant(), grant_file, "supervisor") == []
+    widened = replace(policy, role_scopes={"supervisor": {0: ("**",)}})
+    for path in ("src/project_atlas/cli.py", "tests/unit/test_x.py", "autonomy/tools/preflight.py"):
+        assert pf.check_scope(widened, _grant(), [_change(path)], "supervisor"), path
+    with pytest.raises(pf.ConfigError):
+        pf.check_scope(policy, _grant(), verdict, "owner")
+
+
+def test_ledger_appends_are_role_limited() -> None:
+    packet = b'{"event": "packet", "iteration": 1}\n'
+    verdict = (json.dumps(_verdict(1, "CONTINUE")) + "\n").encode()
+    resume = b'{"event": "resume", "by": "owner"}\n'
+    assert pf.check_ledger_append(packet, "executor") == []
+    assert pf.check_ledger_append(verdict, "executor")
+    assert pf.check_ledger_append(verdict, "supervisor") == []
+    assert pf.check_ledger_append(resume, "supervisor")
+    assert pf.check_ledger_append(b"{broken\n", "supervisor")
+
+
+@NEEDS_GIT
+def test_git_changes_and_ledger_append_against_a_real_repo(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
     _write(tmp_path / pf.LEDGER_PATH, '{"event": "packet", "iteration": 0}\n')
     _write(tmp_path / "src/old.py", "a = 1\n")
-    git("add", "-A")
-    git("commit", "-q", "-m", "base")
-    git("branch", "grant-ref")
-    git("checkout", "-q", "-b", "iter/1")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+    _git(tmp_path, "branch", "grant-ref")
+    _git(tmp_path, "checkout", "-q", "-b", "iter/1")
     with (tmp_path / pf.LEDGER_PATH).open("a", encoding="utf-8", newline="\n") as handle:
         handle.write('{"event": "packet", "iteration": 1}\n')
-    git("mv", "src/old.py", "src/new.py")
-    git("add", "-A")
-    git("commit", "-q", "-m", "iteration 1")
+    _git(tmp_path, "mv", "src/old.py", "src/new.py")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "iteration 1")
 
     changes = {change.path: change for change in pf.git_changes(tmp_path, "grant-ref", "HEAD")}
     assert set(changes) == {pf.LEDGER_PATH, "src/old.py", "src/new.py"}
     assert (changes["src/old.py"].status, changes["src/new.py"].status) == ("D", "A")
     assert (changes[pf.LEDGER_PATH].added, changes[pf.LEDGER_PATH].deleted) == (1, 0)
-    assert pf.ledger_is_append_only(tmp_path, "grant-ref", "HEAD")
+    appended = pf.ledger_append(tmp_path, "grant-ref", "HEAD")
+    assert appended == b'{"event": "packet", "iteration": 1}\n'
 
     _write(tmp_path / pf.LEDGER_PATH, '{"event": "packet", "iteration": 1}\n')
-    git("commit", "-q", "-am", "rewrite history")
-    assert not pf.ledger_is_append_only(tmp_path, "grant-ref", "HEAD")
+    _git(tmp_path, "commit", "-q", "-am", "rewrite history")
+    assert pf.ledger_append(tmp_path, "grant-ref", "HEAD") is None
+
+
+@NEEDS_GIT
+def test_role_trailers_keep_one_role_per_branch(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _write(tmp_path / "README.md", "base\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+    _git(tmp_path, "branch", "grant-ref")
+    _write(tmp_path / "src/a.py", "a = 1\n")
+    _git(tmp_path, "add", "-A")
+    message = "feat: a\n\nAtlas-Role: executor\nCo-Authored-By: x <x@example.invalid>\n"
+    _git(tmp_path, "commit", "-q", "-m", message)
+
+    records = pf.commit_roles(tmp_path, "grant-ref", "HEAD")
+    assert [roles for _, roles in records] == [("executor",)]
+    assert pf.check_roles(records, "executor") == []
+    assert pf.check_roles(records, "supervisor")
+
+    _write(tmp_path / "autonomy/verdicts/V-1.md", "CONTINUE\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "verdict\n\nAtlas-Role: supervisor\n")
+    _write(tmp_path / "src/b.py", "b = 1\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "no trailer")
+
+    problems = pf.check_roles(pf.commit_roles(tmp_path, "grant-ref", "HEAD"), "executor")
+    assert len(problems) == 2
+    assert any("declares Atlas-Role supervisor" in problem for problem in problems)
+    assert any("declares Atlas-Role none" in problem for problem in problems)

@@ -14974,3 +14974,71 @@ python autonomy/tools/preflight.py preflight --iteration 1      # exit 1, missin
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
+
+## D-ATLAS-AUTONOMY-LADDER-001: executor delta on `autonomy/scaffold` (after V-0)
+
+Supervisor verdict V-0 on `7a700b8e5d8487392b5d4e60ac199192ab77c479`: CONTINUE (conditional).
+The owner directive D-ATLAS-AUTONOMY-LADDER-001 executor `do_now` is applied to the policy
+while it is still DRAFT: merging PR #946 is the owner commit of `autonomy_level: 0`.
+
+**What changed**
+
+- `autonomy/policy.md`: `autonomy_level: 0` replaces `phase`. `level_gated_scopes` open
+  `instruments/skills/**` at level 1, `directive-template.md` at 2, `verify-checklist.md` at 3.
+  `role_scopes` give the verifier `autonomy/certs/C-{n}.md`, the instrument subagent
+  `autonomy/drift/**`, and the supervisor verdicts, packets, ledger, audits and proposals, plus
+  grants from level 2. New sections: authority ladder (11, supersedes the RSI section 8 phase
+  plan), stop and escalate with a mechanized/not-mechanized split (12), five-iteration audit
+  (13). `autonomy/HALT-REQUEST` is a second kill switch. Ledger event table and rules (8.1).
+- `autonomy/loop.yaml` re-pinned:
+  `policy_sha: fcb7b3e36bdfa276f37e615df80288423796a3783bb629e32fcc3a5f9b97d715`.
+- `autonomy/tools/preflight.py`: autonomy level; hard-coded floors for every role, for the
+  executor, and `src/**`/`tests/**` for every non-executor role; `scope --role`; `Atlas-Role`
+  commit trailer check (one role per branch); ledger parsed as a tamper check; STOP holds until
+  an owner `resume` event; closed and paused iterations; iteration `n` needs a
+  CONTINUE/ACCELERATE/DEFER for `n-1`; retry cap `MAX_REDESIGN_RETRIES = 2` hard-coded;
+  role-limited ledger appends; multi-iteration grants need level 3.
+- `autonomy/{certs,drift,audits,proposals}/` created; verify checklist and skills README updated.
+- `tests/unit/test_autonomy_preflight.py`: 20 -> 53 collected tests.
+
+**Decision taken on the stricter reading (owner may reverse)**
+
+The ladder lists no loop-editable instrument at level 0, while V-0 finding 3 accepted
+`skills/**` from phase 0 and the V-0 draft D-ATLAS-ITER-1 asks for a `skills/**` `[instrument]`
+commit. Per policy section 4 ("stricter reading wins"), `skills/**` opens at level 1 and at
+level 0 the reflection step records the edit as `status: proposed`. Reversal is a one-line
+owner edit: move `autonomy/instruments/skills/**` into `allowed_scopes`.
+
+**Not mechanized yet** (the ladder asks for them in `autonomy/tools/`): the verifier/supervisor
+disagreement rule, escalation routing, cert forgery and cert-before-packet ordering, the
+wall-clock and token budget kill, verification of supervisor-issued grants against
+`autonomy/staging`. Listed in policy section 12.3 as owner decisions before level 2.
+
+**CI evidence: INFRA_RED.** Run https://github.com/B0LK13/project-atlas/actions/runs/35011998561
+on `7a700b8e`: all four jobs "not started because your account is locked due to a billing
+issue". Every `ci.yml` run listed since at least 2026-09-15T04:34Z fails the same way (e.g. run
+34929378562). No lane can be GREEN until billing is resolved.
+
+**Local evidence (not a substitute for CI)**
+
+- Native Windows 11, Python 3.13.14: `python -m ruff check .` exit 0;
+  `python -m mypy --strict --ignore-missing-imports autonomy/tools/preflight.py` exit 0;
+  `pytest tests/unit/test_autonomy_preflight.py` 53 passed; `preflight --iteration 1` exit 1
+  with only `missing grant`.
+- Native Windows full suite on `7a700b8e` (`PYTHONPATH=src python -m pytest -x --no-cov`):
+  FAILED, stopped at
+  `tests/unit/test_as_obsidian_capture_001_f6_error_boundary.py::test_f6_cleanup_failure_is_logged_with_the_path_and_cause`.
+  It also fails in isolation on Python 3.12 and 3.13, and `git diff origin/main` over `src/`,
+  that test file and `pyproject.toml` is empty, so it is pre-existing on this host rather than
+  caused by this branch. Whether it fails on `windows-latest` is unknown.
+- Lane runs on this entry's own head commit are reported against that SHA outside this file.
+
+**Local git identity.** `user.name = "Candidate-008 Audit (local only, never pushed)"` and
+`user.email = test@local` are set in the main checkout's repo-local `.git/config`, not in the
+global config. They were set before this session; who set them is undetermined. Nearby
+untracked directories `.worktrees/candidate008-audit` and `.worktrees/candidate008-real` date
+from 2026-09-11. The loop does not depend on commit identity: preflight trusts the grant-ref
+copy and `Atlas-Role` trailers, never author names.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**

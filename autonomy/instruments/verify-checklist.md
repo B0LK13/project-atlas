@@ -1,14 +1,16 @@
 # Verify checklist (executor self-verification)
 
-Instrument: loop-improvable from policy phase 3 (`autonomy/policy.md` section 4).
-An edit that reduces verification rigor is a REDESIGN verdict (policy section 9, check 4).
+Instrument: loop-editable from autonomy level 3 (`autonomy/policy.md` sections 4 and 11).
+An edit that reduces verification rigor is a REDESIGN verdict (policy section 9, check 5).
 
 Run every step from the iteration worktree on branch `iter/<n>`. Record each command
 verbatim with its exit code in the packet. Never summarize a command as "passed".
+Every lane ends GREEN, FAILED, TIMEOUT or INFRA_RED; never emit a packet with a lane running.
 
 ## 0. Before code
 
-- [ ] `python autonomy/tools/preflight.py preflight --iteration <n>` exits 0.
+- [ ] `python autonomy/tools/preflight.py preflight --iteration <n>` exits 0 (kill switches,
+      pins, grant on the grant ref, ledger rules and retry cap).
 - [ ] Baseline test count at the merge base: check out
       `git merge-base origin/main HEAD` detached, run
       `python -m pytest --collect-only -q --no-cov`, record the final count line, return.
@@ -34,7 +36,10 @@ verbatim with its exit code in the packet. Never summarize a command as "passed"
 
 ## 3. Scope, tests and budget
 
-- [ ] All work committed; `python autonomy/tools/preflight.py scope --iteration <n>` exits 0.
+- [ ] Every commit message ends with the trailer `Atlas-Role: executor`.
+- [ ] All work committed;
+      `python autonomy/tools/preflight.py scope --iteration <n> --role executor` exits 0.
+- [ ] CI that could not start (billing, runner outage) is INFRA_RED: escalate, never green.
 - [ ] Head test count `>=` baseline; any removed or skipped test cites directive authorization.
 - [ ] `budget_used` filled from `git diff --shortstat $(git merge-base origin/main HEAD) HEAD`.
 

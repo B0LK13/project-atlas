@@ -1,7 +1,8 @@
 # Loop skills
 
-Agent playbooks the governed RSI loop may improve (`autonomy/policy.md` section 4:
-`autonomy/instruments/skills/**` is an allowed scope from phase 0).
+Agent playbooks and role files (supervisor, executor, verifier, instrument) for the governed
+RSI loop. The loop may edit `autonomy/instruments/skills/**` from autonomy level 1
+(`autonomy/policy.md` sections 4 and 11); at level 0 skill edits are proposed in packets.
 
 One skill per file, `<kebab-name>.md`, with:
 

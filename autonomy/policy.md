@@ -1,6 +1,7 @@
 # Autonomy Policy: Governed RSI Loop
 
-- Decision: `D-ATLAS-RSI-GOVERNED-LOOP-001`
+- Decisions: `D-ATLAS-RSI-GOVERNED-LOOP-001` (loop) and `D-ATLAS-AUTONOMY-LADDER-001`
+  (authority ladder).
 - Status: **DRAFT**, proposed by the executor on branch `autonomy/scaffold`. It becomes
   binding when the owner merges it. From then on only the owner edits this file.
 - Pin: `policy_sha` = SHA-256 of this file's exact LF bytes
@@ -9,47 +10,67 @@
 
 ## 1. Purpose and boundary
 
-A bounded recursive self-improvement loop: an executor agent develops Atlas one
-iteration at a time, with a supervisor gate and an owner grant between iterations.
-This is the "factory" tier dogfooding the "brain". It is not Strategy C.
+A bounded recursive self-improvement loop: agents develop Atlas one iteration at a time,
+with an executor, an isolated verifier, an instrument reviewer and a supervisor gate, and a
+grant between iterations. This is the "factory" tier dogfooding the "brain". It is not
+Strategy C.
 
 The loop **may improve its own instruments** (directives, checklists, tests, skills).
-It **may never improve its own authority** (this policy, `loop.yaml`, grants, verdicts,
-the preflight tool, CI, release workflows, secrets, agent instruction files).
+It **may never improve its own authority** (this policy, `loop.yaml`, the gate tool, CI,
+release workflows, secrets, agent instruction files, the level it runs at).
+
+Autonomy is earned, not standing. The owner rejected continuous autonomy on 2026-09-02 and
+this policy does not override that. Each level of self-governance (section 11) is unlocked
+only by an owner-committed edit of the autonomy level, triggered by ledger evidence the loop
+produces. The loop produces the evidence; the owner turns the ratchet.
 
 ## 2. Invariants
 
-1. Repository truth over conversation memory. An iteration reads the grant, directive
-   and prior verdict from the repository and ignores chat memory.
-2. The executor never merges to `main` or `autonomy/staging`. The supervisor never
-   merges. Only the owner, or a merge agent the owner separately authorizes, merges.
-3. Every claim in a return packet cites a commit SHA, a file path (optionally `:line`),
-   or a CI run URL. A claim without an evidence pointer is an automatic REJECT.
-4. Kill switch: if `autonomy/HALT` exists (in the working tree or on the grant ref) the
-   loop stops before its next step. Any role may create `HALT`; only the owner removes it.
-5. Autonomy is granted per iteration by a verifiable grant, never standing. No valid
-   grant means no iteration.
-6. Truth boundaries hold: `PROMOTE_ELIGIBLE != MERGED`, `CONTINUE != MERGE AUTHORIZED`,
-   `MODEL OUTPUT != AUTHORITY`, `executor self-verification != independent verification`.
+1. Repository truth over conversation memory. Every role reads grant, directive, policy
+   hash and base SHA from the repository. Nothing passes between agents through chat memory.
+2. No loop role merges to `main`. At levels 0 and 1 no loop role merges to
+   `autonomy/staging` either. Only the owner, or a merge agent the owner separately
+   authorizes, merges.
+3. Every claim in a return packet, cert, drift report, verdict or audit cites a commit SHA,
+   a file path (optionally `:line`), or a CI run URL. A claim without an evidence pointer is
+   an automatic REJECT.
+4. Kill switch: if `autonomy/HALT` or `autonomy/HALT-REQUEST` exists (in the working tree or
+   on the grant ref) the loop stops before its next step. Any role may create either file.
+   Only the owner removes them.
+5. Autonomy is granted per iteration by a verifiable grant, never standing. No valid grant
+   means no iteration.
+6. Roles stay separated: orchestrate, execute, verify and supervise are never collapsed into
+   one agent. Every commit declares exactly one `Atlas-Role` trailer, a branch carries commits
+   of one role only, and no role other than the executor changes `src/**` or `tests/**`.
+7. At every level the owner alone holds three powers: edit this file (including the
+   autonomy level), write or remove `HALT`, and merge to `main`.
+8. Truth boundaries hold: `PROMOTE_ELIGIBLE != MERGED`, `CONTINUE != MERGE AUTHORIZED`,
+   `CERT != MERGE AUTHORIZED`, `MODEL OUTPUT != AUTHORITY`,
+   `executor self-verification != independent verification`.
 
 ## 3. Roles
 
-| Role | Actor | Owns | May write |
+| Role | Actor | Responsibility | May write (section 4) |
 |---|---|---|---|
-| Executor | Main agent (Cursor Cloud session or Claude Code) | Directive execution, verification lanes, return packet | Section 4 allowed scopes on `iter/<n>` |
-| Supervisor | Fable (adversarial, advisory) | Gate audit of packet vs live repository | Nothing in the repo; returns verdict text |
-| Governor | Owner | Grants, merges, this policy, `loop.yaml`, `HALT` removal, verdict commits | Everything |
-| Independent Verifier | Separate agent session, fresh context, no packet access before certifying | Certification of the final head on Linux and native Windows | Certification report only |
+| Supervisor (orchestrator) | Fable or a dedicated supervisor session | Runs the loop, spawns subagents, gates packets, issues verdicts, runs audits, files level proposals; issues grants and merges to staging only where section 11 permits | `role_scopes.supervisor`. Never product code. |
+| Executor subagent | Cursor Cloud session or Claude Code | One iteration: code, tests, lanes, reflection, next directive, packet | `allowed_scopes` plus `level_gated_scopes` |
+| Verifier subagent | Fresh session given the head SHA only; reads the packet only after committing its cert | Runs both lanes on the exact head and certifies pass or fail | `autonomy/certs/C-<n>.md` only |
+| Instrument subagent | Fresh session | Reviews `[instrument]` commits for rigor loss and runs the drift check | `autonomy/drift/**` only |
+| Owner (governor) | B0LK13 | The section 2 invariant 7 powers; at levels 0 and 1 also grants and staging merges | Everything |
+
+The supervisor never executes code changes itself. Each subagent receives the grant, the
+directive, the policy hash, the base SHA and its role file under
+`autonomy/instruments/skills/` (once one exists), and nothing else.
 
 ## 4. Machine-readable rules
 
-The fenced block below is the single source `autonomy/tools/preflight.py` reads. If
-prose and block ever disagree, the stricter reading wins and the iteration stops with
+The fenced block below is the single source `autonomy/tools/preflight.py` reads. If prose and
+block ever disagree, the stricter reading wins and the iteration stops with
 `OWNER_DECISION_REQUIRED`.
 
 ```yaml
 # autonomy-policy v1
-phase: 0
+autonomy_level: 0
 allowed_scopes:
   - src/**
   - tests/**
@@ -58,17 +79,39 @@ allowed_scopes:
   - autonomy/directives/**
   - autonomy/packets/**
   - autonomy/ledger.jsonl
-  - autonomy/instruments/skills/**
-phase_gated_scopes:
+level_gated_scopes:
+  1:
+    - autonomy/instruments/skills/**
+  2:
+    - autonomy/instruments/directive-template.md
   3:
     - autonomy/instruments/verify-checklist.md
-    - autonomy/instruments/directive-template.md
+role_scopes:
+  verifier:
+    0:
+      - autonomy/certs/C-{n}.md
+  instrument:
+    0:
+      - autonomy/drift/**
+  supervisor:
+    0:
+      - autonomy/verdicts/**
+      - autonomy/packets/**
+      - autonomy/ledger.jsonl
+      - autonomy/audits/**
+      - autonomy/proposals/**
+    2:
+      - autonomy/grants/**
 forbidden_scopes:
   - autonomy/policy.md
   - autonomy/loop.yaml
+  - autonomy/tools/**
   - autonomy/grants/**
   - autonomy/verdicts/**
-  - autonomy/tools/**
+  - autonomy/certs/**
+  - autonomy/drift/**
+  - autonomy/audits/**
+  - autonomy/proposals/**
   - .github/**
   - pyproject.toml
   - AGENTS.md
@@ -105,203 +148,292 @@ test_count: non_decreasing
 
 ### 4.1 How a changed path is judged
 
-Paths come from `git diff --no-renames <merge-base(grant_ref, HEAD)> HEAD` (a rename is
-a delete plus an add, and both paths are judged). Rules apply in this order:
+Paths come from `git diff --no-renames <merge-base(grant_ref, HEAD)> HEAD` (a rename is a
+delete plus an add, and both paths are judged), for the role named by
+`preflight.py scope --role`. Rules apply in this order:
 
-1. `autonomy/HALT` may be **added**. Modifying or deleting it is a violation.
-2. Never-grantable floor: `autonomy/policy.md`, `autonomy/loop.yaml`,
-   `autonomy/grants/**`, `autonomy/verdicts/**`, `autonomy/tools/**`, `.github/**`.
-   This is hard-coded in the tool, and no grant exception can open it.
-3. A path matching the grant's `scope_exceptions` is allowed.
-4. A path matching `forbidden_scopes` is a violation.
-5. A path must match `allowed_scopes`, or `phase_gated_scopes` for a phase `<=` the
-   current `phase`. Anything else is a violation (allow-list, fail closed).
-6. `autonomy/ledger.jsonl` is append-only: the head content must start with the base
-   content byte for byte.
+1. `autonomy/HALT` and `autonomy/HALT-REQUEST` may be **added** by any role. Modifying or
+   deleting either is a violation.
+2. Floor for every role, hard-coded in the tool: `autonomy/policy.md`, `autonomy/loop.yaml`,
+   `autonomy/tools/**`, `.github/**`.
+3. Executor:
+   1. Executor floor, hard-coded: `autonomy/grants/**`, `autonomy/verdicts/**`,
+      `autonomy/certs/**`, `autonomy/drift/**`, `autonomy/audits/**`,
+      `autonomy/proposals/**`. No grant exception opens it.
+   2. A path matching the grant's `scope_exceptions` is allowed.
+   3. A path matching `forbidden_scopes` is a violation.
+   4. A path must match `allowed_scopes`, or `level_gated_scopes` for a level at or below
+      the current level. Anything else is a violation (allow-list, fail closed).
+4. Verifier, instrument and supervisor: a path must match the role's `role_scopes` for a
+   level at or below the current level (`{n}` is the iteration number) and must not match
+   `src/**` or `tests/**` (hard-coded). `scope_exceptions` never apply to these roles.
+5. `autonomy/ledger.jsonl` is append-only for every role: the head content must start with
+   the base content byte for byte. Appended `resume` events are owner-only, and the executor
+   may append only `packet` events.
+6. Every non-merge commit in `merge-base..HEAD` carries exactly one `Atlas-Role` trailer,
+   equal to the role being checked.
 
-Glob semantics: `*` and `?` stay within one path segment, `**` spans segments, and
-`**/` also matches zero segments.
+Glob semantics: `*` and `?` stay within one path segment, `**` spans segments, and `**/`
+also matches zero segments.
 
 The `required_lanes` values are the expected GitHub check names of the existing
-`.github/workflows/ci.yml` matrix jobs. CI runs on `pull_request` for any base branch,
-so a PR into `autonomy/staging` exercises both lanes. Confirm the exact check names on
-the first staging PR; a mismatch is an owner policy edit, not an executor fix.
+`.github/workflows/ci.yml` matrix jobs. CI runs on `pull_request` for any base branch, so a
+PR into `autonomy/staging` exercises both lanes. The names are unconfirmed until a CI run
+actually starts; a mismatch is an owner policy edit, not an executor fix.
 
 ### 4.2 Budget
 
-- `max_files_touched` and `max_diff_lines` (added plus deleted) are counted over the
-  same diff, including packet, directive, ledger and `WORKLOG.md`. The tool enforces them.
-- `max_wall_clock_minutes` and `max_tokens` are self-reported in the packet's
-  `budget_used` and checked by the supervisor.
-- A grant may override budget keys (the owner's ACCELERATE lever). Only the grant can
-  raise a budget; a directive cannot.
-- On reaching any budget, the executor stops, verifies what exists and emits the packet
-  with the unfinished remainder listed under `unknowns`.
+- `max_files_touched` and `max_diff_lines` (added plus deleted) are counted over the same
+  diff for every role, including packet, directive, ledger and `WORKLOG.md`. The tool
+  enforces them.
+- `max_wall_clock_minutes` and `max_tokens` are self-reported in `budget_used` and checked
+  by the supervisor. A subagent that exceeds any budget is stopped; the iteration is marked
+  FAILED and counts against promotion evidence.
+- A grant may override budget keys (the ACCELERATE lever). Only a grant raises a budget; a
+  directive cannot. From level 2 a supervisor-issued grant may not exceed this block.
 
 ### 4.3 Tests
 
 - The collected test count (`python -m pytest --collect-only -q --no-cov`) at head must be
-  `>=` the count at the merge base.
+  at least the count at the merge base.
 - Deleting, skipping, `xfail`-ing or de-selecting an existing test requires explicit
-  authorization in the directive the owner granted, cited in the packet.
+  authorization in the granted directive, cited in the packet.
 
 ## 5. Grants
 
-Grants are owner-authored: `autonomy/grants/G-<n>.md`, committed by the owner to the
-grant ref (default `origin/main`). Format:
+Grants live at `autonomy/grants/G-<n>.md`, committed to the grant ref (default
+`origin/main`) by the owner, or from level 2 by the supervisor. The tool reads only the keys
+below: other top-level keys are ignored, and budget keys other than the four section 4 keys
+are a configuration error.
 
 ```markdown
 ---
 grant: G-<n>
 iteration: <n>
-issued_by: owner
+issued_by: <owner | supervisor>
 policy_sha: <64 hex, output of preflight.py sha>
-base_sha: <40 hex main commit the iteration must contain>
+base_sha: <40 hex commit the iteration must contain>
 directive: autonomy/directives/D-ATLAS-ITER-<n>.md
 budget:                 # optional overrides of section 4 budget keys
-  max_diff_lines: 1500
-scope_exceptions: []    # optional globs; never opens the section 4.1 floor
+  max_files_touched: 10
+  max_diff_lines: 400
+  max_wall_clock_minutes: 90
+  max_tokens: 1500000
+scope_exceptions: []    # optional globs for the executor; never opens a floor
 ---
 
-Free-text scope notes from the owner.
+Free-text scope notes.
 ```
 
 A grant verifies only if all of these hold (`preflight.py preflight --iteration <n>`):
 
-- `autonomy/HALT` is absent;
-- the grant file exists, `grant` is `G-<n>`, `iteration` is `<n>`;
-- `policy_sha` in the grant equals `loop.yaml` `policy_sha`, and both equal the SHA-256
-  of the current `policy.md`;
-- the grant file and `policy.md` are byte-identical to their versions on the grant ref
-  (a locally edited grant or policy is void);
+- neither `autonomy/HALT` nor `autonomy/HALT-REQUEST` exists, locally or on the grant ref;
+- the grant file exists, `grant` is `G-<n>` and `iteration` is `<n>`;
+- `policy_sha` in the grant equals `loop.yaml` `policy_sha`, and both equal the SHA-256 of
+  the current `policy.md`;
+- the grant file and `policy.md` are byte-identical to their versions on the grant ref (a
+  locally edited grant or policy is void);
 - `base_sha` is an ancestor of `HEAD`;
-- the directive file named by the grant exists;
-- if `require_signed_grants` is true, the latest commit touching the grant on the grant
-  ref has a good signature (`%G? == G`);
-- `loop.yaml` `max_iterations_per_grant` is `1`, unless `phase >= 4`.
+- the directive named by the grant exists;
+- the ledger passes section 8.1;
+- if `require_signed_grants` is true, the latest commit touching the grant on the grant ref
+  has a good signature (`%G? == G`);
+- `loop.yaml` `max_iterations_per_grant` is `1`, unless the autonomy level is 3 or higher.
 
 ## 6. Iteration protocol (executor)
 
 For iteration `n`:
 
-1. **Preflight.** `python autonomy/tools/preflight.py preflight --iteration <n>`. A
-   non-zero exit stops the iteration with no code changes.
-2. **Ground.** `git fetch`, branch from the grant ref commit containing the grant, read
-   the directive and `autonomy/verdicts/V-<n-1>.md` (if any). Ignore chat memory.
-3. **Plan.** Write a plan of at most 10 lines at the top of the packet before touching
-   code: target, files, tests to add, verification command per lane.
-4. **Execute.** Branch `iter/<n>`. Stay inside the section 4 scopes. Stop at budget.
-5. **Verify (self).** Run both lanes per `autonomy/instruments/verify-checklist.md`, and
-   `python autonomy/tools/preflight.py scope --iteration <n>`. Record exact commands and
-   exit codes.
-6. **Reflect.** Name the instrument that failed or slowed this iteration. Apply one
-   concrete edit within the instrument scopes open at the current phase, in its own commit
-   whose subject starts with `[instrument]`.
+1. **Preflight.** `python autonomy/tools/preflight.py preflight --iteration <n>`. A non-zero
+   exit stops the iteration with no code changes.
+2. **Ground.** `git fetch`, branch from the grant ref commit that contains the grant, and
+   read the directive and `autonomy/verdicts/V-<n-1>.md` (if any). Ignore chat memory.
+3. **Plan.** Write a plan of at most 10 lines at the top of the packet before touching code:
+   target, files, tests to add, verification command per lane.
+4. **Execute.** Branch `iter/<n>`. Stay inside the section 4 scopes. Stop at budget. Every
+   commit message ends with the trailer `Atlas-Role: executor`.
+5. **Verify (self).** Run both lanes per `autonomy/instruments/verify-checklist.md` and
+   `python autonomy/tools/preflight.py scope --iteration <n> --role executor`. Record exact
+   commands and exit codes. Every lane ends GREEN, FAILED, TIMEOUT or INFRA_RED (CI could not
+   start or the runner failed). A packet is never emitted while a lane is still running, and
+   INFRA_RED is escalated, never reported as green.
+6. **Reflect.** Name the instrument that failed or slowed this iteration and the concrete
+   edit that would fix it. If an instrument scope is open at the current level, apply the
+   edit in its own commit whose subject starts with `[instrument]`. The instrument subagent
+   signs it off in `autonomy/drift/` before the supervisor gates it. At level 0 no instrument
+   is writable: record the edit in the packet with `status: proposed` and do not apply it.
 7. **Propose next.** Write `autonomy/directives/D-ATLAS-ITER-<n+1>.md` from
    `autonomy/instruments/directive-template.md`, derived from repository state and citing
    file paths.
-8. **Emit.** Write `autonomy/packets/RP-<n>.md` (section 7), append one `packet` ledger
-   line (section 8), push `iter/<n>`, and open a PR **against `autonomy/staging`**. Never
-   open a PR against `main`.
+8. **Emit.** Write `autonomy/packets/RP-<n>.md` (section 7), append one `packet` ledger line
+   (section 8), push `iter/<n>`, and open a PR **against `autonomy/staging`**. Never open a
+   PR against `main`.
 
 ## 7. Return packet contract (`autonomy/packets/RP-<n>.md`)
 
 ```
 iteration: n
+role: executor
 grant: G-n (policy_sha)
 base_sha / head_sha
 plan: (as written before execution)
 changes: [{path, +/-, purpose}]
 lanes:
-  linux:   {cmd, exit, run_url}
-  windows: {cmd, exit, run_url}
+  linux:   {cmd, exit, status: GREEN|FAILED|TIMEOUT|INFRA_RED, run_url}
+  windows: {cmd, exit, status: GREEN|FAILED|TIMEOUT|INFRA_RED, run_url}
 tests: before=N after=M
 claims: each with evidence pointer (sha:path:line | run_url)
-instrument_change: {path, rationale, diff_summary}
+instrument_change: {status: applied|proposed, path, rationale, diff_summary}
 next_directive: D-ATLAS-ITER-<n+1> (path)
 budget_used: {files, lines, minutes, tokens}
 unknowns: explicit list, no silent gaps
 ```
 
-Local lane runs are evidence of the command and exit code only. A lane counts as green
-for the gate only via a CI run URL on the packet's `head_sha`.
+Local lane runs are evidence of the command and exit code only. A lane counts as GREEN for
+the gate only via a CI run URL on the packet's `head_sha`.
 
 ## 8. Ledger (`autonomy/ledger.jsonl`)
 
 Append-only, one JSON object per line, UTF-8, LF. Lines are never edited or removed.
 
+| Event | Appended by | Required fields |
+|---|---|---|
+| `packet` | executor | `iteration`, `grant`, `policy_sha`, `base_sha`, `head_sha`, `lanes`, `tests`, `budget_used`, `packet` |
+| `verdict` | supervisor (owner at levels 0-1 when committing to `main`) | `iteration` (integer), `verdict` (section 9), `head_sha`, `verdict_path` |
+| `audit` | supervisor | `iteration`, `audit_path` |
+| `proposal` | supervisor | `proposal_path`, `target_level` |
+| `halt_request` | any role | `reason`, `evidence` |
+| `resume` | owner only | `by`, `reason` |
+
 ```json
-{"event": "packet", "iteration": 1, "grant": "G-1", "policy_sha": "<sha256>", "base_sha": "<sha>", "head_sha": "<sha>", "lanes": {"linux": {"exit": 0, "run_url": "<url>"}, "windows-native": {"exit": 0, "run_url": "<url>"}}, "tests": {"before": 0, "after": 0}, "budget_used": {"files": 0, "lines": 0, "minutes": 0, "tokens": 0}, "packet": "autonomy/packets/RP-1.md"}
+{"event": "packet", "iteration": 1, "grant": "G-1", "policy_sha": "<sha256>", "base_sha": "<sha>", "head_sha": "<sha>", "lanes": {"linux": {"exit": 0, "status": "GREEN", "run_url": "<url>"}, "windows-native": {"exit": 0, "status": "GREEN", "run_url": "<url>"}}, "tests": {"before": 0, "after": 0}, "budget_used": {"files": 0, "lines": 0, "minutes": 0, "tokens": 0}, "packet": "autonomy/packets/RP-1.md"}
 {"event": "verdict", "iteration": 1, "verdict": "CONTINUE", "head_sha": "<sha>", "verdict_path": "autonomy/verdicts/V-1.md"}
 ```
 
-The executor appends `packet` lines. The owner appends `verdict` lines when committing
-the supervisor's verdict to `autonomy/verdicts/V-<n>.md`.
+### 8.1 Ledger rules enforced by preflight (hard-coded in the tool)
+
+- Every line is a JSON object with an `event` name; `verdict` events carry an integer
+  `iteration` and a section 9 verdict. Anything else fails preflight as suspected tampering.
+- A `STOP` verdict stops the loop until a later owner `resume` event.
+- An iteration closed by `CONTINUE`, `ACCELERATE`, `DEFER` or `STOP` cannot be preflighted
+  again. One whose latest verdict is `OWNER_DECISION_REQUIRED` is paused.
+- Iteration `n > 1` requires a `CONTINUE`, `ACCELERATE` or `DEFER` verdict for `n-1`.
+- Retry cap: `REDESIGN` reworks the same grant at most 2 times. A third `REDESIGN` verdict
+  for the same iteration fails preflight, and the supervisor creates `autonomy/HALT-REQUEST`.
 
 ## 9. Supervisor gate
 
-Input: the packet **and** the live repository diff, never the packet alone.
+Input: the packet `RP-<n>`, the verifier cert `C-<n>`, the drift report under
+`autonomy/drift/`, and the live repository diff. Never the packet alone.
 
-1. Scope compliance: the diff touches only section 4 scopes (re-run the `scope` command).
-2. Evidence integrity: every claim resolves, and every lane run URL is green on `head_sha`.
-3. Test monotonicity: no deleted, skipped or de-selected tests without directive
+1. Cert: `C-<n>` exists, certifies both lanes on the packet's `head_sha`, and was committed
+   by a separate verifier session. A missing or forged cert is an immediate stop (section 12).
+2. Scope compliance: re-run `preflight.py scope` for each role's branch.
+3. Evidence integrity: every claim resolves, and every lane run URL is green on `head_sha`.
+4. Test monotonicity: no deleted, skipped or de-selected tests without directive
    authorization.
-4. Instrument change review: if the edit reduces future verification rigor, the verdict
-   is REDESIGN.
-5. Next-directive sanity: grounded in the repository, scoped, budgeted, aligned with the
+5. Instrument change review: if the edit reduces future verification rigor (removes a check,
+   lowers a threshold, widens a scope), the verdict is REDESIGN.
+6. Next-directive sanity: grounded in the repository, scoped, budgeted, aligned with the
    brain-first roadmap (`docs/product/CODER-ALPHA-NORTH-STAR.md`).
-6. Drift: compare cumulative instrument edits over the last 5 iterations and flag the loop
-   if it is optimizing for passing its own checks rather than shipping brain capabilities.
+7. Drift: compare cumulative instrument edits over the last 5 iterations and flag the loop if
+   it is optimizing for passing its own checks rather than shipping brain capabilities.
 
-| Verdict | Action |
-|---|---|
-| ACCELERATE | Owner may issue `G-<n+1>` with a raised budget |
-| CONTINUE | Owner issues `G-<n+1>` at the same budget |
-| REDESIGN | Executor reworks iteration n; no new grant |
-| DEFER | Branch parked; owner rewrites the next directive |
-| STOP | Owner writes `autonomy/HALT` |
-| OWNER_DECISION_REQUIRED | Loop pauses until the owner responds |
+| Verdict | Action at levels 0-1 | Action from level 2 |
+|---|---|---|
+| ACCELERATE | Owner may issue `G-<n+1>` with a raised budget | Supervisor merges `iter/<n>` to staging after the cert; issues `G-<n+1>` up to the policy cap |
+| CONTINUE | Owner issues `G-<n+1>` at the same budget | Supervisor merges after the cert; issues `G-<n+1>` at the same budget |
+| REDESIGN | Executor reworks iteration n under the same grant (section 8.1 retry cap) | Same |
+| DEFER | Branch parked; owner rewrites the next directive | Branch parked; escalate |
+| STOP | Owner writes `autonomy/HALT` | Supervisor creates `autonomy/HALT-REQUEST`; escalate |
+| OWNER_DECISION_REQUIRED | Loop pauses until the owner responds | Same |
+
+Verdicts are written to `autonomy/verdicts/V-<n>.md`. No verdict merges to `main`.
 
 ## 10. Promotion path
 
-`iter/<n>` -> PR to `autonomy/staging` -> Independent Verifier (fresh session, no packet
-access until after certification) certifies the head on both lanes -> owner merges
-`autonomy/staging` -> `main`. Instrument changes ride the same path. They take effect only
-for iterations whose grant is issued against a grant ref that contains them.
+`iter/<n>` -> PR to `autonomy/staging` -> verifier cert `C-<n>` on both lanes -> merge to
+`autonomy/staging` (owner at levels 0-1, supervisor from level 2) -> owner merges
+`autonomy/staging` -> `main`. Instrument changes ride the same path. They take effect only for
+iterations whose grant is issued against a grant ref that contains them.
 
-## 11. Phases
+## 11. Authority ladder
 
-| Phase | Deliverable | Exit criterion |
-|---|---|---|
-| 0 | Scaffold, empty ledger, `G-1` issued | Files present, `policy_sha` pinned |
-| 1 | One manual iteration end to end | Packet passes the gate with CONTINUE |
-| 2 | Five consecutive iterations, one grant each | At least 4 of 5 CONTINUE or better, zero scope violations |
-| 3 | Executor may edit `directive-template.md` and `verify-checklist.md` | Supervisor drift check clean over 5 iterations |
-| 4 | Multi-iteration grants (`max_iterations_per_grant: 3`) | Only by explicit owner decision after ledger review |
+| Level | Grants issued by | Merges to staging | Loop-editable instruments | Evidence required to enter the level |
+|---|---|---|---|---|
+| 0 | Owner | Owner | none (edits are proposed in packets) | Scaffold merged |
+| 1 | Owner | Owner | `instruments/skills/**` | 5 iterations, at least 4 CONTINUE or better, 0 scope violations |
+| 2 | Supervisor, 1 iteration each, budget within section 4 | Supervisor, after the verifier cert | + `directive-template.md` | 10 iterations at level 1, drift clean, 0 unresolved verifier/supervisor disagreements |
+| 3 | Supervisor, up to 3 iterations per grant | Supervisor | + `verify-checklist.md` | 20 iterations at level 2, verifier pass rate at least 90%, instrument-edit ratio below 30% |
+| 4 | Supervisor, rolling grants | Supervisor; owner merges staging to `main` on schedule | All instruments; policy proposals | 40 iterations at level 3, one authentic external estate consuming Atlas brain APIs over real MCP, zero HALT events in the last 20 |
 
-The current phase is `phase` in section 4. Advancing it is a policy edit, so owner only.
+The level is `autonomy_level` in section 4. No loop role can change it. When the evidence for
+the next level is met, the supervisor files `autonomy/proposals/P-LEVEL-<k>.md` citing ledger
+lines and audits, and the owner decides.
 
-## 12. Guardrails
+This ladder supersedes the phase plan in D-ATLAS-RSI-GOVERNED-LOOP-001 section 8. That plan's
+phase 3 instrument unlock is split between level 2 (directive template) and level 3 (verify
+checklist), and multi-iteration grants move from phase 4 to level 3.
 
-- Budget caps are enforced by executor preflight and scope gate, then checked again by the
+## 12. Stop and escalate
+
+### 12.1 Immediate stop (create `autonomy/HALT-REQUEST`, pause)
+
+Scope violation; policy hash mismatch; verifier cert forged or missing; ledger tampering; any
+attempt to touch a floor path; retry cap exceeded (a third REDESIGN for one iteration).
+
+### 12.2 Escalate only (`OWNER_DECISION_REQUIRED`)
+
+Budget cap reached mid-iteration; lane infrastructure red (CI could not start or the runner
+failed, as opposed to red code); directive unresolvable from repository state.
+
+### 12.3 Mechanized so far
+
+Enforced by `autonomy/tools/preflight.py`: kill switches, pin equality, grant identity on the
+grant ref, per-role and per-level scope floors and allow-lists, `Atlas-Role` trailers, ledger
+append-only and role-limited events, ledger tampering, iteration sequencing, the retry cap,
+and the file and line budget.
+
+Not mechanized yet, so checked by the supervisor, and to be decided by the owner before level
+2: cert-before-packet ordering and forgery detection, the verifier/supervisor disagreement
+rule, escalation routing, the wall-clock and token budget kill, verification of
+supervisor-issued grants against `autonomy/staging`, and the section 13 audit.
+
+## 13. Five-iteration audit (supervisor)
+
+Every 5 iterations the supervisor writes `autonomy/audits/A-<n>.md` and an `audit` ledger
+event covering:
+
+1. Verdict distribution and verifier/supervisor disagreement count.
+2. Instrument-edit ratio and direction; flag any edit that removes a check, lowers a threshold
+   or widens a scope.
+3. Goodhart probe: a fresh verifier re-certifies one randomly chosen CONTINUE iteration, and
+   the results are compared.
+4. Brain-tier progress: iterations that shipped memory, provenance or governance capability
+   versus loop plumbing. If plumbing exceeds 50% over 10 iterations, the supervisor issues
+   REDESIGN of the directive template.
+5. Cost versus cap.
+
+## 14. Guardrails
+
+- Budget caps are enforced by preflight and the scope gate, then checked again by the
   supervisor.
-- Blast radius: no agent writes to `main`, CI config, secrets, agent instruction files or
+- Blast radius: no loop role writes to `main`, CI config, secrets, agent instruction files or
   this policy.
 - Rollback: every iteration is one branch; revert means delete the branch.
-- Anti-Goodhart: the supervisor drift check, plus an independent verifier with no packet
+- Anti-Goodhart: the drift check, the audit's Goodhart probe, and a verifier with no packet
   access until after certification. Gate code (`autonomy/tools/**`) is outside every
-  agent-writable scope.
-- The cost ledger is reviewed by the owner every 5 iterations.
+  loop-writable scope.
 
-## 13. Metrics (derived from the ledger)
+## 15. Metrics (derived from the ledger)
 
-Iterations per week, acceptance rate, mean budget utilization, test delta,
-instrument-edit ratio (instrument diff lines / total diff lines; should stay below 30%),
+Iterations per week, acceptance rate, mean budget utilization, test delta, instrument-edit
+ratio (instrument diff lines / total diff lines; should stay below 30%), verifier pass rate,
 verdict distribution.
 
-## 14. Changing this policy
+## 16. Changing this policy
 
 Only the owner edits this file. In the same commit the owner updates `loop.yaml`
 `policy_sha` to the new `preflight.py sha` output. Every outstanding grant against the old
-hash becomes void. `tests/unit/test_autonomy_preflight.py` fails CI if `loop.yaml` and
-this file drift apart.
+hash becomes void. `tests/unit/test_autonomy_preflight.py` fails CI if `loop.yaml` and this
+file drift apart.
