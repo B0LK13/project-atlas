@@ -338,12 +338,18 @@ def check_ledger(events: list[dict[str, Any]], iteration: int) -> list[str]:
             f"retry cap: iteration {iteration} has {redesigns} REDESIGN verdicts "
             f"(max {MAX_REDESIGN_RETRIES} retries); create {HALT_REQUEST_PATH}"
         )
-    if iteration > 1 and not any(
-        verdict in NEXT_OPENING_VERDICTS for verdict in _verdicts_for(events, iteration - 1)
-    ):
-        problems.append(
-            f"iteration {iteration - 1} has no CONTINUE, ACCELERATE or DEFER verdict in the ledger"
-        )
+    if iteration > 1:
+        previous = _verdicts_for(events, iteration - 1)
+        opened = any(verdict in NEXT_OPENING_VERDICTS for verdict in previous)
+        if not opened:
+            # STOP closes n; a later owner resume is the documented recovery that opens n+1.
+            opened = "STOP" in previous and "STOP" not in _verdicts_for(
+                since_resume, iteration - 1
+            )
+        if not opened:
+            problems.append(
+                f"iteration {iteration - 1} has no CONTINUE, ACCELERATE or DEFER verdict in the ledger"
+            )
     return problems
 
 

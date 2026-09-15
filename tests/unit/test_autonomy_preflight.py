@@ -249,6 +249,8 @@ def test_stop_verdict_holds_until_an_owner_resume_event() -> None:
     assert any("loop is stopped" in problem for problem in pf.check_ledger(stopped, 2))
     resumed = [*stopped, {"event": "resume", "by": "owner"}]
     assert not any("loop is stopped" in problem for problem in pf.check_ledger(resumed, 2))
+    assert pf.check_ledger(resumed, 1) == ["iteration 1 is already closed by verdict STOP"]
+    assert pf.check_ledger(resumed, 2) == []
 
 
 def test_scope_allows_granted_work_and_kill_switch_creation() -> None:
