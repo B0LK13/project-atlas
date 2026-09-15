@@ -14941,5 +14941,8 @@ Does not merge. Does not expand Atlas 3 writers. Distinct from #926
 (unreadable overlay as known), #923/#924 (unreadable pending), #915
 (prefix ownership).
 
+Also binds the same invariant on `web_api/conflicts.py` (LIVE_API
+projection skips resolved rows; missing state still projects).
+
 `MERGE_AUTHORIZATION = NOT_GRANTED`.
 

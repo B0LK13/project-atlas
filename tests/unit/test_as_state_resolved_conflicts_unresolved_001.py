@@ -19,6 +19,7 @@ from pathlib import Path
 from project_atlas.project_brief import build_project_brief
 from project_atlas.project_state import build_state_lens
 from project_atlas.project_unknown import build_unknown_lens
+from project_atlas.web_api.conflicts import list_project_conflicts
 
 _PID = "demo-proj"
 
@@ -168,3 +169,13 @@ def test_brief_does_not_ask_to_resolve_closed_conflicts(tmp_path: Path) -> None:
     else:
         joined = str(next_work)
     assert "Resolve unresolved conflicts" not in joined
+
+
+def test_web_conflicts_projection_skips_resolved_rows(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _seed_project(vault)
+    _write_conflicts(vault, [_resolved_entry(), _unresolved_entry()])
+
+    result = list_project_conflicts(vault, _PID)
+    assert result["conflict_count"] == 1
+    assert [row["conflict_id"] for row in result["conflicts"]] == ["c-open"]
