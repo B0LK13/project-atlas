@@ -1,0 +1,62 @@
+{
+  "at_utc": "2026-09-15T17:49:08Z",
+  "base_HEAD": "89e0e044f560536357401a0bcdc9ed2c5e25bf59",
+  "branch": "supervisor/agy-lab-hardening-p1",
+  "collect_only_artifacts": {
+    "agents_sdk_baseline_HEAD": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-COLLECT-agents_sdk-BASELINE-HEAD.txt",
+    "agents_sdk_full_unfiltered": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-COLLECT-agents_sdk.txt",
+    "test_lab_baseline_HEAD": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-COLLECT-test_lab-BASELINE-HEAD.txt",
+    "test_lab_full_unfiltered": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-COLLECT-test_lab.txt"
+  },
+  "comparison_vs_HEAD_baseline": {
+    "added_test_lab_node_ids": [
+      "experiments/agents_sdk/tests/test_lab.py::test_content_contract_is_b_mapping_snapshot",
+      "experiments/agents_sdk/tests/test_lab.py::test_custom_mapping_is_accepted_via_contract_b_snapshot",
+      "experiments/agents_sdk/tests/test_lab.py::test_custom_mapping_verifier_report_materialized",
+      "experiments/agents_sdk/tests/test_lab.py::test_dict_subclass_overridden_get_does_not_poison_snapshot_gate_fields",
+      "experiments/agents_sdk/tests/test_lab.py::test_governor_run_call_site_source_compatible_without_injection",
+      "experiments/agents_sdk/tests/test_lab.py::test_implementer_envelope_producer_role_empty_rejected_by_verifier",
+      "experiments/agents_sdk/tests/test_lab.py::test_implementer_envelope_producer_role_none_rejected_by_verifier",
+      "experiments/agents_sdk/tests/test_lab.py::test_implementer_flat_dict_missing_producer_role_allowed_compat_only",
+      "experiments/agents_sdk/tests/test_lab.py::test_source_mutation_after_snapshot_does_not_affect_gate_fields",
+      "experiments/agents_sdk/tests/test_lab.py::test_verifier_envelope_producer_role_empty_rejected",
+      "experiments/agents_sdk/tests/test_lab.py::test_verifier_envelope_producer_role_none_rejected",
+      "experiments/agents_sdk/tests/test_lab.py::test_verifier_mapping_missing_producer_role_rejected"
+    ],
+    "coverage_lost": false,
+    "parametrization_changes": "none",
+    "removed_or_renamed_or_uncollected": [],
+    "skipped_or_xfail": "none"
+  },
+  "counts": {
+    "baseline_HEAD_agents_sdk": 16,
+    "baseline_HEAD_test_lab": 10,
+    "candidate_agents_sdk": 28,
+    "candidate_test_lab": 22
+  },
+  "document": "ATLAS-AGY-LAB-HARDENING-P1-COUNT-RECONCILIATION",
+  "explanation_of_22_28_vs_cited_30_36": {
+    "cited_30_36_is_not_pytest_collect_count": true,
+    "likely_miscount": "22 collected test_lab nodes + 8 evals.json case rows = 30; 28 suite nodes + same 8 evals.json rows = 36. Those 8 cases are already covered by dedicated test_eval_* functions in test_lab.py and by the single looping test_evals_file_reasons_are_emitted_by_policy; they are NOT additional pytest-collected node IDs.",
+    "net_vs_HEAD": "10\u219222 test_lab (+12 P1 boundary tests); 16\u219228 suite (+12). Zero baseline nodes lost.",
+    "pytest_collect_only_truth": "22 test_lab nodes; 28 agents_sdk suite nodes"
+  },
+  "full_sha256": {
+    "binary_patch": "6fe1a7d03f2a330b7fd7f18c3d7324180665d72bb6e97887eb72e1cea22eba66",
+    "lab.py": "effb9b64dbdfa5541fde38ff1113695521e9c4f0cab5aab68adf622426ca5e43",
+    "test_lab.py": "fe16dda94393f05c8a3fa093c8117bd3cafeecb4033614126986b92a49946bf7"
+  },
+  "independent_review_binding": {
+    "evidence_path": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-INDEPENDENT-REVIEW.json",
+    "examined_HEAD": "89e0e044f560536357401a0bcdc9ed2c5e25bf59",
+    "file_sha256_match": true,
+    "independent_verdict": "PASS",
+    "patch_sha256_match": true,
+    "reviewer_agent_id": "b9085571-cb98-4b66-ae91-6cb476a2043a"
+  },
+  "no_commit_no_push_no_merge": true,
+  "status": "READY_FOR_INTEGRATION_HANDOFF",
+  "target_pr": 705,
+  "uncommitted": true,
+  "worktree": "[SOURCE-HOST WORKTREE]"
+}

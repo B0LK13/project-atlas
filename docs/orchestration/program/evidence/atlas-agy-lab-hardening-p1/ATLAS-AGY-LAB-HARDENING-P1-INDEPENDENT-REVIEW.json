@@ -1,0 +1,92 @@
+{
+  "checklist": {
+    "1_no_isinstance_dict_excludes_dynamic_or_toctou_claim": "PASS",
+    "2_explicit_contract_b_or_a_one_only": "PASS_CONTRACT_B",
+    "3_gate_fields_from_same_local_snapshot": "PASS",
+    "4_required_meaningful_tests": "PASS",
+    "5_missing_implementer_role_compat_not_identity": "PASS",
+    "6_source_compat_not_binary_100pct": "PASS",
+    "7_no_remaining_overclaims": "PASS"
+  },
+  "commands_and_results": [
+    {
+      "command": "git rev-parse HEAD",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "summary": "89e0e044f560536357401a0bcdc9ed2c5e25bf59"
+    },
+    {
+      "command": "sha256sum experiments/agents_sdk/lab.py experiments/agents_sdk/tests/test_lab.py",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "summary": "lab.py=effb9b64dbdfa5541fde38ff1113695521e9c4f0cab5aab68adf622426ca5e43; test_lab.py=fe16dda94393f05c8a3fa093c8117bd3cafeecb4033614126986b92a49946bf7"
+    },
+    {
+      "command": "git diff --binary HEAD -- experiments/agents_sdk/lab.py experiments/agents_sdk/tests/test_lab.py | sha256sum",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "summary": "patch_sha256=6fe1a7d03f2a330b7fd7f18c3d7324180665d72bb6e97887eb72e1cea22eba66"
+    },
+    {
+      "command": "git diff --check HEAD -- experiments/agents_sdk/lab.py experiments/agents_sdk/tests/test_lab.py",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "summary": "no whitespace errors"
+    },
+    {
+      "command": "[SOURCE-HOST VENV PYTHON] -m pytest experiments/agents_sdk/tests/test_lab.py -v --tb=short",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "fail_count": 0,
+      "pass_count": 22,
+      "summary": "22 passed in 0.31s (worktree has no local .venv; used project-atlas .venv)"
+    },
+    {
+      "command": "[SOURCE-HOST VENV PYTHON] -m pytest experiments/agents_sdk/tests -v --tb=short",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "fail_count": 0,
+      "pass_count": 28,
+      "summary": "28 passed in 0.12s"
+    },
+    {
+      "command": "[SOURCE-HOST VENV PYTHON] -m ruff check experiments/agents_sdk/lab.py experiments/agents_sdk/tests/test_lab.py",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "summary": "All checks passed! (ruff 0.16.6)"
+    },
+    {
+      "command": "[SOURCE-HOST VENV PYTHON] -m mypy experiments/agents_sdk/lab.py experiments/agents_sdk/tests/test_lab.py",
+      "cwd": "[SOURCE-HOST WORKTREE]",
+      "exit_code": 0,
+      "summary": "Success: no issues found in 2 source files"
+    }
+  ],
+  "companion_markdown_path": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-INDEPENDENT-REVIEW.md",
+  "examined_HEAD": "89e0e044f560536357401a0bcdc9ed2c5e25bf59",
+  "examined_branch": "supervisor/agy-lab-hardening-p1",
+  "file_sha256": {
+    "lab.py": "effb9b64dbdfa5541fde38ff1113695521e9c4f0cab5aab68adf622426ca5e43",
+    "test_lab.py": "fe16dda94393f05c8a3fa093c8117bd3cafeecb4033614126986b92a49946bf7"
+  },
+  "findings": [],
+  "independent_verdict": "PASS",
+  "notes": [
+    "Worktree [SOURCE-HOST WORKTREE] has no .venv; verification used [SOURCE-HOST VENV PYTHON].",
+    "Task/runtime agent id was unavailable in this subagent environment; reviewer_agent_id set to unknown-set-by-supervisor.",
+    "Product files were not modified; evidence-only write.",
+    "Shallow dict(mapping) snapshot is sufficient for current gate fields (string keys verdict/claim_integrity); honesty bounds already state snapshot does not freeze the caller's original object."
+  ],
+  "opdracht": "ATLAS-AGY-LAB-HARDENING-P1-INDEPENDENT-REVIEW",
+  "patch_sha256": "6fe1a7d03f2a330b7fd7f18c3d7324180665d72bb6e97887eb72e1cea22eba66",
+  "raw_handoff_path": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-INDEPENDENT-REVIEW.json",
+  "ready_for_integration_handoff": true,
+  "reviewed_at_local": "2026-09-15T19:42:00+02:00",
+  "reviewer_agent_id": "b9085571-cb98-4b66-ae91-6cb476a2043a",
+  "reviewer_role": "NON_AUTHOR_INDEPENDENT_REVIEW",
+  "scope_files": [
+    "[SOURCE-HOST WORKTREE]/experiments/agents_sdk/lab.py",
+    "[SOURCE-HOST WORKTREE]/experiments/agents_sdk/tests/test_lab.py"
+  ],
+  "supervisor_ingest_at_utc": "2026-09-15T17:44:30Z"
+}

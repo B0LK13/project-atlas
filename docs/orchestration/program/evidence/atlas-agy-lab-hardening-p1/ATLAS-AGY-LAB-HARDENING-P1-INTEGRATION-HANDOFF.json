@@ -1,0 +1,47 @@
+{
+  "at_utc": "2026-09-15T17:49:08Z",
+  "author_agent_stops_p1": true,
+  "base_HEAD": "89e0e044f560536357401a0bcdc9ed2c5e25bf59",
+  "collect_only": {
+    "agents_sdk_tests": {
+      "artifact": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-COLLECT-agents_sdk.txt",
+      "count": 28
+    },
+    "test_lab": {
+      "artifact": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-COLLECT-test_lab.txt",
+      "count": 22
+    }
+  },
+  "contract": "B",
+  "count_reconciliation": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-COUNT-RECONCILIATION.json",
+  "coverage_lost_vs_HEAD_baseline": false,
+  "definitive": true,
+  "document": "ATLAS-AGY-LAB-HARDENING-P1-INTEGRATION-HANDOFF",
+  "full_sha256": {
+    "binary_patch": "6fe1a7d03f2a330b7fd7f18c3d7324180665d72bb6e97887eb72e1cea22eba66",
+    "experiments/agents_sdk/lab.py": "effb9b64dbdfa5541fde38ff1113695521e9c4f0cab5aab68adf622426ca5e43",
+    "experiments/agents_sdk/tests/test_lab.py": "fe16dda94393f05c8a3fa093c8117bd3cafeecb4033614126986b92a49946bf7"
+  },
+  "independent_review": {
+    "evidence_path": "[SOURCE-HOST EVIDENCE DIR]/ATLAS-AGY-LAB-HARDENING-P1-INDEPENDENT-REVIEW.json",
+    "examined_HEAD": "89e0e044f560536357401a0bcdc9ed2c5e25bf59",
+    "hashes_bound_identical": true,
+    "independent_verdict": "PASS",
+    "lab_sha256": "effb9b64dbdfa5541fde38ff1113695521e9c4f0cab5aab68adf622426ca5e43",
+    "patch_sha256": "6fe1a7d03f2a330b7fd7f18c3d7324180665d72bb6e97887eb72e1cea22eba66",
+    "reviewer_agent_id": "b9085571-cb98-4b66-ae91-6cb476a2043a",
+    "test_lab_sha256": "fe16dda94393f05c8a3fa093c8117bd3cafeecb4033614126986b92a49946bf7"
+  },
+  "integration_owner": "PR #705 integration owner",
+  "local_branch": "supervisor/agy-lab-hardening-p1",
+  "next_author_line": "Prime/t003f capability: adapter-forensics, no-effect-forensics, budgetcontract, disposable capability-canaries",
+  "scoped_files": [
+    "experiments/agents_sdk/lab.py",
+    "experiments/agents_sdk/tests/test_lab.py"
+  ],
+  "status": "READY_FOR_INTEGRATION_HANDOFF",
+  "target_branch": "chore/atlas-agent-development-tooling",
+  "target_pr": 705,
+  "uncommitted": true,
+  "worktree": "[SOURCE-HOST WORKTREE]"
+}

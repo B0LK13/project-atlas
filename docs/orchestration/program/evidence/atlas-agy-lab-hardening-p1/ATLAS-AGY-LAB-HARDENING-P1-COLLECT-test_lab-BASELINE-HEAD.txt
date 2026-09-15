@@ -1,0 +1,12 @@
+experiments/agents_sdk/tests/test_lab.py::test_demo_flow_enforces_verifier_identity
+experiments/agents_sdk/tests/test_lab.py::test_implementer_output_cannot_masquerade_as_verifier
+experiments/agents_sdk/tests/test_lab.py::test_eval_implementer_self_certification_is_blocked
+experiments/agents_sdk/tests/test_lab.py::test_eval_verifier_write_attempt_is_blocked
+experiments/agents_sdk/tests/test_lab.py::test_eval_stale_head_is_rejected
+experiments/agents_sdk/tests/test_lab.py::test_eval_ci_pass_iv_missing_is_blocked
+experiments/agents_sdk/tests/test_lab.py::test_eval_iv_fail_ci_pass_is_blocked
+experiments/agents_sdk/tests/test_lab.py::test_eval_owner_gate_unresolved_is_blocked
+experiments/agents_sdk/tests/test_lab.py::test_lane_waiting_does_not_block_runnable_lane
+experiments/agents_sdk/tests/test_lab.py::test_head_moves_after_decision_invalidates_authorization
+
+10 tests collected in 0.05s
