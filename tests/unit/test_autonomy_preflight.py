@@ -489,6 +489,129 @@ def test_scope_refreshes_grant_ref_so_local_origin_main_cannot_empty_diff(
 
 
 @NEEDS_GIT
+@pytest.mark.parametrize("switch", ["autonomy/HALT", "autonomy/HALT-REQUEST"])
+def test_scope_fails_closed_when_kill_switch_exists_on_refreshed_grant_ref(
+    tmp_path: Path, switch: str
+) -> None:
+    """AS-AUTONOMY-P1-SCOPE-HALT-001: scope must see grant-ref kill switches.
+
+    Preflight already refreshes and refuses HALT on the grant ref. Scope is the
+    post-work emit gate and must stop too, even when the worktree is clean and
+    the only in-scope change is an allowed src/ edit.
+    """
+    work = tmp_path / "work"
+    remote = tmp_path / "remote.git"
+    owner = tmp_path / "owner"
+    work.mkdir()
+    for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):
+        (work / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / rel, work / rel)
+    _git(work, "init", "-q")
+    _git(work, "checkout", "-q", "-b", "main")
+    _write(work / "README.md", "seed\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "seed")
+    base = _git(work, "rev-parse", "HEAD").strip()
+    sha = pf.policy_sha(work)
+    _write(work / pf.grant_path(1), _grant_text(sha).replace(BASE_SHA, base))
+    _write(work / "autonomy/directives/D-ATLAS-ITER-1.md", "# D-ATLAS-ITER-1\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "granted loop")
+    subprocess.run(["git", "clone", "--bare", "-q", str(work), str(remote)], check=True)
+    _git(work, "remote", "add", "origin", str(remote))
+    _git(work, "fetch", "origin")
+    subprocess.run(["git", "clone", "-q", str(remote), str(owner)], check=True)
+    _write(owner / switch, "owner halt\n")
+    _git(owner, "add", switch)
+    _git(owner, "commit", "-q", "-m", "owner kill switch")
+    _git(owner, "push", "origin", "main")
+    stale = _git(work, "rev-parse", "origin/main").strip()
+    remote_tip = _git(remote, "rev-parse", "HEAD").strip()
+    assert stale != remote_tip
+    _write(work / "src/ok.py", "ok = 1\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "feat: in-scope\n\nAtlas-Role: executor\n")
+    assert not (work / switch).exists()
+    scope = pf.main(
+        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
+    )
+    assert scope == 1
+    preflight = pf.main(["--root", str(work), "preflight", "--iteration", "1"])
+    assert preflight == 1
+    refreshed = _git(work, "rev-parse", "refs/remotes/origin/main").strip()
+    assert refreshed == remote_tip
+
+
+@NEEDS_GIT
+def test_scope_fails_closed_when_grant_ref_remote_is_missing(tmp_path: Path) -> None:
+    """AS-AUTONOMY-P1-GRANT-REF-REMOTE-MISSING-001.
+
+    Removing ``origin`` does not dirty porcelain. Combined with a local
+    ``origin/main`` at HEAD, refresh must not collapse onto that branch and
+    skip never-writable floors.
+    """
+    work = tmp_path / "work"
+    remote = tmp_path / "remote.git"
+    work.mkdir()
+    for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):
+        (work / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / rel, work / rel)
+    _git(work, "init", "-q")
+    _git(work, "checkout", "-q", "-b", "main")
+    _write(work / "README.md", "seed\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "seed")
+    base = _git(work, "rev-parse", "HEAD").strip()
+    sha = pf.policy_sha(work)
+    _write(work / pf.grant_path(1), _grant_text(sha).replace(BASE_SHA, base))
+    _write(work / "autonomy/directives/D-ATLAS-ITER-1.md", "# D-ATLAS-ITER-1\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "granted loop")
+    _git(work, "branch", "grant-ref")
+    subprocess.run(["git", "clone", "--bare", "-q", str(work), str(remote)], check=True)
+    _git(work, "remote", "add", "origin", str(remote))
+    _git(work, "fetch", "origin")
+    (work / "autonomy" / "tools").mkdir(parents=True, exist_ok=True)
+    (work / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    _write(work / "autonomy/tools/preflight.py", "# executor rewrite\n")
+    _write(work / ".github/workflows/evil.yml", "name: evil\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "iteration rewrite")
+    control = pf.main(
+        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
+    )
+    assert control == 1
+    _git(work, "branch", "origin/main", "HEAD")
+    _git(work, "remote", "remove", "origin")
+    porcelain = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=work,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert porcelain == ""
+    attack = pf.main(
+        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
+    )
+    assert attack == 2
+    local_floors = pf.main(
+        [
+            "--root",
+            str(work),
+            "scope",
+            "--iteration",
+            "1",
+            "--role",
+            "executor",
+            "--grant-ref",
+            "grant-ref",
+        ]
+    )
+    assert local_floors == 1
+
+
+@NEEDS_GIT
 def test_git_preflight_rejects_a_rewritten_granted_directive(tmp_path: Path) -> None:
     _git(tmp_path, "init", "-q")
     for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):

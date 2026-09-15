@@ -445,6 +445,10 @@ def _blob(root: Path, ref: str, rel: str) -> bytes | None:
     return result.stdout if result.returncode == 0 else None
 
 
+# Default grant-ref names that are remote-tracking even if that remote was removed.
+_CONVENTIONAL_REMOTES = ("origin", "upstream")
+
+
 def _remote_tracking(grant_ref: str, remotes: list[str]) -> tuple[str, str] | None:
     """Return ``(remote, branch)`` for a remote-tracking grant ref, else None."""
     rest = grant_ref
@@ -459,15 +463,44 @@ def _remote_tracking(grant_ref: str, remotes: list[str]) -> tuple[str, str] | No
     return None
 
 
+def _claimed_remote(grant_ref: str) -> str | None:
+    """Remote named by a remote-tracking grant ref, even if it is not configured.
+
+    ``refs/remotes/<remote>/…`` always names ``<remote>``. Conventional
+    ``origin/…`` and ``upstream/…`` names stay remote-tracking so removing the
+    remote cannot collapse them onto a local ``origin/main`` branch.
+    Local refs such as ``grant-ref`` are unchanged.
+    """
+    rest = grant_ref
+    if rest.startswith("refs/remotes/"):
+        rest = rest[len("refs/remotes/") :]
+        remote, sep, name = rest.partition("/")
+        if sep and remote and name:
+            return remote
+        return None
+    remote, sep, name = rest.partition("/")
+    if sep and remote in _CONVENTIONAL_REMOTES and name:
+        return remote
+    return None
+
+
 def refresh_grant_ref(root: Path, grant_ref: str) -> str:
     """Fetch a remote-tracking grant ref before judging HALT and pins.
 
     A name ``<remote>/<branch>`` or ``refs/remotes/<remote>/<branch>`` is
     refreshed from that remote and returned as the unambiguous remotes ref so a
     local branch of the same name cannot shadow the fetched tip. Fetch failure
-    is fail-closed. Local branches and raw SHAs are unchanged.
+    is fail-closed. A remote-tracking grant ref whose remote is missing is
+    fail-closed rather than treated as a local branch. Local branches and raw
+    SHAs are unchanged.
     """
     remotes = [line for line in _git_ok(root, "remote").decode("utf-8").splitlines() if line]
+    claimed = _claimed_remote(grant_ref)
+    if claimed is not None and claimed not in remotes:
+        raise ConfigError(
+            f"grant-ref {grant_ref} names remote {claimed!r} which is not configured: "
+            "a missing remote cannot be treated as a local branch"
+        )
     parsed = _remote_tracking(grant_ref, remotes)
     if parsed is None:
         return grant_ref
@@ -483,6 +516,15 @@ def refresh_grant_ref(root: Path, grant_ref: str) -> str:
     return f"refs/remotes/{remote}/{name}"
 
 
+def check_grant_ref_kill_switches(root: Path, grant_ref: str) -> list[str]:
+    """Fail closed when HALT or HALT-REQUEST exists on the (refreshed) grant ref."""
+    problems: list[str] = []
+    for rel in KILL_SWITCHES:
+        if _blob(root, grant_ref, rel) is not None:
+            problems.append(f"{rel} exists on {grant_ref}: the loop is stopped")
+    return problems
+
+
 def check_git_preflight(root: Path, policy: Policy, grant: Grant, grant_ref: str) -> list[str]:
     grant_ref = refresh_grant_ref(root, grant_ref)
     problems: list[str] = []
@@ -495,9 +537,7 @@ def check_git_preflight(root: Path, policy: Policy, grant: Grant, grant_ref: str
             problems.append(
                 f"{rel} differs from {grant_ref}: only the committed grant-ref copy counts"
             )
-    for rel in KILL_SWITCHES:
-        if _blob(root, grant_ref, rel) is not None:
-            problems.append(f"{rel} exists on {grant_ref}: the loop is stopped")
+    problems.extend(check_grant_ref_kill_switches(root, grant_ref))
     ancestor = _git(root, "merge-base", "--is-ancestor", grant.base_sha, "HEAD")
     if ancestor.returncode == 1:
         problems.append(f"base_sha {grant.base_sha} is not an ancestor of HEAD")
@@ -823,8 +863,9 @@ def main(argv: list[str] | None = None) -> int:
             policy = load_policy(root)
             grant = load_grant(root, args.iteration)
             grant_ref = refresh_grant_ref(root, args.grant_ref)
+            problems = check_grant_ref_kill_switches(root, grant_ref)
             changes = git_changes(root, grant_ref, args.head)
-            problems = check_scope(policy, grant, changes, args.role)
+            problems.extend(check_scope(policy, grant, changes, args.role))
             problems.extend(check_roles(commit_roles(root, grant_ref, args.head), args.role))
             if any(change.path == LEDGER_PATH for change in changes):
                 appended = ledger_append(root, grant_ref, args.head)
