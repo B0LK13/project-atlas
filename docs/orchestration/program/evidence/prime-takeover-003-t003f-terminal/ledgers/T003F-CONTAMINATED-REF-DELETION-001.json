@@ -1,0 +1,35 @@
+{
+  "action": "DELETE_REMOTE_BRANCH_ONLY",
+  "at_utc": "2026-09-15T19:09:23Z",
+  "authorization": "DESTRUCTIVE CLEANUP AUTHORIZATION \u2014 MINIMUM SCOPE",
+  "deleted_ref": "refs/heads/feat/prime-takeover-003-config-route",
+  "document": "T003F-CONTAMINATED-REF-DELETION-001",
+  "expected_tip_verified_before_delete": "d539f88adb931fa9f9c7a4e5529f612b01ae14dc",
+  "expected_tree_verified_before_delete": "121487ca19d827cc374ce7182ac7c0043b879b2e",
+  "post_deletion": {
+    "contam_object_may_remain_addressable_by_sha": true,
+    "contam_reachable_from_remaining_branch_tips": [],
+    "contaminated_ref_present": false,
+    "physical_git_object_purge": "NOT_CLAIMED",
+    "remote_branch_count_scanned": 963,
+    "supervisorOwnerToken_uuid_findings_on_remaining_tips": []
+  },
+  "preconditions": {
+    "p1_branch": "handoff/atlas-agy-lab-hardening-p1",
+    "p1_commit": "d41c80d26b16048bc530cd8e6d0ad55964f548ae",
+    "pr927_branch": "supervisor/asanc-pr927-caveat-001",
+    "pr927_commit": "b4ebc905304e73e7937e43a959c04af6db1e31dc",
+    "sanitized_branch": "feat/prime-takeover-003-handoff-sanitized",
+    "sanitized_commit": "f963efbbd015dd11d4d469255e50122a9a0943f3"
+  },
+  "repository": "B0LK13/project-atlas",
+  "status": {
+    "CONTAMINATED_REF": "REMOVED",
+    "MIGRATION_HANDOFF": "READY",
+    "NEW_HOST_PRODUCT_EXECUTION": "STILL_GATED",
+    "clean_handoff": "VERIFIED",
+    "exposed_runtime_token": "INVALIDATED_NOT_LIVE",
+    "physical_git_object_purge": "NOT_CLAIMED"
+  },
+  "truth_boundary": "BRANCH_REF_DELETED != OBJECT_PURGED / TOKEN_INVALIDATED != HISTORY_REWRITTEN / MIGRATION_HANDOFF_READY != NEW_HOST_PRODUCT_EXECUTION"
+}

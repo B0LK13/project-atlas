@@ -1,4 +1,7 @@
 {
+  "CONTAMINATED_REF": "REMOVED",
+  "MIGRATION_HANDOFF": "READY",
+  "NEW_HOST_PRODUCT_EXECUTION": "STILL_GATED",
   "at": "2026-09-15T18:48:27Z",
   "background_shell_notifications": {
     "items": [
@@ -16,6 +19,17 @@
       }
     ],
     "note": "Duplicates of the same terminal t003f run; create no new authorization or execution state"
+  },
+  "contaminated_ref_deletion": {
+    "at_utc": "2026-09-15T19:09:23Z",
+    "contam_reachable_from_remaining_tips": false,
+    "deleted_ref": "refs/heads/feat/prime-takeover-003-config-route",
+    "deleted_tip": "d539f88adb931fa9f9c7a4e5529f612b01ae14dc",
+    "deleted_tree": "121487ca19d827cc374ce7182ac7c0043b879b2e",
+    "ledger": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-CONTAMINATED-REF-DELETION-001.json",
+    "object_purge": "NOT_CLAIMED",
+    "scan_uuid_findings_on_remaining_tips": 0,
+    "token_status": "INVALIDATED_NOT_LIVE"
   },
   "cross_host_ready": "GO_SANITIZED_BRANCH_ONLY",
   "cross_host_ready_note": "Fresh clone of feat/prime-takeover-003-handoff-sanitized reproduced commit acf5a1f4c176b9a26dc4818c1878cae879cfb0b8 / tree 1a548a2069aefb1b324c2d8c9ac69b7221d74806; bounded remediation unit tests passed; resume files remotely readable. Contaminated ref feat/prime-takeover-003-config-route @ d539f88 remains published and requires separate owner-authorized destructive cleanup. Do not clone the contaminated branch.",
@@ -41,6 +55,10 @@
       ],
       "no_effect_completion_is_FAIL": true
     }
+  },
+  "new_host_gate": {
+    "production_shaped_a1_canary_required_consecutive_passes": 2,
+    "t003g_or_new_prime_coding_root": "FORBIDDEN_UNTIL_CANARY_2_OF_2"
   },
   "prohibitions": [
     "DO_NOT_RESUME_t003f",

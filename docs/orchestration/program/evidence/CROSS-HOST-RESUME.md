@@ -98,3 +98,17 @@ branch reproduces expected commit/tree identities.
 - Destructive cleanup of the contaminated ref requires separate owner authorization
   (branch deletion and/or history rewrite). Do not force-push without that grant.
 - New host must clone **`feat/prime-takeover-003-handoff-sanitized`**, not the contaminated branch.
+
+
+## Contaminated ref deletion (2026-09-15T19:09:23Z)
+
+Authorized minimum-scope deletion completed.
+
+- `CONTAMINATED_REF = REMOVED` — `refs/heads/feat/prime-takeover-003-config-route` (was tip `d539f88` / tree `121487ca…`) is absent.
+- `MIGRATION_HANDOFF = READY` — use `feat/prime-takeover-003-handoff-sanitized` only.
+- `NEW_HOST_PRODUCT_EXECUTION = STILL_GATED` — destination host must pass the production-shaped A1 canary **twice consecutively** before any t003g or new Prime coding-root.
+- Exposed runtime tokens: **INVALIDATED / NOT LIVE**.
+- Physical Git object purge: **NOT CLAIMED** — commit `d539f88` may remain temporarily addressable by SHA, caches, or GitHub retention until GC.
+- Post-deletion tip scan of remaining published refs: **0** `supervisorOwnerToken` UUID values; contaminated commit **not** reachable from remaining branch tips.
+
+Ledger: `prime-takeover-003-t003f-terminal/ledgers/T003F-CONTAMINATED-REF-DELETION-001.json`
