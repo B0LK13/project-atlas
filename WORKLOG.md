@@ -14915,3 +14915,14 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-CTXCOMP-JSON-ESC-001 — scan decoded context-compiler refs
+
+`compile_context(..., write=True)` persisted sanitized provenance after
+`json.loads`. Quoted `\\u` AKIA refs miss raw `scan_text` and `_PROV_REF_RE`
+still matches the decoded token. `_sanitize_provenance` now drops
+secret-shaped refs; empty provenance after sanitize still fails closed.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
