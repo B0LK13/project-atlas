@@ -288,6 +288,7 @@ def test_scope_allows_granted_work_and_kill_switch_creation() -> None:
         "autonomy/verdicts/V-1.md",
         "autonomy/certs/C-1.md",
         "autonomy/drift/D-1.md",
+        "autonomy/directives/D-ATLAS-ITER-1.md",
     ],
 )
 def test_scope_executor_floor_cannot_be_opened_by_level_or_grant(path: str) -> None:
@@ -434,6 +435,12 @@ def test_git_preflight_rejects_a_rewritten_granted_directive(tmp_path: Path) -> 
         tmp_path, pf.load_policy(tmp_path), pf.load_grant(tmp_path, 1), "grant-ref"
     )
     assert any("D-ATLAS-ITER-1.md differs from grant-ref" in problem for problem in problems)
+    rewritten_scope = pf.check_scope(
+        pf.load_policy(tmp_path),
+        pf.load_grant(tmp_path, 1),
+        [_change("autonomy/directives/D-ATLAS-ITER-1.md")],
+    )
+    assert any("never writable" in problem for problem in rewritten_scope)
     _write(tmp_path / "autonomy/directives/D-ATLAS-ITER-2.md", "# next\n")
     next_ok = pf.check_scope(
         pf.load_policy(tmp_path),

@@ -575,7 +575,7 @@ def check_scope(
         if path in KILL_SWITCHES:
             if change.status != "A":
                 problems.append(f"{path}: may be created, never modified or removed")
-        elif matches_any(path, NEVER_WRITABLE):
+        elif path == grant.directive or matches_any(path, NEVER_WRITABLE):
             problems.append(f"{path}: never writable by any loop role")
         elif role == "executor":
             if matches_any(path, EXECUTOR_NEVER):

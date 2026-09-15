@@ -163,7 +163,8 @@ delete plus an add, and both paths are judged), for the role named by
 1. `autonomy/HALT` and `autonomy/HALT-REQUEST` may be **added** by any role. Modifying or
    deleting either is a violation.
 2. Floor for every role, hard-coded in the tool: `autonomy/policy.md`, `autonomy/loop.yaml`,
-   `autonomy/tools/**`, `.github/**`.
+   `autonomy/tools/**`, `.github/**`, and the directive named by the grant. Proposing
+   `D-<n+1>` remains in scope.
 3. Executor:
    1. Executor floor, hard-coded: `autonomy/grants/**`, `autonomy/verdicts/**`,
       `autonomy/certs/**`, `autonomy/drift/**`, `autonomy/audits/**`,
@@ -293,7 +294,8 @@ A grant verifies only if all of these hold (`preflight.py preflight --iteration 
   the current `policy.md`;
 - the grant file, `policy.md`, and the directive named by the grant are byte-identical to
   their versions on the grant ref (a locally edited grant, policy, or granted directive is
-  void; proposing `D-<n+1>` remains in scope);
+  void); `scope` also rejects any change to the granted directive (proposing `D-<n+1>`
+  remains in scope);
 - `base_sha` is an ancestor of `HEAD`;
 - the directive named by the grant exists and is a normalized path under
   `autonomy/directives/` (`..` and empty segments are rejected);
