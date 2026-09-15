@@ -14915,3 +14915,62 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## D-ATLAS-RSI-GOVERNED-LOOP-001 Phase 0: governed RSI loop scaffold
+
+Branch `autonomy/scaffold` off `origin/main` `b87b4a226f4aa8b2f669edf112aa3476454f754f`.
+Executor deliverable for Phase 0 only. No iteration was run: iteration 1 preflight
+stops at the missing owner grant, as designed.
+
+**What landed**
+
+- `autonomy/policy.md` (DRAFT until the owner merges): invariants, roles, a machine-read
+  `# autonomy-policy v1` block (allow-list scopes, forbidden scopes, phase-gated
+  instrument scopes, budget, lanes), grant format and verification, iteration protocol,
+  return packet contract, ledger schema, supervisor gate, promotion path, phases.
+- `autonomy/loop.yaml` pinning
+  `policy_sha: d7b52250c1f29595d6282fd516e18e8a5b54d7c55e12311505e6ed9c704ce3c1`.
+- `autonomy/tools/preflight.py` (stdlib + PyYAML): `sha`, `preflight --iteration N`
+  (HALT, grant presence and labels, pin equality across policy/loop/grant, grant and
+  policy byte-identical to the grant ref, `base_sha` ancestry, directive presence,
+  optional signature), `scope --iteration N` (per-path judgement, never-grantable floor,
+  ledger append-only, budget files and lines, dirty tree).
+- `autonomy/instruments/{verify-checklist.md,directive-template.md,skills/README.md}`,
+  empty `autonomy/ledger.jsonl`, placeholder `grants/`, `directives/`, `packets/`,
+  `verdicts/`.
+- `tests/unit/test_autonomy_preflight.py`: 20 tests, including a CI tripwire that fails
+  if `loop.yaml` stops pinning the current `policy.md` bytes.
+
+**Deliberate tightenings of the directive** (owner may relax in `policy.md`)
+
+- `autonomy/loop.yaml` and `autonomy/tools/**` are forbidden scopes, alongside the
+  directive's `policy.md`, `grants/**`, `verdicts/**`: both hold authority (pin, budget,
+  gate code). They are also in the hard-coded never-grantable floor with `.github/**`.
+- Agent instruction and governance files (`AGENTS.md`, `CLAUDE.md`, `GOVERNANCE.md`,
+  ...), `pyproject.toml` (test and lint config), `scripts/**`, `deps/**` and
+  `atlas-vault-documentation/**` are forbidden unless a grant lists a `scope_exceptions`.
+- `verify-checklist.md` and `directive-template.md` are gated to phase 3 per section 8
+  of the directive; `instruments/skills/**` is open from phase 0 so the section 4 step 6
+  reflection always has a legal target.
+- Grants are verified against the owner-committed copy on the grant ref
+  (`origin/main`), not only the local file.
+
+**Commands (local, native Windows 11, Python 3.13.14)**
+
+```
+python autonomy/tools/preflight.py sha                          # exit 0, d7b52250...
+python -m ruff check .                                          # exit 0
+python -m pytest tests/unit/test_autonomy_preflight.py --no-cov # exit 0, 20 passed
+python autonomy/tools/preflight.py preflight --iteration 1      # exit 1, missing grant G-1
+```
+
+**Not done / owner actions**
+
+- `autonomy/staging` does not exist yet; iteration PRs have no base until the owner
+  creates it from `main`.
+- `G-1` and `D-ATLAS-ITER-1` are owner deliverables and were not written.
+- `required_lanes` check names are inferred from the `ci.yml` matrix and must be
+  confirmed on the first staging PR. No CI run exists for this branch yet.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
