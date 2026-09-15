@@ -1,0 +1,37 @@
+{
+  "base_pin": "ecc13dc830a629c7c6449f1aa3e156339a1809f0",
+  "claimed_at": "2026-09-15T18:30:49Z",
+  "claimed_by": "T003F-CONDITIONAL-EXACT-ONCE-AUTHORIZATION",
+  "program_id": "t003f",
+  "record_id": "T003F-ROOT-SLOT",
+  "remediation_workspace_tree": "ed560297c19e37ca427f693accb36daf0439c9a8",
+  "schema_version": 1,
+  "stable_cold_gate": [
+    {
+      "MemAvailable_bytes": 4543295488,
+      "SwapFree_bytes": 262508544,
+      "at": "2026-09-15T18:30:19Z",
+      "decision": "ALLOW",
+      "need_bytes": 4377336217,
+      "shortfall_bytes": 0
+    },
+    {
+      "MemAvailable_bytes": 4505124864,
+      "SwapFree_bytes": 262635520,
+      "at": "2026-09-15T18:30:34Z",
+      "decision": "ALLOW",
+      "need_bytes": 4377336217,
+      "shortfall_bytes": 0
+    },
+    {
+      "MemAvailable_bytes": 4540518400,
+      "SwapFree_bytes": 245805056,
+      "at": "2026-09-15T18:30:49Z",
+      "decision": "ALLOW",
+      "need_bytes": 4377336217,
+      "shortfall_bytes": 0
+    }
+  ],
+  "state_root": "/tmp/a002/t3f",
+  "status": "CLAIMED"
+}

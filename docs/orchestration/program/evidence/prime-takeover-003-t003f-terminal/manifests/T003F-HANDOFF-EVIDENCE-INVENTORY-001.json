@@ -1,0 +1,173 @@
+{
+  "at": "2026-09-15T18:47:23Z",
+  "files": [
+    {
+      "bytes": 4104,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-FINAL-RESULT-001.json",
+      "sha256": "f2887bde008aa72bec22943055b5e5c667226bc941969b055bcfc5a2bfd999b4",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003F-FINAL-RESULT-001.json"
+    },
+    {
+      "bytes": 1430,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-PROGRAM-DESIGN-REGISTRATION-001.json",
+      "sha256": "64a70d66023b4fe288a29013f6b83a83ba4150beb21cdeb1f923711feb9851e5",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003F-PROGRAM-DESIGN-REGISTRATION-001.json"
+    },
+    {
+      "bytes": 758,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-COLD-GATE-STABLE.json",
+      "sha256": "e3a0faf1ceb837a5ee179a81db51879e67ca3f18231e94160b08c0e82391bdd2",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003F-COLD-GATE-STABLE.json"
+    },
+    {
+      "bytes": 533,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-DISPATCH-EXACT-ONCE.json",
+      "sha256": "ba8c25965227936409f554c01066ed333c1888ab93f4959dfd4b4a0a53b993d4",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003F-DISPATCH-EXACT-ONCE.json"
+    },
+    {
+      "bytes": 360,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-DISPATCH-REPAIR-001.json",
+      "sha256": "e967e5ef4e213e4362f5309e4d6a78f919dd90077f4a585d5ddfe5099fb34c27",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003F-DISPATCH-REPAIR-001.json"
+    },
+    {
+      "bytes": 419,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-OWNER-REMEDIATION-REOPEN-001.json",
+      "sha256": "52345620b0a7d409df2ab4dbb5ef76f1b65863da5461a94ba0a7303b3720c9db",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003F-OWNER-REMEDIATION-REOPEN-001.json"
+    },
+    {
+      "bytes": 1035,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-ROOT-SLOT-CLAIM.json",
+      "sha256": "71663e94cb84b7c815e5d762ce8db6d222812a409b9d7b9b83de98ac0ed6d9b7",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003F-ROOT-SLOT-CLAIM.json"
+    },
+    {
+      "bytes": 4874,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/CAPABILITY-CANARY-SUMMARY-001.json",
+      "sha256": "8369381452ddba958d5a8a3a682f0d5440827d036b8d4cad8b0fa63e5e14f24b",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/CAPABILITY-CANARY-SUMMARY-001.json"
+    },
+    {
+      "bytes": 8318,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/CAPABILITY-INDEPENDENT-REVIEW-001.json",
+      "sha256": "0007e0280f4e5a9afcd98102fe876c230cd56dccf914bd61ff8dcc26240ff7f2",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/CAPABILITY-INDEPENDENT-REVIEW-001.json"
+    },
+    {
+      "bytes": 974,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003E-FASE1-SYNTHESIS-001.json",
+      "sha256": "1319f45cee69b3ecc0173a67e497e3ab138013a0a6976ec43188626a9e48f406",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003E-FASE1-SYNTHESIS-001.json"
+    },
+    {
+      "bytes": 1369,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003E-ENDSTATUS-CAPABILITY-REMEDIATION-001.json",
+      "sha256": "b2ee16924e1da0bab5523f6534da78d21149e9a05e744a273f182f85bc8523cf",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/ledgers/T003E-ENDSTATUS-CAPABILITY-REMEDIATION-001.json"
+    },
+    {
+      "bytes": 10330,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/program/program-t003f.json",
+      "sha256": "d1029b12b1ca89f01355fcf03369f13b907f87abcecec0c76edd09f4b8444180",
+      "source": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/programs/program-t003f.json"
+    },
+    {
+      "bytes": 3287,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.1.f68ee2a9/t003f.prime-a1.run.1.f68ee2a9.acceptance.json",
+      "sha256": "7182acaf341a4f0164cf1bbc52ad56ba6e2564812578a1f19666462b02a85048",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.1.f68ee2a9.acceptance.json"
+    },
+    {
+      "bytes": 1329,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.1.f68ee2a9/t003f.prime-a1.run.1.f68ee2a9.baseline.json",
+      "sha256": "3b9d4f19799dea32b7c30c0952828b17da0bd03a7a6ba85f77ee499f34057533",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.1.f68ee2a9.baseline.json"
+    },
+    {
+      "bytes": 2338,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.1.f68ee2a9/t003f.prime-a1.run.1.f68ee2a9.prime-daemon.json",
+      "sha256": "581f2ca0b9bc9d23702e4baa6550d3066f9b322c39b3fa1cb0525f72559f0b83",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.1.f68ee2a9.prime-daemon.json"
+    },
+    {
+      "bytes": 4658,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.1.f68ee2a9/t003f.prime-a1.run.1.f68ee2a9.prime-daemon.jsonl",
+      "sha256": "00dda81d26cd18cc5536c88f68248fd07f131b5483275e59a7a830f6452f4a80",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.1.f68ee2a9.prime-daemon.jsonl"
+    },
+    {
+      "bytes": 150,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.1.f68ee2a9/t003f.prime-a1.run.1.f68ee2a9.inference-audit.jsonl",
+      "sha256": "c095fd7307120b637ef30257d7f879d02c28464be054ef6e8e1894dfbfd9d6f2",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.1.f68ee2a9.inference-audit.jsonl"
+    },
+    {
+      "bytes": 0,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.1.f68ee2a9/t003f.prime-a1.run.1.f68ee2a9.child-admission.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.1.f68ee2a9.child-admission.jsonl"
+    },
+    {
+      "bytes": 9008,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/sessions-sanitized/t003f.prime-a1.run.1.f68ee2a9.sanitized.jsonl",
+      "sanitized": true,
+      "sha256": "c4c1e1cfea447d08d2809ec5dbab9c2ed518eff796bcb84682a5f8f4c1bd021d",
+      "source": "/tmp/atlas-prime-e2e-002-workspace/.prime-sessions/t003f.prime-a1.run.1.f68ee2a9.jsonl"
+    },
+    {
+      "bytes": 3287,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.2.e0678593/t003f.prime-a1.run.2.e0678593.acceptance.json",
+      "sha256": "c86cc4afb430be4c17983be294777dea1ce5516460657b52ca17e7b0c97bee2c",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.2.e0678593.acceptance.json"
+    },
+    {
+      "bytes": 1329,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.2.e0678593/t003f.prime-a1.run.2.e0678593.baseline.json",
+      "sha256": "369d9bd917673a10b740dd6b0f9b43687b96c50e71e9fcc57efa7b185987a43b",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.2.e0678593.baseline.json"
+    },
+    {
+      "bytes": 2338,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.2.e0678593/t003f.prime-a1.run.2.e0678593.prime-daemon.json",
+      "sha256": "1f3c4559a41f7e5d518cf73ae1a0f9ac42afdabf205325f5e75ab7a5303165bd",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.2.e0678593.prime-daemon.json"
+    },
+    {
+      "bytes": 4657,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.2.e0678593/t003f.prime-a1.run.2.e0678593.prime-daemon.jsonl",
+      "sha256": "67f09c445a94c7d1ac9ecae68e89fa57e499788f5784a256c0c796a3b0e9e09a",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.2.e0678593.prime-daemon.jsonl"
+    },
+    {
+      "bytes": 150,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.2.e0678593/t003f.prime-a1.run.2.e0678593.inference-audit.jsonl",
+      "sha256": "c095fd7307120b637ef30257d7f879d02c28464be054ef6e8e1894dfbfd9d6f2",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.2.e0678593.inference-audit.jsonl"
+    },
+    {
+      "bytes": 0,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.2.e0678593/t003f.prime-a1.run.2.e0678593.child-admission.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.2.e0678593.child-admission.jsonl"
+    },
+    {
+      "bytes": 8460,
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/sessions-sanitized/t003f.prime-a1.run.2.e0678593.sanitized.jsonl",
+      "sanitized": true,
+      "sha256": "06bb02c53fd51f9290b18a72b3967a32458192b3c05ea273efd8982c5e1edb22",
+      "source": "/tmp/atlas-prime-e2e-002-workspace/.prime-sessions/t003f.prime-a1.run.2.e0678593.jsonl"
+    },
+    {
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/manifests/T003F-STATE-PORTABLE-MANIFEST-001.json",
+      "sha256": "e629f738d5a68e8801c699340f16fa3fabf4ff5021e08716dd7b31d880ce902a"
+    },
+    {
+      "path": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-PERMANENT-FREEZE-001.json",
+      "sha256": "190a487d13eb287276402844e27ec9471c6e6e540f21a9e977beaab1d93aac98"
+    }
+  ],
+  "program_sha256_full": "d1029b12b1ca89f01355fcf03369f13b907f87abcecec0c76edd09f4b8444180",
+  "record_id": "T003F-HANDOFF-EVIDENCE-INVENTORY-001"
+}

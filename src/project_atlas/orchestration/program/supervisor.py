@@ -62,12 +62,6 @@ from project_atlas.orchestration.program.acceptance import (
     evaluate_task,
     progress_fingerprint,
 )
-from project_atlas.orchestration.program.semantic_acceptance import (
-    BaselineManifest,
-    capture_baseline_manifest,
-    evaluate_semantic_acceptance,
-    merge_acceptance_results,
-)
 from project_atlas.orchestration.program.adapters.base import (
     AdapterOutcome,
     AdapterRequest,
@@ -106,6 +100,12 @@ from project_atlas.orchestration.program.profiles import (
     ProfileLimits,
 )
 from project_atlas.orchestration.program.recovery import RecoveryAction, classify_attempt
+from project_atlas.orchestration.program.semantic_acceptance import (
+    BaselineManifest,
+    capture_baseline_manifest,
+    evaluate_semantic_acceptance,
+    merge_acceptance_results,
+)
 from project_atlas.orchestration.program.store import (
     AttemptRecord,
     HandoffRecord,
@@ -759,6 +759,15 @@ class ProgramSupervisor:
             "remaining_limits": {
                 "launches": max(0, limits.max_task_launches - state.total_launches),
                 "max_task_launches": limits.max_task_launches,
+                "max_total_launches": limits.max_task_launches,
+                "max_coding_attempts": limits.max_coding_attempts,
+                "reserved_reviewer_launches": limits.reserved_reviewer_launches,
+                "coding_launch_room": max(
+                    0,
+                    limits.max_task_launches
+                    - limits.reserved_reviewer_launches
+                    - state.total_launches,
+                ),
                 "max_program_seconds": limits.max_program_seconds,
                 "max_cycles": limits.max_cycles,
                 "idle_cycles_used": state.idle_cycles,
@@ -1409,13 +1418,28 @@ class ProgramSupervisor:
                     "verification by a person; unrelated work continues"
                 )
                 continue
+            reserved = self.program.limits.reserved_reviewer_launches
+            if reserved > 0:
+                if not record.candidate_present:
+                    result.notes.append(
+                        f"{task.task_id}: awaiting IV but candidate_present is false; "
+                        "VERIFY withheld"
+                    )
+                    continue
+                if record.reviewer_launches >= reserved:
+                    result.notes.append(
+                        f"{task.task_id}: reserved reviewer launches exhausted "
+                        f"({record.reviewer_launches}/{reserved})"
+                    )
+                    continue
+            # reserved=0: legacy path — awaiting_IV alone remains sufficient.
             return DispatchChoice(
                 task_id=task.task_id,
                 mode=DispatchMode.VERIFY,
                 reason="acceptance passed; a distinct agent must now certify",
             )
 
-        # Retry of a task whose acceptance failed and which has attempts left.
+        # Retry of a task whose acceptance failed and which has coding attempts left.
         for task in self.program.tasks:
             record = state.tasks[task.task_id]
             if record.state is not NodeState.REMEDIATING:
@@ -1423,18 +1447,35 @@ class ProgramSupervisor:
             profile = self.loaded.effective_profile(task.task_id)
             if profile.agent_id in busy:
                 continue
-            budget = min(self.program.limits.max_attempts_per_task, profile.limits.max_attempts)
-            if record.attempts >= budget:
+            budget = self._coding_attempt_budget(profile)
+            if record.coding_attempts >= budget:
+                if not record.candidate_present:
+                    reason = (
+                        f"FAIL_NO_CANDIDATE: coding attempt budget of {budget} exhausted"
+                    )
+                else:
+                    reason = f"attempt budget of {budget} exhausted"
                 self._transition(
                     state,
                     task.task_id,
                     NodeState.BLOCKED,
-                    reason=f"attempt budget of {budget} exhausted",
+                    reason=reason,
                 )
                 self._notify(
                     "TASK_BLOCKED",
-                    f"task {task.task_id} exhausted its attempt budget",
-                    {"task_id": task.task_id, "attempts": record.attempts},
+                    f"task {task.task_id} exhausted its coding attempt budget",
+                    {
+                        "task_id": task.task_id,
+                        "coding_attempts": record.coding_attempts,
+                        "attempts": record.attempts,
+                        "candidate_present": record.candidate_present,
+                    },
+                )
+                continue
+            if self._coding_launch_room(state) <= 0:
+                result.notes.append(
+                    f"{task.task_id}: coding launch room exhausted "
+                    "(reviewer reservation held)"
                 )
                 continue
             return DispatchChoice(
@@ -1455,6 +1496,12 @@ class ProgramSupervisor:
             if self._has_open_attempt(state, task.task_id):
                 continue
             if self.loaded.effective_profile(task.task_id).agent_id in busy:
+                continue
+            if self._coding_launch_room(state) <= 0:
+                result.notes.append(
+                    f"{task.task_id}: coding launch room exhausted "
+                    "(reviewer reservation held)"
+                )
                 continue
             return DispatchChoice(
                 task_id=task.task_id,
@@ -1496,6 +1543,13 @@ class ProgramSupervisor:
         nodes = self._nodes_for_selection(state)
         decision = select_next(nodes)
         if decision.next_package_id is not None:
+            if self._coding_launch_room(state) <= 0:
+                result.notes.append(
+                    f"{decision.next_package_id}: coding launch room exhausted "
+                    "(reviewer reservation held)"
+                )
+                result.stop_reason = self._map_stop_reason(state, decision.stop_reason, result)
+                return None
             handoff = state.handoffs.get(decision.next_package_id)
             if handoff is not None and handoff.consumed_by_attempt_id is None:
                 return DispatchChoice(
@@ -1514,6 +1568,26 @@ class ProgramSupervisor:
 
         result.stop_reason = self._map_stop_reason(state, decision.stop_reason, result)
         return None
+
+    def _coding_attempt_budget(self, profile: AgentProfile) -> int:
+        """Coding retry ceiling; never includes reserved_reviewer_launches."""
+        limits = self.program.limits
+        coding_cap = (
+            limits.max_coding_attempts
+            if limits.max_coding_attempts is not None
+            else limits.max_attempts_per_task
+        )
+        return min(coding_cap, profile.limits.max_attempts)
+
+    def _coding_launch_room(self, state: ProgramStateRecord) -> int:
+        """Launches still available for coding after holding the reviewer reservation."""
+        limits = self.program.limits
+        return max(
+            0,
+            limits.max_task_launches
+            - limits.reserved_reviewer_launches
+            - state.total_launches,
+        )
 
     def _busy_agents(self) -> frozenset[str]:
         """Agents that already have a worker in flight.
@@ -2167,10 +2241,15 @@ class ProgramSupervisor:
                 return None
 
         capabilities = adapter.capabilities
+        if verifying:
+            role_attempt_number = record.reviewer_launches + 1
+        else:
+            role_attempt_number = record.coding_attempts + 1
+        # Legacy attempts counter still advances for attempt_id compatibility.
         attempt_number = record.attempts + 1
         attempt_id = (
             f"{self.program.program_id}.{task.task_id}."
-            f"{'verify' if verifying else 'run'}.{attempt_number}."
+            f"{'verify' if verifying else 'run'}.{role_attempt_number}."
             f"{uuid.uuid4().hex[:8]}"
         )
         sha = profile_digest(profile)
@@ -2229,6 +2308,11 @@ class ProgramSupervisor:
         state.attempts[attempt_id] = attempt
         record.last_attempt_id = attempt_id
         record.attempts = attempt_number
+        if verifying:
+            record.reviewer_launches = role_attempt_number
+            # NEVER increment coding_attempts on VERIFY.
+        else:
+            record.coding_attempts = role_attempt_number
         persist_state(self.root, state)
         append_event(
             self.root,
@@ -2242,6 +2326,9 @@ class ProgramSupervisor:
                 "adapter": capabilities.adapter_id,
                 "idempotency_key": attempt.idempotency_key,
                 "runtime_session_id": attempt.runtime_session_id,
+                "coding_attempts": record.coding_attempts,
+                "reviewer_launches": record.reviewer_launches,
+                "candidate_present": record.candidate_present,
             },
         )
 
@@ -2628,14 +2715,23 @@ class ProgramSupervisor:
                 },
             )
         elif no_progress:
+            coding_budget = self._coding_attempt_budget(profile)
+            if record.coding_attempts >= coding_budget and not record.candidate_present:
+                block_reason = (
+                    f"FAIL_NO_CANDIDATE: coding attempt budget of {coding_budget} "
+                    "exhausted; acceptance failed and the workspace is "
+                    "byte-identical to the previous attempt: no observable progress"
+                )
+            else:
+                block_reason = (
+                    "acceptance failed and the workspace is byte-identical to "
+                    "the previous attempt: no observable progress"
+                )
             self._transition(
                 state,
                 task.task_id,
                 NodeState.BLOCKED,
-                reason=(
-                    "acceptance failed and the workspace is byte-identical to "
-                    "the previous attempt: no observable progress"
-                ),
+                reason=block_reason,
             )
             self._release_lease(state, task.task_id)
             self._notify(
@@ -2679,12 +2775,17 @@ class ProgramSupervisor:
         record.last_failure_class = None
         if task.requires_independent_verification:
             record.awaiting_independent_verification = True
+            record.candidate_present = True
             self._release_lease(state, task.task_id)
             persist_state(self.root, state)
             append_event(
                 self.root,
                 "AWAITING_INDEPENDENT_VERIFICATION",
-                {"task_id": task.task_id, "implementer_agent_id": attempt.agent_id},
+                {
+                    "task_id": task.task_id,
+                    "implementer_agent_id": attempt.agent_id,
+                    "candidate_present": True,
+                },
             )
             result.notes.append(
                 f"{task.task_id}: acceptance passed; its own worker cannot "
@@ -2937,6 +3038,9 @@ class ProgramSupervisor:
                 attempt.notes = (*attempt.notes, "no launch evidence; safe to repeat")
                 record = state.tasks[attempt.task_id]
                 record.attempts = max(0, record.attempts - 1)
+                # Role-separated: SAFE_TO_LAUNCH refunds coding only.
+                if ".verify." not in attempt.attempt_id:
+                    record.coding_attempts = max(0, record.coding_attempts - 1)
                 # A crash in this window leaves the task LEASED: ownership is
                 # granted before the intent is written, and the ACTIVE
                 # transition happens after it. LEASED is already dispatchable

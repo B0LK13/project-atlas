@@ -1,0 +1,33 @@
+{
+  "at": "2026-09-15T17:13:14Z",
+  "directive": "ATLAS-PRIME-CAPABILITY-REMEDIATION-AND-T003F-PREP-001",
+  "end_status": {
+    "IV": "NOT_STARTED_NO_CANDIDATE",
+    "coding_attempt_1232a02b": "COMPLETED_NO_EFFECT",
+    "coding_attempt_7937bd00": "FAILED_ADAPTER_CRASH",
+    "hardened_acceptance": "CORRECTLY_FAILED",
+    "infrastructure_cold_gate_exact_once": "PASS",
+    "native_child": "ABSENT",
+    "scoped_A1_patch": "ABSENT",
+    "terminal": "HARD_BLOCKER_BUDGET_EXHAUSTED",
+    "tests": "FAIL/NOT_RUN"
+  },
+  "invariants": {
+    "partial_A1_claim": "FORBIDDEN",
+    "restart_t003e": "FORBIDDEN",
+    "substantive_A1": "FAILED"
+  },
+  "prior_final_record_id": "T003E-FINAL-RESULT-001",
+  "prior_honesty": "t003e is NOT A1 success. Hardened oracle rejected empty output/no scoped diff. Successor budget exhausted.",
+  "record_id": "T003E-ENDSTATUS-CAPABILITY-REMEDIATION-001",
+  "schema_version": 1,
+  "source_evidence_unchanged": [
+    "ledgers/T003E-FINAL-RESULT-001.json",
+    "ledgers/T003E-RETRY-DISPATCH-RESULT.json",
+    "ledgers/T003E-DISPATCH-RESULT.json",
+    "ledgers/T003E-RECONCILE-7937bd00.json",
+    "/tmp/a002/t3e/.atlas/orchestration/program/evidence/",
+    "/tmp/atlas-prime-e2e-002-workspace/.prime-sessions/t003e.prime-a1.run.1.7937bd00.jsonl",
+    "/tmp/atlas-prime-e2e-002-workspace/.prime-sessions/t003e.prime-a1.run.2.1232a02b.jsonl"
+  ]
+}

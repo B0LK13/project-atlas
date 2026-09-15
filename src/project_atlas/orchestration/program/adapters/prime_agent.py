@@ -1381,6 +1381,31 @@ class PrimeDaemonClient:
         data = response.get("data")
         return dict(data) if isinstance(data, dict) else None
 
+    def wait_for_idle(self, active_session_id: str) -> None:
+        """Block until the session reports idle after prompt_and_wait returns."""
+        self.request(
+            {"type": "wait_for_idle", "activeSessionId": active_session_id},
+            label="wait-idle",
+        )
+
+    def wait_for_headless_completion(
+        self, active_session_id: str, *, wait_for_rlm_quiescence: bool = True
+    ) -> dict[str, Any] | None:
+        """Wait through autonomous continuations / post-compaction restarts."""
+        command: dict[str, Any] = {
+            "type": "wait_for_headless_completion",
+            "activeSessionId": active_session_id,
+        }
+        if wait_for_rlm_quiescence:
+            if "rlm_quiescence_barrier" not in self.server_capabilities:
+                raise PrimeDaemonError(
+                    "Prime daemon does not advertise rlm_quiescence_barrier"
+                )
+            command["waitForRlmQuiescence"] = True
+        response = self.request(command, label="headless-completion")
+        data = response.get("data")
+        return dict(data) if isinstance(data, dict) else None
+
 
 class PrimeDaemonError(AdapterUnavailableError):
     """The public Prime daemon route could not be used safely."""
@@ -1628,9 +1653,29 @@ class PrimeExecutorAdapter:
                     code="INFERENCE_PROXY_REQUIRED",
                 )
             _validate_resource_limits(profile.adapter_options.get("resource_limits"))
-            if _available_memory_bytes() < PILOT_MIN_AVAILABLE_BYTES:
+            # Capability canaries (warm model, isolated fixture) may declare a
+            # lower floor via adapter_options.min_host_memory_bytes. Never below
+            # 1.5 GiB; default remains the 2 GiB pilot floor.
+            min_host = profile.adapter_options.get("min_host_memory_bytes")
+            if min_host is None:
+                required = PILOT_MIN_AVAILABLE_BYTES
+            elif (
+                not isinstance(min_host, int)
+                or isinstance(min_host, bool)
+                or min_host < (3 * 1024**3) // 2
+                or min_host > PILOT_MEMORY_MAX_BYTES
+            ):
                 raise AdapterUnavailableError(
-                    "local-only Prime requires at least 2 GiB available host memory",
+                    "adapter_options.min_host_memory_bytes must be an int "
+                    "in [1.5GiB, PILOT_MEMORY_MAX_BYTES]",
+                    code="INSUFFICIENT_HOST_MEMORY",
+                )
+            else:
+                required = min_host
+            if _available_memory_bytes() < required:
+                raise AdapterUnavailableError(
+                    "local-only Prime requires at least "
+                    f"{required} bytes available host memory",
                     code="INSUFFICIENT_HOST_MEMORY",
                 )
 
@@ -2038,6 +2083,16 @@ class PrimeExecutorAdapter:
                 admission_id=request.idempotency_key,
                 cancel_requested=request.cancel_requested,
             )
+            # prompt_and_wait resolves on the first agent_end. Threshold
+            # compaction / autonomous continuation may restart the agent
+            # immediately afterward; keep the inference proxy alive until
+            # the public headless-completion barrier settles.
+            if "rlm_quiescence_barrier" in client.server_capabilities:
+                client.wait_for_headless_completion(
+                    active_session_id, wait_for_rlm_quiescence=True
+                )
+            else:
+                client.wait_for_idle(active_session_id)
             if broker is not None and not broker.wait_until_idle(
                 max(0.0, request.timeout_seconds - (time.monotonic() - started))
             ):
@@ -2287,11 +2342,35 @@ def _write_local_provider_config(
     provider: str,
     port: int,
     model: str,
+    context_window: int = 4096,
+    max_tokens: int = 1024,
 ) -> None:
     """Write only non-secret, mission-owned custom-provider configuration."""
     if not 1024 <= port <= 65535:
         raise PrimeDaemonError("local inference proxy port is outside the user range")
     agent_dir.mkdir(parents=True, exist_ok=True)
+    # Default Prime compaction reserves 16Ki tokens. On a 4Ki local context
+    # window that makes shouldCompact() true after every turn, so the agent
+    # loop stops after the first tool round and never feeds tool results back
+    # to the model (T003E attempt 1232a02b). Size reserves to the declared
+    # context window instead. Capability canaries may raise context_window
+    # (model supports it) so toolcalls are not crowded out by harness priming.
+    if (
+        not isinstance(context_window, int)
+        or isinstance(context_window, bool)
+        or context_window < 2048
+        or context_window > 131072
+    ):
+        raise PrimeDaemonError("context_window out of supported bounds")
+    if (
+        not isinstance(max_tokens, int)
+        or isinstance(max_tokens, bool)
+        or max_tokens < 64
+        or max_tokens > context_window
+    ):
+        raise PrimeDaemonError("max_tokens out of supported bounds")
+    reserve_tokens = max(256, min(context_window // 8, 2048))
+    keep_recent_tokens = max(512, min(context_window // 4, 4096))
     config = {
         "providers": {
             provider: {
@@ -2306,16 +2385,28 @@ def _write_local_provider_config(
                     {
                         "id": model,
                         "input": ["text"],
-                        "contextWindow": 4096,
-                        "maxTokens": 512,
+                        "contextWindow": context_window,
+                        "maxTokens": max_tokens,
                         "reasoning": False,
                     }
                 ],
             }
         }
     }
+    settings = {
+        "telemetry": {"noticeShown": True},
+        "compaction": {
+            "enabled": True,
+            "reserveTokens": reserve_tokens,
+            "keepRecentTokens": keep_recent_tokens,
+        },
+    }
     (agent_dir / "models.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (agent_dir / "settings.json").write_text(
+        json.dumps(settings, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 
@@ -2361,11 +2452,15 @@ def _start_inference_proxy(
     proxy.start()
     env["ATLAS_PRIME_INFERENCE_PROXY_SOCKET"] = str(proxy_socket)
     env["ATLAS_PRIME_INFERENCE_PROXY_PORT"] = str(proxy_port)
+    raw_window = request.profile.adapter_options.get("context_window", 4096)
+    raw_max_tokens = request.profile.adapter_options.get("max_tokens", 1024)
     _write_local_provider_config(
         agent_dir,
         provider=str(request.profile.adapter_options["provider"]),
         port=proxy_port,
         model=str(request.profile.model),
+        context_window=int(raw_window) if isinstance(raw_window, int) else 4096,
+        max_tokens=int(raw_max_tokens) if isinstance(raw_max_tokens, int) else 1024,
     )
     return proxy
 

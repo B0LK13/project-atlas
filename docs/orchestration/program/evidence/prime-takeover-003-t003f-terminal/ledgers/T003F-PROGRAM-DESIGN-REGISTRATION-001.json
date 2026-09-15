@@ -1,0 +1,36 @@
+{
+  "at": "2026-09-15T18:05:18Z",
+  "base_pin_git_head": "ecc13dc830a629c7c6449f1aa3e156339a1809f0",
+  "capability_gates": {
+    "adapter_regressions": "PASS",
+    "canaries_3_of_3": "PASS",
+    "independent_capability_review": "PASS",
+    "role_budget_tests": "PASS"
+  },
+  "coding_agent_id": "prime-e2e-parent-002",
+  "context_window": 8192,
+  "dispatch_authorized": false,
+  "limits": {
+    "idle_sleep_seconds": 1.0,
+    "max_attempts_per_task": 2,
+    "max_coding_attempts": 2,
+    "max_concurrent_workers": 1,
+    "max_cycles": 16,
+    "max_idle_cycles": 2,
+    "max_program_seconds": 21600,
+    "max_task_launches": 3,
+    "max_task_seconds": 1800,
+    "reserved_reviewer_launches": 1
+  },
+  "note": "Design registered; live dispatch blocked until cold-gate ALLOW + atomic claim.",
+  "program_id": "t003f",
+  "program_path": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/programs/program-t003f.json",
+  "program_sha256": "d1029b12b1ca89f01355fcf03369f13b907f87abcecec0c76edd09f4b8444180",
+  "record_id": "T003F-PROGRAM-DESIGN-REGISTRATION-001",
+  "remediation_workspace_tree": "ed560297c19e37ca427f693accb36daf0439c9a8",
+  "reviewer_agent_id": "codex-prime-e2e-reviewer-002",
+  "root_slot": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/state/T003F-ROOT-SLOT.json",
+  "root_slot_status": "UNUSED",
+  "schema_version": 1,
+  "state_root_planned": "/tmp/a002/t3f"
+}

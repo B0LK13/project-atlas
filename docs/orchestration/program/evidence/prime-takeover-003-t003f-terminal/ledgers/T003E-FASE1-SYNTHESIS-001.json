@@ -1,0 +1,30 @@
+{
+  "at": "2026-09-15T17:21:38Z",
+  "directive": "ATLAS-PRIME-CAPABILITY-REMEDIATION-AND-T003F-PREP-001",
+  "findings": {
+    "1232a02b": {
+      "detail": "reserveTokens 16384 > contextWindow 4096",
+      "fault_class": "CONTEXT",
+      "ledger": "T003E-FASE1-NO-EFFECT-FORENSICS-001.json"
+    },
+    "7937bd00": {
+      "fault_class": "LIFECYCLE",
+      "ledger": "T003E-FASE1-ADAPTER-CRASH-FORENSICS-001.json",
+      "phase": "ADAPTER_INVOKED/prompt_and_wait"
+    },
+    "budget": {
+      "fault": "role-blind max_attempts_per_task consumed reviewer room",
+      "ledger": "T003E-FASE1-BUDGET-CONTRACT-REVIEW-001.json"
+    }
+  },
+  "partial_A1_claim": "FORBIDDEN",
+  "record_id": "T003E-FASE1-SYNTHESIS-001",
+  "remediation_started": {
+    "canaries": "PENDING",
+    "compaction_settings_sized_to_window": true,
+    "role_separated_budget": "IN_PROGRESS",
+    "wait_for_headless_completion_after_prompt": true
+  },
+  "schema_version": 1,
+  "t003e_restart": "FORBIDDEN"
+}

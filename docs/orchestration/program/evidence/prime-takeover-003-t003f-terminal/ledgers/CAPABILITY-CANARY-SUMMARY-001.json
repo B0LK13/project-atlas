@@ -1,0 +1,122 @@
+{
+  "a1_root_used": false,
+  "a1_success_claimed": false,
+  "at": "2026-09-15T18:00:33Z",
+  "consecutive_passes": 3,
+  "directive": "ATLAS-PRIME-CAPABILITY-REMEDIATION-AND-T003F-PREP-001 Phase 2",
+  "evidence_paths": [
+    "ledgers/CAPABILITY-CANARY-RUN-001.json",
+    "ledgers/CAPABILITY-CANARY-RUN-002.json",
+    "ledgers/CAPABILITY-CANARY-RUN-003.json",
+    "ledgers/CAPABILITY-CANARY-SUMMARY-001.json",
+    "canaries/scripts/run_capability_canary.py",
+    "canaries/fixture/",
+    "/tmp/cap-canary-1",
+    "/tmp/cap-canary-2",
+    "/tmp/cap-canary-3"
+  ],
+  "gates": {
+    "adapter_context_window_canary": 8192,
+    "adapter_reserveTokens_after_proxy_start_for_8k": 1024,
+    "cold_a1_need_bytes": 4377336217,
+    "cold_a1_would_deny_during_runs": true,
+    "lighter_canary_attempted": true,
+    "min_host_memory_bytes_canary": 1610612736,
+    "reserveTokens_prewrite_coding_agent_dir": 512
+  },
+  "honesty": {
+    "GO_means": "coding stack capability canaries pass in isolation; NOT A1 success; NOT t003e reopen",
+    "provider_capability_no_go": false
+  },
+  "record_id": "CAPABILITY-CANARY-SUMMARY-001",
+  "remediation_pins": {
+    "canaries_tree_sha256": "357a239c7745e103b938379abd4ae66a263248cd03c711c060e57d210651ce7e",
+    "changed_workspace_files": [
+      "docs/work-packages/ATLAS-PRIME-WORKING-SLICE-001-LEDGER.md",
+      "src/project_atlas/orchestration/program/adapters/prime_agent.py",
+      "src/project_atlas/orchestration/program/control.py",
+      "src/project_atlas/orchestration/program/models.py",
+      "src/project_atlas/orchestration/program/semantic_acceptance.py",
+      "src/project_atlas/orchestration/program/store.py",
+      "src/project_atlas/orchestration/program/supervisor.py",
+      "tests/unit/test_capability_canary_crash_resume_exact_once.py",
+      "tests/unit/test_prime_local_compaction_settings.py",
+      "tests/unit/test_role_separated_budget.py"
+    ],
+    "changed_workspace_files_tree_sha256": "4f481aa3365c01e72dca08c3482bf9d8040398a81501104b32a7533272424d3f",
+    "commit": "NONE (pin only; do not commit)",
+    "git_diff_stat": ".../ATLAS-PRIME-WORKING-SLICE-001-LEDGER.md        |  24 ++++\n .../orchestration/program/adapters/prime_agent.py  | 103 ++++++++++++++++-\n src/project_atlas/orchestration/program/control.py |  74 +++++++++++-\n src/project_atlas/orchestration/program/models.py  |  30 +++++\n .../orchestration/program/semantic_acceptance.py   |  25 ++++\n src/project_atlas/orchestration/program/store.py   |   8 ++\n .../orchestration/program/supervisor.py            | 128 +++++++++++++++++++--\n 7 files changed, 371 insertions(+), 21 deletions(-)",
+    "workspace_HEAD": "ecc13dc830a629c7c6449f1aa3e156339a1809f0"
+  },
+  "required_consecutive_passes": 3,
+  "runs": [
+    {
+      "MemAvailable_bytes_at_start": 2072649728,
+      "checks": {
+        "canary_value_is_one": true,
+        "child_artifact_nonempty": true,
+        "no_leftover_workers": true,
+        "no_preexisting_dirt_false_positive": true,
+        "scoped_diff_only_canary_target": true,
+        "test_exit_0": true,
+        "toolcalls_ge_2": true
+      },
+      "elapsed_seconds": 305.376,
+      "ledger": "ledgers/CAPABILITY-CANARY-RUN-001.json",
+      "n": 1,
+      "settings_after_adapter": {
+        "note": "adapter rewrites settings from context_window"
+      },
+      "toolcalls": 2,
+      "verdict": "PASS"
+    },
+    {
+      "MemAvailable_bytes_at_start": 1702100992,
+      "checks": {
+        "canary_value_is_one": true,
+        "child_artifact_nonempty": true,
+        "no_leftover_workers": true,
+        "no_preexisting_dirt_false_positive": true,
+        "scoped_diff_only_canary_target": true,
+        "test_exit_0": true,
+        "toolcalls_ge_2": true
+      },
+      "elapsed_seconds": 267.061,
+      "ledger": "ledgers/CAPABILITY-CANARY-RUN-002.json",
+      "n": 2,
+      "settings_after_adapter": {
+        "note": "adapter rewrites settings from context_window"
+      },
+      "toolcalls": 2,
+      "verdict": "PASS"
+    },
+    {
+      "MemAvailable_bytes_at_start": 2152243200,
+      "checks": {
+        "canary_value_is_one": true,
+        "child_artifact_nonempty": true,
+        "no_leftover_workers": true,
+        "no_preexisting_dirt_false_positive": true,
+        "scoped_diff_only_canary_target": true,
+        "test_exit_0": true,
+        "toolcalls_ge_2": true
+      },
+      "elapsed_seconds": 279.587,
+      "ledger": "ledgers/CAPABILITY-CANARY-RUN-003.json",
+      "n": 3,
+      "settings_after_adapter": {
+        "note": "adapter rewrites settings from context_window"
+      },
+      "toolcalls": 2,
+      "verdict": "PASS"
+    }
+  ],
+  "schema_version": 1,
+  "t003e_restarted": false,
+  "unit_crash_resume": {
+    "covers": "fail-closed resume exact-once write (item 6)",
+    "path": "tests/unit/test_capability_canary_crash_resume_exact_once.py",
+    "result": "PASS"
+  },
+  "verdict": "GO"
+}

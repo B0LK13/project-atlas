@@ -1,0 +1,41 @@
+{
+  "A1": "NOT_CLAIMED",
+  "HEAD": "ecc13dc830a629c7c6449f1aa3e156339a1809f0",
+  "at": "2026-09-15T18:47:23Z",
+  "attempts": {
+    "e0678593": "COMPLETED_NO_A1_PATCH",
+    "f68ee2a9": "COMPLETED_NO_A1_PATCH"
+  },
+  "background_notifications_duplicate_of_same_run": [
+    {
+      "creates_new_auth": false,
+      "shell_task_id": "647853",
+      "status": "success",
+      "title": "Repair CLI and start service under claimed slot"
+    },
+    {
+      "creates_new_auth": false,
+      "shell_task_id": "647852",
+      "status": "success",
+      "title": "Admission loop: wait ALLOW then exact-once dispatch"
+    },
+    {
+      "creates_new_auth": false,
+      "shell_task_id": "647856",
+      "status": "success",
+      "title": "Start service round 2 for coding retry"
+    }
+  ],
+  "program_id": "t003f",
+  "program_sha256": "d1029b12b1ca89f01355fcf03369f13b907f87abcecec0c76edd09f4b8444180",
+  "prohibitions": [
+    "no_resume",
+    "no_third_coding_attempt",
+    "no_reviewer_launch",
+    "no_counter_reuse",
+    "no_t003g_on_this_host"
+  ],
+  "record_id": "T003F-PERMANENT-FREEZE-001",
+  "schema_version": 1,
+  "terminal": "FAIL_NO_CANDIDATE"
+}

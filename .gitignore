@@ -99,3 +99,8 @@ fixtures/eval/holdouts/private/
 # committed as plaintext again (W2: HIDDEN_HOLDOUT_ISOLATION leak).
 **/*eval*expected*.json
 **/*holdout*expected*.json
+
+# Prime runtime (never commit)
+.prime-config/
+.prime-sessions/
+session-artifacts/

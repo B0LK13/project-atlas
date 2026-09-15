@@ -310,14 +310,28 @@ class ProgramLimits(BaseModel):
     actually count. ``max_estimated_cost_usd`` is the exception and is named
     honestly: it is forwarded to the runtime where the runtime supports a
     budget flag, and otherwise reported. It is not an account spending limit.
+
+    Role-separated budgets (T003F): ``max_coding_attempts`` and
+    ``reserved_reviewer_launches`` keep VERIFY capacity from being consumed by
+    coding retries. ``max_task_launches`` remains the hard total launch ceiling
+    (conceptually ``max_total_launches``).
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     #: Total adapter launches across the whole program, all tasks, all attempts.
+    #: Conceptual alias: max_total_launches.
     max_task_launches: int = Field(default=20, ge=1, le=10_000)
     #: Attempts at any single task before it is declared blocked.
+    #: Legacy role-blind ceiling; coding uses ``max_coding_attempts`` when set,
+    #: otherwise falls back to this value.
     max_attempts_per_task: int = Field(default=3, ge=1, le=20)
+    #: Maximum IMPLEMENT/coding adapter attempts per task. ``None`` falls back
+    #: to ``max_attempts_per_task`` for coding budget checks.
+    max_coding_attempts: int | None = Field(default=None, ge=1, le=20)
+    #: Non-consumable reservation for VERIFY launches only. Coding must never
+    #: spend this slice of ``max_task_launches``.
+    reserved_reviewer_launches: int = Field(default=0, ge=0, le=10_000)
     #: Wall clock for one adapter invocation.
     max_task_seconds: int = Field(default=1800, ge=1, le=86_400)
     #: Wall clock for one `start` invocation of the supervisor.
@@ -345,6 +359,22 @@ class ProgramLimits(BaseModel):
     #: active lease for one task or one agent, and owner gates still hold. What
     #: this number bounds is how many *non-conflicting* tasks may be in flight.
     max_concurrent_workers: int = Field(default=1, ge=1, le=16)
+
+    @model_validator(mode="after")
+    def _role_separated_budget_fits(self) -> ProgramLimits:
+        if (
+            self.reserved_reviewer_launches > 0
+            and self.max_coding_attempts is not None
+            and self.max_coding_attempts + self.reserved_reviewer_launches
+            > self.max_task_launches
+        ):
+            raise ValueError(
+                "max_coding_attempts + reserved_reviewer_launches must be "
+                f"<= max_task_launches "
+                f"({self.max_coding_attempts}+{self.reserved_reviewer_launches}"
+                f" > {self.max_task_launches})"
+            )
+        return self
 
 
 class ProgramTask(BaseModel):

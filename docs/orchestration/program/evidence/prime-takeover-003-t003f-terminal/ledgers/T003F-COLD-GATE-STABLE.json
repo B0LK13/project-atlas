@@ -1,0 +1,31 @@
+{
+  "at": "2026-09-15T18:30:49Z",
+  "measurements": [
+    {
+      "MemAvailable_bytes": 4543295488,
+      "SwapFree_bytes": 262508544,
+      "at": "2026-09-15T18:30:19Z",
+      "decision": "ALLOW",
+      "need_bytes": 4377336217,
+      "shortfall_bytes": 0
+    },
+    {
+      "MemAvailable_bytes": 4505124864,
+      "SwapFree_bytes": 262635520,
+      "at": "2026-09-15T18:30:34Z",
+      "decision": "ALLOW",
+      "need_bytes": 4377336217,
+      "shortfall_bytes": 0
+    },
+    {
+      "MemAvailable_bytes": 4540518400,
+      "SwapFree_bytes": 245805056,
+      "at": "2026-09-15T18:30:49Z",
+      "decision": "ALLOW",
+      "need_bytes": 4377336217,
+      "shortfall_bytes": 0
+    }
+  ],
+  "need_bytes": 4377336217,
+  "record_id": "T003F-COLD-GATE-STABLE"
+}

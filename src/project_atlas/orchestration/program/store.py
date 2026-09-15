@@ -119,8 +119,16 @@ class TaskRecord(BaseModel):
 
     task_id: str = Field(min_length=1, max_length=128)
     state: NodeState = NodeState.DISCOVERED
+    #: Legacy total attempt counter (compatibility). Role gates use
+    #: ``coding_attempts`` / ``reviewer_launches``.
     attempts: int = Field(default=0, ge=0, le=10_000)
     launches: int = Field(default=0, ge=0, le=10_000)
+    #: IMPLEMENT/coding DISPATCH_INTENT commits only.
+    coding_attempts: int = Field(default=0, ge=0, le=10_000)
+    #: VERIFY DISPATCH_INTENT commits only; never incremented by coding.
+    reviewer_launches: int = Field(default=0, ge=0, le=10_000)
+    #: True once acceptance passed with a real candidate for IV.
+    candidate_present: bool = False
     last_attempt_id: str | None = None
     last_failure_class: FailureClass | None = None
     #: Observer id for an unresolved external precondition, if any.

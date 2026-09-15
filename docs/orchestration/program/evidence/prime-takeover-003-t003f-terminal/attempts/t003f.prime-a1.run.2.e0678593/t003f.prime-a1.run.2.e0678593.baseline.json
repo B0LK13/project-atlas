@@ -1,0 +1,28 @@
+{
+  "allowlist": [
+    "src/project_atlas/orchestration/program/control.py",
+    "tests/unit/test_orchestration_program_control.py"
+  ],
+  "attempt_id": "t003f.prime-a1.run.2.e0678593",
+  "head_sha": "ecc13dc830a629c7c6449f1aa3e156339a1809f0",
+  "path_sha256": {
+    "src/project_atlas/orchestration/program/control.py": "bfde115a5e2fab16bdfd94ef2fd9ee371fdc85cf53852c06d03415eced69fd63",
+    "tests/unit/test_orchestration_program_control.py": "b0f65a33a0e9b18819ad869197960d17aa97d87dd0ab170ef3ff1b1604ab2cd4"
+  },
+  "pre_existing_porcelain": [
+    " M docs/work-packages/ATLAS-PRIME-WORKING-SLICE-001-LEDGER.md",
+    " M src/project_atlas/orchestration/program/adapters/prime_agent.py",
+    " M src/project_atlas/orchestration/program/control.py",
+    " M src/project_atlas/orchestration/program/models.py",
+    " M src/project_atlas/orchestration/program/semantic_acceptance.py",
+    " M src/project_atlas/orchestration/program/store.py",
+    " M src/project_atlas/orchestration/program/supervisor.py",
+    "?? .prime-config/",
+    "?? .prime-sessions/",
+    "?? session-artifacts/",
+    "?? tests/unit/test_capability_canary_crash_resume_exact_once.py",
+    "?? tests/unit/test_prime_local_compaction_settings.py",
+    "?? tests/unit/test_role_separated_budget.py"
+  ],
+  "workspace": "/tmp/atlas-prime-e2e-002-workspace"
+}

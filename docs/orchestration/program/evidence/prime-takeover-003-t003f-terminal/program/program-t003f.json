@@ -1,0 +1,277 @@
+{
+  "schema_version": 1,
+  "program": {
+    "program_id": "t003f",
+    "objective": "Successor after t003e HARD_BLOCKER_BUDGET_EXHAUSTED. Remediation: compaction reserveTokens sized to context window; wait_for_headless_completion; role-separated budgets (max_coding_attempts=2, reserved_reviewer_launches=1, max_total_launches=3). Capability canaries 3/3 PASS. Pin ecc13dc + remediation workspace tree. Does not restart t003e.",
+    "approved_by": "OWNER-ATLAS-CURSOR-PRIME-TAKEOVER-003",
+    "approval_reference": "ATLAS-PRIME-CAPABILITY-REMEDIATION-AND-T003F-PREP-001",
+    "workspace_root": "/tmp/atlas-prime-e2e-002-workspace",
+    "base_pin": "ecc13dc830a629c7c6449f1aa3e156339a1809f0",
+    "limits": {
+      "max_task_launches": 3,
+      "max_attempts_per_task": 2,
+      "max_coding_attempts": 2,
+      "reserved_reviewer_launches": 1,
+      "max_task_seconds": 1800,
+      "max_program_seconds": 21600,
+      "max_cycles": 16,
+      "max_idle_cycles": 2,
+      "idle_sleep_seconds": 1.0,
+      "max_concurrent_workers": 1
+    },
+    "tasks": [
+      {
+        "task_id": "prime-a1",
+        "title": "Implement kernel-readiness error mapping in A1 projection (t003f)",
+        "instruction": "First action is mandatory: call the ipython tool with a harmless cell that prints ATLAS_PRIME_T003F_TOOLCALL_OK. After that result, inspect src/project_atlas/orchestration/program/control.py and implement helper _kernel_readiness_status(diagnostic) mapping diagnostic status kernel_start_failure to BLOCKED, tool_result_received to READY only when the tool result is successful (not isError), and missing/other to UNKNOWN; expose its result as kernel_readiness in the existing A1 last_attempt read-only projection. Append focused tests in tests/unit/test_orchestration_program_control.py for BLOCKED, READY, and UNKNOWN. Use pathlib read_text/write_text; edit only the two declared mutation_paths. Run pytest -q -o addopts= tests/unit/test_orchestration_program_control.py -p no:cacheprovider via the kernel. Multiple structured tool calls and model turns are allowed; do not stop after a readiness probe; empty assistant text alone is not completion. After the patch, admit exactly one native child through the Atlas-provided host admission path, collect its attributable result (message/artifact — a handle alone is insufficient), then finish. Deliver: diff summary, test results, and child identity. Do not edit policy, grants, acceptance criteria, taskstores, receipts, or any other path.",
+        "profile_ref": "prime-worker",
+        "depends_on": [],
+        "mutation_paths": [
+          "src/project_atlas/orchestration/program/control.py",
+          "tests/unit/test_orchestration_program_control.py"
+        ],
+        "surface_id": "surface-prime-kernel-a1-slice-003f",
+        "surface_semantic": "PRIME_A1_KERNEL_READINESS",
+        "capabilities_required": [
+          "IMPLEMENT"
+        ],
+        "requires_independent_verification": true,
+        "verifier_profile_ref": "reviewer",
+        "acceptance": [
+          {
+            "check_id": "a1-focused-tests",
+            "kind": "COMMAND",
+            "description": "The affected A1 control tests pass.",
+            "argv": [
+              "/home/gebruiker/atlas-prime-local-001/.venv/bin/python",
+              "-m",
+              "pytest",
+              "-q",
+              "-o",
+              "addopts=",
+              "tests/unit/test_orchestration_program_control.py",
+              "-p",
+              "no:cacheprovider"
+            ],
+            "timeout_seconds": 900
+          },
+          {
+            "check_id": "candidate-changed",
+            "kind": "GIT_TREE_CHANGED",
+            "path": "src/project_atlas/orchestration/program/control.py",
+            "description": "Prime produced a tracked candidate change in the declared production slice."
+          },
+          {
+            "check_id": "helper-present",
+            "kind": "FILE_MATCHES",
+            "path": "src/project_atlas/orchestration/program/control.py",
+            "pattern": "def\\s+_kernel_readiness_status\\s*\\(",
+            "description": "_kernel_readiness_status helper is present in control.py."
+          },
+          {
+            "check_id": "kernel-readiness-exposed",
+            "kind": "FILE_MATCHES",
+            "path": "src/project_atlas/orchestration/program/control.py",
+            "pattern": "kernel_readiness",
+            "description": "kernel_readiness is exposed in the A1 projection."
+          },
+          {
+            "check_id": "tests-mention-helper",
+            "kind": "FILE_MATCHES",
+            "path": "tests/unit/test_orchestration_program_control.py",
+            "pattern": "_kernel_readiness_status",
+            "description": "Focused tests reference _kernel_readiness_status."
+          }
+        ]
+      }
+    ]
+  },
+  "profile_defaults": {
+    "credential": "NOT_APPLICABLE",
+    "isolated_runtime": true
+  },
+  "profiles": {
+    "prime-worker": {
+      "profile_id": "prime-worker",
+      "description": "Owner-authorized pinned local Prime parent with one native child.",
+      "agent_id": "prime-e2e-parent-002",
+      "adapter": "prime-agent",
+      "adapter_min_version": "prime-agent-atlas-adapter-v2",
+      "capabilities": [
+        "IMPLEMENT"
+      ],
+      "allowed_mutation_prefixes": [
+        "src/project_atlas/orchestration/program/control.py",
+        "tests/unit/test_orchestration_program_control.py"
+      ],
+      "model": "qwen3:1.7b-q4_K_M",
+      "permission_mode": "acceptEdits",
+      "tools": [
+        "ipython"
+      ],
+      "workspace": {
+        "working_subdir": ".",
+        "restricted": true
+      },
+      "limits": {
+        "max_seconds": 1800,
+        "max_attempts": 2
+      },
+      "credential": "NOT_APPLICABLE",
+      "isolated_runtime": true,
+      "adapter_options": {
+        "provider": "atlas-local-qwen",
+        "inference_mode": "local-only",
+        "local_endpoint": "http://127.0.0.1:11434",
+        "kernel_python": "/tmp/atlas-prime-e2e-002-kernel/bin/python",
+        "runtime_manifest": "/home/gebruiker/atlas-prime-local-001/docs/orchestration/program/evidence/prime-local-001-e2e-002-runtime-manifest.json",
+        "executable": "/tmp/atlas-prime-e2e-002-runtime/prime-agent.sh",
+        "daemon_lifecycle": "resident",
+        "use_dist": true,
+        "coding_agent_dir": "/tmp/atlas-prime-e2e-002-workspace/.prime-config",
+        "session_dir": "/tmp/atlas-prime-e2e-002-workspace/.prime-sessions",
+        "daemon_socket": "/tmp/atlas-prime-e2e-002-ipc/t003f-daemon.sock",
+        "inference_proxy": {
+          "worker_port": 38742,
+          "socket_dir": "/tmp/atlas-prime-e2e-002-ipc"
+        },
+        "resource_limits": {
+          "memory_max_bytes": 6442450944,
+          "cpu_quota_percent": 400,
+          "tasks_max": 256
+        },
+        "sandbox_argv": [
+          "/usr/bin/bwrap",
+          "--die-with-parent",
+          "--new-session",
+          "--unshare-all",
+          "--ro-bind",
+          "/usr",
+          "/usr",
+          "--ro-bind",
+          "/bin",
+          "/bin",
+          "--ro-bind",
+          "/lib",
+          "/lib",
+          "--ro-bind",
+          "/lib64",
+          "/lib64",
+          "--ro-bind",
+          "/etc",
+          "/etc",
+          "--proc",
+          "/proc",
+          "--dev",
+          "/dev",
+          "--tmpfs",
+          "/tmp",
+          "--chmod",
+          "1777",
+          "/tmp",
+          "--tmpfs",
+          "/home",
+          "--dir",
+          "/tmp/atlas-prime-e2e-002-workspace",
+          "--bind",
+          "/tmp/atlas-prime-e2e-002-workspace",
+          "/tmp/atlas-prime-e2e-002-workspace",
+          "--dir",
+          "/tmp/atlas-prime-e2e-002-ipc",
+          "--bind",
+          "/tmp/atlas-prime-e2e-002-ipc",
+          "/tmp/atlas-prime-e2e-002-ipc",
+          "--dir",
+          "/tmp/atlas-prime-e2e-002-runtime",
+          "--ro-bind",
+          "/tmp/atlas-prime-e2e-002-runtime",
+          "/tmp/atlas-prime-e2e-002-runtime",
+          "--dir",
+          "/tmp/atlas-prime-e2e-002-kernel",
+          "--ro-bind",
+          "/tmp/atlas-prime-e2e-002-kernel",
+          "/tmp/atlas-prime-e2e-002-kernel",
+          "--ro-bind",
+          "/tmp/atlas-prime-e2e-002-workspace/prime-local-001-inference-relay.py",
+          "/tmp/prime-relay.py",
+          "--chdir",
+          "/tmp/atlas-prime-e2e-002-workspace",
+          "--setenv",
+          "HOME",
+          "/tmp/prime-home",
+          "--",
+          "/usr/bin/python3",
+          "/tmp/prime-relay.py"
+        ],
+        "allow_children": true,
+        "child_admission": {
+          "patch_id": "prime-agent-5d25a44-atlas-child-admission-v1",
+          "max_children": 1,
+          "max_child_seconds": 300,
+          "max_budget_seconds": 300,
+          "max_child_tokens": 8000,
+          "child_models": [
+            "qwen3:1.7b-q4_K_M"
+          ],
+          "max_child_depth": 1
+        },
+        "autonomous": {
+          "maxContinuations": 2,
+          "maxTurns": 10,
+          "maxTokens": 16000,
+          "timeoutMs": 1500000,
+          "maxRequests": 12,
+          "maxChildren": 1,
+          "maxRecursionDepth": 1
+        },
+        "context_window": 8192,
+        "max_tokens": 1024
+      }
+    },
+    "reviewer": {
+      "profile_id": "reviewer",
+      "description": "Non-author read-only local candidate verifier.",
+      "agent_id": "codex-prime-e2e-reviewer-002",
+      "adapter": "codex",
+      "adapter_min_version": "0.154.0",
+      "capabilities": [
+        "VERIFY"
+      ],
+      "allowed_mutation_prefixes": [],
+      "permission_mode": "plan",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep"
+      ],
+      "limits": {
+        "max_seconds": 2700,
+        "max_attempts": 1
+      },
+      "credential": "SUBSCRIPTION_OAUTH",
+      "isolated_runtime": true,
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "verdict",
+          "rationale"
+        ],
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

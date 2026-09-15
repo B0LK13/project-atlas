@@ -439,6 +439,23 @@ def evaluate_semantic_acceptance(
         baseline=baseline,
         allowlist=allowlist,
     )
+    if task.surface_semantic == "CAPABILITY_CANARY":
+        _infra_prefixes = (
+            ".prime-config",
+            ".prime-sessions",
+            "session-artifacts/",
+            "artifacts/",
+            "__pycache__/",
+        )
+        offenders = [
+            path
+            for path in offenders
+            if not any(
+                path == prefix.rstrip("/")
+                or path.startswith(prefix)
+                for prefix in _infra_prefixes
+            )
+        ]
     checks.append(
         CheckResult(
             check_id="allowlist-only-mutations",
@@ -451,6 +468,14 @@ def evaluate_semantic_acceptance(
             )[:_MAX_CAPTURE],
         )
     )
+
+    # Disposable capability canaries are not the A1 oracle: skip kernel-helper /
+    # native-child / worker-output gates that only apply to PRIME_A1 surfaces.
+    if task.surface_semantic == "CAPABILITY_CANARY":
+        return AcceptanceResult(
+            passed=all(check.passed for check in checks),
+            checks=tuple(checks),
+        )
 
     production = next(
         (p for p in allowlist if p.endswith("control.py")),

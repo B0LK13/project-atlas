@@ -1,0 +1,2 @@
+{"event": "forwarded", "method": "POST", "target": "/v1/chat/completions"}
+{"event": "forwarded", "method": "POST", "target": "/v1/chat/completions"}

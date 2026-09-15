@@ -1,0 +1,172 @@
+{
+  "record_id": "CAPABILITY-INDEPENDENT-REVIEW-001",
+  "schema_version": 1,
+  "at": "2026-09-15T18:05:00Z",
+  "role": "independent_capability_reviewer",
+  "directive": "ATLAS-PRIME-CAPABILITY-REMEDIATION-AND-T003F-PREP-001",
+  "reviewer_note": "Did not implement remediation or run canaries. Evidence-only review. Does NOT authorize t003f dispatch.",
+  "t003f_dispatch_authorized": false,
+  "verdict": "PASS",
+  "criteria": [
+    {
+      "id": 1,
+      "name": "compaction_context_fix_evidence_backed_with_regression_tests",
+      "result": "PASS",
+      "evidence": [
+        "T003E-FASE1-NO-EFFECT-FORENSICS-001.json: reserveTokens 16384 > contextWindow 4096 forced shouldCompact after probe (attempt 1232a02b)",
+        "prime_agent.py _write_local_provider_config now sizes reserveTokens=max(256,min(window//8,2048)) and writes settings.json compaction",
+        "tests/unit/test_prime_local_compaction_settings.py: default 4096 → reserve 512; asserts _should_compact(2113,4096,512) is False; legacy 16384 always True"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "headless_completion_wait_after_prompt_and_wait",
+      "result": "PASS",
+      "evidence": [
+        "prime_agent.py: after prompt_and_wait, wait_for_headless_completion (or wait_for_idle fallback) before proxy teardown",
+        "Raw /tmp/cap-canary-{1,2,3} command-journal.jsonl: prompt_and_wait result then wait_for_headless_completion received+success for all three runs",
+        "Sessions show 2 assistant turns + 2 inference forwards (tool results fed back) — contrasts T003E single-turn stop"
+      ],
+      "caveat": "headless-completion data.enabled=false on canaries (barrier invoked but autonomous-continuation not active); still blocks premature adapter return"
+    },
+    {
+      "id": 3,
+      "name": "role_separated_budget_counters_with_coding_cannot_consume_reviewer_reservation",
+      "result": "PASS",
+      "evidence": [
+        "T003F-BUDGET-IMPLEMENTATION-001.json + models/store/supervisor diffs: max_coding_attempts, reserved_reviewer_launches, coding_attempts, reviewer_launches, candidate_present",
+        "tests/unit/test_role_separated_budget.py includes test_coding_retry_cannot_consume_reviewer_reservation and test_reviewer_budget_never_becomes_coding_capacity",
+        "Ledger claims 6 passed; supervisor _coding_launch_room holds reserved slice out of coding NEW/RETRY"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "three_consecutive_canaries_pass_with_real_checks_spot_checked",
+      "result": "PASS",
+      "evidence": [
+        "CAPABILITY-CANARY-RUN-001..003 verdict PASS; SUMMARY consecutive_passes=3",
+        "Spot-check /tmp/cap-canary-1..3: CANARY_VALUE=1; artifacts/canary-child.json nonempty; settings compaction reserveTokens=1024 contextWindow=8192; session toolCalls=2 toolResults=2 assistant=2",
+        "Acceptance JSON: canary-focused-tests exit 0, scoped-diff canary_target.py, canary-child-artifact exists, allowlist-only-mutations passed",
+        "a1_root_used=false / t003e_restarted=false on all run ledgers"
+      ],
+      "note": "Earlier T003F-CAPABILITY-LINE-STATUS-001 recorded a failed canary-001 (toolcalls=0) before this successful trio; RUN-001 ledger now matches the PASS raw tree under /tmp/cap-canary-1"
+    },
+    {
+      "id": 5,
+      "name": "crash_resume_exact_once_covered",
+      "result": "PASS",
+      "evidence": [
+        "tests/unit/test_capability_canary_crash_resume_exact_once.py: crash-after-write then resume skips re-apply; hash stable",
+        "tests/unit/test_role_separated_budget.py::test_crash_resume_counters_survive_reload",
+        "Canary script supports --crash_inject; all three PASS runs used crash_inject=false"
+      ],
+      "caveat": "Live canary crash-inject not exercised; exact-once unit models canary write gate, not full adapter process death + reconcile path of 7937bd00"
+    },
+    {
+      "id": 6,
+      "name": "no_a1_root_mutation_no_t003e_restart_no_partial_a1_claim",
+      "result": "PASS",
+      "evidence": [
+        "/tmp/a002/t3e/.atlas/orchestration/program/state.json mtime 2026-09-15T18:28:43+02:00 (before canary window ~19:45+)",
+        "find /tmp/a002/t3e -newermt 2026-09-15 19:40:00 → empty",
+        "state still BLOCKED attempt budget exhausted; ENDSTATUS partial_A1_claim FORBIDDEN; canary ledgers a1_success_claimed=false"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "semantic_acceptance_a1_not_weakened",
+      "result": "PASS",
+      "evidence": [
+        "semantic_acceptance.py early-return / infra-prefix filtering gated strictly on task.surface_semantic == CAPABILITY_CANARY",
+        "Canary programs set surface_semantic CAPABILITY_CANARY; A1 PRIME_A1 path retains helper/native-child/worker-output gates"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "remaining_t003f_risks_recorded",
+      "result": "PASS",
+      "evidence": [
+        "See remaining_risks_for_t003f below; not used as a fail gate when risks are honestly surfaced"
+      ]
+    }
+  ],
+  "remaining_risks_for_t003f": [
+    {
+      "id": "RISK-COLD-GATE-MEMORY",
+      "severity": "P0",
+      "detail": "Authoritative A1 cold need remains ~4.3–4.5 GiB; canaries ran with min_host_memory_bytes=1.5 GiB and MemAvailable often below A1 need (cold_a1_would_deny=true). Capability PASS ≠ resource ALLOW for t003f."
+    },
+    {
+      "id": "RISK-CONTEXT-WINDOW-CANARY-8192-VS-A1-4096",
+      "severity": "P0",
+      "detail": "Successful canaries forced context_window=8192 (reserveTokens=1024). Default A1 path still 4096 (reserve 512 per unit test). Multi-turn proven at 8k; 4k A1 load (longer instruction, helper/child gates) not re-proven live after remediation."
+    },
+    {
+      "id": "RISK-HEADLESS-ENABLED-FALSE",
+      "severity": "P1",
+      "detail": "wait_for_headless_completion returned enabled=false on all canaries; post-compaction autonomous continuation barrier not stress-tested under active continuations."
+    },
+    {
+      "id": "RISK-NO-LIVE-CRASH-INJECT",
+      "severity": "P1",
+      "detail": "7937bd00 LIFECYCLE mid-prompt_and_wait class covered by unit models only; disposable canary crash_inject never run in the PASS trio."
+    },
+    {
+      "id": "RISK-CANARY-NOT-A1-ORACLE",
+      "severity": "P1",
+      "detail": "Canaries use prescribed two-ipython script, CAPABILITY_CANARY semantic skips, synthetic child JSON (allow_children=false), and lowered host-memory floor. Not a substitute for hardened A1 acceptance / native child / IV."
+    },
+    {
+      "id": "RISK-BUDGET-T003F-PROGRAM-NOT-REGISTERED",
+      "severity": "P2",
+      "detail": "Role-separated counters implemented in workspace pin only (no commit); t003f program registration/dispatch explicitly out of scope of this review."
+    }
+  ],
+  "spot_check_raw": {
+    "cap_canary_1": {
+      "target": "CANARY_VALUE = 1",
+      "child_bytes": 65,
+      "contextWindow": 8192,
+      "reserveTokens": 1024,
+      "assistant_turns": 2,
+      "toolcalls": 2,
+      "headless_wait": true
+    },
+    "cap_canary_2": {
+      "target": "CANARY_VALUE = 1",
+      "child_bytes": 65,
+      "contextWindow": 8192,
+      "reserveTokens": 1024,
+      "assistant_turns": 2,
+      "toolcalls": 2,
+      "headless_wait": true
+    },
+    "cap_canary_3": {
+      "target": "CANARY_VALUE = 1",
+      "child_bytes": 65,
+      "contextWindow": 8192,
+      "reserveTokens": 1024,
+      "assistant_turns": 2,
+      "toolcalls": 2,
+      "headless_wait": true
+    },
+    "a1_root": "/tmp/a002/t3e unmodified during canary window"
+  },
+  "sources_reviewed": [
+    "ledgers/T003E-FASE1-NO-EFFECT-FORENSICS-001.json",
+    "ledgers/T003E-FASE1-ADAPTER-CRASH-FORENSICS-001.json",
+    "ledgers/T003E-FASE1-BUDGET-CONTRACT-REVIEW-001.json",
+    "ledgers/T003E-FASE1-SYNTHESIS-001.json",
+    "ledgers/T003E-ENDSTATUS-CAPABILITY-REMEDIATION-001.json",
+    "ledgers/T003F-BUDGET-IMPLEMENTATION-001.json",
+    "ledgers/T003F-CAPABILITY-LINE-STATUS-001.json",
+    "ledgers/CAPABILITY-CANARY-RUN-001.json",
+    "ledgers/CAPABILITY-CANARY-RUN-002.json",
+    "ledgers/CAPABILITY-CANARY-RUN-003.json",
+    "ledgers/CAPABILITY-CANARY-SUMMARY-001.json",
+    "/tmp/atlas-prime-e2e-002-workspace diffs: prime_agent.py models.py store.py supervisor.py semantic_acceptance.py",
+    "/tmp/cap-canary-1",
+    "/tmp/cap-canary-2",
+    "/tmp/cap-canary-3"
+  ]
+}

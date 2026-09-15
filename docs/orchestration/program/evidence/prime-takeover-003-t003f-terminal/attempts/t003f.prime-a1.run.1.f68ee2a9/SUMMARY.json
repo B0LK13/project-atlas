@@ -1,0 +1,22 @@
+{
+  "acceptance_sha256": "7182acaf341a4f0164cf1bbc52ad56ba6e2564812578a1f19666462b02a85048",
+  "attempt_id": "t003f.prime-a1.run.1.f68ee2a9",
+  "failed": [
+    "helper-present",
+    "kernel-readiness-exposed",
+    "tests-mention-helper",
+    "scoped-diff-vs-baseline",
+    "kernel-readiness-helper",
+    "tests-updated",
+    "native-child-bound"
+  ],
+  "passed": [
+    "a1-focused-tests",
+    "candidate-changed",
+    "pre-existing-dirt-recorded",
+    "allowlist-only-mutations",
+    "worker-output-nonempty"
+  ],
+  "short": "f68ee2a9",
+  "verdict": "COMPLETED_NO_A1_PATCH"
+}

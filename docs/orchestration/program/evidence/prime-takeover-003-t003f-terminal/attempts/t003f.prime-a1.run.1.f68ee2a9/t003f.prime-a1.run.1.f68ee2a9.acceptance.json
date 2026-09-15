@@ -1,0 +1,100 @@
+{
+  "acceptance": {
+    "checks": [
+      {
+        "check_id": "a1-focused-tests",
+        "detail": "........................                                                 [100%]\n24 passed in 8.04s\n",
+        "exit_status": 0,
+        "kind": "COMMAND",
+        "passed": true
+      },
+      {
+        "check_id": "candidate-changed",
+        "detail": "1 changed path(s) in scope 'src/project_atlas/orchestration/program/control.py' (ignored 12 out-of-scope)",
+        "exit_status": 0,
+        "kind": "GIT_TREE_CHANGED",
+        "passed": true
+      },
+      {
+        "check_id": "helper-present",
+        "detail": "src/project_atlas/orchestration/program/control.py does not match the pattern",
+        "exit_status": null,
+        "kind": "FILE_MATCHES",
+        "passed": false
+      },
+      {
+        "check_id": "kernel-readiness-exposed",
+        "detail": "src/project_atlas/orchestration/program/control.py does not match the pattern",
+        "exit_status": null,
+        "kind": "FILE_MATCHES",
+        "passed": false
+      },
+      {
+        "check_id": "tests-mention-helper",
+        "detail": "tests/unit/test_orchestration_program_control.py does not match the pattern",
+        "exit_status": null,
+        "kind": "FILE_MATCHES",
+        "passed": false
+      },
+      {
+        "check_id": "pre-existing-dirt-recorded",
+        "detail": "recorded 13 pre-existing porcelain path(s); they are not success signals",
+        "exit_status": null,
+        "kind": "GIT_TREE_CHANGED",
+        "passed": true
+      },
+      {
+        "check_id": "scoped-diff-vs-baseline",
+        "detail": "no allowlisted path content changed versus baseline (pre_existing_porcelain=13)",
+        "exit_status": null,
+        "kind": "GIT_TREE_CHANGED",
+        "passed": false
+      },
+      {
+        "check_id": "allowlist-only-mutations",
+        "detail": "no novel out-of-allowlist mutations",
+        "exit_status": null,
+        "kind": "GIT_TREE_CHANGED",
+        "passed": true
+      },
+      {
+        "check_id": "kernel-readiness-helper",
+        "detail": "src/project_atlas/orchestration/program/control.py lacks def _kernel_readiness_status(",
+        "exit_status": null,
+        "kind": "FILE_MATCHES",
+        "passed": false
+      },
+      {
+        "check_id": "tests-updated",
+        "detail": "tests/unit/test_orchestration_program_control.py unchanged versus baseline",
+        "exit_status": null,
+        "kind": "FILE_MATCHES",
+        "passed": false
+      },
+      {
+        "check_id": "native-child-bound",
+        "detail": "native child artifact absent for this attempt",
+        "exit_status": null,
+        "kind": "FILE_EXISTS",
+        "passed": false
+      },
+      {
+        "check_id": "worker-output-nonempty",
+        "detail": "session toolCalls=1",
+        "exit_status": null,
+        "kind": "FILE_MATCHES",
+        "passed": true
+      }
+    ],
+    "passed": false
+  },
+  "adapter": "prime-agent",
+  "agent_id": "prime-e2e-parent-002",
+  "attempt_id": "t003f.prime-a1.run.1.f68ee2a9",
+  "program_id": "t003f",
+  "progress_fingerprint": "eaab1ca89b9f67133d6580be8ecb213d7bb1fcef6b632e34a57d812ee496fb85",
+  "semantic_hardening": true,
+  "task_id": "prime-a1",
+  "worker_report_is_not_acceptance": true,
+  "worker_reported": null
+}

@@ -91,3 +91,27 @@ predecessor check is red.
 - Kernel env + preflight artifacts: `…/prime-local-001/working-slice-001/env/`.
 - Repair target record: capability-1 transcript pin `00a458ab…` (handoff §8.5).
 - Historical diagnostics receipts: unchanged (handoff §7–§9).
+
+## Progress — 2026-09-15T08:56Z (setup codingworker)
+
+### Model-free kernel preflight (PASS)
+- Mission kernel: `…/working-slice-001/env/kernel-venv/bin/python` (+ pinned `dill==0.4.1`)
+- RUNTIME_READY_CHECK: PASS
+- Vitest `kernel-bootstrap-runtime-ready` + `repl-kernel-execute`: 9/9 PASS
+- Operator cell host + bwrap (`ATLAS_PRIME_KERNEL_TOOLCALL_OK`): PASS
+  evidence: `/tmp/ws001/preflight/operator-cell-host.json`, `operator-cell-bwrap.json`
+- Regression: `tests/unit/test_prime_kernel_preflight.py` + verification suite: 13 PASS
+
+### Review path readiness
+- Ported `verification.py` + supervisor VERIFY_SUBJECT / PASS-gate on result_schema
+- `GIT_TREE_CHANGED` ignores untracked `??` (closes e2e002 false-CERTIFY loophole)
+- Reviewer schema: const fields include `type` (schema-preflight-v2 shape)
+- Review tokens reserved; no live review launch used for schema test
+- Historical e2e002 CERTIFIED-on-FAIL receipt preserved separately under `/tmp/a002` (not this mission)
+
+### Mission baseline commit
+- `b8fa745eeb390df0580caf32245f778bb4065aad` on `feat/prime-working-slice-001`
+- Program: `/tmp/ws001/program.json` (short AF_UNIX paths under `/tmp/ws001/`)
+
+### Next
+- Dispatch Prime task `prime-a1-kernel-readiness` (setup must not author the A1 regression)

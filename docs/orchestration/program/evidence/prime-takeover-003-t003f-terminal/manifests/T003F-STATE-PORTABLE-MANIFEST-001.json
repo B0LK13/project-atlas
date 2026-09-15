@@ -1,0 +1,68 @@
+{
+  "HEAD": "ecc13dc830a629c7c6449f1aa3e156339a1809f0",
+  "at": "2026-09-15T18:47:23Z",
+  "counters": {
+    "coding": "2/2",
+    "reviewer": "0/1 preserved",
+    "total_launches": "2/3"
+  },
+  "events_jsonl_sha256": "9f8ccaffd2203131fe97e967a349ec9fc6e97fded6de84d75115e19dd479762f",
+  "freeze": {
+    "counter_reuse": "FORBIDDEN",
+    "resume_t003f": "FORBIDDEN",
+    "reviewer_launch": "FORBIDDEN",
+    "t003g_on_this_host": "FORBIDDEN",
+    "third_coding_attempt": "FORBIDDEN"
+  },
+  "program_id": "t003f",
+  "program_sha256": "d1029b12b1ca89f01355fcf03369f13b907f87abcecec0c76edd09f4b8444180",
+  "record_id": "T003F-STATE-PORTABLE-MANIFEST-001",
+  "schema_version": 1,
+  "source_host_only": {
+    "locks": [
+      {
+        "bytes": 35,
+        "path": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/state/T003F-ROOT-SLOT.lock",
+        "sha256": "80b51ec3bb578482f3482f45a4e0cb980825bcf13c2c025648971e190ff0a5cc"
+      },
+      {
+        "bytes": 259,
+        "path": "/tmp/a002/t3f/.atlas/orchestration/program/service/service.json",
+        "sha256": "1fd69c7271301f6af3ad823b13b71c2883f9b2e079fb541b33c75f73980ee124"
+      }
+    ],
+    "pids_note": "Any historical PIDs are source-host-only and must not be reused on a new host",
+    "runtime_ownership": "source-host ephemeral; do not claim remote ownership of /tmp/a002/t3f",
+    "sockets": [
+      {
+        "exists": true,
+        "note": "source-host-only AF_UNIX; do not migrate",
+        "path": "/tmp/atlas-prime-e2e-002-ipc/t003f-daemon.sock"
+      },
+      {
+        "exists": true,
+        "note": "source-host-only AF_UNIX; do not migrate",
+        "path": "/tmp/atlas-prime-e2e-002-ipc/t003f-daemon.sock.lock"
+      }
+    ]
+  },
+  "state_NOT_PACKAGED": true,
+  "state_json_sha256": "e778e80d4cdb946cf76f3e0d47b9f9f1648dbb43a7a60d83284c3fb845fdf975",
+  "state_source_host": "/tmp/a002/t3f",
+  "terminal": {
+    "attempt_ids": [
+      "t003f.prime-a1.run.1.f68ee2a9",
+      "t003f.prime-a1.run.2.e0678593"
+    ],
+    "candidate_present": false,
+    "coding_attempts": 2,
+    "complete": false,
+    "last_attempt_id": "t003f.prime-a1.run.2.e0678593",
+    "last_stop_reason": "HARD_BLOCKER",
+    "reason": "FAIL_NO_CANDIDATE: coding attempt budget of 2 exhausted; acceptance failed and the workspace is byte-identical to the previous attempt: no observable progress",
+    "reviewer_launches": 0,
+    "task_state": "BLOCKED",
+    "total_launches": 2
+  },
+  "workspace_tree": "ed560297c19e37ca427f693accb36daf0439c9a8"
+}

@@ -1,0 +1,8 @@
+{
+  "at": "2026-09-15T18:34:06Z",
+  "cli": "program service run --allow-unregistered",
+  "note": "First systemd body used invalid CLI service-run (exit 2) before any launch; repaired to program service run under same CLAIMED slot; not a second authorization.",
+  "record_id": "T003F-DISPATCH-REPAIR-001",
+  "slot": "CLAIMED",
+  "state_root": "/tmp/a002/t3f"
+}

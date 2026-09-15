@@ -1,0 +1,103 @@
+{
+  "at": "2026-09-15T18:48:27Z",
+  "background_shell_notifications": {
+    "items": [
+      {
+        "task_id": "647853",
+        "title": "Repair CLI and start service under claimed slot"
+      },
+      {
+        "task_id": "647852",
+        "title": "Admission loop: wait ALLOW then exact-once dispatch"
+      },
+      {
+        "task_id": "647856",
+        "title": "Start service round 2 for coding retry"
+      }
+    ],
+    "note": "Duplicates of the same terminal t003f run; create no new authorization or execution state"
+  },
+  "cross_host_ready": "NO_GO_PENDING_CLEANUP",
+  "new_host_entry_gate": {
+    "do_not_create_t003g_immediately_after_clone": true,
+    "if_realistic_canary_fails_same_provider_model": [
+      "mark_provider_unsuitable_for_A1",
+      "do_not_spend_another_Prime_root",
+      "escalate_to_stronger_provider_model_or_host_under_separate_authorization"
+    ],
+    "note_on_prior_micro_canaries": "Prior 3/3 micro-canaries proved basic tool capability but did NOT predict production-task success (t003f FAIL_NO_CANDIDATE).",
+    "require_production_shaped_disposable_A1_canary": {
+      "min_consecutive_full_passes": 2,
+      "must_include": [
+        "comparable_prompt_size_and_context_pressure",
+        "same_tool_inventory_and_sandbox",
+        "multiple_dependent_read_edit_test_operations",
+        "scoped_source_modification",
+        "new_test",
+        "native_child_artifact",
+        "structured_terminal_evidence",
+        "independent_review"
+      ],
+      "no_effect_completion_is_FAIL": true
+    }
+  },
+  "prohibitions": [
+    "DO_NOT_RESUME_t003f",
+    "DO_NOT_USE_feat/prime-takeover-003-config-route_AS_CLEAN_HANDOFF",
+    "DO_NOT_CLAIM_d539f88_SANITIZED"
+  ],
+  "record_id": "ATLAS-CROSS-HOST-RESUME-001",
+  "required_next_host_capability_work": [
+    "Reproduce compaction reserveTokens sizing + headless-completion wait remediation",
+    "Keep role-separated budgets (max_coding_attempts=2, reserved_reviewer_launches=1, max_total_launches=3)",
+    "Run production-shaped A1 canary to 2/2 PASS before any new Prime A1 root",
+    "Do not resume t003f or reuse its counters/root"
+  ],
+  "schema_version": 1,
+  "security_remediation": {
+    "classification": "source-host_ephemeral_task_local",
+    "contaminated_branch": "feat/prime-takeover-003-config-route",
+    "contaminated_commit": "d539f88adb931fa9f9c7a4e5529f612b01ae14dc",
+    "contaminated_tree": "121487ca19d827cc374ce7182ac7c0043b879b2e",
+    "do_not_clone_contaminated_branch_for_new_host": true,
+    "history_truth": "d539f88 remains contaminated in git history until owner-authorized destructive cleanup",
+    "invalidation_ledger": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/ledgers/T003F-SUPERVISOR-OWNER-TOKEN-INVALIDATION-001.json",
+    "live_at_scan": false,
+    "sanitized_replacement_branch": "feat/prime-takeover-003-handoff-sanitized",
+    "secret_count": 2,
+    "secret_field": "supervisorOwnerToken"
+  },
+  "source_host": {
+    "state_source_host_only": "/tmp/a002/t3f",
+    "takeover_root": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003",
+    "workspace": "/tmp/atlas-prime-e2e-002-workspace"
+  },
+  "t003f": {
+    "A1": "NOT_CLAIMED",
+    "HEAD": "ecc13dc830a629c7c6449f1aa3e156339a1809f0",
+    "attempts": {
+      "t003f.prime-a1.run.1.f68ee2a9": "COMPLETED_NO_A1_PATCH",
+      "t003f.prime-a1.run.2.e0678593": "COMPLETED_NO_A1_PATCH"
+    },
+    "counter_reuse": "FORBIDDEN",
+    "counters": {
+      "candidate_present": false,
+      "coding_attempts": "2/2",
+      "reviewer_launches": "0/1 preserved",
+      "total_launches": "2/3"
+    },
+    "evidence_package": "docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/",
+    "freeze_sha256": "190a487d13eb287276402844e27ec9471c6e6e540f21a9e977beaab1d93aac98",
+    "ledger_final_sha256": "f2887bde008aa72bec22943055b5e5c667226bc941969b055bcfc5a2bfd999b4",
+    "portable_manifest_sha256": "e629f738d5a68e8801c699340f16fa3fabf4ff5021e08716dd7b31d880ce902a",
+    "program_id": "t003f",
+    "program_sha256": "d1029b12b1ca89f01355fcf03369f13b907f87abcecec0c76edd09f4b8444180",
+    "resume": "FORBIDDEN",
+    "reviewer_launch": "FORBIDDEN",
+    "status": "TERMINAL",
+    "t003g_on_this_host": "FORBIDDEN",
+    "terminal": "FAIL_NO_CANDIDATE",
+    "third_coding_attempt": "FORBIDDEN",
+    "workspace_tree_at_packaging": "ed560297c19e37ca427f693accb36daf0439c9a8"
+  }
+}

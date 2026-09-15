@@ -1,0 +1,11 @@
+{
+  "action": "BLOCKED->REMEDIATING",
+  "at": "2026-09-15T18:38:58Z",
+  "coding_attempts_remaining": 1,
+  "coding_attempts_used": 1,
+  "new_coding_root": false,
+  "rationale": "attempt1 completed with no A1 helper; retry blocked by 2GiB host floor; memory recovered; reopen within max_coding_attempts=2",
+  "record_id": "T003F-OWNER-REMEDIATION-REOPEN-001",
+  "reviewer_reservation_remaining": 1,
+  "same_root": true
+}

@@ -209,6 +209,9 @@ def control_view(
                 "adapter": profile.adapter.value,
                 "attempts": record.attempts if record else 0,
                 "launches": record.launches if record else 0,
+                "coding_attempts": record.coding_attempts if record else 0,
+                "reviewer_launches": record.reviewer_launches if record else 0,
+                "candidate_present": bool(record and record.candidate_present),
                 "last_failure_class": (
                     record.last_failure_class.value
                     if record and record.last_failure_class
@@ -359,6 +362,60 @@ def control_view(
                 if state
                 else limits.max_task_launches
             ),
+            "max_total_launches": limits.max_task_launches,
+            "max_coding_attempts": limits.max_coding_attempts,
+            "reserved_reviewer_launches": limits.reserved_reviewer_launches,
+            "coding_launch_room": (
+                max(
+                    0,
+                    limits.max_task_launches
+                    - limits.reserved_reviewer_launches
+                    - state.total_launches,
+                )
+                if state
+                else max(
+                    0,
+                    limits.max_task_launches - limits.reserved_reviewer_launches,
+                )
+            ),
+            "budget": {
+                "max_coding_attempts": limits.max_coding_attempts,
+                "max_attempts_per_task": limits.max_attempts_per_task,
+                "reserved_reviewer_launches": limits.reserved_reviewer_launches,
+                "max_task_launches": limits.max_task_launches,
+                "max_total_launches": limits.max_task_launches,
+                "total_launches_used": state.total_launches if state else 0,
+                "tasks": {
+                    task.task_id: {
+                        "coding_attempts": (
+                            state.tasks[task.task_id].coding_attempts
+                            if state and task.task_id in state.tasks
+                            else 0
+                        ),
+                        "reviewer_launches": (
+                            state.tasks[task.task_id].reviewer_launches
+                            if state and task.task_id in state.tasks
+                            else 0
+                        ),
+                        "candidate_present": bool(
+                            state
+                            and task.task_id in state.tasks
+                            and state.tasks[task.task_id].candidate_present
+                        ),
+                        "attempts": (
+                            state.tasks[task.task_id].attempts
+                            if state and task.task_id in state.tasks
+                            else 0
+                        ),
+                        "launches": (
+                            state.tasks[task.task_id].launches
+                            if state and task.task_id in state.tasks
+                            else 0
+                        ),
+                    }
+                    for task in program.tasks
+                },
+            },
             "estimated_cost_usd": state.estimated_cost_usd if state else 0.0,
             "estimated_cost_note": (
                 "client-side estimate reported by the runtime; not billed "
@@ -411,10 +468,15 @@ def _last_progress(
 def _retry_eligibility(
     loaded: LoadedProgram, task: ProgramTask, record: TaskRecord | None
 ) -> dict[str, Any]:
-    """Whether this task gets another attempt, and why or why not."""
+    """Whether this task gets another coding attempt, and why or why not."""
     profile = loaded.effective_profile(task.task_id)
-    budget = min(loaded.program.limits.max_attempts_per_task, profile.limits.max_attempts)
-    used = record.attempts if record else 0
+    coding_cap = (
+        loaded.program.limits.max_coding_attempts
+        if loaded.program.limits.max_coding_attempts is not None
+        else loaded.program.limits.max_attempts_per_task
+    )
+    budget = min(coding_cap, profile.limits.max_attempts)
+    used = record.coding_attempts if record else 0
     failure = record.last_failure_class if record else None
     if failure is None:
         eligible, reason = (used < budget), "no failure recorded"
@@ -426,9 +488,9 @@ def _retry_eligibility(
     elif failure in RETRYABLE_FAILURES:
         eligible = used < budget
         reason = (
-            f"{failure.value} is retryable; {used}/{budget} attempts used"
+            f"{failure.value} is retryable; {used}/{budget} coding attempts used"
             if eligible
-            else f"attempt budget of {budget} is exhausted"
+            else f"coding attempt budget of {budget} is exhausted"
         )
     else:
         eligible, reason = False, (
@@ -437,7 +499,9 @@ def _retry_eligibility(
     return {
         "eligible": bool(eligible),
         "attempts_used": used,
+        "coding_attempts_used": used,
         "attempt_budget": budget,
+        "coding_attempt_budget": budget,
         "last_failure_class": failure.value if failure else None,
         "reason": reason,
     }

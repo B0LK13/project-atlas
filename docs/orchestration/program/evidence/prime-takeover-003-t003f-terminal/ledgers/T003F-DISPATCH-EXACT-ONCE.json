@@ -1,0 +1,9 @@
+{
+  "at": "2026-09-15T18:30:50Z",
+  "program": "/home/gebruiker/.cache/atlas-r-deploy/prime-local-001/e2e-002/takeover-003/programs/program-t003f.json",
+  "record_id": "T003F-DISPATCH-EXACT-ONCE",
+  "returncode": 1,
+  "state_root": "/tmp/a002/t3f",
+  "systemd_run": "Job for atlas-t003f-service.service failed because the control process exited with error code.\nSee \"systemctl --user status atlas-t003f-service.service\" and \"journalctl --user -xeu atlas-t003f-service.service\" for details.\n",
+  "unit": "atlas-t003f-service"
+}

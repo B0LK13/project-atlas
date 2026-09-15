@@ -1,0 +1,43 @@
+{
+  "at_utc": "2026-09-15T18:57:05Z",
+  "contaminated_branch": "feat/prime-takeover-003-config-route",
+  "contaminated_commit": "d539f88adb931fa9f9c7a4e5529f612b01ae14dc",
+  "contaminated_tree": "121487ca19d827cc374ce7182ac7c0043b879b2e",
+  "document": "T003F-SUPERVISOR-OWNER-TOKEN-INVALIDATION-001",
+  "findings": [
+    {
+      "action": "LOCAL_PLAINTEXT_OVERWRITTEN_WITH_REDACTION; NO_LIVE_OWNERSHIP_TO_ROTATE",
+      "classification": "source-host_ephemeral_task_local",
+      "count": 2,
+      "daemon_socket_connect": "ConnectionRefusedError",
+      "field": "supervisorOwnerToken",
+      "live_registry_match": false,
+      "owner_records_with_token": 0,
+      "shape": "uuid-v4-like-36",
+      "values_sha12": [
+        "e3250678cb42",
+        "ebeefcf564ec"
+      ],
+      "values_sha256": [
+        "e3250678cb427957a349f251e099163f59b703b402948f7ccb7bd87efb39812f",
+        "ebeefcf564ec532e9b0f94a12bc792daf519089cc0f502903d54f591bcfb05d2"
+      ]
+    },
+    {
+      "classification": "merely_an_identifier",
+      "field": "credential",
+      "locations": [
+        "program-t003f.json profile_defaults/profiles"
+      ],
+      "note": "env-style credential *names* (not secret material); left unretracted in sanitized handoff"
+    }
+  ],
+  "local_files_redacted": [
+    "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.1.f68ee2a9.prime-daemon.jsonl",
+    "/tmp/a002/t3f/.atlas/orchestration/program/evidence/t003f.prime-a1.run.2.e0678593.prime-daemon.jsonl",
+    "/tmp/atlas-prime-e2e-002-workspace/docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.1.f68ee2a9/t003f.prime-a1.run.1.f68ee2a9.prime-daemon.jsonl",
+    "/tmp/atlas-prime-e2e-002-workspace/docs/orchestration/program/evidence/prime-takeover-003-t003f-terminal/attempts/t003f.prime-a1.run.2.e0678593/t003f.prime-a1.run.2.e0678593.prime-daemon.jsonl"
+  ],
+  "stale_socket_removed": true,
+  "truth_boundary": "HISTORY_OBJECT_d539f88_REMAINS_CONTAMINATED; ONLY_LOCAL_RESIDUAL_AND_FUTURE_COMMITS_SANITIZED"
+}
