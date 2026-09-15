@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.inventory_drift import attach_source_drift
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-CODER-ALPHA-STATE-001"
 GENERATOR_ID = "atlas-coder-alpha-state-001"
@@ -158,7 +159,11 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
         semantic = _parse_semantic_record(note_text)
         if isinstance(semantic, dict):
             raw_lifecycle = semantic.get("lifecycle")
-            if isinstance(raw_lifecycle, str) and raw_lifecycle.strip():
+            if (
+                isinstance(raw_lifecycle, str)
+                and raw_lifecycle.strip()
+                and not scan_text(raw_lifecycle)
+            ):
                 lifecycle = raw_lifecycle.strip()
 
     status_counts: dict[str, int] = {}

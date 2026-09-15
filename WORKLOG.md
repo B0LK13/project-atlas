@@ -14915,3 +14915,15 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-UNKNOWN-JSON-ESC-001 — scan decoded semantic-record scalars
+
+Unknown and state lenses `json.loads` the `## Semantic record` fence. Quoted
+`\\u` escapes miss raw `scan_text` and were persisted as `coverage_absent` /
+`lifecycle` (state even rolled the secret-shaped lifecycle up as `stable`).
+Decoded category and lifecycle scalars are now scanned before persist; secret
+shapes drop and UNKNOWN stays UNKNOWN.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+

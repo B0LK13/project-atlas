@@ -18,6 +18,7 @@ from project_atlas.inventory_drift import (
     attach_source_drift,
     evaluate_connect_inventory_drift,
 )
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-001"
 GENERATOR_ID = "atlas-coder-alpha-unknown-001"
@@ -116,7 +117,7 @@ def _coverage_absent(project_md: str) -> list[str]:
     for row in coverage:
         if isinstance(row, dict) and row.get("state") == "absent":
             category = row.get("category")
-            if isinstance(category, str):
+            if isinstance(category, str) and not scan_text(category):
                 absent.append(category)
     return sorted(absent)
 
@@ -162,7 +163,12 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
             except json.JSONDecodeError:
                 semantic = None
             if isinstance(semantic, dict) and isinstance(semantic.get("lifecycle"), str):
-                lifecycle = semantic["lifecycle"] or "unknown"
+                raw_lifecycle = semantic["lifecycle"]
+                lifecycle = (
+                    "unknown"
+                    if not raw_lifecycle or scan_text(raw_lifecycle)
+                    else raw_lifecycle
+                )
 
     # HUMAN-LOOP-001: pending queue is authoritative for human-decided reviews.
     # Do not let stale knowledge-status.md "claims awaiting review" resurrect
