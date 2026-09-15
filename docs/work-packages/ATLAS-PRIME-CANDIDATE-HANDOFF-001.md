@@ -68,7 +68,7 @@ van andere missies.
 | Open taak | Ontbrekende voorwaarde | Hervattrigger |
 | --- | --- | --- |
 | Prime real-model toolcall / codingslice (pilotlijn) | voldoende model-tool-use (de Qwen3 1.7B-pogingen `kernel-bound-rpc-1..-6` en `kernel-bound-capability-1/-2` leverden **geen echte ipython-toolcall**: poging -6 deed één echte inferentie met `agent_end` maar alleen reasoning-text; capability-1/-2 onzeker/geen call) + reviewed proxy/IPC-brug | nieuw ownerbesluit; de geldige pilotgrant zegt expliciet dat geen verdere kleinere-modelpogingen geautoriseerd zijn |
-| ATLAS-PRIME-REALIGN-001 / AS-PRIME-TOOLCALL-DIAGNOSTICS-001 | bijgewerkt 2026-09-15 (zie §7.3/§7.4): de ownerbesluiten bestaan nu als bijlage (REALIGN + BOOTSTRAP-001) en de taak is gekoppeld en in uitvoering; resterend: supervisoracceptatie van de corrected successor-run + niet-auteur-IV van de delta | afloop van de successor-2 dispatch (§7.5); daarna niet-auteur-review van de worker-delta |
+| ATLAS-PRIME-REALIGN-001 / AS-PRIME-TOOLCALL-DIAGNOSTICS-001 | **gesloten 2026-09-15** (zie §7.3–§7.5 en §8): ownerbesluiten bijlage, executor gekoppeld, dispatch run.1.519a148f `acceptance_passed: true`, taak CERTIFIED, niet-auteur-IV PASS; acceptatie-equivalentie en scope-afwijking vastgelegd in §8.2/§8.4 | geen hervattrigger voor deze taak; alleen de ownerdisposition voor de §8.4-afwijking (behoud / targeted revert / afsplitsing) |
 | CI op de kandidaat | billingherstel GitHub-account; run op de gefroze head `913bc791` — een rerun van de oude run dekt de nieuwe head niet | billingherstel, daarna exact-head CI |
 | Canonieke kennisontvangst | Knowledge Plane receipt-pipeline aansluiting (lokale capture bestaat; canoniek blijft OPEN) | apart werkpakketbesluit |
 | Deployment / canary-rollback gate | deploymentautorisatie (niet verstrekt). De rollback-rij in de matrix blijft beperkt tot adapter-scope: cancel-na-CERTIFIED met intacte evidence is **geen** runtime-/deploymentrollback-bewijs | ownerdeploymentbesluit (canary-formaat) |
@@ -231,4 +231,140 @@ Dispatch bewijsbaar en het taakresultaat is echt:
   observability-eis; het is **geen** Prime-real-modeltoolcall-bewijs en geen
   native Prime-delegatie. De open punten uit §4 (real-model slice, CI,
   canonieke kennisontvangst, deployment, menselijke IV) blijven onveranderd
-  open.
+  open. Dit addendum is tevens het publicatie- en coördinatieregister voor de
+  betrokken agents (zie §8).
+
+## 8. Addendum 2026-09-15 (2) — verwerking run.1.519a148f per eigenaaraanvulling
+
+Uitgevoerd als bevoegde-operatorcontrole op uitsluitend bestaand bewijs: geen
+nieuwe modelcalls, geen coding-/IV-launches, geen budgetverlenging, geen
+publicatie/merge/uitrol, geen gateversoepeling.
+
+### 8.1 Publicatie en afstemming parallelle opdrachten
+
+- **Gepubliceerd via deze overdracht**: resultaat run.1.519a148f (attempt
+  `…successor-2.…run.1.519a148f`, TERMINAL/exit 0, `acceptance_passed: true`,
+  taak CERTIFIED) met canonieke locatie
+  `…/prime-local-001/diagnostics-001/state-successor-2/.atlas/orchestration/program/`
+  (state.json, leases.json, events.jsonl) en evidence-hashes: acceptance.json
+  `cb71b940…`, codex-events.jsonl `4687bd10…`, codex-last.txt `17e09865…`,
+  codex-summary.json `41cbb057…`.
+- **ATLAS-VERIFICATION-ROUTE-IMPLEMENT-001**: bestaat nergens als canoniek
+  record — queue (`approved-work-queue.json`) en registry nagekeken, geen
+  entry; zij leeft als ownerbijlage aan de andere lane en als bouw-WIP in de
+  worktree (`src/project_atlas/orchestration/program/verification.py`,
+  `tests/unit/test_orchestration_program_verification.py` en src-wijzigingen in
+  `acceptance.py`, `cli.py`, `models.py`, `supervisor.py` — op moment van
+  schrijven ongecommitte van die lane). Tijdens deze checks: **HOLD** — geen
+  nieuwe launches onder die opdracht. Geen enkel proces beëindigd; alle
+  routecode en -evidence ongemoeid bewaard; geen reset/staging/verwijdering.
+- **Niet gelijkgeschakeld**: run.1.519a148f is een nieuwe coding-dispatch, geen
+  read-only herbeoordeling van de oude terminale attempt. De oude attempt
+  `…successor.…run.1.59cab7d5` met haar oorspronkelijke `acceptance=false`,
+  launchlimiet en bewijsstukken is ongemoeid bewaard; er wordt niet gearchreven
+  dat de ontbrekende reviewhandler daarmee zou zijn gebouwd.
+
+### 8.2 Acceptatie-equivalentie (uit bestaand bewijs)
+
+| Aspect | Oud (successor-run 59cab7d5) | Nieuw (successor-2 run 519a148f) |
+| --- | --- | --- |
+| Programmadigest (run-gereserveerd) | `e310c96ad14e8d86c1400008c86dfce611c3ab71e3f14dd6e437631a51bef907` | `2383b3e12a13fad8cbdb0679130306fda99c6fd98b608be4fdb688acfbfe0963` |
+| Criteria/config | `diagnostic-tests` (COMMAND) + `candidate-changed` (GIT_TREE_CHANGED); zelfde limieten/mutation_paths | identieke criteria, limieten en mutation_paths; enige inhoudelijke verschillen: programma-id/referentie, verify-first-instructie, gecorrigeerde acceptance-argv, profiel zonder model-pin |
+| Interpreter | `/home/gebruiker/.cache/atlas-r-deploy/runtime-008/bin/python` (3.14.4, pytest 9.1.1) | dezelfde interpreter |
+| cwd / rootdir | diagnostics-workspace | dezelfde workspace |
+| Werkelijk geladen project_atlas | site-packages `project_atlas 2.0.0` (non-editable) — bewezen met `import project_atlas; __file__` | via argv `sys.path.insert(0,'src')`: workspace-`src` vóór site-packages |
+| Te draaien tests | 3 genoemde focused bestanden | exact dezelfde 3 bestanden |
+| Kandidaat | workspace @ base `03bc4459` + worker-delta | dezelfde code: worker voerde 0 wijzigingen door; `progress_fingerprint` identiek (`b4616f70…`) |
+| Foutoutput die de defecten aantoont | recorded `acceptance_detail`: "unrecognized arguments: --cov=project_atlas …" (pytest-cov ontbreekt) | bestaande lokale run van de oude argv: `ModuleNotFoundError: prime_inference_proxy` (verkeerde importbinding) |
+| Uitslag | acceptance=false (usage error, exit 4) | 73 passed in 8,64s + tree changed |
+
+- **Coverage hoort niet tot het contract**: de acceptatie van de taak bestaat
+  uit de twee checks hierboven; er is geen coverage-check of -threshold in het
+  programma. De `--cov`-vlaggen kwamen uit de **geërfde** workspace-pyproject
+  (`addopts`), niet uit de taakcriteria. Het wissen van addopts schakelt dus
+  geen verplichte check uit; er is ook niets verzonnen om een eerder groen
+  resultaat rood of groen te maken — de equivalentie volgt uit de recorded
+  foutoutput plus dezelfde code en tests.
+- **Resultpin**: geteste code = workspace HEAD `03bc4459c3b3…` (tree
+  `474fd57a3226…`) plus worker-delta (`git diff`-hash `a31f6368a7e4…`,
+  9 paden met per-bestand sha256 — waaronder proxy/test `ff7a44bc…`/`8bf9f7dd…`
+  en relay `abe4f3b4…` dat buiten de claim valt). `be77e779` is en blijft de
+  documentatiepin; identieke 73 uitslagen bewijzen op zichzelf geen gelijke
+  code/criteriadekking — de dekking volgt uit de pin + identieke fingerprint.
+  Niet-autuur-verdict: §7.5 IV PASS (auteur worker = codex-diagnostics-001;
+  reviewer = deze operator-sessie). Geen suite-herhaling: alle checks droegen
+  op bestaande traces/manifests.
+
+### 8.3 Launch-/grantbinding en verbruik
+
+- **Admissionreceipt**: enrollment `codex-diagnostics-001` (20:58:40Z,
+  AUTHORIZED-OPERATOR) + assignment 2026-09-15T06:38:10Z naar successor-2
+  (program-digest `2383b3e1…`); lease `…successor-2-…-1`, capability IMPLEMENT,
+  status RELEASED na CERTIFIED. Executor: codex-adapterworker (geen
+  verifierlaunch, geen modelvrije uitvoering).
+- **Bevoegdheid**: gedekt door de ownerinstructie aan de vertrouwde operator
+  van 2026-09-15 (voortzetting bootstrapketen). Het oorspronkelijke
+  90-minutenvenster vanaf admission (20:58:40Z+90m) was verstreken op moment
+  van dispatch — als feit geregistreerd, niet teruggedateerd of retroactief
+  gelegitimeerd; de substantiële caps (1 worker, 1 launch, 5400 s, geen
+  recursie, geen model-pin, geen providergrant) zijn aangehouden.
+- **Verse state-root reset niets**: voorganger-state, -digests
+  (`68277d7f…`, `e310c96a…`), terminale attempts (`88fd8f0e` FAILED,
+  `59cab7d5` acceptance=false) en registry (`q-agent-009`) zijn ongewijzigd.
+- **Verbruiksledger** (cached is deel van input, nooit erbovenop geteld):
+  `88fd8f0e` = leeg (pre-worker mislukt); `59cab7d5` = input 2.477.957
+  (cached 2.378.752), output 18.803; `519a148f` = input 488.204 (cached
+  418.816), output 1.229. Onafhankelijke runs; som = input 2.966.161, output
+  20.032; geen kostenpost verzonnen; codergebruik geboekt op de
+  diagnosticstaakgrant, niet onder een IV-grant.
+
+### 8.4 Schrijfscope-afwijking en disposition
+
+- Werkelijk door de worker gewijzigd buiten de gedeclareerde paths:
+  `docs/orchestration/program/evidence/prime-local-001-runtime-manifest.json`
+  (één regel: `adapter_version` v1→v2; bestandsha `8a08269c…`). De lease ten
+  tijde van de write kende alleen de 7 gedeclareerde paths — toestemming voor
+  dit bestand ontbrak. Onveranderde freeze-hash (`2264052…`) en IV-PASS
+  legitimeren deze write niet met terugwerkende kracht.
+- Binnen een gedeclareerde file maar freeze-relevant: `ADAPTER_VERSION` v1→v2
+  in `prime_agent.py`; patch- en upstream-constanten ongewijzigd; de
+  toelatingspoort hangt aan de patch-hash, niet aan het versielabel.
+- **Disposition (ownerbeslissing vereist, geen historische herschrijving)**:
+  (a) behoud met afwijkingsnotitie (label matcht adapter-self-id v2), (b)
+  owner-geautoriseerde targeted revert van de manifestregel in een toekomstige
+  begrensde taak, of (c) afsplitsing. Eventuele latere toestemming werkt
+  prospectief en wist de registratie hier niet.
+- **Relay/pilot-WIP** (`scripts/prime-local-001-inference-relay.py`,
+  `abe4f3b4…`): pre-existing parallel-lane materiaal, buiten de workerclaim;
+  0 referenties in tests/src/worker-bestanden → geen invloed op de gebruikte
+  test-/runtimebinding; ongemoeid gelaten.
+
+### 8.5 Drie trace-diagnoses (inhoudelijk)
+
+| Poging | Pin (sha256) | Records | Diagnose | Waargenomen | Plek in keten |
+| --- | --- | ---: | --- | --- | --- |
+| `kernel-bound-rpc-6` | `7207d095da8b…aa2c` | 639 | `no_structured_toolcall` | échte 1.7B-inferentie voltooid (Prime `agent_end`, 111,18 s, 2.803 tokens), alleen reasoning-text; geen gestructureerde ipython-call | model-responsfase; request/response compleet, geen tool-uitvoering bereikt |
+| `kernel-bound-capability-1` | `00a458ab5583…a6a1` | 336 | `kernel_start_failure` | geldige gestructureerde ipython-call (`toolcall_end` regel 264), `tool_execution_start` (266), kernelstartfout (267), `tool_execution_end isError:true` (268) + gepersisteerd `toolResult` (270): `PRIME_AGENT_KERNEL_PYTHON` wees naar Python zonder current `prime-agent-runtime` | tool-uitvoering/kernelstart; call aanvaard, kernel startte niet |
+| `kernel-bound-capability-2` | `12580324ebb6…be8` | 7 | `unknown` | connection reset; partieel transcript; `reasoning_effort:none`-correctie aanwezig; geen compleet assistant-antwoord | transport/responsfase, incompleet |
+
+Bronartefacten: `…/atlas-prime-pilot.JF33Zo/evidence/<attempt>/<attempt>.prime-rpc.jsonl`
+(vluchtige /tmp-locatie; de sha256-pins zijn de blijvende verwijzing).
+Ontbrekende data blijft UNKNOWN; geen verzonnen hoofdoorzaak; geen nieuwe
+Qwen-/Prime-capabilitycyclus.
+
+### 8.6 Gerechtvaardigde taakstatus en archivering
+
+- **Diagnosetaakacceptatie: gerechtvaardigd en bevestigd** — gedragen door
+  run.1.519a148f + §8.2-equivalentie + §7.5 IV PASS. `CERTIFIED` geldt
+  uitsluitend voor AS-PRIME-TOOLCALL-DIAGNOSTICS-001; het is geen
+  productcertificering.
+- **ATLAS-VERIFICATION-ROUTE-IMPLEMENT-001: gearchiveerd** als
+  "overtaken-by-run.1.519a148f + equivalentiechecks" — niet gemarkeerd als
+  uitgevoerd en niet als productgeaccepteerd; gebouwde routecode en evidence
+  ongemoeid bewaard; heractivering vereist een nieuw ownerbesluit.
+- **Open blijven afzonderlijk** (ongewijzigd uit §4): Prime-real-modeltoolcall,
+  native modeldelegatie, coding-slice, exact-head CI op `913bc791`, canonieke
+  kennisontvangst, deployment, menselijke IV.
+- **Vervolg**: er is geen al-toegelaten vervolgwerk met werkelijk beschikbare
+  executor én geldige grant over; dit dossiercommit is het checkpoint, hiermee
+  stopt deze controle.
