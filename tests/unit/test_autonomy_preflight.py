@@ -189,6 +189,21 @@ def test_load_grant_rejects_directive_path_traversal(loop_root: Path) -> None:
         pf.load_grant(loop_root, 1)
 
 
+def test_load_grant_canonicalizes_dot_segments_so_scope_can_pin(loop_root: Path) -> None:
+    dotted = "autonomy/directives/./D-ATLAS-ITER-1.md"
+    text = _grant_text(pf.policy_sha(loop_root)).replace(
+        "autonomy/directives/D-ATLAS-ITER-1.md",
+        dotted,
+    )
+    _write(loop_root / pf.grant_path(1), text)
+    grant = pf.load_grant(loop_root, 1)
+    assert grant.directive == "autonomy/directives/D-ATLAS-ITER-1.md"
+    problems = pf.check_scope(
+        pf.load_policy(loop_root), grant, [_change("autonomy/directives/D-ATLAS-ITER-1.md")]
+    )
+    assert any("granted directive is pinned" in problem for problem in problems)
+
+
 def test_preflight_rejects_mislabelled_grant_and_missing_directive(loop_root: Path) -> None:
     (loop_root / "autonomy/directives/D-ATLAS-ITER-1.md").unlink()
     assert any("does not exist" in problem for problem in pf.check_preflight(loop_root, 1))

@@ -308,12 +308,13 @@ def load_grant(root: Path, iteration: int) -> Grant:
     if not isinstance(base, str) or not _GIT_SHA.fullmatch(base):
         raise ConfigError(f"{rel} base_sha must be a full 40-character commit SHA")
     directive = data.get("directive")
-    if (
-        not isinstance(directive, str)
-        or not directive.startswith(DIRECTIVES_PREFIX)
-        or "\\" in directive
-        or any(part in {"", ".", ".."} for part in Path(directive).parts)
-    ):
+    if not isinstance(directive, str) or "\\" in directive:
+        raise ConfigError(f"{rel} directive must be a normalized path under {DIRECTIVES_PREFIX}")
+    parts = [part for part in directive.split("/") if part not in {"", "."}]
+    if ".." in parts or not parts:
+        raise ConfigError(f"{rel} directive must be a normalized path under {DIRECTIVES_PREFIX}")
+    directive = "/".join(parts)
+    if not directive.startswith(DIRECTIVES_PREFIX) or directive == DIRECTIVES_PREFIX.rstrip("/"):
         raise ConfigError(f"{rel} directive must be a normalized path under {DIRECTIVES_PREFIX}")
     return Grant(
         iteration=iteration,

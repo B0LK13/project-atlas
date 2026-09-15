@@ -296,7 +296,8 @@ A grant verifies only if all of these hold (`preflight.py preflight --iteration 
   void; proposing `D-<n+1>` remains in scope);
 - `base_sha` is an ancestor of `HEAD`;
 - the directive named by the grant exists and is a normalized path under
-  `autonomy/directives/` (`..` and empty segments are rejected);
+  `autonomy/directives/` (`..` is rejected; `.` and empty segments are stripped so
+  the scope pin matches the canonical git path);
 - the ledger passes section 8.1;
 - if `require_signed_grants` is true, the latest commit touching the grant on the grant ref
   has a good signature (`%G? == G`);

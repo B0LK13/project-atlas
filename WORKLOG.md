@@ -15106,6 +15106,8 @@ branch named `origin/main` shadowed the fetched `refs/remotes/origin/main`, so
 `git show origin/main:autonomy/HALT` missed the owner kill switch. Follow-up remedi
 returns the unambiguous remotes ref after fetch, still fetches `refs/remotes/…`
 grant refs, and rejects granted-directive edits at the scope gate.
+`loop.yaml` re-pinned to
+`2d990392de2117a4ea62b2cfd07f34241f8a169edd34fb559b7c95938e15d6e7`.
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
