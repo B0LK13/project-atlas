@@ -368,3 +368,36 @@ Qwen-/Prime-capabilitycyclus.
 - **Vervolg**: er is geen al-toegelaten vervolgwerk met werkelijk beschikbare
   executor én geldige grant over; dit dossiercommit is het checkpoint, hiermee
   stopt deze controle.
+
+## 9. Addendum 2026-09-15 (3) — gerichte aanvulling van bewijsbindingen
+
+Geen hercontrole en geen nieuwe launches; alleen ontbrekende bindingen uit
+bestaande artefacts aangevuld.
+
+- **Transcript-pins geverifieerd tegen de nog aanwezige evidence**
+  (`/tmp/atlas-prime-pilot.JF33Zo/evidence/`, read-only, 2026-09-15): de drie
+  `*.prime-rpc.jsonl` hashen exact gelijk aan de gepinde waarden —
+  `7207d095…` (rpc-6), `00a458ab…` (capability-1), `12580324…` (capability-2).
+  De volatile map kan verdwijnen; de pins blijven de verwijzing.
+- **Request-zijde hard gemaakt**: de per-poging bewaarde
+  `*.inference-audit.jsonl` (rpc-6: 1 regel; capability-1: 2; capability-2: 1)
+  bevatten **geen** `"tools"`- en geen `"request"`-veld. Daarmee blijft
+  "was het ipython-schema aangeboden?" voor rpc-6 en capability-2 **UNKNOWN**
+  op basis van bewaard bewijs (geen verzonnen oorzaak). Voor capability-1 is
+  het aanbod alleen indirect bewezen: de transcript bevat een geldige
+  gestructureerde `ipython`-call, dus het schema is in díé sessie doorgestuurd.
+- **Blob-pins van de gecertificeerde delta** (`git hash-object`, read-only),
+  aanvullend op de sha256's uit §8.2: inventory-doc `22b3b262…`, manifest
+  `1bcb9655…`, `prime_agent.py` `24f5e6aa…`, `control.py` `747e335a…`,
+  control-test `835365c4…`, adapter-test `bc1fdb5f…`, relay (buiten claim)
+  `469c5d89…`, proxy `49401567…`, proxy-test `d61fbdff…`; base HEAD `03bc4459…`
+  / tree `474fd57a…`, delta-hash `a31f6368…` (ongewijzigd geverifieerd).
+- **Ledgerclarificatie t.b.v. cumulatieven**: de interactive lane rapporteerde
+  zelf 181.597 tokens (bootstrap-afronding, 2026-09-14 ~21:15Z) en 132.859
+  (2026-09-15 ~06:23Z). Dat zijn **zelfgerapporteerde waarden van de eigen
+  sessie van die lane**, geen supervisor-attempts; zij worden apart geregistreerd
+  en nooit opgeteld bij de drie attempt-ledgers uit §8.3 (aantoonbaar
+  onafhankelijke runs). Geen dubbeltelling; geen Qwen-budget aan geraakt.
+- **Onveranderd**: gecertificeerde workspace (delta-hash `a31f6368…`, 9 paden),
+  taak CERTIFIED, alle §8-conclusies. Parallelle WIP (o.a. de routecode van de
+  andere lane) ongemoeid; geen enkel proces beëindigd.
