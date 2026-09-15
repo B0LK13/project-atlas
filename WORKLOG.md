@@ -14915,3 +14915,54 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AS-OBS-SIG005-001 — live promotion-failure schema is not healthy
+
+**Date:** 2026-09-14
+**Branch:** `fix/as-ops-sig005-live-promotion-schema`
+**Base:** `origin/main` `b87b4a226f4aa8b2f669edf112aa3476454f754f` / tree `46d1989b026a2f15920ec5e1c78a106799bd1249`
+**Mode:** Night-cycle unique leftover P1. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+`IMPLEMENTER != VERIFIER` — this entry is the implementer record.
+
+### Defect
+
+`ops_health._collect_transaction_failures` (OPS-SIG-005) read only
+`failures` / `items`. Live ingestion writes
+`quarantine/promotion-failures/index.json` as
+`projects[].candidates[].outcome=PROMOTION_FAILED`. Present authentic
+failures reported `ok` / `observed_value=0` while `source_health` and
+`attention_hygiene` on the same file were ACTION_REQUIRED. With
+recommended signals known, estate rollup and LIVE_API `/v1/health`
+could become `healthy`.
+
+Not an unreadable-pending, empty-object, or SIG-006 skip-corrupt clone.
+
+### Fix
+
+`_open_promotion_failures` counts unresolved legacy list items and live
+`PROMOTION_FAILED` candidates. Absent file stays `unknown`. Empty `[]`
+stays `ok` / 0. `ingestion.py` untouched.
+
+### Validation (this lane)
+
+```
+.venv/bin/python -m pytest tests/unit/test_as_ops_sig005_live_promotion_schema_001.py \
+  tests/unit/test_as_obs_001_health_snapshot.py \
+  tests/unit/test_as_accept_002_health.py \
+  tests/unit/test_as_accept_002_mixed.py \
+  tests/unit/test_as_coder_alpha_040_attention_source.py \
+  tests/unit/test_atlas3_memory_project_isolation_001.py \
+  tests/unit/test_atlas3_ledger_integrity_001.py -q --tb=short --no-cov
+# 49 passed
+
+.venv/bin/python -m ruff check src/project_atlas/ops_health.py \
+  tests/unit/test_as_ops_sig005_live_promotion_schema_001.py
+# All checks passed
+
+.venv/bin/python -m mypy src/project_atlas/ops_health.py
+# Success: no issues found in 1 source file
+```
+
+Independent IV/ADV required on the exact candidate HEAD/TREE after push.

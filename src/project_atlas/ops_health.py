@@ -372,6 +372,42 @@ def _collect_freshness(
     )
 
 
+def _open_promotion_failures(raw: object) -> list[Any]:
+    """Unresolved promotion failures from live and legacy index shapes.
+
+    Live ingestion writes ``projects[].candidates[].outcome=PROMOTION_FAILED``
+    (``ingestion._quarantine_promotion_failure``). Historical/test indexes use
+    a top-level list or ``failures`` / ``items``. Ignoring the live key
+    fabricated ``ok`` / ``observed_value=0`` while source_health and
+    attention_hygiene already walked ``projects`` (AS-OBS-SIG005-001).
+    """
+    items: list[Any] = []
+    if isinstance(raw, list):
+        items.extend(raw)
+    elif isinstance(raw, dict):
+        legacy = raw.get("failures", raw.get("items", []))
+        if isinstance(legacy, list):
+            items.extend(legacy)
+        projects = raw.get("projects")
+        if isinstance(projects, list):
+            for project_row in projects:
+                if not isinstance(project_row, dict):
+                    continue
+                candidates = project_row.get("candidates")
+                if not isinstance(candidates, list):
+                    continue
+                for candidate in candidates:
+                    if not isinstance(candidate, dict):
+                        continue
+                    if str(candidate.get("outcome") or "").upper() == "PROMOTION_FAILED":
+                        items.append(candidate)
+    return [
+        item
+        for item in items
+        if not (isinstance(item, dict) and item.get("resolved") is True)
+    ]
+
+
 def _collect_transaction_failures(vault: Path, estate_id: str) -> dict[str, Any]:
     path = vault / "quarantine" / "promotion-failures" / "index.json"
     raw = _read_json(path, None)
@@ -387,19 +423,7 @@ def _collect_transaction_failures(vault: Path, estate_id: str) -> dict[str, Any]
             threshold={"open_failures": 0},
             evidence_refs=[],
         )
-    items: list[Any]
-    if isinstance(raw, list):
-        items = raw
-    elif isinstance(raw, dict):
-        candidate = raw.get("failures", raw.get("items", []))
-        items = candidate if isinstance(candidate, list) else []
-    else:
-        items = []
-    open_failures = [
-        item
-        for item in items
-        if not (isinstance(item, dict) and item.get("resolved") is True)
-    ]
+    open_failures = _open_promotion_failures(raw)
     if open_failures:
         return _signal(
             signal_id="OPS-SIG-005",
