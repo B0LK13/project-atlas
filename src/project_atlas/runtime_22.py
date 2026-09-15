@@ -14,6 +14,9 @@ Input hygiene (P1 deepen / RUNTIME-ADV remedi):
     invented IDs under ``estate_facts_invented=false``.
   - Empty / missing provenance after sanitize fails closed (RT-ADV-004).
   - Provenance elems must be ``{kind, ref}`` with safe relative refs; others drop.
+  - Secret-shaped refs (including JSON ``\\u`` / ``\\x`` decoded AKIA tokens)
+    drop (AS-SEC-SCAN-CTXCOMP-JSON-ESC-001); empty provenance after sanitize
+    still fails closed.
   - Duplicate ``entry_id`` values collapse before budget (first-wins by sort).
 
 P2 deepen (ADVANCE-005 C1):
@@ -35,6 +38,7 @@ from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_ancho
 from project_atlas.hybrid_retrieval import MAX_QUERY_CHARS, MAX_QUERY_TERMS
 from project_atlas.retrieval import VaultRetriever, _in_project_scope
 from project_atlas.retrieval_fusion import tokenize
+from project_atlas.secrets import scan_text
 from project_atlas.web_api.graph import impact_graph_summary
 
 PACKAGE_ID = "AS-2.2-RUNTIME-001"
@@ -159,6 +163,7 @@ def _sanitize_provenance(raw: object) -> tuple[list[dict[str, str]], int]:
             or ".." in ref
             or ref.startswith(("/", "\\"))
             or not _PROV_REF_RE.fullmatch(ref)
+            or scan_text(ref)
         ):
             dropped += 1
             continue
