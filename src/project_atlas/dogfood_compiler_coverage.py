@@ -206,7 +206,9 @@ def _owned_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
         if _is_secret_path(path):
             return
         if require_owner:
-            owner = str(row.get("likely_project") or row.get("project_id") or "").strip()
+            # likely_project is the owner bind. row.project_id is spoofable
+            # (AS-DOGFOOD-SEMANTIC-OWNER-001 leftover P1-C-001).
+            owner = str(row.get("likely_project") or "").strip()
             if owner != project_id or owner == _UNKNOWN_PROJECT:
                 return
         seen.add(source_id)
