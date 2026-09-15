@@ -44,7 +44,7 @@ from project_atlas.incremental_connect import (
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.scaffold import ScaffoldError, create_scaffold
-from project_atlas.secrets import scan_text
+from project_atlas.secrets import redact_text, scan_text
 from project_atlas.source_identity import (
     IdentityLockError,
     assert_project_uuid_one_owner,
@@ -337,6 +337,31 @@ def _identity_without_secret(value: str | None) -> str | None:
     return token
 
 
+def _safe_bound_project_id(value: object) -> str | None:
+    """Sanitize a candidate bind/receipt project id (AS-SEC-SCAN-CONNECT-YAML-001).
+
+    Ingest may still allocate ``projects/<decoded-secret>/`` (F5-B freeze;
+    do not remedi ``ingestion.py`` here). Connect must not copy that
+    directory name, or a prior receipt's ``bound_project_id``, into a
+    new bind or receipt when the value is secret-shaped.
+    """
+    if not isinstance(value, str):
+        return None
+    return _identity_without_secret(value)
+
+
+def _safe_project_ids(values: object) -> list[str]:
+    """Return ID-safe, non-secret project ids from a receipt/vault list."""
+    if not isinstance(values, list):
+        return []
+    return [
+        token
+        for item in values
+        for token in [_safe_bound_project_id(item)]
+        if token is not None
+    ]
+
+
 def _marker_project_id(project_root: Path) -> str | None:
     """Return marker ``project.id`` when present, ID-safe, and not secret-shaped."""
     try:
@@ -487,7 +512,7 @@ def resolve_bound_project_id(
                     f"(candidates: {', '.join(ids)})"
                 )
     vault_path = explicit_vault or resolve_bound_vault(root)
-    projects = _list_vault_projects(vault_path)
+    projects = _safe_project_ids(_list_vault_projects(vault_path))
     if len(projects) == 1:
         return projects[0]
     if not projects:
@@ -501,11 +526,22 @@ def resolve_bound_project_id(
 
 
 def _write_receipt(vault: Path, report: dict[str, Any]) -> Path:
+    """Persist the connect receipt without credential-shaped identities.
+
+    AS-SEC-SCAN-CONNECT-YAML-001 / P1-RECEIPT-BOUND: ingest may still mint
+    ``projects/<decoded-secret>/`` (F5-B). The receipt must not copy that
+    name into ``bound_project_id`` or echo it in ``projects``. Defense in
+    depth redacts any remaining secret-shaped spans before the write.
+    """
+    report["bound_project_id"] = _safe_bound_project_id(report.get("bound_project_id"))
+    report["projects"] = _safe_project_ids(report.get("projects"))
     path = vault / RECEIPT_RELATIVE
-    _write_atomic(
-        path,
-        (json.dumps(report, indent=2, sort_keys=True) + "\n").encode("utf-8"),
-    )
+    serialized = json.dumps(report, indent=2, sort_keys=True) + "\n"
+    if scan_text(serialized):
+        serialized = redact_text(serialized)
+        if not serialized.endswith("\n"):
+            serialized += "\n"
+    _write_atomic(path, serialized.encode("utf-8"))
     return path
 
 
@@ -551,11 +587,9 @@ def _finish_no_change_reconnect(
     primary = _marker_project_id(project_root)
     vault_projects = list(report["projects"] or [])
     if primary is None and len(vault_projects) == 1:
-        primary = vault_projects[0]
+        primary = _safe_bound_project_id(vault_projects[0])
     if primary is None:
-        bound = prior_receipt.get("bound_project_id")
-        if isinstance(bound, str) and bound.strip():
-            primary = bound.strip()
+        primary = _safe_bound_project_id(prior_receipt.get("bound_project_id"))
     locks = acquire_project_identity_locks(vault_path, [str(item) for item in vault_projects])
     try:
         bind_path = _write_bind(
@@ -851,7 +885,7 @@ def connect_project(
     primary = _marker_project_id(project_root)
     vault_projects = list(report["projects"] or [])
     if primary is None and len(vault_projects) == 1:
-        primary = vault_projects[0]
+        primary = _safe_bound_project_id(vault_projects[0])
     try:
         bind_path = _write_bind(
             project_root,
