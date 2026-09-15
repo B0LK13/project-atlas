@@ -74,6 +74,10 @@ def import_openai_export(
     turns = parse_chat_export(text)
     if not turns:
         raise OpenAIRealImportError("oai-export-no-turns")
+    # AS-SEC-SCAN-JSON-ESC-001: decoded turn text can reveal secrets the raw
+    # JSON escape form hid from scan_text.
+    if any(scan_text(turn.text) for turn in turns):
+        raise OpenAIRealImportError("oai-export-secret-findings")
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     quarantine = quarantine_provider_output(
         vault,
