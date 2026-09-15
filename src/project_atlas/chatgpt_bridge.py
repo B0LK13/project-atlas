@@ -71,6 +71,10 @@ def bridge_chatgpt_export(
     turns = parse_chat_export(text)
     if not turns:
         raise ChatgptBridgeError("chatgpt-export-no-turns")
+    # AS-SEC-SCAN-JSON-ESC-001: JSON \\u escapes decode after parse. Scanning
+    # the raw file is not enough — decoded turn text must also fail closed.
+    if any(scan_text(turn.text) for turn in turns):
+        raise ChatgptBridgeError("chatgpt-export-secret-findings")
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     quarantine = quarantine_provider_output(
         vault,

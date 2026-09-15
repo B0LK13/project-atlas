@@ -14915,3 +14915,21 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-JSON-ESC-001 — decoded JSON turns must be scanned
+
+Independent leftover hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 persist:
+raw `[{"content":"Authorization: \\u0062earer " + token}]` has no ASCII
+`bearer`, so `scan_text` of the file is empty. `parse_chat_export` decodes
+the escape and `chatgpt_bridge` / `import_openai_export` persist the
+decoded token under `generated/`.
+
+Remediation: scan decoded turn texts after parse, before any write.
+Distinct from #935 (NFKC lookalikes) and #934 (Cf separators).
+
+Does not merge. Does not remedi atlas3 in-memory decode leftover
+(honesty-echo / consume-only). Does not remedi #933/#934/#935 P2s.
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+
