@@ -1667,9 +1667,20 @@ class PrimeExecutorAdapter:
         env = build_child_env(request.profile, extra=dict(request.extra_env))
         _add_kernel_python_environment(request.profile, env)
         _add_user_scope_environment(request.profile, env)
-        agent_dir = request.evidence_dir / "prime-config"
+        configured_agent_dir = request.profile.adapter_options.get("coding_agent_dir")
+        agent_dir = (
+            Path(configured_agent_dir)
+            if isinstance(configured_agent_dir, str)
+            else request.evidence_dir / "prime-config"
+        )
+        configured_session_dir = request.profile.adapter_options.get("session_dir")
+        session_dir = (
+            Path(configured_session_dir)
+            if isinstance(configured_session_dir, str)
+            else request.evidence_dir / "prime-sessions"
+        )
         env.setdefault("PRIME_AGENT_CODING_AGENT_DIR", str(agent_dir))
-        env.setdefault("PRIME_AGENT_SESSION_DIR", str(request.evidence_dir / "prime-sessions"))
+        env.setdefault("PRIME_AGENT_SESSION_DIR", str(session_dir))
         inference_proxy = _start_inference_proxy(request, env, agent_dir)
         try:
             process = subprocess.Popen(
@@ -1828,8 +1839,18 @@ class PrimeExecutorAdapter:
         env = build_child_env(request.profile, extra=dict(request.extra_env))
         _add_kernel_python_environment(request.profile, env)
         _add_user_scope_environment(request.profile, env)
-        agent_dir = request.evidence_dir / "prime-config"
-        session_dir = request.evidence_dir / "prime-sessions"
+        configured_agent_dir = request.profile.adapter_options.get("coding_agent_dir")
+        agent_dir = (
+            Path(configured_agent_dir)
+            if isinstance(configured_agent_dir, str)
+            else request.evidence_dir / "prime-config"
+        )
+        configured_session_dir = request.profile.adapter_options.get("session_dir")
+        session_dir = (
+            Path(configured_session_dir)
+            if isinstance(configured_session_dir, str)
+            else request.evidence_dir / "prime-sessions"
+        )
         env.setdefault("PRIME_AGENT_CODING_AGENT_DIR", str(agent_dir))
         env.setdefault("PRIME_AGENT_SESSION_DIR", str(session_dir))
         inference_proxy = _start_inference_proxy(request, env, agent_dir)
@@ -2252,7 +2273,14 @@ def _start_inference_proxy(
             "local inference proxy port is not bounded",
             code="INFERENCE_PROXY_REQUIRED",
         )
-    proxy_socket = request.evidence_dir / f"{request.attempt_id}.inference.sock"
+    socket_dir = proxy_options.get("socket_dir", str(request.evidence_dir))
+    if not isinstance(socket_dir, str) or not socket_dir:
+        raise AdapterUnavailableError(
+            "local inference proxy socket_dir is invalid",
+            code="INFERENCE_PROXY_REQUIRED",
+        )
+    proxy_socket = Path(socket_dir).expanduser() / "inference.sock"
+    proxy_socket.parent.mkdir(parents=True, exist_ok=True)
     proxy = InferenceOnlyUnixProxy(
         proxy_socket,
         audit_path=request.evidence_dir / f"{request.attempt_id}.inference-audit.jsonl",
