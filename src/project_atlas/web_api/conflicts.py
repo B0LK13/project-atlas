@@ -76,6 +76,10 @@ def list_project_conflicts(vault: Path, project_id: str) -> dict[str, Any]:
             for entry in entries:
                 if not isinstance(entry, dict):
                     continue
+                # AS-STATE-RESOLVED-001: project only unresolved rows.
+                # Missing state defaults to unresolved (fail-closed).
+                if str(entry.get("state") or "unresolved") != "unresolved":
+                    continue
                 claims: list[ConflictClaimRow] = []
                 for claim in entry.get("claims") or []:
                     if isinstance(claim, dict):
