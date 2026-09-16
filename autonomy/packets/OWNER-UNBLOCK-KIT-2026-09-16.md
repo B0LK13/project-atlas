@@ -3,7 +3,7 @@
 Everything the owner needs to start iteration 1. Four steps, in order. The executor cannot do
 any of them: merging, grants and directives on `main` are owner-held (policy sections 2 and 3).
 
-Current state: branch `autonomy/scaffold`, PR https://github.com/WezzSide/project-atlas/pull/946.
+Current state: branch `autonomy/scaffold`, PR https://github.com/WezzSide/project-atlas/pull/1001.
 For the head, run `git rev-parse origin/autonomy/scaffold`.
 
 ## Reconciliation note (D-ATLAS-SCAFFOLD-RECONCILE-001, 2026-09-16)
@@ -28,13 +28,13 @@ every conflict was resolved to the stricter, fail-closed side.
    HALT-blind mode is not a gate. No behavior present on either side was weakened or removed.
 
 The pin below is `policy_sha`
-`263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767`, the value in
+`a4e9c18c5821ae0e9f85bf9d83b46923f5d295d13e7cc02077e5ec2aee2f0399`, the value in
 `autonomy/loop.yaml` as of this file's commit. **Re-check it before you commit the grant**:
 after merging, run `python autonomy/tools/preflight.py sha` on `main`. It changes whenever
 `policy.md` changes by even one byte, and a grant carrying the wrong value is void. If the two
 differ, use the value the command prints, not the one written here.
 
-## Step 1: merge PR #946
+## Step 1: merge PR #1001
 
 Merge only after CI is green on the final head and an independent verifier has certified it.
 The merge commit becomes the grant ref for `G-1`.
@@ -64,7 +64,7 @@ does not match the policy byte-for-byte is void.
 grant: G-1
 iteration: 1
 issued_by: owner
-policy_sha: 263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767
+policy_sha: a4e9c18c5821ae0e9f85bf9d83b46923f5d295d13e7cc02077e5ec2aee2f0399
 base_sha: <MAIN_HEAD_AFTER_MERGE>
 directive: autonomy/directives/D-ATLAS-ITER-1.md
 budget:
@@ -102,7 +102,7 @@ repository (policy section 6).
 
 - Iteration: `1`
 - Proposed by: executor (owner commits it)
-- Derived from: the merged head of PR #1 (`git rev-parse origin/main` after the merge)
+- Derived from: the merged head of PR #1001 (`git rev-parse origin/main` after the merge)
 - Roadmap anchor: `docs/backlog.md` AS-OBSIDIAN-CAPTURE-001. This is test rigor for a capture
   and provenance guarantee, not a new brain capability. Replace it if you prefer a capability target.
 

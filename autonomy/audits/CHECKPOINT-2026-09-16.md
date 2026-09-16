@@ -33,13 +33,13 @@ kept/dropped list is the reconciliation note in
 - `PYTHONPATH=src python -m pytest tests/unit/test_autonomy_preflight.py --no-cov` passes on
   Python 3.12 and 3.13 (counts in the WORKLOG entry for this session).
 - `python autonomy/tools/preflight.py sha` equals `autonomy/loop.yaml` `policy_sha`
-  `263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767`.
+  `a4e9c18c5821ae0e9f85bf9d83b46923f5d295d13e7cc02077e5ec2aee2f0399`.
 - `python autonomy/tools/preflight.py preflight --iteration 1` exits 1 with exactly
   `missing grant autonomy/grants/G-1.md`.
 - Dry run against the reconciled gate: 15 of 15 steps as required,
   `autonomy/packets/DRYRUN-2026-09-16.md`.
 - CI for this head: see `gh run list --repo WezzSide/project-atlas --branch autonomy/scaffold`,
-  PR https://github.com/WezzSide/project-atlas/pull/946.
+  PR https://github.com/WezzSide/project-atlas/pull/1001.
 
 ## 4. Advisory gating (not owner closure)
 
@@ -52,7 +52,7 @@ recorded in `autonomy/packets/DRYRUN-2026-09-16.md`; no cert exists for any head
 
 Instructions and exact file contents: `autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`.
 
-1. Merge PR #946 after CI is green on the reconciled head and a verifier certifies it.
+1. Merge PR #1001 after CI is green on the reconciled head and a verifier certifies it.
 2. `git branch autonomy/staging origin/main && git push -u origin autonomy/staging`.
 3. Commit `autonomy/grants/G-1.md` and `autonomy/directives/D-ATLAS-ITER-1.md` to `main`, with
    `base_sha` set to the merge commit and `policy_sha` confirmed by `preflight.py sha`.

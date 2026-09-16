@@ -477,9 +477,13 @@ failed, as opposed to red code); directive unresolvable from repository state.
 
 ### 12.3 Mechanized so far
 
-Enforced by `autonomy/tools/preflight.py`: kill switches, pin equality, grant identity on the
-grant ref, per-role and per-level scope floors and allow-lists, `Atlas-Role` trailers, ledger
-append-only and role-limited events, ledger tampering, iteration sequencing, the retry cap,
+Enforced by `autonomy/tools/preflight.py`: kill switches, a grant-ref refresh before `HALT` and
+`HALT-REQUEST` are read (on the unambiguous `refs/remotes/<remote>/<branch>`, fail-closed when
+the remote is missing or the fetch fails), pin equality, grant identity on the grant ref,
+byte-identity of the granted directive, per-role and per-level scope floors and allow-lists,
+`Atlas-Role` trailers over merge commits, ledger append-only, appended-record validation through
+the same parser that reads the stored ledger, ledger tampering, iteration sequencing and resume
+(a `STOP` keeps iteration `n` closed; only an owner `resume` opens `n+1`), the retry cap,
 the file and line budget, and cert structure (section 4.4: lane mode, per-command exit code and
 duration, host fingerprint, `result` consistency, fallback allowed by policy, CI
 re-certification of the same head).
@@ -494,6 +498,12 @@ host really is the designated verification host, when CI has returned so a fallb
 expired, the verifier/supervisor disagreement
 rule, escalation routing, the wall-clock and token budget kill, verification of
 supervisor-issued grants against `autonomy/staging`, and the section 13 audit.
+
+Grant signature checking is implemented (`require_signed_grants`, `%G? == G`) but switched off,
+and that is acceptable **at autonomy level 0 only**: every grant is owner-committed to `main`,
+and its trust anchor is the byte-identity check against the grant ref, not a signature. This gap
+must be revisited before the level reaches 2, when the supervisor begins issuing grants itself
+and the grant-ref match no longer proves owner authorship. It is not inherited silently.
 
 ## 13. Five-iteration audit (supervisor)
 
