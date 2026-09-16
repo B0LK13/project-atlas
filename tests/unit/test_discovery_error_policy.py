@@ -38,6 +38,7 @@ from project_atlas.source_identity import canonical_source_sha256
 
 Injector = Callable[[pytest.MonkeyPatch, Path, OSError], None]
 
+
 def _source(tmp_path: Path) -> Path:
     root = tmp_path / "source"
     (root / "docs").mkdir(parents=True)
