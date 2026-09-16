@@ -296,7 +296,9 @@ def build_project_brief(
     if isinstance(unknown_signals, dict):
         raw_absent = unknown_signals.get("coverage_absent")
         if isinstance(raw_absent, list):
-            coverage_absent = [str(item) for item in raw_absent]
+            coverage_absent = [
+                str(item) for item in raw_absent if not scan_text(str(item))
+            ]
 
     # Suggested next work: prefer the composed What Next lens, then honesty fallbacks.
     next_lens: dict[str, Any] | None = None
@@ -338,14 +340,14 @@ def build_project_brief(
         if not lens:
             continue
         for item in lens.get("inspected_artifacts") or []:
-            if isinstance(item, str) and item not in evidence:
+            if isinstance(item, str) and item not in evidence and not scan_text(item):
                 evidence.append(item)
 
     tech_stack = _extract_stack_blurb(vault, project_id)
     architecture_evidence = (architecture or {}).get("evidence")
     if isinstance(architecture_evidence, list):
         for item in architecture_evidence:
-            if isinstance(item, str) and item not in evidence:
+            if isinstance(item, str) and item not in evidence and not scan_text(item):
                 evidence.append(item)
 
     brief = {
