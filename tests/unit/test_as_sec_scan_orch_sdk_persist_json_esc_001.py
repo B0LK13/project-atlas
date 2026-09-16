@@ -499,3 +499,254 @@ def test_mission_state_omits_json_escaped_fingerprint(tmp_path: Path) -> None:
     written = store.read_text(encoding="utf-8")
     assert TOKEN not in written
     assert scan_text(written) == []
+
+
+def test_audit_assignment_omits_json_escaped_ids(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.audit_provenance import (
+        CloudAuditAssignment,
+        assignment_path,
+        invalidate_cloud_audit_assignment,
+    )
+
+    dumped = CloudAuditAssignment(
+        assignment_id="asg-ok",
+        dag_generation=1,
+        candidate_head="a" * 40,
+        candidate_tree="b" * 40,
+        worker_id="bc-abc123",
+        run_id="run-1",
+        attempt=1,
+        implementer_worker_id="bc-impl001",
+    ).model_dump(mode="json")
+    dumped["assignment_id"] = TOKEN
+    dumped["implementer_worker_id"] = TOKEN
+    store = assignment_path(tmp_path)
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    invalidate_cloud_audit_assignment(tmp_path)
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_transport_proof_omits_json_escaped_consumed_ids(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.result_plane import (
+        TransportProof,
+        load_transport_proof,
+        persist_transport_proof,
+        transport_proof_path,
+    )
+
+    dumped = TransportProof().model_dump(mode="json")
+    dumped["consumed_result_ids"] = [TOKEN]
+    store = transport_proof_path(tmp_path)
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    persist_transport_proof(tmp_path, load_transport_proof(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_loop_state_omits_json_escaped_package_id(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.loop import (
+        CURRENT_NAME,
+        LoopPhase,
+        LoopState,
+        load_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    sealed = seal_loop_state(
+        LoopState(
+            repository_identity="github.com/B0LK13/project-atlas",
+            trusted_main=PIN,
+            trusted_tree="b" * 40,
+            phase=LoopPhase.IDLE,
+            sequence=1,
+            ticks_in_invocation=0,
+            active_package_id=TOKEN,
+            record_digest="0" * 64,
+        )
+    )
+    store = tmp_path / CURRENT_NAME
+    planted = json.dumps(sealed.model_dump(mode="json"), sort_keys=True)
+    _plant(store, planted.replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    persist_loop_state(tmp_path, load_loop_state(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_broker_state_omits_json_escaped_next_node(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.continuation_broker import (
+        CURRENT_NAME,
+        BrokerPhase,
+        BrokerState,
+        broker_store_dir,
+        consume_successor,
+        seal_broker_state,
+    )
+    from project_atlas.orchestration.autonomy.models import CANONICAL_REPOSITORY_IDENTITY
+
+    store = broker_store_dir(tmp_path)
+    sealed = seal_broker_state(
+        BrokerState(
+            repository_identity=CANONICAL_REPOSITORY_IDENTITY,
+            trusted_main=PIN,
+            trusted_tree="b" * 40,
+            dag_generation=1,
+            cycle_id="CYCLE1",
+            phase=BrokerPhase.QUEUED,
+            next_node_id=TOKEN,
+            lease_id="lease-ok",
+            record_digest="0" * 64,
+        )
+    )
+    path = store / CURRENT_NAME
+    planted = json.dumps(sealed.model_dump(mode="json"), sort_keys=True)
+    _plant(path, planted.replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    consume_successor(tmp_path, "CYCLE1")
+    written = path.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_lease_projection_omits_json_escaped_lease_id(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.lease_projection import (
+        RELATIVE_DEFAULT,
+        _store_file,
+        project_release,
+    )
+    from project_atlas.orchestration.autonomy.models import AgentCapability, AgentLease, NodeState
+
+    planted = {
+        "schema_version": 1,
+        "package": "AS-ORCH-DURABLE-LEASE-PROJECTION-001",
+        "honesty": {
+            "projection_is_authority": False,
+            "grant_source": "PRIMARY_GOVERNOR",
+            "ack_source": "PRIMARY_GOVERNOR",
+            "wall_clock_is_authority": False,
+        },
+        "leases": [
+            {
+                "lease_id": TOKEN,
+                "agent_id": "agent-old",
+                "package_id": "AS-PKG-OLD",
+                "branch": "feat/old",
+                "worktree": "wt-old",
+                "base_pin": PIN,
+                "authorized_paths": [],
+                "forbidden_paths": [],
+                "capabilities": ["IMPLEMENT"],
+                "start_state": "READY",
+                "status": "RELEASED",
+                "created_sequence": 1,
+                "released_sequence": 1,
+                "projection_is_authority": False,
+            },
+            {
+                "lease_id": "lease-live",
+                "agent_id": "agent-live",
+                "package_id": "AS-PKG-LIVE",
+                "branch": "feat/live",
+                "worktree": "wt-live",
+                "base_pin": PIN,
+                "authorized_paths": [],
+                "forbidden_paths": [],
+                "capabilities": ["IMPLEMENT"],
+                "start_state": "READY",
+                "status": "ACTIVE",
+                "created_sequence": 2,
+                "released_sequence": None,
+                "projection_is_authority": False,
+            },
+        ],
+    }
+    store = tmp_path / RELATIVE_DEFAULT
+    path = _store_file(store)
+    _plant(path, json.dumps(planted, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    project_release(
+        store,
+        AgentLease(
+            lease_id="lease-live",
+            agent_id="agent-live",
+            package_id="AS-PKG-LIVE",
+            branch="feat/live",
+            worktree="wt-live",
+            base_pin=PIN,
+            capabilities=(AgentCapability.IMPLEMENT,),
+            start_state=NodeState.READY,
+            expected_output="receipt",
+            expiry_or_terminal_condition="COMPLETED",
+            sequence=2,
+        ),
+        live_main=PIN,
+    )
+    written = path.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_dispatcher_record_omits_json_escaped_session(tmp_path: Path) -> None:
+    from project_atlas.orchestration.dispatcher import (
+        DispatchRecord,
+        DispatchStatus,
+        compute_dispatch_id,
+        dispatch_task_id_for,
+        load_record,
+        persist_record,
+        record_path,
+    )
+    from project_atlas.orchestration.models import ProducerRole, TaskType
+
+    route = "a" * 64
+    role = next(iter(ProducerRole))
+    ttype = next(iter(TaskType))
+    did = compute_dispatch_id(
+        route_digest=route,
+        target_role=role,
+        task_type=ttype,
+        source_task="task-safe",
+    )
+    rec_obj = DispatchRecord(
+        dispatch_id=did,
+        status=DispatchStatus.PREPARED,
+        source_route_digest=route,
+        source_task_id="task-safe",
+        dispatch_task_id=dispatch_task_id_for(did),
+        target_role=role,
+        task_type=ttype,
+        attempt=1,
+        workspace_root=str(tmp_path),
+        session_id=TOKEN,
+        request_id="req-1",
+    )
+    path = record_path(tmp_path, did)
+    planted = json.dumps(rec_obj.model_dump(mode="json"), sort_keys=True)
+    _plant(path, planted.replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    persist_record(tmp_path, load_record(tmp_path, did))
+    written = path.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_speculative_barrier_omits_json_escaped_lane(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.speculative_certification import (
+        BARRIER_FILE_NAME,
+        cancel_for_tip_drift,
+        seal_candidate,
+        speculative_cert_dir,
+    )
+
+    seal_candidate(tmp_path, generation=1, head=PIN, tree="b" * 40, base_main="c" * 40)
+    bpath = speculative_cert_dir(tmp_path) / BARRIER_FILE_NAME
+    raw = json.loads(bpath.read_text(encoding="utf-8"))
+    sample = next(iter((raw.get("lanes") or {}).values()))
+    raw["required_lanes"] = [*list(raw.get("required_lanes") or []), TOKEN]
+    raw.setdefault("lanes", {})[TOKEN] = sample
+    _plant(bpath, json.dumps(raw, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    cancel_for_tip_drift(tmp_path, live_head="e" * 40, live_tree="f" * 40)
+    written = bpath.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []

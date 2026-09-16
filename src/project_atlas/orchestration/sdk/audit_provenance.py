@@ -90,7 +90,12 @@ def persist_cloud_audit_assignment(root: Path, assignment: CloudAuditAssignment)
     path = assignment_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(assignment.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            safe_persist(assignment.model_dump(mode="json")),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     return path

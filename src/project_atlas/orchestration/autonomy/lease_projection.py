@@ -21,6 +21,7 @@ from typing import Any, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from project_atlas.orchestration.autonomy.models import AgentCapability, AgentLease, NodeState
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 
 PACKAGE_ID: Final[Literal["AS-ORCH-DURABLE-LEASE-PROJECTION-001"]] = (
@@ -244,7 +245,10 @@ def _mutate_projection(
     try:
         with ProjectIdentityLock(lock_path, wait_seconds=2.0, stale_seconds=30.0):
             updated = mutator(load_projection(store))
-            _write_atomic(root / PROJECTION_NAME, updated.model_dump(mode="json"))
+            _write_atomic(
+                root / PROJECTION_NAME,
+                safe_persist(updated.model_dump(mode="json")),
+            )
     except IdentityLockError as exc:
         raise ProjectionError("projection lock is held", code="CONCURRENT_PROJECTION") from exc
     return updated

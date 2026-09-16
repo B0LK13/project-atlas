@@ -102,7 +102,8 @@ def persist_transport_proof(root: Path, proof: TransportProof) -> Path:
     path = transport_proof_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(proof.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        json.dumps(safe_persist(proof.model_dump(mode="json")), indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
     return path

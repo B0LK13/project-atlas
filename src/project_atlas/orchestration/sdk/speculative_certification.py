@@ -97,7 +97,12 @@ def _utc_now() -> str:
 def _write_json_atomic(target: Path, payload: dict[str, object]) -> None:
     """Write JSON via temp + flush + os.replace (no torn authoritative files)."""
     target.parent.mkdir(parents=True, exist_ok=True)
-    encoded = json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=True) + "\n"
+    from project_atlas.orchestration.sdk.persist_safety import safe_persist
+
+    encoded = (
+        json.dumps(safe_persist(payload), sort_keys=True, indent=2, ensure_ascii=True)
+        + "\n"
+    )
     tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
     try:
         with tmp.open("w", encoding="utf-8", newline="\n") as handle:
