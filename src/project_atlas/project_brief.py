@@ -164,6 +164,10 @@ def _field(lens: dict[str, Any] | None, key: str = "summary") -> str | None:
         return None
     value = lens.get(key)
     if isinstance(value, str) and value.strip():
+        # Same persist class as answer_id: decoded ``\u`` summary must not
+        # become purpose / stack / state prose.
+        if scan_text(value):
+            return None
         return value
     return None
 
