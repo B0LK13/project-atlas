@@ -39,6 +39,25 @@ def scan_or_raise(*texts: str) -> None:
             raise Atlas3Error("SECRET_CONTENT", f"secret-shaped content ({names})")
 
 
+def scan_payload_or_raise(payload: Any) -> None:
+    """Fail closed on secret-shaped strings after JSON/YAML decode.
+
+    AS-SEC-SCAN-ATLAS3-MEMORY-PERSIST-JSON-ESC-001: persist writers must
+    rescan decoded scalars. ``scan_text`` on raw ``\\u0041KI…`` bytes is
+    empty; ``json.loads`` reveals ``AKI…`` which must not be written.
+    """
+    if isinstance(payload, str):
+        scan_or_raise(payload)
+        return
+    if isinstance(payload, dict):
+        for value in payload.values():
+            scan_payload_or_raise(value)
+        return
+    if isinstance(payload, list):
+        for value in payload:
+            scan_payload_or_raise(value)
+
+
 def privacy_defaults() -> dict[str, Any]:
     return {
         "package": PACKAGE_ID,

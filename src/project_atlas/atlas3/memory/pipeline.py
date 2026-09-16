@@ -19,6 +19,7 @@ from project_atlas.atlas3.memory.cursor import import_cursor_export
 from project_atlas.atlas3.memory.extract import extract_items
 from project_atlas.atlas3.memory.gemini import import_gemini_export
 from project_atlas.atlas3.memory.normalize import normalize_turns
+from project_atlas.atlas3.memory.privacy import scan_payload_or_raise
 from project_atlas.atlas3.memory.reconcile import reconcile_memories
 from project_atlas.atlas3.memory.routing import (
     assert_items_project_scope,
@@ -85,6 +86,9 @@ def run_memory_vertical(
         "promoted_to_truth_core": 0,
         "chatgpt_bridge_replaced": False,
     }
+    # AS-SEC-SCAN-ATLAS3-MEMORY-PERSIST-JSON-ESC-001: decoded item text
+    # must not persist. Scan the report after reconcile, before write.
+    scan_payload_or_raise(report)
     write_json_atomic(root / OPS_RELATIVE / "memory" / pid / "reconcile.json", report)
     return report
 
