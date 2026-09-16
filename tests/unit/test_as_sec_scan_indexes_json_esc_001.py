@@ -49,3 +49,37 @@ def test_json_unicode_escape_source_path_is_not_indexed(tmp_path: Path) -> None:
     assert scan_text(written) == []
     payload = json.loads(written)
     assert TOKEN not in payload.get("by_current_path", {})
+
+
+def test_json_unicode_escape_conflict_project_id_is_not_indexed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    plant = vault / "review" / "conflicts" / "harbor.json"
+    plant.parent.mkdir(parents=True)
+    raw = (
+        '{\n  "entries": [\n    {\n      "conflict_id": "c-harbor",\n'
+        '      "project_id": "\\u0041KIAAAAAAAAAAAAAAAAA",\n'
+        '      "claim_ids": ["a", "b"],\n      "claims": []\n    }\n  ]\n}\n'
+    )
+    plant.write_text(raw, encoding="utf-8")
+    assert scan_text(raw) == []
+    build_indexes(vault)
+    written = (vault / "generated" / "indexes" / "conflicts.json").read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_json_unicode_escape_review_project_id_is_not_indexed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    plant = vault / "review" / "pending" / "harbor.json"
+    plant.parent.mkdir(parents=True)
+    raw = (
+        '{\n  "entries": [\n    {\n      "review_id": "r-harbor",\n'
+        '      "project_id": "\\u0041KIAAAAAAAAAAAAAAAAA",\n'
+        '      "category": "gap",\n      "source_ids": []\n    }\n  ]\n}\n'
+    )
+    plant.write_text(raw, encoding="utf-8")
+    assert scan_text(raw) == []
+    build_indexes(vault)
+    written = (vault / "generated" / "indexes" / "reviews.json").read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
