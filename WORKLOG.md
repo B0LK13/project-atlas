@@ -14915,3 +14915,20 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AS-SEC-SCAN-READINESS-PROMOTE-LABEL-JSON-ESC-001 — decoded readiness labels
+
+Independent leftover hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 persist:
+double-quoted YAML `"\\u0041KI…"` in `agent-readiness.yaml` has no ASCII
+`AKIA`, so `scan_text` of the file is empty. `readiness.promote` then
+dumps decoded `AKIAAAAAAAAAAAAAAAAA` into `adapters.*.label`.
+
+Remediation: `_safe_persist` before `yaml.safe_dump`. Distinct from #827
+and listed P2 forged-grant/MAC.
+
+Does not merge. Does not remedi listed P2 / F3 URL pin.
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.

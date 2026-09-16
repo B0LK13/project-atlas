@@ -2,12 +2,47 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from agent_control import authority
+
+_FALLBACK_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}"),
+)
+
+
+def _has_secret(text: str) -> bool:
+    try:
+        from project_atlas.secrets import scan_text
+    except ImportError:
+        return any(pattern.search(text) for pattern in _FALLBACK_PATTERNS)
+    return bool(scan_text(text))
+
+
+def _safe_persist(payload: Any) -> Any:
+    """Omit decoded secret-shaped scalars from readiness persist.
+
+    AS-SEC-SCAN-READINESS-PROMOTE-LABEL-JSON-ESC-001: ``yaml.safe_load``
+    decodes double-quoted ``\\u`` scalars that ``scan_text`` misses on
+    raw bytes. ``promote`` must not rewrite them into
+    ``agent-readiness.yaml``.
+    """
+    if isinstance(payload, str):
+        return "UNKNOWN" if _has_secret(payload) else payload
+    if isinstance(payload, dict):
+        return {
+            key: _safe_persist(value)
+            for key, value in payload.items()
+            if not (isinstance(key, str) and _has_secret(key))
+        }
+    if isinstance(payload, list):
+        return [_safe_persist(value) for value in payload]
+    return payload
 
 
 def check(path: Path | None, adapter_id: str, skill_version: str, skill_sha256: str) -> dict[str, Any]:
@@ -100,7 +135,7 @@ def promote(
             "revoked": False,
         }
     )
-    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    path.write_text(yaml.safe_dump(_safe_persist(data), sort_keys=False), encoding="utf-8")
     return {
         "ok": True,
         "adapter_id": adapter_id,
