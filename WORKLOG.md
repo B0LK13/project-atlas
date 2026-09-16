@@ -14931,7 +14931,10 @@ lease registry, result-plane ingested index, agent/run registries,
 resident-status `LAST_EVENT_CONSUMED`, plus leftover hunt 0430 writers
 (run pre-head, lineage sequence, observer registry/consumed, audit
 consumed identities, live DAG, package route, mission
-objectives/nodes/workers/state).
+objectives/nodes/workers/state), plus hunt 0445 leftovers (audit
+assignment, transport proof, loop/broker/lease-projection, dispatcher
+record, speculative-cert barrier), plus hunt 0510 leftover
+(`cursor_bridge.persist_state` via acknowledge / handle_stop_event).
 
 Remediation: `persist_safety.safe_persist` (omit secret keys, replace
 secret strings) at each persist write. Distinct from #823–#997.

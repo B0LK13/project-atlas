@@ -10,7 +10,9 @@ Synthetic token only. Distinct from #823-#997 persist remedi.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from project_atlas.orchestration.sdk.lease_registry import (
     leases_path,
@@ -748,5 +750,123 @@ def test_speculative_barrier_omits_json_escaped_lane(tmp_path: Path) -> None:
     _plant(bpath, json.dumps(raw, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
     cancel_for_tip_drift(tmp_path, live_head="e" * 40, live_tree="f" * 40)
     written = bpath.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def _bridge_payload() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "producer": {"role": "local", "agent_id": "local-agent"},
+        "task": {"id": "D-137", "attempt": 1},
+        "outcome": "PASS",
+        "state": "CERTIFIED",
+        "observations": {
+            "target_moved": False,
+            "unauthorized_mutations": 0,
+            "extras": {"note": "safe"},
+        },
+        "receipt": {"receipt_id": "ASR-1234567890abcdef", "status": "valid"},
+        "blockers": [],
+        "requested_transition": None,
+    }
+
+
+def _plant_sealed_bridge(
+    tmp_path: Path, mutate: Callable[[dict[str, Any]], None]
+) -> tuple[Path, dict[str, Any]]:
+    from project_atlas.orchestration.cursor_bridge import (
+        bridge_state_path,
+        route_digest,
+        stage_result,
+    )
+    from project_atlas.orchestration.router import route_payload, source_result_digest
+    from project_atlas.orchestration.validator import parse_envelope
+
+    stage_result(_bridge_payload(), root=tmp_path)
+    path = bridge_state_path(tmp_path)
+    dumped = json.loads(path.read_text(encoding="utf-8"))
+    mutate(dumped)
+    env = parse_envelope(dumped["envelope"])
+    routed = route_payload(dumped["envelope"])
+    dumped["source_result_digest"] = source_result_digest(env)
+    dumped["route_digest"] = route_digest(routed)
+    dumped["envelope"] = env.model_dump(mode="json")
+    dumped["route"] = routed.model_dump(mode="json")
+    dumped["followup_emitted"] = False
+    _plant(path, json.dumps(dumped, sort_keys=True, indent=2).replace(TOKEN, ESC) + "\n")
+    return path, dumped
+
+
+def test_cursor_bridge_ack_omits_json_escaped_extras_note(tmp_path: Path) -> None:
+    from project_atlas.orchestration.cursor_bridge import acknowledge
+
+    def _plant_note(dumped: dict[str, object]) -> None:
+        envelope = dumped["envelope"]
+        assert isinstance(envelope, dict)
+        observations = envelope["observations"]
+        assert isinstance(observations, dict)
+        extras = observations.setdefault("extras", {})
+        assert isinstance(extras, dict)
+        extras["note"] = TOKEN
+
+    path, dumped = _plant_sealed_bridge(tmp_path, _plant_note)
+    acknowledge(str(dumped["route_digest"]), root=tmp_path)
+    written = path.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_cursor_bridge_stop_omits_json_escaped_extras_note(tmp_path: Path) -> None:
+    from project_atlas.orchestration.cursor_bridge import handle_stop_event
+
+    runtime = tmp_path / ".atlas" / "orchestration" / "sdk-runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "d147-checkpoint.json").write_text(
+        json.dumps(
+            {
+                "return_state": {
+                    "package_id": "AS-D146-AUTONOMY-RETURN-GATE-001",
+                    "genuine_owner_frontier": False,
+                    "closure_integrity_pass": False,
+                }
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    def _plant_note(dumped: dict[str, object]) -> None:
+        envelope = dumped["envelope"]
+        assert isinstance(envelope, dict)
+        observations = envelope["observations"]
+        assert isinstance(observations, dict)
+        extras = observations.setdefault("extras", {})
+        assert isinstance(extras, dict)
+        extras["note"] = TOKEN
+
+    path, _dumped = _plant_sealed_bridge(tmp_path, _plant_note)
+    handle_stop_event(
+        {"conversation_id": "conv-1", "status": "completed", "loop_count": 0},
+        root=tmp_path,
+    )
+    written = path.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_cursor_bridge_ack_omits_json_escaped_envelope_state(tmp_path: Path) -> None:
+    from project_atlas.orchestration.cursor_bridge import acknowledge
+
+    def _plant_state(dumped: dict[str, object]) -> None:
+        envelope = dumped["envelope"]
+        assert isinstance(envelope, dict)
+        envelope["state"] = TOKEN
+
+    path, dumped = _plant_sealed_bridge(tmp_path, _plant_state)
+    acknowledge(str(dumped["route_digest"]), root=tmp_path)
+    written = path.read_text(encoding="utf-8")
     assert TOKEN not in written
     assert scan_text(written) == []

@@ -35,6 +35,7 @@ from project_atlas.orchestration.router import (
     route_payload,
     source_result_digest,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.validator import (
     ResultValidationError,
     load_result_bytes,
@@ -584,7 +585,13 @@ def load_state(root: Path) -> CursorBridgeState | None:
 def persist_state(root: Path, state: CursorBridgeState) -> None:
     path = bridge_state_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(state.model_dump(mode="json"), sort_keys=True, indent=2)
+    # AS-SEC-SCAN-CURSOR-BRIDGE-STATE-JSON-ESC-001: sanitize decoded
+    # secret-shaped scalars before rewrite. Do not recompute digests —
+    # contaminated fields fail closed on the next verify.
+    sanitized = CursorBridgeState.model_validate(
+        safe_persist(state.model_dump(mode="json"))
+    )
+    payload = json.dumps(sanitized.model_dump(mode="json"), sort_keys=True, indent=2)
     tmp = path.with_name(f".{path.name}.tmp")
     tmp.write_text(payload + "\n", encoding="utf-8")
     os.replace(tmp, path)
