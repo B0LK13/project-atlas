@@ -124,8 +124,9 @@ class EvidenceLink:
     kind: str = "source"
 
     def as_dict(self) -> dict[str, str]:
+        path = _safe_index_text(self.relative_path) or "UNKNOWN"
         return {
-            "relative_path": self.relative_path,
+            "relative_path": path,
             "sha256": self.sha256,
             "kind": self.kind,
         }
@@ -156,7 +157,7 @@ class ConflictReport:
             "global_entity_ids": list(_safe_id_tuple(self.global_entity_ids)),
             "project_ids": list(_safe_id_tuple(self.project_ids)),
             "evidence_links": [item.as_dict() for item in self.evidence_links],
-            "edge_ids": list(self.edge_ids),
+            "edge_ids": list(_safe_id_tuple(self.edge_ids)),
             "authority": {
                 "level": AUTHORITY_LEVEL,
                 "note": (
@@ -176,7 +177,7 @@ class ConflictReport:
         if self.entity_class is not None:
             payload["entity_class"] = self.entity_class
         if self.versions:
-            payload["versions"] = list(self.versions)
+            payload["versions"] = list(_safe_id_tuple(self.versions))
         return payload
 
     def to_json(self) -> str:
@@ -265,7 +266,9 @@ def _version_of(entity: GlobalEntityRecord) -> str | None:
     if raw is None:
         return None
     text = str(raw).strip()
-    return text or None
+    if not text:
+        return None
+    return _safe_index_text(text)
 
 
 def _evidence_from_joins(
@@ -340,7 +343,8 @@ def detect_explicit_conflicts(
                 *_projects_for_global(edge.target_global_entity_id, joins),
             ]
         )
-        conflict_id = f"xc-explicit-{_safe_name(edge.edge_id)}"
+        safe_edge = _safe_index_text(edge.edge_id) or "UNKNOWN"
+        conflict_id = f"xc-explicit-{_safe_name(safe_edge)}"
         reports.append(
             ConflictReport(
                 conflict_id=conflict_id,
