@@ -165,6 +165,11 @@ def _normalize_status(raw: Any) -> tuple[str, list[str]]:
     text = str(raw).strip()
     if not text:
         return "UNKNOWN", ["status empty"]
+    if scan_text(text):
+        # AS-SEC-SCAN-ROADMAP-TITLE-JSON-ESC-001: do not interpolate
+        # decoded secret-shaped status into flags / milestone notes.
+        notes.append("unrecognized_status")
+        return "UNKNOWN", notes
     if _PERCENT_RE.search(text) or _COUNT_THEATRE_RE.search(text):
         notes.append("rejected_package_count_theatre")
         return "UNKNOWN", notes
@@ -217,23 +222,29 @@ def _normalize_status(raw: Any) -> tuple[str, list[str]]:
 def _normalize_lifecycle(raw: Any, *, progress: str, notes: list[str]) -> str:
     """Preserve lifecycle distinctions. MERGED != CLOSED. IMPLEMENTED != VERIFIED."""
     if raw is not None and str(raw).strip():
-        key = str(raw).strip().upper().replace(" ", "_").replace("-", "_")
-        key = {
-            "CERTIFIED": "CERTIFIED_MERGE_ELIGIBLE",
-            "CERTIFIED_MERGE_ELIGIBLE": "CERTIFIED_MERGE_ELIGIBLE",
-            "IMPLEMENTATION-COMPLETE": "IMPLEMENTATION_COMPLETE",
-            "VERIFICATION-IN-PROGRESS": "VERIFICATION_IN_PROGRESS",
-            "POST-MERGE-VERIFIED": "POST_MERGE_VERIFIED",
-            "ENTRY-GATE": "ENTRY_GATE",
-            "MERGE-AUTHORIZED": "MERGE_AUTHORIZED",
-        }.get(key, key)
-        if key in LIFECYCLES:
-            if key == "CLOSED":
-                notes.append("closed_is_not_merged")
-            if key == "MERGED":
-                notes.append("merged_neq_closed")
-            return key
-        notes.append(f"unrecognized_lifecycle:{raw}")
+        text = str(raw).strip()
+        if scan_text(text):
+            # AS-SEC-SCAN-ROADMAP-TITLE-JSON-ESC-001: do not interpolate
+            # decoded secret-shaped lifecycle into item flags.
+            notes.append("unrecognized_lifecycle")
+        else:
+            key = text.upper().replace(" ", "_").replace("-", "_")
+            key = {
+                "CERTIFIED": "CERTIFIED_MERGE_ELIGIBLE",
+                "CERTIFIED_MERGE_ELIGIBLE": "CERTIFIED_MERGE_ELIGIBLE",
+                "IMPLEMENTATION-COMPLETE": "IMPLEMENTATION_COMPLETE",
+                "VERIFICATION-IN-PROGRESS": "VERIFICATION_IN_PROGRESS",
+                "POST-MERGE-VERIFIED": "POST_MERGE_VERIFIED",
+                "ENTRY-GATE": "ENTRY_GATE",
+                "MERGE-AUTHORIZED": "MERGE_AUTHORIZED",
+            }.get(key, key)
+            if key in LIFECYCLES:
+                if key == "CLOSED":
+                    notes.append("closed_is_not_merged")
+                if key == "MERGED":
+                    notes.append("merged_neq_closed")
+                return key
+            notes.append(f"unrecognized_lifecycle:{raw}")
     if progress == "VERIFIED_COMPLETION":
         return "POST_MERGE_VERIFIED"
     if progress == "IMPLEMENTED":
@@ -627,7 +638,7 @@ def _you_are_here(
         }
     if state_lens:
         rollup = state_lens.get("rollup") or state_lens.get("status")
-        summary = state_lens.get("summary")
+        summary = _safe_label(state_lens.get("summary"), default="")
         if rollup or summary:
             status, notes = _normalize_status(rollup)
             return {
