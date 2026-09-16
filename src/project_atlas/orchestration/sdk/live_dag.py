@@ -41,6 +41,7 @@ from project_atlas.orchestration.sdk.package_registry import (
     require_mutating_route,
     update_package_route_on_head_move,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
 from project_atlas.orchestration.sdk.security_gates import (
     CANONICAL_PR as SECURITY_CANONICAL_PR,
@@ -130,7 +131,8 @@ def persist_live_dag(root: Path, state: LiveDagState) -> Path:
     path = live_dag_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(state.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        json.dumps(safe_persist(state.model_dump(mode="json")), indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
     return path

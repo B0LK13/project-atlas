@@ -17,6 +17,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, SdkRuntimeError
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 
 PACKAGE_ID: Final[Literal["AS-ORCH-NONBLOCKING-SCHEDULER-LIVENESS-001"]] = (
     "AS-ORCH-NONBLOCKING-SCHEDULER-LIVENESS-001"
@@ -131,7 +132,10 @@ def consumed_events_path(root: Path) -> Path:
 def _atomic_write(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.write_text(
+        json.dumps(safe_persist(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     tmp.replace(path)
 
 

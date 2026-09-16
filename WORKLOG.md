@@ -14928,7 +14928,10 @@ dump decoded `AKIAAAAAAAAAAAAAAAAA`.
 
 Covered sinks: mutation attribution store + high-water, scheduler parked,
 lease registry, result-plane ingested index, agent/run registries,
-resident-status `LAST_EVENT_CONSUMED`.
+resident-status `LAST_EVENT_CONSUMED`, plus leftover hunt 0430 writers
+(run pre-head, lineage sequence, observer registry/consumed, audit
+consumed identities, live DAG, package route, mission
+objectives/nodes/workers/state).
 
 Remediation: `persist_safety.safe_persist` (omit secret keys, replace
 secret strings) at each persist write. Distinct from #823–#997.

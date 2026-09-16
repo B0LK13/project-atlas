@@ -17,6 +17,7 @@ from project_atlas.orchestration.sdk.models import (
     AgentRole,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.result_plane import ResultEnvelope, result_plane_path
 from project_atlas.orchestration.sdk.security_gates import (
     BoundWorkerResult,
@@ -113,7 +114,12 @@ def persist_consumed_identities(root: Path, identities: set[str]) -> Path:
     path = consumed_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"identities": sorted(identities)}, indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            safe_persist({"identities": sorted(identities)}),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     return path

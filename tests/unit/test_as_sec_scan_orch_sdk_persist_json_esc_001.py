@@ -250,3 +250,252 @@ def test_resident_status_omits_json_escaped_event(tmp_path: Path) -> None:
     assert TOKEN not in written
     assert loaded.get("LAST_EVENT_CONSUMED") != TOKEN
     assert scan_text(written) == []
+
+
+def test_run_pre_head_omits_json_escaped_key(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.security_gates import (
+        persist_run_pre_head,
+        run_pre_head_path,
+    )
+
+    store = run_pre_head_path(tmp_path)
+    _plant(store, '{"' + ESC + '": "abcdefg"}\n')
+    persist_run_pre_head(tmp_path, "run-new", "1234567")
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert "run-new" in json.loads(written)
+    assert scan_text(written) == []
+
+
+def test_lineage_sequence_omits_json_escaped_key(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.security_gates import (
+        lineage_sequence_path,
+        mint_creation_sequence,
+    )
+
+    store = lineage_sequence_path(tmp_path)
+    _plant(store, '{"' + ESC + '": 1, "_max": 1}\n')
+    mint_creation_sequence(tmp_path, "bc-abc123")
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_observer_registry_omits_json_escaped_error(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.external_observers import (
+        ObserverRegistry,
+        load_observer_registry,
+        observers_path,
+        persist_observer_registry,
+    )
+
+    store = observers_path(tmp_path)
+    dumped = ObserverRegistry().model_dump(mode="json")
+    dumped["observers"] = {
+        TOKEN: {
+            "observer_id": "obs-ok",
+            "observer_type": "GITHUB_CI",
+            "package_id": "AS-ORCH-NONBLOCKING-SCHEDULER-LIVENESS-001",
+            "generation": 1,
+            "external_id": "ext-1",
+            "created_at": 1.0,
+            "next_poll_at": 1.0,
+            "last_error": TOKEN,
+            "merge_authorized": False,
+            "retry_count": 0,
+            "status": "PENDING",
+            "expected_head": None,
+            "expected_tree": None,
+        }
+    }
+    raw = json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"')
+    _plant(store, raw + "\n")
+    persist_observer_registry(tmp_path, load_observer_registry(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_observer_consumed_omits_json_escaped_id(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.external_observers import (
+        consumed_events_path,
+        load_consumed_event_ids,
+        persist_consumed_event_ids,
+    )
+
+    store = consumed_events_path(tmp_path)
+    _plant(store, '{"consumed": ["' + ESC + '"], "merge_authorized": false}\n')
+    ids = load_consumed_event_ids(tmp_path)
+    ids.add("evt-new")
+    persist_consumed_event_ids(tmp_path, ids)
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert "evt-new" in json.loads(written)["consumed"]
+    assert scan_text(written) == []
+
+
+def test_audit_consumed_omits_json_escaped_identity(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.audit_provenance import (
+        consumed_path,
+        load_consumed_identities,
+        persist_consumed_identities,
+    )
+
+    store = consumed_path(tmp_path)
+    _plant(store, '{"identities": ["' + ESC + '"]}\n')
+    ids = load_consumed_identities(tmp_path)
+    ids.add("id-new")
+    persist_consumed_identities(tmp_path, ids)
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_live_dag_omits_json_escaped_ci_status(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.live_dag import (
+        LiveDagState,
+        live_dag_path,
+        persist_live_dag,
+    )
+
+    store = live_dag_path(tmp_path)
+    dumped = LiveDagState().model_dump(mode="json")
+    dumped["ci_status"] = TOKEN
+    dumped["ci_run_id"] = TOKEN
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    from project_atlas.orchestration.sdk.live_dag import load_live_dag
+
+    persist_live_dag(tmp_path, load_live_dag(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_package_route_omits_json_escaped_trusted_main(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.package_registry import (
+        PackageRouteRecord,
+        package_route_path,
+        update_package_route_on_head_move,
+    )
+
+    store = package_route_path(tmp_path)
+    dumped = PackageRouteRecord().model_dump(mode="json")
+    dumped["trusted_main"] = TOKEN
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    update_package_route_on_head_move(
+        tmp_path, head="a" * 40, tree="b" * 40, dag_generation=1
+    )
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_mission_objectives_omits_json_escaped_state(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mission_reconciler import (
+        OBJECTIVES_NAME,
+        load_objectives,
+        persist_objectives,
+    )
+    from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
+
+    store = tmp_path / STATE_DIR_RELATIVE / OBJECTIVES_NAME
+    objs = load_objectives(tmp_path)
+    dumped = {
+        "objectives": [o.model_dump(mode="json") for o in objs],
+        "merge_authorized": False,
+    }
+    dumped["objectives"][0]["desired_state"] = TOKEN
+    dumped["objectives"][0]["evidence"] = [TOKEN]
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    persist_objectives(tmp_path, load_objectives(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_mission_nodes_omits_json_escaped_criteria(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mission_reconciler import (
+        NODES_NAME,
+        WorkNode,
+        persist_nodes,
+    )
+    from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
+
+    node = WorkNode(
+        NODE_ID="N1",
+        OBJECTIVE_ID="O1",
+        PACKAGE_ID="AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001",
+        TASK_KIND="IMPLEMENTATION",
+        PRIORITY=50,
+        WORKER_ROLE="IMPLEMENTER",
+        ACCEPTANCE_CRITERIA="ok",
+        GENERATION=1,
+        IDEMPOTENCY_KEY="idem-n1-xxxxxxxx",
+    )
+    store = tmp_path / STATE_DIR_RELATIVE / NODES_NAME
+    dumped = {
+        "nodes": [node.model_dump(mode="json")],
+        "merge_authorized": False,
+    }
+    dumped["nodes"][0]["ACCEPTANCE_CRITERIA"] = TOKEN
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    from project_atlas.orchestration.sdk.mission_reconciler import load_nodes
+
+    persist_nodes(tmp_path, load_nodes(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_mission_workers_omits_json_escaped_key(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mission_reconciler import (
+        WORKERS_NAME,
+        RealWorkerBinding,
+        persist_workers,
+    )
+    from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
+
+    worker = RealWorkerBinding(
+        worker_id="w1",
+        worker_role="IMPLEMENTER",
+        package_id="AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001",
+        dag_node_id="N1",
+        generation=1,
+        runtime="local_pid",
+        started_at=1.0,
+        execution_binding="bind",
+        expected_receipt="r1",
+    )
+    store = tmp_path / STATE_DIR_RELATIVE / WORKERS_NAME
+    dumped = {
+        "workers": {TOKEN: worker.model_dump(mode="json")},
+        "SYNTHETIC_ACTIVE_WORKER_COUNT": 0,
+        "merge_authorized": False,
+    }
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    from project_atlas.orchestration.sdk.mission_reconciler import load_workers
+
+    persist_workers(tmp_path, load_workers(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
+
+
+def test_mission_state_omits_json_escaped_fingerprint(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mission_reconciler import (
+        STATE_NAME,
+        MissionState,
+        persist_mission_state,
+    )
+    from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
+
+    store = tmp_path / STATE_DIR_RELATIVE / STATE_NAME
+    dumped = MissionState().model_dump(mode="json")
+    dumped["last_planning_fingerprint"] = TOKEN
+    _plant(store, json.dumps(dumped, sort_keys=True).replace(f'"{TOKEN}"', f'"{ESC}"') + "\n")
+    from project_atlas.orchestration.sdk.mission_reconciler import load_mission_state
+
+    persist_mission_state(tmp_path, load_mission_state(tmp_path))
+    written = store.read_text(encoding="utf-8")
+    assert TOKEN not in written
+    assert scan_text(written) == []
