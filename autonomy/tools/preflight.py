@@ -53,7 +53,10 @@ MAX_REDESIGN_RETRIES = 2
 MULTI_ITERATION_GRANT_LEVEL = 3
 
 CERTS_PREFIX = "autonomy/certs/"
-LANE_NAMES = ("linux", "windows-native")
+# Every CI check that must be green for the gate (policy section 4 lanes.required).
+REQUIRED_LANES = ("linux", "windows-native", "linux-compat", "control-plane")
+# The lanes a verifier cert certifies host by host (policy section 4.4).
+CERT_LANES = ("linux", "windows-native")
 LANE_MODES = ("ci", "local")
 CERT_RESULTS = ("PASS", "FAIL")
 HOST_KEYS = ("hostname", "os", "python", "git")
@@ -242,10 +245,13 @@ def load_policy(root: Path) -> Policy:
     required = lanes.get("required") if isinstance(lanes, dict) else None
     if (
         not isinstance(required, dict)
-        or set(required) != set(LANE_NAMES)
+        or set(required) != set(REQUIRED_LANES)
         or not all(isinstance(check, str) and check for check in required.values())
     ):
-        raise ConfigError(f"policy lanes.required must name CI checks for {', '.join(LANE_NAMES)}")
+        raise ConfigError(f"policy lanes.required must name CI checks for {', '.join(REQUIRED_LANES)}")
+    cert_lanes = lanes.get("cert_lanes") if isinstance(lanes, dict) else None
+    if cert_lanes != list(CERT_LANES):
+        raise ConfigError(f"policy lanes.cert_lanes must be {list(CERT_LANES)}")
     fallback = lanes.get("fallback") if isinstance(lanes, dict) else None
     if fallback is not None and (
         not isinstance(fallback, dict)
@@ -326,6 +332,23 @@ def load_grant(root: Path, iteration: int) -> Grant:
     )
 
 
+def _parse_ledger_line(line: str, number: int) -> dict[str, Any]:
+    """One ledger record, or ConfigError. One contract for stored and appended bytes."""
+    try:
+        event = json.loads(line)
+    except ValueError as exc:
+        raise ConfigError(
+            f"{LEDGER_PATH} line {number} is not JSON: ledger tampering suspected"
+        ) from exc
+    if not isinstance(event, dict) or not isinstance(event.get("event"), str):
+        raise ConfigError(f"{LEDGER_PATH} line {number} has no event name: tampering suspected")
+    if event["event"] == "verdict":
+        n = event.get("iteration")
+        if event.get("verdict") not in VERDICTS or isinstance(n, bool) or not isinstance(n, int):
+            raise ConfigError(f"{LEDGER_PATH} line {number} is not a valid verdict event")
+    return event
+
+
 def load_ledger(root: Path) -> list[dict[str, Any]]:
     """Parse the append-only ledger. Any malformed line is treated as tampering."""
     data = _read_bytes(root, LEDGER_PATH)
@@ -335,22 +358,7 @@ def load_ledger(root: Path) -> list[dict[str, Any]]:
         lines = data.decode("utf-8").split("\n")[:-1]
     except UnicodeDecodeError as exc:
         raise ConfigError(f"{LEDGER_PATH} is not UTF-8: ledger tampering suspected") from exc
-    events: list[dict[str, Any]] = []
-    for number, line in enumerate(lines, start=1):
-        try:
-            event = json.loads(line)
-        except ValueError as exc:
-            raise ConfigError(
-                f"{LEDGER_PATH} line {number} is not JSON: ledger tampering suspected"
-            ) from exc
-        if not isinstance(event, dict) or not isinstance(event.get("event"), str):
-            raise ConfigError(f"{LEDGER_PATH} line {number} has no event name: tampering suspected")
-        if event["event"] == "verdict":
-            n = event.get("iteration")
-            if event.get("verdict") not in VERDICTS or isinstance(n, bool) or not isinstance(n, int):
-                raise ConfigError(f"{LEDGER_PATH} line {number} is not a valid verdict event")
-        events.append(event)
-    return events
+    return [_parse_ledger_line(line, number) for number, line in enumerate(lines, start=1)]
 
 
 def _verdicts_for(events: list[dict[str, Any]], iteration: int) -> list[str]:
@@ -603,11 +611,11 @@ def check_ledger_append(appended: bytes, role: str) -> list[str]:
             problems.append(f"{LEDGER_PATH}: appended line {number} is blank")
             continue
         try:
-            event = json.loads(line)
-        except ValueError:
-            problems.append(f"{LEDGER_PATH}: appended line {number} is not JSON")
+            event = _parse_ledger_line(line, number)
+        except ConfigError as exc:
+            problems.append(f"{LEDGER_PATH}: appended line {number} is invalid: {exc}")
             continue
-        name = event.get("event") if isinstance(event, dict) else None
+        name = event["event"]
         if name in OWNER_ONLY_EVENTS:
             problems.append(f"{LEDGER_PATH}: appended {name!r} event is owner-only")
         elif role == "executor" and name != "packet":
@@ -770,10 +778,10 @@ def check_cert(
             problems.append("a fallback cert must cite ci_unavailable_evidence as an Actions run URL")
     lanes = cert.get("lanes")
     exits: list[int] = []
-    if not isinstance(lanes, dict) or set(lanes) != set(LANE_NAMES):
-        problems.append(f"lanes must certify exactly {', '.join(LANE_NAMES)}")
+    if not isinstance(lanes, dict) or set(lanes) != set(CERT_LANES):
+        problems.append(f"lanes must certify exactly {', '.join(CERT_LANES)}")
     else:
-        for name in LANE_NAMES:
+        for name in CERT_LANES:
             lane_problems, lane_exits = _check_lane(lanes[name], f"lanes.{name}", mode)
             problems.extend(lane_problems)
             exits.extend(lane_exits)

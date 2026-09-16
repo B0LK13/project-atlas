@@ -472,19 +472,13 @@ def test_scope_refreshes_grant_ref_so_local_origin_main_cannot_empty_diff(
     _write(work / ".github/workflows/evil.yml", "name: evil\n")
     _git(work, "add", "-A")
     _git(work, "commit", "-q", "-m", "iteration rewrite")
-    control = pf.main(
-        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
-    )
+    control = pf.main(["--root", str(work), "scope", "--iteration", "1", "--role", "executor"])
     assert control == 1
     _git(work, "branch", "origin/main", "HEAD")
-    shadowed = pf.main(
-        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
-    )
+    shadowed = pf.main(["--root", str(work), "scope", "--iteration", "1", "--role", "executor"])
     assert shadowed == 1
     _git(work, "update-ref", "refs/remotes/origin/main", "HEAD")
-    poisoned = pf.main(
-        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
-    )
+    poisoned = pf.main(["--root", str(work), "scope", "--iteration", "1", "--role", "executor"])
     assert poisoned == 1
 
 
@@ -532,9 +526,7 @@ def test_scope_fails_closed_when_kill_switch_exists_on_refreshed_grant_ref(
     _git(work, "add", "-A")
     _git(work, "commit", "-q", "-m", "feat: in-scope\n\nAtlas-Role: executor\n")
     assert not (work / switch).exists()
-    scope = pf.main(
-        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
-    )
+    scope = pf.main(["--root", str(work), "scope", "--iteration", "1", "--role", "executor"])
     assert scope == 1
     preflight = pf.main(["--root", str(work), "preflight", "--iteration", "1"])
     assert preflight == 1
@@ -577,9 +569,7 @@ def test_scope_fails_closed_when_grant_ref_remote_is_missing(tmp_path: Path) -> 
     _write(work / ".github/workflows/evil.yml", "name: evil\n")
     _git(work, "add", "-A")
     _git(work, "commit", "-q", "-m", "iteration rewrite")
-    control = pf.main(
-        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
-    )
+    control = pf.main(["--root", str(work), "scope", "--iteration", "1", "--role", "executor"])
     assert control == 1
     _git(work, "branch", "origin/main", "HEAD")
     _git(work, "remote", "remove", "origin")
@@ -591,9 +581,7 @@ def test_scope_fails_closed_when_grant_ref_remote_is_missing(tmp_path: Path) -> 
         text=True,
     ).stdout
     assert porcelain == ""
-    attack = pf.main(
-        ["--root", str(work), "scope", "--iteration", "1", "--role", "executor"]
-    )
+    attack = pf.main(["--root", str(work), "scope", "--iteration", "1", "--role", "executor"])
     assert attack == 2
     local_floors = pf.main(
         [
@@ -742,7 +730,7 @@ def _cert(
     mode: str = "local", *, head: str = CERT_HEAD, exits: tuple[int, int] = (0, 0)
 ) -> dict[str, Any]:
     lanes: dict[str, Any] = {}
-    for name, code in zip(pf.LANE_NAMES, exits, strict=True):
+    for name, code in zip(pf.CERT_LANES, exits, strict=True):
         lane: dict[str, Any] = {
             "commands": [{"cmd": "python -m pytest", "exit": code, "duration_seconds": 812.5}]
         }
@@ -780,7 +768,7 @@ def cert_root(tmp_path: Path) -> Path:
 
 def test_repo_policy_declares_required_lanes_and_the_local_fallback() -> None:
     policy = pf.load_policy(REPO_ROOT)
-    assert set(policy.lanes) == {"linux", "windows-native"}
+    assert set(policy.lanes) == set(pf.REQUIRED_LANES)
     assert policy.fallback is not None
     assert {key: policy.fallback[key] for key in pf.FALLBACK_RULE} == pf.FALLBACK_RULE
 
@@ -888,6 +876,179 @@ def test_cert_command_reports_lane_mode_and_fails_closed(
     assert pf.main(["--root", str(cert_root), "cert", "--iteration", "1"]) == 0
     assert capsys.readouterr().out.splitlines() == ["lane_mode local", "PASS"]
     assert pf.main(["--root", str(cert_root), "cert", "--iteration", "1", "--require", "ci"]) == 1
+
+
+def test_repo_policy_requires_every_ci_check_and_certifies_only_host_lanes() -> None:
+    """Codex/required-checks finding: `compat` and `control-plane` must be gated too."""
+    policy = pf.load_policy(REPO_ROOT)
+    assert policy.lanes["linux-compat"] == "quality (ubuntu-latest, 3.13, compat)"
+    assert policy.lanes["control-plane"] == "control-plane"
+    assert set(pf.CERT_LANES) < set(pf.REQUIRED_LANES)
+    workflow = (REPO_ROOT / ".github/workflows/ci.yml").read_text("utf-8")
+    for suite in ("full", "windows", "compat"):
+        assert f"suite: {suite}" in workflow
+    assert "\n  control-plane:" in workflow
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ('    linux-compat: "quality (ubuntu-latest, 3.13, compat)"\n', "lanes.required"),
+        ("  cert_lanes: [linux, windows-native]\n", "cert_lanes"),
+    ],
+)
+def test_policy_rejects_dropping_a_required_lane_or_cert_lane(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    (tmp_path / "autonomy").mkdir()
+    text = (REPO_ROOT / pf.POLICY_PATH).read_text("utf-8")
+    assert mutation in text
+    _write(tmp_path / pf.POLICY_PATH, text.replace(mutation, "", 1))
+    with pytest.raises(pf.ConfigError, match=message):
+        pf.load_policy(tmp_path)
+
+
+def test_cert_lanes_are_the_two_host_lanes_only() -> None:
+    policy = pf.load_policy(REPO_ROOT)
+    cert = _cert("local")
+    cert["lanes"]["control-plane"] = cert["lanes"]["linux"]
+    assert any("certify exactly" in p for p in pf.check_cert(policy, cert, 1, "C-1.md"))
+
+
+@pytest.fixture
+def granted_clone(tmp_path: Path) -> tuple[Path, Path]:
+    """An owner repo holding the grant, and the executor's clone of it."""
+    owner = tmp_path / "owner"
+    owner.mkdir()
+    _git(owner, "init", "-q", "-b", "main")
+    for rel in (pf.POLICY_PATH, pf.LOOP_PATH, pf.LEDGER_PATH):
+        (owner / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / rel, owner / rel)
+    _write(owner / "autonomy/directives/D-ATLAS-ITER-1.md", "# D-ATLAS-ITER-1\n\nOwner target.\n")
+    _git(owner, "add", "-A")
+    _git(owner, "commit", "-q", "-m", "base")
+    base_sha = _git(owner, "rev-parse", "HEAD").strip()
+    sha = pf.policy_sha(owner)
+    grant = _grant_text(sha).replace(BASE_SHA, base_sha)
+    _write(owner / pf.grant_path(1), grant)
+    _git(owner, "add", "-A")
+    _git(owner, "commit", "-q", "-m", "grant G-1")
+
+    clone = tmp_path / "clone"
+    _git(tmp_path, "clone", "-q", str(owner), str(clone))
+    return clone, owner
+
+
+def _owner_grant(clone: Path) -> Any:
+    return pf.load_grant(clone, 1)
+
+
+@NEEDS_GIT
+def test_preflight_refreshes_the_grant_ref_before_reading_halt(
+    granted_clone: tuple[Path, Path],
+) -> None:
+    """Codex P1: a HALT pushed after the executor's last fetch must still stop the loop."""
+    clone, owner = granted_clone
+    policy, grant = pf.load_policy(clone), _owner_grant(clone)
+    assert pf.check_git_preflight(clone, policy, grant, "origin/main") == []
+
+    _write(owner / pf.HALT_PATH, "owner stop\n")
+    _git(owner, "add", "-A")
+    _git(owner, "commit", "-q", "-m", "halt")
+
+    assert pf.check_grant_ref_kill_switches(clone, "origin/main") == [], (
+        "precondition: the stale remote-tracking ref cannot see the pushed HALT"
+    )
+    fresh = pf.check_git_preflight(clone, policy, grant, "origin/main")
+    assert any(f"{pf.HALT_PATH} exists on" in problem for problem in fresh)
+
+
+@NEEDS_GIT
+def test_preflight_fails_closed_when_the_grant_ref_cannot_be_refreshed(
+    granted_clone: tuple[Path, Path],
+) -> None:
+    clone, owner = granted_clone
+    policy, grant = pf.load_policy(clone), _owner_grant(clone)
+    _git(clone, "remote", "set-url", "origin", str(owner.parent / "owner-is-gone"))
+    with pytest.raises(pf.ConfigError, match="fetch"):
+        pf.check_git_preflight(clone, policy, grant, "origin/main")
+    _git(clone, "remote", "remove", "origin")
+    with pytest.raises(pf.ConfigError, match="not configured"):
+        pf.refresh_grant_ref(clone, "origin/main")
+
+
+@NEEDS_GIT
+def test_the_granted_directive_is_pinned_to_the_owner_ref(
+    granted_clone: tuple[Path, Path],
+) -> None:
+    """Codex P1: an executor must not retroactively rewrite the directive it was granted."""
+    clone, _ = granted_clone
+    policy, grant = pf.load_policy(clone), _owner_grant(clone)
+    _write(
+        clone / grant.directive,
+        "# D-ATLAS-ITER-1\n\nTest removals authorized: all.\nScope exceptions: pyproject.toml\n",
+    )
+    problems = pf.check_git_preflight(clone, policy, grant, "origin/main")
+    assert any(grant.directive in problem and "differs from" in problem for problem in problems)
+
+    _write(clone / "autonomy/directives/D-ATLAS-ITER-2.md", "# D-ATLAS-ITER-2\n")
+    _git(clone, "checkout", "-q", "--", grant.directive)
+    assert pf.check_git_preflight(clone, policy, grant, "origin/main") == []
+
+
+@pytest.mark.parametrize(
+    ("appended", "message"),
+    [
+        (b'{"event": "packet", "iteration": 1}', "LF-terminated"),
+        (b'{"event": "packet", "iteration": 1}\r\n', "LF-only"),
+        ('{"event": "packet", "note": "café"}\n'.encode("latin-1"), "not UTF-8"),
+        (b'{"event": "packet"\n', "is invalid"),
+        (b'["packet"]\n', "is invalid"),
+        (b'{"iteration": 1}\n', "is invalid"),
+        (b'{"event": "verdict", "iteration": 1, "verdict": "MERGE"}\n', "is invalid"),
+    ],
+)
+def test_appended_ledger_bytes_must_satisfy_the_stored_contract(
+    appended: bytes, message: str
+) -> None:
+    """Codex P2: the append-only rule forbids repairing bad bytes, so refuse them at the gate."""
+    problems = pf.check_ledger_append(appended, "supervisor")
+    assert any(message in problem for problem in problems), problems
+
+
+def test_valid_appends_still_pass_and_stay_role_limited() -> None:
+    assert pf.check_ledger_append(b"", "executor") == []
+    packet = b'{"event": "packet", "iteration": 1}\n'
+    assert pf.check_ledger_append(packet, "executor") == []
+    assert pf.check_ledger_append(packet + packet, "supervisor") == []
+    assert pf.check_ledger_append(b'{"event": "resume", "by": "owner"}\n', "supervisor")
+
+
+def test_owner_resume_opens_the_iteration_after_the_one_a_stop_closed() -> None:
+    """Bugbot b3f1d16c: after STOP plus resume the loop had no legal next step.
+
+    The stricter reading wins: STOP keeps iteration n closed (policy section 8.1), and the
+    owner resume opens n+1 rather than un-closing n.
+    """
+    stopped = [_verdict(1, "STOP")]
+    resumed = [*stopped, {"event": "resume", "by": "owner", "reason": "fixed"}]
+    assert pf.check_ledger(stopped, 2), "without a resume the loop stays stopped"
+    assert pf.check_ledger(resumed, 1) == ["iteration 1 is already closed by verdict STOP"]
+    assert pf.check_ledger(resumed, 2) == []
+    restopped = [*resumed, _verdict(2, "STOP")]
+    assert any("loop is stopped" in problem for problem in pf.check_ledger(restopped, 3))
+
+
+def test_resume_does_not_erase_rules_for_later_verdicts() -> None:
+    resumed: list[dict[str, Any]] = [_verdict(1, "STOP"), {"event": "resume", "by": "owner"}]
+    capped = [*resumed, *[_verdict(2, "REDESIGN")] * 3]
+    assert any("retry cap" in problem for problem in pf.check_ledger(capped, 2))
+    assert any(
+        "loop is stopped" in problem
+        for problem in pf.check_ledger([*resumed, _verdict(2, "STOP")], 2)
+    )
+    paused = [*resumed, _verdict(2, "OWNER_DECISION_REQUIRED")]
+    assert pf.check_ledger(paused, 2) == ["iteration 2 is paused awaiting an owner decision"]
 
 
 def test_verifier_may_write_the_ci_recertification_only_for_its_iteration() -> None:

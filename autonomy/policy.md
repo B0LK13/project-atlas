@@ -145,6 +145,9 @@ lanes:
   required:
     linux: "quality (ubuntu-latest, 3.12, full)"
     windows-native: "quality (windows-latest, 3.12, windows)"
+    linux-compat: "quality (ubuntu-latest, 3.13, compat)"
+    control-plane: "control-plane"
+  cert_lanes: [linux, windows-native]
   fallback:
     when: ci_unavailable
     run_by: verifier
@@ -185,10 +188,14 @@ delete plus an add, and both paths are judged), for the role named by
 Glob semantics: `*` and `?` stay within one path segment, `**` spans segments, and `**/`
 also matches zero segments.
 
-The `lanes.required` values are the expected GitHub check names of the existing
-`.github/workflows/ci.yml` matrix jobs. CI runs on `pull_request` for any base branch, so a
-PR into `autonomy/staging` exercises both lanes. The names are unconfirmed until a CI run
-actually starts; a mismatch is an owner policy edit, not an executor fix.
+`lanes.required` lists every CI check that must be green for the gate: all three
+`.github/workflows/ci.yml` matrix jobs plus the `control-plane` job. CI runs on `pull_request`
+for any base branch, so a PR into `autonomy/staging` exercises all four. A mismatch between
+these names and the workflow is an owner policy edit, not an executor fix.
+
+`lanes.cert_lanes` is the subset a verifier cert certifies host by host (section 4.4): the
+Linux and native Windows lanes. `compat` and `control-plane` are CI-only checks, so a local
+fallback cert never claims them.
 
 ### 4.2 Budget
 
@@ -213,8 +220,8 @@ actually starts; a mismatch is an owner policy edit, not an executor fix.
 A verifier cert is `autonomy/certs/C-<n>.md`, checked by
 `python autonomy/tools/preflight.py cert --iteration <n> [--head <sha>] [--require ci]`.
 
-- `lane_mode: ci`: both `lanes.required` lanes are certified from GitHub Actions run URLs on
-  `head_sha`.
+- `lane_mode: ci`: both `lanes.cert_lanes` lanes are certified from GitHub Actions run URLs on
+  `head_sha`. The gate separately requires every `lanes.required` check to be green on that head.
 - `lane_mode: local` is the fallback (`lanes.fallback`). It is allowed only while CI is
   unavailable, cited by an INFRA_RED run URL in `ci_unavailable_evidence`. The verifier
   subagent, never the executor, runs both lanes on the designated verification host: native
@@ -292,6 +299,9 @@ A grant verifies only if all of these hold (`preflight.py preflight --iteration 
 - the grant file exists, `grant` is `G-<n>` and `iteration` is `<n>`;
 - `policy_sha` in the grant equals `loop.yaml` `policy_sha`, and both equal the SHA-256 of
   the current `policy.md`;
+- the grant ref has just been refreshed from its remote by preflight itself, and is judged on
+  the unambiguous `refs/remotes/<remote>/<branch>`, so neither a stale ref nor a local branch of
+  the same name can hide a pushed `HALT`;
 - the grant file, `policy.md`, and the directive named by the grant are byte-identical to
   their versions on the grant ref (a locally edited grant, policy, or granted directive is
   void; proposing `D-<n+1>` remains in scope);
@@ -384,6 +394,10 @@ Append-only, one JSON object per line, UTF-8, LF. Lines are never edited or remo
 
 - Every line is a JSON object with an `event` name; `verdict` events carry an integer
   `iteration` and a section 9 verdict. Anything else fails preflight as suspected tampering.
+- The same contract binds the bytes an iteration appends: the scope gate rejects an append that
+  is not UTF-8, not LF-terminated, blank, or not one valid record per line, judged by the same
+  parser that reads the stored file. The append-only rule forbids repairing bad bytes later, so
+  they are refused at the gate that produced them.
 - A `STOP` verdict stops the loop until a later owner `resume` event. Resume leaves
   iteration `n` closed and is the documented recovery that opens `n+1`.
 - An iteration closed by `CONTINUE`, `ACCELERATE`, `DEFER` or `STOP` cannot be preflighted
@@ -471,7 +485,10 @@ duration, host fingerprint, `result` consistency, fallback allowed by policy, CI
 re-certification of the same head).
 
 Not mechanized yet, so checked by the supervisor, and to be decided by the owner before level
-2: cert-before-packet ordering and forgery detection, whether CI really was unavailable when a
+2: **the green status of the `lanes.required` checks on `head_sha`** (the tool validates that the
+policy names all four and that a cert covers the two `cert_lanes`; nothing in this repository
+queries GitHub for their conclusions, and branch protection that would enforce them is
+owner-held, outside any loop-writable scope), cert-before-packet ordering and forgery detection, whether CI really was unavailable when a
 fallback cert was written (the evidence URL is recorded, not queried), whether the fingerprinted
 host really is the designated verification host, when CI has returned so a fallback cert has
 expired, the verifier/supervisor disagreement
