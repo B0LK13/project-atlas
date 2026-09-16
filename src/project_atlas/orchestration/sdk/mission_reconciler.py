@@ -23,6 +23,7 @@ from project_atlas.orchestration.autonomy.authentic_estate import (
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import cert_evidence_applies_to_head
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, AgentRole, SdkRuntimeError
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
 
 OwnerGate = Literal[
@@ -170,7 +171,10 @@ def _rt(root: Path) -> Path:
 def _atomic(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.write_text(
+        json.dumps(safe_persist(payload), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     tmp.replace(path)
 
 

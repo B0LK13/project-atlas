@@ -43,6 +43,7 @@ from project_atlas.orchestration.autonomy.trust import (
     evaluate_target_moved,
     require_full_pin,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 
 LOOP_PACKAGE_ID: Final[Literal["AS-ORCH-001E"]] = "AS-ORCH-001E"
@@ -241,7 +242,8 @@ def load_loop_state(store: Path) -> LoopState:
 
 
 def persist_loop_state(store: Path, state: LoopState) -> LoopState:
-    sealed = seal_loop_state(state)
+    sanitized = LoopState.model_validate(safe_persist(state.model_dump(mode="json")))
+    sealed = seal_loop_state(sanitized)
     verify_loop_state(sealed)
     root = store.resolve()
     lock_path = _store_path(root, LOCK_NAME)

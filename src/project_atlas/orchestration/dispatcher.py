@@ -538,7 +538,12 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def persist_record(root: Path, record: DispatchRecord) -> None:
-    _write_json(record_path(root, record.dispatch_id), record.model_dump(mode="json"))
+    from project_atlas.orchestration.sdk.persist_safety import safe_persist
+
+    _write_json(
+        record_path(root, record.dispatch_id),
+        safe_persist(record.model_dump(mode="json")),
+    )
 
 
 def persist_receipt(root: Path, receipt: DispatchReceipt) -> None:

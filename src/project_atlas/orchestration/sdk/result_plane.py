@@ -17,6 +17,7 @@ from project_atlas.orchestration.sdk.models import (
     RunRecord,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.registries import RunRegistry
 from project_atlas.orchestration.sdk.security_gates import (
     BoundWorkerResult,
@@ -101,7 +102,8 @@ def persist_transport_proof(root: Path, proof: TransportProof) -> Path:
     path = transport_proof_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(proof.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        json.dumps(safe_persist(proof.model_dump(mode="json")), indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
     return path
@@ -137,7 +139,7 @@ def _save_consumed(
     if records is not None:
         payload["records"] = records
     path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        json.dumps(safe_persist(payload), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 

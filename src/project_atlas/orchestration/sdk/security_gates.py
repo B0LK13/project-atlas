@@ -28,6 +28,7 @@ from project_atlas.orchestration.sdk.models import (
     AgentRole,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 
 FINDING_IDS: Final[tuple[str, ...]] = (
     "ORCH-SDK-RESULT-BINDING-001",
@@ -189,7 +190,10 @@ def mint_creation_sequence(root: Path, agent_id: str) -> int:
     data["_max"] = nxt
     path = lineage_sequence_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(safe_persist(data), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     return nxt
 
 
@@ -208,7 +212,10 @@ def require_creation_sequence(root: Path, agent_id: str, stored: int | None) -> 
         data["_max"] = max(int(data.get("_max", 0)), stored)
         path = lineage_sequence_path(root)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(safe_persist(data), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     return stored
 
 
@@ -237,7 +244,10 @@ def persist_run_pre_head(root: Path, run_id: str, pre_head: str | None) -> None:
                     data[str(key)] = value
     data[run_id] = pre_head
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(safe_persist(data), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def load_run_pre_head(root: Path, run_id: str) -> str | None:

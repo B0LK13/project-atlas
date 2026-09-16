@@ -22,6 +22,7 @@ from project_atlas.orchestration.sdk.models import (
     AgentRuntime,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.security_gates import collect_actual_changed_paths
 
 ATTRIBUTION_STORE_NAME: Final[str] = "run-mutation-attribution.json"
@@ -166,7 +167,8 @@ def persist_run_mutation_baseline(root: Path, baseline: RunMutationBaseline) -> 
     data[baseline.run_id] = baseline.model_dump(mode="json")
     tmp = path.with_name(f".{path.name}.tmp")
     tmp.write_text(
-        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(safe_persist(data), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     tmp.replace(path)
 
@@ -239,7 +241,8 @@ def persist_agent_remote_high_water(root: Path, agent_id: str, sha: str) -> None
     data[agent_id] = sha
     tmp = path.with_name(f".{path.name}.tmp")
     tmp.write_text(
-        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(safe_persist(data), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     tmp.replace(path)
 

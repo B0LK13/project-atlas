@@ -23,6 +23,7 @@ from project_atlas.orchestration.sdk.models import (
     SdkRuntimeError,
     _utc_now,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 
 
 def resolve_runtime_root(root: Path) -> Path:
@@ -131,7 +132,10 @@ class CloudAgentRegistry:
         return _verify_agents(AgentRegistryState.model_validate(raw))
 
     def save(self, state: AgentRegistryState) -> AgentRegistryState:
-        sealed = _seal_agents(state)
+        sanitized = AgentRegistryState.model_validate(
+            safe_persist(state.model_dump(mode="json"))
+        )
+        sealed = _seal_agents(sanitized)
         _write_json_atomic(self.path, sealed.model_dump(mode="json"))
         return sealed
 
@@ -190,7 +194,10 @@ class RunRegistry:
         return _verify_runs(RunRegistryState.model_validate(raw))
 
     def save(self, state: RunRegistryState) -> RunRegistryState:
-        sealed = _seal_runs(state)
+        sanitized = RunRegistryState.model_validate(
+            safe_persist(state.model_dump(mode="json"))
+        )
+        sealed = _seal_runs(sanitized)
         _write_json_atomic(self.path, sealed.model_dump(mode="json"))
         return sealed
 

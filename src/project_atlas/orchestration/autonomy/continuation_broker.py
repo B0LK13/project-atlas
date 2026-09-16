@@ -44,6 +44,7 @@ from project_atlas.orchestration.autonomy.return_gate import (
     stop_hook_terminal_return_allowed,
 )
 from project_atlas.orchestration.autonomy.trust import require_full_pin
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 
 PACKAGE_ID: Final[Literal["AS-ORCH-CONTINUATION-BROKER-001"]] = (
@@ -337,7 +338,8 @@ def _write_json_atomic(target: Path, payload: dict[str, object]) -> None:
 
 
 def persist_broker_state(store: Path, state: BrokerState) -> BrokerState:
-    sealed = verify_broker_state(seal_broker_state(state))
+    sanitized = BrokerState.model_validate(safe_persist(state.model_dump(mode="json")))
+    sealed = verify_broker_state(seal_broker_state(sanitized))
     root = store.resolve()
     lock_path = _store_path(root, LOCK_NAME)
     try:

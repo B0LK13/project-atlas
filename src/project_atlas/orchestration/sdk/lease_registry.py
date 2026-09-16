@@ -14,6 +14,7 @@ from project_atlas.orchestration.sdk.models import (
     SdkRuntimeError,
 )
 from project_atlas.orchestration.sdk.package_registry import require_mutating_route
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.security_gates import (
     CANONICAL_BRANCH,
     CANONICAL_PR,
@@ -64,7 +65,7 @@ def load_durable_leases(root: Path) -> dict[str, GovernorLease]:
 def persist_durable_leases(root: Path, leases: dict[str, GovernorLease]) -> Path:
     path = leases_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    dumped = {k: v.model_dump(mode="json") for k, v in leases.items()}
+    dumped = safe_persist({k: v.model_dump(mode="json") for k, v in leases.items()})
     path.write_text(json.dumps(dumped, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
 

@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.sdk.host import pid_is_alive
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 
 STATUS_NAME: Final[str] = "resident-status.json"
 PACKAGE_ID: Final[str] = "AS-ORCH-SELF-WAKE-RESIDENT-DRIVER-001"
@@ -90,7 +91,12 @@ def persist_status(root: Path, status: ResidentStatus) -> ResidentStatus:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(
-        json.dumps(payload.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            safe_persist(payload.model_dump(mode="json")),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     tmp.replace(path)
