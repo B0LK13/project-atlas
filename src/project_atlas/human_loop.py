@@ -27,6 +27,27 @@ class HumanLoopError(ValueError):
     """Fail-closed human-loop error."""
 
 
+def _omit_decoded_secrets(value: Any) -> Any:
+    """Omit decoded secret keys/values after ``json.loads``.
+
+    AS-SEC-SCAN-HUMAN-LOOP-PENDING-REWRITE-JSON-ESC-001: decide rewrites
+    the loaded pending queue. ``scan_text`` on raw ``\\u0041KI…`` escapes
+    is empty; persist must not echo the decoded TOKEN as a key or value.
+    """
+    if isinstance(value, dict):
+        cleaned: dict[str, Any] = {}
+        for key, item in value.items():
+            if isinstance(key, str) and scan_text(key):
+                continue
+            cleaned[key] = _omit_decoded_secrets(item)
+        return cleaned
+    if isinstance(value, list):
+        return [_omit_decoded_secrets(item) for item in value]
+    if isinstance(value, str) and scan_text(value):
+        return "unknown"
+    return value
+
+
 def _write_atomic(path: Path, content: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -191,6 +212,9 @@ def apply_review_decision(
         if isinstance(item, dict):
             updated_entries.append(item)
     pending_payload["entries"] = updated_entries
+    pending_payload = _omit_decoded_secrets(pending_payload)
+    if not isinstance(pending_payload, dict):
+        raise HumanLoopError("pending reviews invalid")
 
     disposition_path = decisions_path(vault, project_id)
     receipt_path = vault / RECEIPT_DIR / f"{project_id}-{review_id}.json"

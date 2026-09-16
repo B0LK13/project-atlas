@@ -177,3 +177,35 @@ def test_json_unicode_escape_subject_id_is_not_persisted(tmp_path: Path) -> None
     assert not receipt.exists()
     pending_text = (pending / "harbor-api.json").read_text(encoding="utf-8")
     assert token not in pending_text or pending_text == raw
+
+
+def test_json_unicode_escape_extra_pending_key_is_not_persisted(
+    tmp_path: Path,
+) -> None:
+    """AS-SEC-SCAN-HUMAN-LOOP-PENDING-REWRITE-JSON-ESC-001.
+
+    apply_review_decision rewrites the loaded pending queue. A JSON-escaped
+    extra key that scan_text misses on raw bytes must not persist decoded.
+    """
+    token = "AKIAAAAAAAAAAAAAAAAA"
+    vault = tmp_path / "vault"
+    pending = vault / "review" / "pending"
+    pending.mkdir(parents=True)
+    raw = (
+        '{"schema_version":1,"entries":[{"review_id":"rev-1","status":"pending",'
+        '"category":"gap","subject_id":"claim-1",'
+        '"\\u0041KIAAAAAAAAAAAAAAAAA":"kept"}]}'
+    )
+    path = pending / "harbor-api.json"
+    path.write_text(raw, encoding="utf-8")
+    assert scan_text(raw) == []
+    apply_review_decision(
+        vault,
+        project_id="harbor-api",
+        review_id="rev-1",
+        decision="reject",
+        reason="owner reject",
+    )
+    pending_text = path.read_text(encoding="utf-8")
+    assert token not in pending_text
+    assert scan_text(pending_text) == []
