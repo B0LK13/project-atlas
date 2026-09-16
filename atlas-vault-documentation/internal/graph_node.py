@@ -35,7 +35,10 @@ def safe_persist(payload: Any) -> Any:
     if isinstance(payload, str):
         return _safe_persist_text(payload)
     if isinstance(payload, dict):
-        return {key: safe_persist(value) for key, value in payload.items()}
+        return {
+            _safe_persist_text(str(key)) if isinstance(key, str) else key: safe_persist(value)
+            for key, value in payload.items()
+        }
     if isinstance(payload, list):
         return [safe_persist(value) for value in payload]
     return payload

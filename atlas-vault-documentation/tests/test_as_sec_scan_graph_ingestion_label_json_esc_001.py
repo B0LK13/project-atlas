@@ -86,6 +86,19 @@ def test_quarantine_record_omits_json_escaped_note() -> None:
     assert payload["record"]["note"] == "UNKNOWN"
 
 
+def test_state_object_key_omits_json_escaped_node_id() -> None:
+    from internal.graph_node import safe_persist
+
+    raw = '{"id":"' + ESC + '"}'
+    assert scan_text(raw) == []
+    node_id = json.loads(raw)["id"]
+    assert node_id == TOKEN
+    state = safe_persist({"nodes": {node_id: {"label": "api"}}})
+    written = json.dumps(state)
+    assert TOKEN not in written
+    assert "UNKNOWN" in state["nodes"]
+
+
 def test_safe_label_still_serializes() -> None:
     node = GraphNode(
         node_id="n1",

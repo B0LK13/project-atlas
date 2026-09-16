@@ -21,7 +21,7 @@ from internal import (
     graph_ingestion_state,
 )
 from internal.graph_edge import GraphEdge
-from internal.graph_node import GraphNode
+from internal.graph_node import GraphNode, safe_persist
 
 
 class GraphIngestionError(RuntimeError):
@@ -109,8 +109,8 @@ def ingest_graphify(*, project_id: str, vault_root: Path, project_root: Path, in
     atlas_router.update_derived_projection(vault_root=vault_root, project_id=project_id, relative_path=f"projects/{project_id}/graph-health.md", content=health_content, settings=atlas_router.RoutingSettings())
     _write(base / "nodes" / f"{project_id}.jsonl", node_lines)
     _write(base / "edges" / f"{project_id}.jsonl", edge_lines)
-    _write(base / "state" / f"{project_id}.json", json.dumps(graph_state, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
-    _write(base / "quarantine" / project_id / "summary.json", json.dumps({"project_id": project_id, "records": quarantine}, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    _write(base / "state" / f"{project_id}.json", json.dumps(safe_persist(graph_state), ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    _write(base / "quarantine" / project_id / "summary.json", json.dumps(safe_persist({"project_id": project_id, "records": quarantine}), ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     receipt_path = base / "receipts" / f"{project_id}-{combined[:16]}.json"
     if receipt_path.is_file() and receipt_path.read_text(encoding="utf-8") != json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n":
         raise GraphIngestionError("immutable graph receipt collision")
