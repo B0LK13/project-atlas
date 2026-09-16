@@ -12,17 +12,25 @@ ESC = r"\u0041KIAAAAAAAAAAAAAAAAA"
 SHA = "a" * 64
 
 
-def _entity_json(*, gid: str, display: str) -> str:
+def _entity_json(
+    *,
+    gid: str,
+    display: str,
+    entity_class: str = "service",
+    version: str | None = None,
+) -> str:
+    attrs = f',\n  "attributes": {{"version": "{version}"}}' if version else ""
     return (
         "{\n"
         '  "schema_version": 1,\n'
         '  "package_id": "AS-XPROJ-001",\n'
         f'  "global_entity_id": "{gid}",\n'
-        '  "entity_class": "service",\n'
+        f'  "entity_class": "{entity_class}",\n'
         f'  "display_name": "{display}",\n'
         '  "authority": {"level": "derived"},\n'
         '  "registration_kind": "explicit",\n'
-        '  "status": "registered"\n'
+        '  "status": "registered"'
+        f"{attrs}\n"
         "}\n"
     )
 
@@ -63,3 +71,49 @@ def test_json_unicode_escape_display_name_is_not_persisted(tmp_path: Path) -> No
     )
     assert TOKEN not in written
     assert scan_text(written) == []
+
+
+def test_json_unicode_escape_conflict_project_ids_are_not_persisted(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    entities = vault / "state" / "global-entities"
+    joins = entities / "joins"
+    entities.mkdir(parents=True)
+    joins.mkdir(parents=True)
+    (entities / "lib-v1.json").write_text(
+        _entity_json(
+            gid="ge-lib-shared-v1",
+            display="SharedLib",
+            entity_class="library",
+            version="1.0.0",
+        ),
+        encoding="utf-8",
+    )
+    (entities / "lib-v2.json").write_text(
+        _entity_json(
+            gid="ge-lib-shared-v2",
+            display="SharedLib",
+            entity_class="library",
+            version="2.0.0",
+        ),
+        encoding="utf-8",
+    )
+    raw_join = _join_json(project_id=ESC, local="proj-a:lib:shared", gid="ge-lib-shared-v1")
+    (joins / "join-a.json").write_text(raw_join, encoding="utf-8")
+    (joins / "join-b.json").write_text(
+        _join_json(project_id="proj-b", local="proj-b:lib:shared", gid="ge-lib-shared-v2"),
+        encoding="utf-8",
+    )
+    assert scan_text(raw_join) == []
+    result = build_xproj_indexes(vault=vault)
+    write_xproj_index_outputs(result, vault=vault)
+    conflicts = vault / "generated" / "xproj" / "conflicts"
+    blob = ""
+    if conflicts.is_dir():
+        for path in conflicts.glob("*.json"):
+            blob += path.read_text(encoding="utf-8")
+    projects = vault / "generated" / "xproj" / "indexes" / "projects" / "index.json"
+    if projects.is_file():
+        blob += projects.read_text(encoding="utf-8")
+    assert TOKEN not in blob
+    assert scan_text(blob) == []

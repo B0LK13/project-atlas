@@ -19,7 +19,7 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -50,6 +50,15 @@ def _safe_index_text(value: str | None) -> str | None:
     if not text or scan_text(text):
         return None
     return text
+
+
+def _safe_id_tuple(values: Iterable[str]) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {item for item in values if _safe_index_text(item) is not None},
+            key=str.casefold,
+        )
+    )
 
 ALLOWED_WRITE_PREFIXES: tuple[str, ...] = (
     "generated/xproj/indexes/",
@@ -144,8 +153,8 @@ class ConflictReport:
             "conflict_id": self.conflict_id,
             "kind": self.kind,
             "summary": self.summary,
-            "global_entity_ids": list(self.global_entity_ids),
-            "project_ids": list(self.project_ids),
+            "global_entity_ids": list(_safe_id_tuple(self.global_entity_ids)),
+            "project_ids": list(_safe_id_tuple(self.project_ids)),
             "evidence_links": [item.as_dict() for item in self.evidence_links],
             "edge_ids": list(self.edge_ids),
             "authority": {
@@ -322,20 +331,14 @@ def detect_explicit_conflicts(
     for edge in sorted(edges, key=lambda item: item.edge_id.casefold()):
         if edge.relationship_type != "conflicts-with":
             continue
-        entity_ids = tuple(
-            sorted(
-                {edge.source_global_entity_id, edge.target_global_entity_id},
-                key=str.casefold,
-            )
+        entity_ids = _safe_id_tuple(
+            [edge.source_global_entity_id, edge.target_global_entity_id]
         )
-        projects = tuple(
-            sorted(
-                {
-                    *_projects_for_global(edge.source_global_entity_id, joins),
-                    *_projects_for_global(edge.target_global_entity_id, joins),
-                },
-                key=str.casefold,
-            )
+        projects = _safe_id_tuple(
+            [
+                *_projects_for_global(edge.source_global_entity_id, joins),
+                *_projects_for_global(edge.target_global_entity_id, joins),
+            ]
         )
         conflict_id = f"xc-explicit-{_safe_name(edge.edge_id)}"
         reports.append(
@@ -384,16 +387,11 @@ def detect_version_divergence(
         if len(members) < 2:
             continue
         members_sorted = sorted(members, key=lambda item: item.global_entity_id.casefold())
-        entity_ids = tuple(item.global_entity_id for item in members_sorted)
-        project_ids = tuple(
-            sorted(
-                {
-                    project
-                    for gid in entity_ids
-                    for project in _projects_for_global(gid, joins)
-                },
-                key=str.casefold,
-            )
+        entity_ids = _safe_id_tuple(item.global_entity_id for item in members_sorted)
+        project_ids = _safe_id_tuple(
+            project
+            for gid in entity_ids
+            for project in _projects_for_global(gid, joins)
         )
         if len(project_ids) < 2:
             continue
@@ -496,12 +494,12 @@ def _relationship_index_entries(edges: Sequence[GlobalEdgeRecord]) -> list[dict[
     for edge in sorted(edges, key=lambda item: item.edge_id.casefold()):
         entries.append(
             {
-                "edge_id": edge.edge_id,
+                "edge_id": _safe_index_text(edge.edge_id) or "UNKNOWN",
                 "relationship_type": edge.relationship_type,
-                "source_global_entity_id": edge.source_global_entity_id,
-                "target_global_entity_id": edge.target_global_entity_id,
-                "source_project_ids": list(edge.source_project_ids),
-                "target_project_ids": list(edge.target_project_ids),
+                "source_global_entity_id": _safe_index_text(edge.source_global_entity_id),
+                "target_global_entity_id": _safe_index_text(edge.target_global_entity_id),
+                "source_project_ids": list(_safe_id_tuple(edge.source_project_ids)),
+                "target_project_ids": list(_safe_id_tuple(edge.target_project_ids)),
             }
         )
     return entries
