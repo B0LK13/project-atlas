@@ -3,17 +3,38 @@
 Everything the owner needs to start iteration 1. Four steps, in order. The executor cannot do
 any of them: merging, grants and directives on `main` are owner-held (policy sections 2 and 3).
 
-Current state: branch `autonomy/scaffold`, PR https://github.com/bolkdev/project-atlas/pull/1.
+Current state: branch `autonomy/scaffold`, PR https://github.com/WezzSide/project-atlas/pull/946.
 For the head, run `git rev-parse origin/autonomy/scaffold`.
 
+## Reconciliation note (D-ATLAS-SCAFFOLD-RECONCILE-001, 2026-09-16)
+
+Both remotes fixed the same Codex/Bugbot findings independently. This branch is origin's six
+commits (`7ace1fe0..84209842`) with the fork's four (`b6e06602..a134ef0b`) cherry-picked on top;
+every conflict was resolved to the stricter, fail-closed side.
+
+1. KEPT origin's `refresh_grant_ref`: it returns `refs/remotes/<remote>/<branch>`, so a local
+   branch named `origin/main` cannot shadow the fetched tip, and a missing remote is fail-closed
+   instead of being read as a local branch. DROPPED the fork's simpler version, which returned
+   problems rather than raising and could be read through an ambiguous ref.
+2. KEPT origin's resume rule: `STOP` leaves iteration `n` closed and the owner `resume` opens
+   `n+1`. DROPPED the fork's rule, which re-opened `n` itself; an iteration closed by any verdict
+   must stay closed (policy section 8.1), so origin's reading is the stricter one.
+3. KEPT origin's role-trailer check over merge commits (no `--no-merges`), its scope-time
+   grant-ref refresh, and its normalized-directive-path check (`..`, `\`, `.` segments rejected).
+4. KEPT the fork's four `lanes.required` checks plus `lanes.cert_lanes`, its shared
+   `_parse_ledger_line` (so an appended `verdict` record is validated exactly as the stored one
+   is), and its policy section 12.3 disclosure that required-check *status* is not mechanized.
+5. DROPPED the fork's `--no-fetch` CLI flag entirely; origin never had it, and a gate with a
+   HALT-blind mode is not a gate. No behavior present on either side was weakened or removed.
+
 The pin below is `policy_sha`
-`a54037f251d3caf77c86a18cef13f69280600b135629a8aa8a0501787c34b94f`, the value in
+`263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767`, the value in
 `autonomy/loop.yaml` as of this file's commit. **Re-check it before you commit the grant**:
 after merging, run `python autonomy/tools/preflight.py sha` on `main`. It changes whenever
 `policy.md` changes by even one byte, and a grant carrying the wrong value is void. If the two
 differ, use the value the command prints, not the one written here.
 
-## Step 1: merge PR #1
+## Step 1: merge PR #946
 
 Merge only after CI is green on the final head and an independent verifier has certified it.
 The merge commit becomes the grant ref for `G-1`.
@@ -43,7 +64,7 @@ does not match the policy byte-for-byte is void.
 grant: G-1
 iteration: 1
 issued_by: owner
-policy_sha: a54037f251d3caf77c86a18cef13f69280600b135629a8aa8a0501787c34b94f
+policy_sha: 263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767
 base_sha: <MAIN_HEAD_AFTER_MERGE>
 directive: autonomy/directives/D-ATLAS-ITER-1.md
 budget:

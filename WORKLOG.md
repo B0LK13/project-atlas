@@ -15193,3 +15193,31 @@ Checkpoint: `autonomy/audits/CHECKPOINT-2026-09-16.md`.
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
+
+## 2026-09-16: reconcile the diverged autonomy/scaffold (D-ATLAS-SCAFFOLD-RECONCILE-001)
+
+Canonical repo is now `WezzSide/project-atlas` (`origin`); `bolkdev/project-atlas` is `fork`,
+read-only. `autonomy/scaffold` had diverged from base `034a1264`: origin held six Cursor Agent
+commits (`7ace1fe0..84209842`), the fork four executor commits (`b6e06602..a134ef0b`), both
+fixing the same Codex P1 x2 / P2, the Bugbot resume defect, and the missing required checks.
+
+Reconciled once, onto origin, cherry-picking the fork's four. Every conflict went to the
+stricter, fail-closed side. Kept from origin: the refresh that returns
+`refs/remotes/<remote>/<branch>` (a local `origin/main` cannot shadow it) and fails closed on a
+missing remote; role trailers over merge commits; the scope-time refresh; normalized granted
+directive paths; and the resume rule where STOP leaves iteration n closed and the owner resume
+opens n+1. Kept from the fork: four `lanes.required` checks plus `lanes.cert_lanes`, the shared
+`_parse_ledger_line` so appended records are judged by the stored-ledger parser, and the policy
+12.3 disclosure that required-check status is not mechanized. Dropped: the fork's `--no-fetch`
+flag (a HALT-blind gate mode) and its wider resume rule. No check on either side was weakened.
+
+Verification: `ruff check .` exit 0; `mypy --strict` on the gate exit 0; `tests/unit/test_autonomy_*`
+127 passed on Python 3.12 and 3.13; dry run against the reconciled gate 15/15
+(`autonomy/packets/DRYRUN-2026-09-16.md`); `preflight --iteration 1` still fails with exactly
+`missing grant`. Pin re-computed: `263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767`.
+
+Reconciliation note: `autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`. Checkpoint:
+`autonomy/audits/CHECKPOINT-2026-09-16.md`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**

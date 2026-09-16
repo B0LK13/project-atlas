@@ -1,91 +1,77 @@
-# Checkpoint 2026-09-16: PR #1 findings closed, loop rehearsed, owner unblock kit ready
+# Checkpoint 2026-09-16: findings closed, branches reconciled, owner unblock kit ready
 
 Session end state for the Atlas executor at `autonomy_level 0`. Every line cites a SHA, a path
 or a URL. Nothing here is a certification, a verdict or a merge.
 
-## 1. What this session changed
+## 1. Reconciliation (D-ATLAS-SCAFFOLD-RECONCILE-001)
 
-Branch `autonomy/scaffold`, PR https://github.com/bolkdev/project-atlas/pull/1 (`-> main`).
+Canonical repository is now `WezzSide/project-atlas` (`origin`); `bolkdev/project-atlas` is
+`fork`, read-only. `autonomy/scaffold` had diverged from the common base
+`034a1264183b0814482cf73a679bab902480467d`:
 
-- Session start head: `b6e0660265dda5a9a7dea0a9662651ef5072c67d`, CI green in
-  https://github.com/bolkdev/project-atlas/actions/runs/35018874179 (all four jobs success).
-- `311ce7b6991ddf18e6a39e682b4a3ee45da72b67`: closes the five open review findings.
-- This commit: the four defects internal gating found in `311ce7b6` (below), the dry-run report,
-  the owner unblock kit and this checkpoint.
+- origin: six Cursor Agent commits `7ace1fe0..84209842`,
+- fork: four executor commits `b6e06602..a134ef0b`,
 
-## 2. The five review findings, now closed
+both fixing the same Codex and Bugbot findings. This branch is origin's six with the fork's four
+cherry-picked on top, every conflict resolved to the stricter, fail-closed side. The per-behavior
+kept/dropped list is the reconciliation note in
+`autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`. Nothing was pushed to `fork`.
 
-| Finding | Fix | Evidence |
-|---|---|---|
-| Codex P1 https://github.com/B0LK13/project-atlas/pull/946#discussion_r4019318109 | Preflight refreshes the grant ref before reading it, and fails closed when the fetch fails | `autonomy/tools/preflight.py` `refresh_grant_ref`; `test_preflight_refreshes_the_grant_ref_before_reading_halt`, `test_preflight_fails_closed_when_the_grant_ref_cannot_be_refreshed` |
-| Codex P1 https://github.com/B0LK13/project-atlas/pull/946#discussion_r4019318117 | The granted directive is byte-compared with its grant-ref copy | `check_git_preflight`; `test_the_granted_directive_is_pinned_to_the_owner_ref` |
-| Codex P2 https://github.com/B0LK13/project-atlas/pull/946#discussion_r4019318123 | Appended ledger bytes must be UTF-8, LF-terminated, one valid record per line, no blank lines | `check_ledger_append`; `test_appended_ledger_bytes_must_satisfy_the_stored_contract`, `test_the_append_gate_accepts_exactly_what_load_ledger_accepts` |
-| Bugbot `b3f1d16c-a6ae-46fd-a282-269eb5e1878d` https://github.com/B0LK13/project-atlas/pull/946#pullrequestreview-5214910083 | An owner `resume` lifts the `STOP` verdicts before it, so the stopped iteration can be re-run | `check_ledger`; `test_owner_resume_reopens_the_iteration_a_stop_closed`, `test_resume_lifts_only_the_stop_it_follows` |
-| Required checks missing `compat` and `control-plane` | `lanes.required` names all four CI checks; `lanes.cert_lanes` names the two host lanes a cert covers | `autonomy/policy.md` section 4; `test_repo_policy_requires_every_ci_check_and_certifies_only_host_lanes` |
+## 2. The findings, now closed on one branch
 
-Each fix was checked against the previous head: the old gate has no `refresh_grant_ref`, never
-compares the directive, accepted an unterminated and an invalid-UTF-8 append, left no legal step
-after STOP plus resume, and rejects the four-check policy outright.
+| Finding | Where it is fixed |
+|---|---|
+| Codex P1 https://github.com/B0LK13/project-atlas/pull/946#discussion_r4019318109 (refresh the grant ref before reading HALT) | `refresh_grant_ref` fetches and returns `refs/remotes/<remote>/<branch>`; a missing remote raises rather than falling back to a local branch |
+| Codex P1 https://github.com/B0LK13/project-atlas/pull/946#discussion_r4019318117 (pin the granted directive) | `check_git_preflight` byte-compares grant, policy and granted directive; `load_grant` rejects non-normalized directive paths |
+| Codex P2 https://github.com/B0LK13/project-atlas/pull/946#discussion_r4019318123 (validate appended ledger records) | `check_ledger_append` refuses non-UTF-8, CR, unterminated and blank lines, and validates each record with `_parse_ledger_line`, the same parser `load_ledger` uses |
+| Bugbot `b3f1d16c-a6ae-46fd-a282-269eb5e1878d` | `check_ledger`: STOP leaves iteration `n` closed, and an owner `resume` opens `n+1` |
+| Required checks missing `compat` and `control-plane` | `lanes.required` names all four CI checks; `lanes.cert_lanes` names the two host lanes a cert covers |
 
-## 3. Defects internal gating found in my own fix, and closed
+## 3. Verification at this head
 
-1. Supervisor, blocking: the first resume fix scoped every rule to post-resume events, so an
-   unrelated `resume` erased the retry cap and reopened closed or paused iterations. Now a resume
-   lifts only prior `STOP` verdicts.
-2. Supervisor, blocking: `--no-fetch` was an unrestricted HALT bypass on the gate. The CLI flag is
-   removed; `fetch=False` remains only as an in-process parameter.
-3. Supervisor, non-blocking: the green status of the four required checks is not mechanized here.
-   Disclosed in policy section 12.3.
-4. Verifier: an interior blank line passed the append gate but locked out the stored-ledger
-   reader. Now refused at the gate, with a parity test over both contracts.
-5. Supervisor re-gate, non-blocking: the unblock kit hard-coded the `policy_sha` from before the
-   policy edits in the same commit, so a grant copied verbatim would have been void on first
-   check (fails closed, but the kit exists to be copied). The kit now carries the current pin
-   `a54037f251d3caf77c86a18cef13f69280600b135629a8aa8a0501787c34b94f` and tells the owner to
-   confirm it with `preflight.py sha` on the merge commit rather than trust the written value.
-
-Advisory only. Neither subagent wrote to the repository, and neither verdict is owner closure:
-the supervisor returned REDESIGN on `311ce7b6`, and the verifier returned NOT_CERTIFIED because
-CI had not finished within its budget.
-
-## 4. Verification at this head
-
-- `python -m ruff check .` exit 0; `python -m mypy --strict --ignore-missing-imports
-  autonomy/tools/preflight.py` exit 0.
-- `PYTHONPATH=src python -m pytest tests/unit/test_autonomy_preflight.py --no-cov` 107 passed
-  (85 at session start).
+- `python -m ruff check .` exit 0.
+- `PYTHONPATH=src python -m pytest tests/unit/test_autonomy_preflight.py --no-cov` passes on
+  Python 3.12 and 3.13 (counts in the WORKLOG entry for this session).
 - `python autonomy/tools/preflight.py sha` equals `autonomy/loop.yaml` `policy_sha`
-  `a54037f251d3caf77c86a18cef13f69280600b135629a8aa8a0501787c34b94f`.
+  `263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767`.
 - `python autonomy/tools/preflight.py preflight --iteration 1` exits 1 with exactly
   `missing grant autonomy/grants/G-1.md`.
-- Dry run: 14 of 14 rehearsal steps as required, `autonomy/packets/DRYRUN-2026-09-16.md`.
-- CI for this commit's head is a new run on branch `autonomy/scaffold`; check
-  `gh run list --repo bolkdev/project-atlas --branch autonomy/scaffold --limit 1`.
+- Dry run against the reconciled gate: 15 of 15 steps as required,
+  `autonomy/packets/DRYRUN-2026-09-16.md`.
+- CI for this head: see `gh run list --repo WezzSide/project-atlas --branch autonomy/scaffold`,
+  PR https://github.com/WezzSide/project-atlas/pull/946.
+
+## 4. Advisory gating (not owner closure)
+
+The supervisor subagent returned REDESIGN on the fork lineage, then ACCELERATE after its three
+findings were closed; the verifier subagent returned NOT_CERTIFIED because CI had not finished
+inside its budget, and found the blank-line append defect. Both ran read-only. Their findings are
+recorded in `autonomy/packets/DRYRUN-2026-09-16.md`; no cert exists for any head.
 
 ## 5. Owner-gated, nothing else blocks iteration 1
 
-Full instructions and the exact file contents: `autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`.
+Instructions and exact file contents: `autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`.
 
-1. Merge PR #1 after CI is green on the final head and an independent verifier certifies it.
+1. Merge PR #946 after CI is green on the reconciled head and a verifier certifies it.
 2. `git branch autonomy/staging origin/main && git push -u origin autonomy/staging`.
 3. Commit `autonomy/grants/G-1.md` and `autonomy/directives/D-ATLAS-ITER-1.md` to `main`, with
-   `base_sha` set to the merge commit and `policy_sha` exactly as the kit states.
-4. Delete https://github.com/bolkdev/project-atlas-1; rotate the PAT.
-5. Decide: the two fallback-lane rules (pin `origin/main` in the verifier's clone; how
+   `base_sha` set to the merge commit and `policy_sha` confirmed by `preflight.py sha`.
+4. Delete the stray fork `bolkdev/project-atlas-1`; rotate the PAT.
+5. Decide: the two fallback-lane rules (pin the grant ref in the verifier's clone; how
    `product_perf` timing under coverage is treated), and whether
    `autonomy/instruments/skills/**` opens at level 0 or stays at level 1.
 
 ## 6. Scope note
 
 `autonomy/audits/**` is an executor-forbidden scope (policy section 4.1), so
-`preflight.py scope --role executor` flags this file, as it flagged
-`SHUTDOWN-2026-09-15.md`. It exists because the owner's directive required a checkpoint. The
-owner should either accept the exception or move checkpoints under a scope the executor holds.
-`autonomy/packets/**` is an executor scope, so the dry-run report and the unblock kit are clean.
+`preflight.py scope --role executor` flags this file, as it flagged `SHUTDOWN-2026-09-15.md`. It
+exists because the owner's directive required a checkpoint. The owner should either accept the
+exception or move checkpoints under a scope the executor holds. `autonomy/packets/**` is an
+executor scope, so the dry-run report and the unblock kit are clean.
 
 ## 7. Resume instructions
 
 Read `autonomy/policy.md`, then this file, then the unblock kit. Run
 `python autonomy/tools/preflight.py preflight --iteration 1`: until the owner commits `G-1`, it
-must fail with exactly `missing grant`. Do not start iteration work, edit
-`autonomy/tools/**` or `autonomy/policy.md`, or push to the `old` remote.
+must fail with exactly `missing grant`. Do not start iteration work, edit `autonomy/tools/**` or
+`autonomy/policy.md`, or push to `fork`.

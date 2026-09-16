@@ -1092,11 +1092,13 @@ def test_resume_lifts_only_the_stop_it_follows() -> None:
     assert any("retry cap" in problem for problem in pf.check_ledger(capped, 2))
 
 
-def test_resume_reopens_only_the_stopped_iteration_not_its_successor() -> None:
+def test_resume_opens_only_the_next_iteration_not_the_one_after() -> None:
+    """A resume opens exactly one step: n+1, never n+2, and never re-opens n itself."""
     resume: dict[str, Any] = {"event": "resume", "by": "owner"}
     events = [_verdict(1, "CONTINUE"), _verdict(2, "STOP"), resume]
-    assert pf.check_ledger(events, 2) == []
-    assert any("iteration 2 has no CONTINUE" in problem for problem in pf.check_ledger(events, 3))
+    assert pf.check_ledger(events, 2) == ["iteration 2 is already closed by verdict STOP"]
+    assert pf.check_ledger(events, 3) == []
+    assert any("iteration 3 has no CONTINUE" in problem for problem in pf.check_ledger(events, 4))
 
 
 def test_the_gate_has_no_switch_that_skips_the_grant_ref_refresh(
