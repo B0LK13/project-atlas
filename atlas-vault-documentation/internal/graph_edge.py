@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from internal.graph_node import safe_persist
+
 
 @dataclass(frozen=True)
 class GraphEdge:
@@ -30,7 +32,7 @@ class GraphEdge:
         return f"{self.project_id}|{self.source_entity_id}|{self.relationship_type}|{self.target_entity_id}"
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        return safe_persist({
             "schema_version": 1,
             "record_type": "relationship",
             "relationship_id": self.relationship_id,
@@ -43,4 +45,4 @@ class GraphEdge:
             "provenance": {"graphify_artifact_id": self.source_artifact_id, "artifact_sha256": self.artifact_sha256, "graphify_edge_id": self.graphify_edge_id, "record_index": self.record_index},
             "supporting_artifacts": list(self.supporting_artifacts),
             "attributes": self.attributes,
-        }
+        })

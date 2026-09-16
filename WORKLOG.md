@@ -14924,8 +14924,9 @@ Graphify `nodes.jsonl` with `"label":"\\u0041KI…"` has no ASCII `AKIA`,
 so `scan_text` of the line is empty. `GraphNode.as_dict` then persists
 the decoded token under `relationships/state` and `relationships/nodes`.
 
-Remediation: `_safe_persist_text` on label at `as_dict`. Distinct from
-#953 / #983 / #991 (Core graph ids).
+Remediation: `safe_persist` on `GraphNode.as_dict`, `GraphEdge.as_dict`,
+and WP-005 `graph_quarantine.record` (label plus leftover non-label
+scalars and quarantine `record.*`). Distinct from #953 / #983 / #991.
 
 Does not merge. Does not remedi listed P2 / F3 URL pin.
 

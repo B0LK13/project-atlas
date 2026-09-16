@@ -46,6 +46,46 @@ def test_as_dict_omits_json_escaped_label() -> None:
     assert payload["entity"]["label"] == "UNKNOWN"
 
 
+def test_as_dict_omits_json_escaped_attribute() -> None:
+    raw = '{"description":"' + ESC + '"}'
+    assert scan_text(raw) == []
+    decoded = json.loads(raw)["description"]
+    node = GraphNode(
+        node_id="n1",
+        project_id="demo",
+        source_artifact_id="art-1",
+        artifact_sha256="a" * 64,
+        record_index=0,
+        entity_type="component",
+        label="api",
+        atlas_entity_id="demo:n1",
+        resolution_status="resolved",
+        resolution_method="graphify_stable",
+        confidence="high",
+        attributes={"description": decoded},
+    )
+    written = json.dumps(node.as_dict())
+    assert TOKEN not in written
+    assert node.as_dict()["attributes"]["description"] == "UNKNOWN"
+
+
+def test_quarantine_record_omits_json_escaped_note() -> None:
+    from internal import graph_quarantine
+
+    raw = '{"note":"' + ESC + '"}'
+    assert scan_text(raw) == []
+    payload = graph_quarantine.record(
+        "demo",
+        "orphaned",
+        json.loads(raw),
+        artifact_id="art-1",
+        message="edge endpoint cannot be resolved",
+    )
+    written = json.dumps(payload)
+    assert TOKEN not in written
+    assert payload["record"]["note"] == "UNKNOWN"
+
+
 def test_safe_label_still_serializes() -> None:
     node = GraphNode(
         node_id="n1",
