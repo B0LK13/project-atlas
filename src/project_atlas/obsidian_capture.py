@@ -448,7 +448,36 @@ def _load_record(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _scan_decoded_record(record: dict[str, Any]) -> None:
+    """Fail closed on secret-shaped strings after JSON decode.
+
+    AS-SEC-SCAN-OBSIDIAN-CAPTURE-RETRY-JSON-ESC-001: retry reloads
+    ``rcap-*.json`` via ``json.loads``. ``scan_text`` on raw ``\\u0041KI…``
+    bytes is empty; decoded ``AKI…`` must not be rewritten.
+    """
+
+    def _walk(payload: Any) -> None:
+        if isinstance(payload, str):
+            if scan_text(payload):
+                raise CaptureError(
+                    "SECRET_CONTENT",
+                    "capture record contains secret-shaped decoded content; "
+                    "refusing to persist it.",
+                )
+            return
+        if isinstance(payload, dict):
+            for value in payload.values():
+                _walk(value)
+            return
+        if isinstance(payload, list):
+            for value in payload:
+                _walk(value)
+
+    _walk(record)
+
+
 def _persist_record(vault: Path, record: dict[str, Any]) -> None:
+    _scan_decoded_record(record)
     try:
         validate_record(record, SCHEMA_KIND)
     except SchemaValidationError as exc:
@@ -770,6 +799,7 @@ def retry(
     if path.is_symlink() or not path.is_file():
         raise CaptureError("UNMATCHED_CAPTURE", f"capture {cid} does not exist")
     record = _load_record(path)
+    _scan_decoded_record(record)
     content = read_raw_content(resolved_vault, cid)
     if content_hash(content) != record.get("content_hash"):
         raise CaptureError(
