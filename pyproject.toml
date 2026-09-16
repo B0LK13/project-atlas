@@ -26,6 +26,10 @@ orch = [
     "cursor-sdk>=1.0.25,<1.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/bolkdev/project-atlas"
+Repository = "https://github.com/bolkdev/project-atlas"
+
 [project.scripts]
 atlas = "project_atlas.cli:main"
 
