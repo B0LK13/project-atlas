@@ -15164,3 +15164,32 @@ CI run https://github.com/bolkdev/project-atlas/actions/runs/35017265301 was sti
 
 **CERTIFICATION ISSUED: NO**
 **MERGE AUTHORIZED: NO**
+
+## 2026-09-16: PR #1 findings closed, loop machinery rehearsed
+
+Branch `autonomy/scaffold` (PR https://github.com/bolkdev/project-atlas/pull/1), from
+`b6e06602` (CI green, run 35018874179).
+
+**Closed the five open review findings** (`311ce7b6` plus this commit): grant-ref refresh before
+the HALT read, directive byte-pinning, strict ledger-append validation, `resume` semantics, and
+all four CI checks named in policy section 4 with `cert_lanes` split out.
+
+**Internal gating caught four defects in that first attempt**, all fixed here: a resume that
+reopened the whole ledger history, an unrestricted `--no-fetch` HALT bypass, undisclosed
+non-mechanization of the required-check status, and an interior blank line that passed the
+append gate but locked out the stored-ledger reader.
+
+**Dry run without a grant:** 14 of 14 steps as required, including a pushed HALT, scope creep,
+role collapse, a corrupt append, a forged cert and resume recovery
+(`autonomy/packets/DRYRUN-2026-09-16.md`).
+
+Gate tests 85 -> 107. `preflight --iteration 1` still fails with exactly `missing grant`.
+
+**Owner-gated:** merge PR #1, create `autonomy/staging`, commit `G-1` and `D-ATLAS-ITER-1`
+(exact contents in `autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`), delete the stray fork,
+rotate the PAT, and settle the two fallback-lane rules plus the level-0 skills question.
+
+Checkpoint: `autonomy/audits/CHECKPOINT-2026-09-16.md`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**

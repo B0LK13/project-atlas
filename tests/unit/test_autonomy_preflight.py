@@ -1016,6 +1016,41 @@ def test_appended_ledger_bytes_must_satisfy_the_stored_contract(
     assert any(message in problem for problem in problems), problems
 
 
+def test_appended_blank_lines_are_refused_at_the_gate_that_produced_them() -> None:
+    """Verifier finding: the gate accepted an interior blank line that load_ledger rejects.
+
+    That turned a clean gate rejection into a later "ledger tampering suspected" lockout on
+    an append-only file nobody is allowed to repair.
+    """
+    appended = b'{"event": "packet", "iteration": 1}\n\n{"event": "packet", "iteration": 2}\n'
+    problems = pf.check_ledger_append(appended, "executor")
+    assert any("line 2 is blank" in problem for problem in problems), problems
+
+
+def test_the_append_gate_accepts_exactly_what_load_ledger_accepts(tmp_path: Path) -> None:
+    """The append-time contract and the stored contract must agree on every sample."""
+    samples = [
+        b'{"event": "packet", "iteration": 1}\n',
+        b'{"event": "packet", "iteration": 1}\n{"event": "packet", "iteration": 2}\n',
+        b'{"event": "packet", "iteration": 1}\n\n{"event": "packet", "iteration": 2}\n',
+        b'{"event": "packet", "iteration": 1}',
+        b'{"event": "packet"\n',
+        b'{"event": "packet", "iteration": 1}\r\n',
+        b'["packet"]\n',
+    ]
+    for index, sample in enumerate(samples):
+        root = tmp_path / f"sample{index}"
+        (root / "autonomy").mkdir(parents=True)
+        (root / pf.LEDGER_PATH).write_bytes(sample)
+        try:
+            pf.load_ledger(root)
+            stored_ok = True
+        except pf.ConfigError:
+            stored_ok = False
+        append_ok = not pf.check_ledger_append(sample, "supervisor")
+        assert append_ok is stored_ok, (sample, append_ok, stored_ok)
+
+
 def test_valid_appends_still_pass_and_stay_role_limited() -> None:
     assert pf.check_ledger_append(b"", "executor") == []
     packet = b'{"event": "packet", "iteration": 1}\n'
@@ -1037,6 +1072,43 @@ def test_owner_resume_opens_the_iteration_after_the_one_a_stop_closed() -> None:
     assert pf.check_ledger(resumed, 2) == []
     restopped = [*resumed, _verdict(2, "STOP")]
     assert any("loop is stopped" in problem for problem in pf.check_ledger(restopped, 3))
+
+
+def test_resume_lifts_only_the_stop_it_follows() -> None:
+    """Supervisor finding: a resume must not reopen or reset anything except a STOP.
+
+    Each case records a binding verdict BEFORE an unrelated owner resume; the rule has to
+    survive the resume. A ledger-wide cutoff (the first attempt at this fix) passes every
+    assertion in test_owner_resume_reopens_the_iteration_a_stop_closed and fails these.
+    """
+    resume: dict[str, Any] = {"event": "resume", "by": "owner", "reason": "unrelated"}
+    closed = [_verdict(1, "CONTINUE"), resume]
+    assert pf.check_ledger(closed, 1) == ["iteration 1 is already closed by verdict CONTINUE"]
+    for verdict in ("ACCELERATE", "DEFER"):
+        assert pf.check_ledger([_verdict(1, verdict), resume], 1)
+    paused = [_verdict(2, "CONTINUE"), _verdict(3, "OWNER_DECISION_REQUIRED"), resume]
+    assert pf.check_ledger(paused, 3) == ["iteration 3 is paused awaiting an owner decision"]
+    capped = [*[_verdict(2, "REDESIGN")] * 3, resume, _verdict(1, "CONTINUE")]
+    assert any("retry cap" in problem for problem in pf.check_ledger(capped, 2))
+
+
+def test_resume_reopens_only_the_stopped_iteration_not_its_successor() -> None:
+    resume: dict[str, Any] = {"event": "resume", "by": "owner"}
+    events = [_verdict(1, "CONTINUE"), _verdict(2, "STOP"), resume]
+    assert pf.check_ledger(events, 2) == []
+    assert any("iteration 2 has no CONTINUE" in problem for problem in pf.check_ledger(events, 3))
+
+
+def test_the_gate_has_no_switch_that_skips_the_grant_ref_refresh(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Supervisor finding: --no-fetch was an unrestricted HALT bypass on the gate itself."""
+    source = (REPO_ROOT / "autonomy/tools/preflight.py").read_text("utf-8")
+    assert "--no-fetch" not in source
+    with pytest.raises(SystemExit) as exit_info:
+        pf.main(["--root", str(REPO_ROOT), "preflight", "--iteration", "1", "--no-fetch"])
+    assert exit_info.value.code == 2
+    assert "unrecognized arguments" in capsys.readouterr().err
 
 
 def test_resume_does_not_erase_rules_for_later_verdicts() -> None:
