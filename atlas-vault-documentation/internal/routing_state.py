@@ -8,11 +8,34 @@ source of routing truth.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 STATE_SCHEMA_VERSION = 1
+
+_FALLBACK_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}"),
+)
+
+
+def _safe_persist_text(raw: str) -> str:
+    """Omit decoded secret-shaped scalars from routing-state persist.
+
+    AS-SEC-SCAN-ROUTING-STATE-TITLE-JSON-ESC-001: ``load_state`` decodes
+    JSON ``\\u`` escapes that ``scan_text`` misses on raw bytes.
+    ``serialize_state`` / ``atlas_router.route`` must not rewrite them.
+    """
+    text = str(raw or "")
+    try:
+        from project_atlas.secrets import scan_text
+    except ImportError:
+        secret = any(pattern.search(text) for pattern in _FALLBACK_PATTERNS)
+    else:
+        secret = bool(scan_text(text))
+    return "UNKNOWN" if secret else text
 
 
 @dataclass
@@ -45,7 +68,7 @@ class RoutedEventRecord:
             "work_package_id": self.work_package_id,
             "event_kind": self.event_kind,
             "occurred_at": self.occurred_at,
-            "title": self.title,
+            "title": _safe_persist_text(self.title),
             "agent": self.agent,
             "raw_sha256": self.raw_sha256,
             "normalized_path": self.normalized_path,
