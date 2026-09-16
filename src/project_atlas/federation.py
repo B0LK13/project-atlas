@@ -18,6 +18,7 @@ from project_atlas.compat_anchor import (
     require_compatibility_anchor,
 )
 from project_atlas.schema import SchemaValidationError, validate_record
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-2.0-FED-001"
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
@@ -52,6 +53,17 @@ def _validate_id(token: str, *, label: str) -> str:
     return value
 
 
+def _reject_secret(value: str, *, label: str) -> None:
+    """Fail closed after JSON/YAML decode (NFR-004).
+
+    AS-SEC-SCAN-FEDERATION-VAULT-ROOT-JSON-ESC-001: raw ``\\u0041KI…``
+    misses ``scan_text``; decoded ``AKI…`` must not persist in the
+    join inventory.
+    """
+    if value and scan_text(value):
+        raise FederationError(f"federation-{label}-secret-findings")
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -83,6 +95,7 @@ def build_join_inventory(
     for member in members:
         mid = _validate_id(member.member_id, label="member-id")
         root = str(Path(member.vault_root).expanduser())
+        _reject_secret(root, label="vault-root")
         if mid in seen_ids:
             raise FederationError(f"federation-member-id-duplicate:{mid}")
         if root in seen_roots:
@@ -96,6 +109,7 @@ def build_join_inventory(
             project_id = member.project_id.strip()
             if not project_id:
                 raise FederationError("federation-project-id-empty")
+            _reject_secret(project_id, label="project-id")
         normalized.append(
             FederationMember(
                 member_id=mid,
