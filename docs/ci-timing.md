@@ -10,7 +10,7 @@ verification is not why autonomy is throttled.
 ## Measured wall clock
 
 Source: successful `ci` run
-[`35018874179`](https://github.com/bolkdev/project-atlas/actions/runs/35018874179)
+[`35018874179`](https://github.com/WezzSide/project-atlas/actions/runs/35018874179)
 on 2026-09-15 (`autonomy/scaffold` PR, same workflow as `main`).
 
 | Job | Start → finish | Wall clock |
@@ -92,7 +92,7 @@ unmeasured coverage discount.
 ## Remaining owner-slug residue (factory / trust)
 
 Live clone URLs, GitHub API `CANONICAL_REPO`, and
-`CANONICAL_REPO_URL` are `bolkdev/project-atlas`.
+`CANONICAL_REPO_URL` are `WezzSide/project-atlas`.
 
 The sealed pin `CANONICAL_REPOSITORY_IDENTITY` in
 `src/project_atlas/orchestration/autonomy/models.py` remains
@@ -100,8 +100,9 @@ The sealed pin `CANONICAL_REPOSITORY_IDENTITY` in
 `INITIAL_RETARGET_EVIDENCE_DIGEST`. Rewriting it is an owner
 pin-retarget, not hygiene. `repository_identities_match()` treats
 that sealed identity and `LIVE_REPOSITORY_IDENTITY`
-(`github.com/bolkdev/project-atlas`) as one repository so a live
-`origin` does not fail-closed.
+(`github.com/wezzside/project-atlas`) as one repository so a live
+`origin` does not fail-closed. The `bolkdev` org is kept empty for a
+future transfer; it is not the live clone path.
 
 Alias tests still mention `B0LK13/project-atlas` on purpose: they
 prove the pre-transfer slug attributes to the live owner. That is

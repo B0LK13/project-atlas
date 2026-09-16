@@ -89,15 +89,18 @@ class MutationAttributionProvider(Protocol):
     ) -> list[str] | None: ...
 
 
-_PRE_TRANSFER_GITHUB_OWNER: Final[str] = "b0lk13"
-_LIVE_GITHUB_OWNER: Final[str] = "bolkdev"
+_PRE_TRANSFER_GITHUB_OWNERS: Final[frozenset[str]] = frozenset({"b0lk13", "bolkdev"})
+_LIVE_GITHUB_OWNER: Final[str] = "WezzSide"
 _LIVE_GITHUB_REPO: Final[str] = "project-atlas"
 
 
 def _live_github_identity(owner: str, repo: str) -> str:
-    """Map the pre-transfer GitHub owner onto the live owner."""
+    """Map prior GitHub owners onto the live owner (WezzSide)."""
     repo_name = repo.removesuffix(".git")
-    if owner.casefold() == _PRE_TRANSFER_GITHUB_OWNER and repo_name.casefold() == _LIVE_GITHUB_REPO:
+    if (
+        owner.casefold() in _PRE_TRANSFER_GITHUB_OWNERS
+        and repo_name.casefold() == _LIVE_GITHUB_REPO
+    ):
         owner = _LIVE_GITHUB_OWNER
     return f"https://github.com/{owner}/{repo_name}".casefold()
 
@@ -110,7 +113,7 @@ def normalize_repo_identity(raw: str | None) -> str | None:
     - bare ``owner/repo`` (no foreign host labels)
 
     Rejects foreign hosts (gitlab/evil/etc.) and suffix tricks such as
-    ``evil.com/github.com/bolkdev/project-atlas`` that previously matched via
+    ``evil.com/github.com/WezzSide/project-atlas`` that previously matched via
     ``re.search``. Pre-transfer ``github.com/B0LK13/project-atlas``
     identities alias to the live owner so old remotes still attribute.
     """

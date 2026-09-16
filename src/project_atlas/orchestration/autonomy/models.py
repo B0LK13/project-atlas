@@ -66,7 +66,7 @@ CANONICAL_REPOSITORY_IDENTITY: Final[str] = "github.com/b0lk13/project-atlas"
 # is historical and must not be rewritten without an owner pin-retarget
 # (it is hashed into INITIAL_RETARGET_EVIDENCE_DIGEST). Trust compares
 # these as one repository via repository_identities_match().
-LIVE_REPOSITORY_IDENTITY: Final[str] = "github.com/bolkdev/project-atlas"
+LIVE_REPOSITORY_IDENTITY: Final[str] = "github.com/wezzside/project-atlas"
 PILOT_PACKAGE_ID: Final[str] = "AS-ORCH-AUTONOMY-001-PILOT"
 #: ``MutationSurface.semantic`` every origination-derived ``WorkNode``
 #: carries, set by the single function that builds them

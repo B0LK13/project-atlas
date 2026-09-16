@@ -25,7 +25,7 @@ PRIMARY_BACKEND: Final[Literal["CURSOR_SDK_DURABLE_AGENT_RUNTIME"]] = (
     "CURSOR_SDK_DURABLE_AGENT_RUNTIME"
 )
 STOP_HOOK_BACKEND: Final[Literal["CURSOR_STOP_HOOK_FOLLOWUP"]] = "CURSOR_STOP_HOOK_FOLLOWUP"
-CANONICAL_REPO_URL: Final[str] = "https://github.com/bolkdev/project-atlas"
+CANONICAL_REPO_URL: Final[str] = "https://github.com/WezzSide/project-atlas"
 DEFAULT_MODEL: Final[str] = "composer-2.5"
 STATE_DIR_RELATIVE: Final[str] = ".atlas/orchestration/sdk-runtime"
 AGENTS_NAME: Final[str] = "agents.json"

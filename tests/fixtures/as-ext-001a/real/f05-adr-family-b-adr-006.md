@@ -5,7 +5,7 @@
 - **Decision owners:** Project Owner; Architecture Governor
 - **Work package:** AS-GH-001
 - **Certified baseline:** `a7a6ebc41ea884f7ce4ec2d70da89e6a44097381`
-- **Repository:** `bolkdev/project-atlas`
+- **Repository:** `WezzSide/project-atlas`
 
 ## Context
 

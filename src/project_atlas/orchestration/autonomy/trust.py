@@ -154,7 +154,11 @@ def repository_identities_match(left: str, right: str) -> bool:
     b = right.casefold()
     if a == b:
         return True
-    equivalent = {CANONICAL_REPOSITORY_IDENTITY, LIVE_REPOSITORY_IDENTITY}
+    equivalent = {
+        CANONICAL_REPOSITORY_IDENTITY,
+        LIVE_REPOSITORY_IDENTITY,
+        "github.com/bolkdev/project-atlas",
+    }
     return a in equivalent and b in equivalent
 
 

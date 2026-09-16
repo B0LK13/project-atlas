@@ -17,7 +17,7 @@
 
 Deepen the wave-2 KF2 fabric PREP **beyond** the base inventory / projection
 stubs already landed under `docs/atlas-2.2/kf2-fabric/` (PR
-[#186](https://github.com/bolkdev/project-atlas/pull/186)).
+[#186](https://github.com/WezzSide/project-atlas/pull/186)).
 
 This PREP owns a **unique deepen path** under `docs/atlas-2.2/kf2-fabric/**` for:
 

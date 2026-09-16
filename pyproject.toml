@@ -27,8 +27,8 @@ orch = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/bolkdev/project-atlas"
-Repository = "https://github.com/bolkdev/project-atlas"
+Homepage = "https://github.com/WezzSide/project-atlas"
+Repository = "https://github.com/WezzSide/project-atlas"
 
 [project.scripts]
 atlas = "project_atlas.cli:main"

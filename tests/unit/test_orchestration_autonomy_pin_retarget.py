@@ -735,7 +735,7 @@ def test_repository_identity_normalization() -> None:
     assert normalize_repository_identity("https://github.com/B0LK13/project-atlas.git") == (
         "github.com/b0lk13/project-atlas"
     )
-    assert normalize_repository_identity("https://github.com/bolkdev/project-atlas.git") == (
+    assert normalize_repository_identity("https://github.com/WezzSide/project-atlas.git") == (
         LIVE_REPOSITORY_IDENTITY
     )
     with pytest.raises(TrustError):
@@ -748,7 +748,7 @@ def test_repository_identities_match_owner_transfer() -> None:
     )
     assert repository_identities_match(
         LIVE_REPOSITORY_IDENTITY,
-        normalize_repository_identity("https://github.com/bolkdev/project-atlas.git"),
+        normalize_repository_identity("https://github.com/WezzSide/project-atlas.git"),
     )
     assert not repository_identities_match(
         CANONICAL_REPOSITORY_IDENTITY, "github.com/evil/project-atlas"

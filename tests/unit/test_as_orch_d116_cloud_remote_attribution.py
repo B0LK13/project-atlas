@@ -150,7 +150,7 @@ def _provider(
 
 
 def test_normalize_repo_identity_strips_scheme() -> None:
-    assert normalize_repo_identity("github.com/bolkdev/project-atlas") == normalize_repo_identity(
+    assert normalize_repo_identity("github.com/WezzSide/project-atlas") == normalize_repo_identity(
         CANONICAL_REPO_URL
     )
 
@@ -165,6 +165,9 @@ def test_normalize_aliases_pre_transfer_github_owner() -> None:
     assert normalize_repo_identity(
         "git@github.com:B0LK13/project-atlas.git"
     ) == normalize_repo_identity(CANONICAL_REPO_URL)
+    assert normalize_repo_identity("github.com/bolkdev/project-atlas") == normalize_repo_identity(
+        CANONICAL_REPO_URL
+    )
 
 
 def test_cloud_attr_iv_allowed_remote_mutation(tmp_path: Path) -> None:
@@ -188,7 +191,7 @@ def test_cloud_attr_iv_allowed_remote_mutation(tmp_path: Path) -> None:
     )
     backend.runs_reg.upsert(_run("run-iv"))
     backend._handles["run:run-iv"] = _GitWaitHandle(
-        repo="github.com/bolkdev/project-atlas", branches=[BRANCH]
+        repo="github.com/WezzSide/project-atlas", branches=[BRANCH]
     )
     updated = asyncio.run(backend.wait_run("run-iv", agent_id=AGENT))
     assert updated.status == RunStatus.FINISHED
@@ -492,12 +495,12 @@ def test_cloud_attr_missing_git_fail_closed(tmp_path: Path) -> None:
 # --- G107 ADV matrix expansion (foreign host, recovery, TOCTOU, HW gap) ---
 
 FOREIGN_URLS = [
-    "https://evil.com/github.com/bolkdev/project-atlas",
-    "evil.com/bolkdev/project-atlas",
-    "https://gitlab.com/bolkdev/project-atlas",
-    "notgithub.com/bolkdev/project-atlas",
-    "https://github.evil.com/bolkdev/project-atlas",
-    "https://github.com.evil/bolkdev/project-atlas",
+    "https://evil.com/github.com/WezzSide/project-atlas",
+    "evil.com/WezzSide/project-atlas",
+    "https://gitlab.com/WezzSide/project-atlas",
+    "notgithub.com/WezzSide/project-atlas",
+    "https://github.evil.com/WezzSide/project-atlas",
+    "https://github.com.evil/WezzSide/project-atlas",
 ]
 
 
@@ -508,18 +511,18 @@ def test_normalize_rejects_foreign_host_urls(url: str) -> None:
 
 def test_normalize_accepts_ssh_and_git_suffix() -> None:
     assert normalize_repo_identity(
-        "git@github.com:bolkdev/project-atlas.git"
+        "git@github.com:WezzSide/project-atlas.git"
     ) == normalize_repo_identity(CANONICAL_REPO_URL)
 
 
 def test_normalize_accepts_bare_owner_repo() -> None:
-    assert normalize_repo_identity("bolkdev/project-atlas") == normalize_repo_identity(
+    assert normalize_repo_identity("WezzSide/project-atlas") == normalize_repo_identity(
         CANONICAL_REPO_URL
     )
 
 
 def test_normalize_rejects_embedded_github_suffix() -> None:
-    spoofed = normalize_repo_identity("https://evil.com/github.com/bolkdev/project-atlas")
+    spoofed = normalize_repo_identity("https://evil.com/github.com/WezzSide/project-atlas")
     assert spoofed != normalize_repo_identity(CANONICAL_REPO_URL)
 
 
@@ -559,7 +562,7 @@ def test_e2e_gitlab_spoof_fail_closed(tmp_path: Path) -> None:
     )
     backend.runs_reg.upsert(_run("run-gitlab-spoof"))
     backend._handles["run:run-gitlab-spoof"] = _GitWaitHandle(
-        repo="https://gitlab.com/bolkdev/project-atlas",
+        repo="https://gitlab.com/WezzSide/project-atlas",
         branches=[BRANCH],
     )
     with pytest.raises(SdkRuntimeError) as exc:
@@ -589,7 +592,7 @@ def test_e2e_evil_embedded_github_fail_closed(tmp_path: Path) -> None:
     )
     backend.runs_reg.upsert(_run("run-embed"))
     backend._handles["run:run-embed"] = _GitWaitHandle(
-        repo="https://evil.com/github.com/bolkdev/project-atlas",
+        repo="https://evil.com/github.com/WezzSide/project-atlas",
         branches=[BRANCH],
     )
     with pytest.raises(SdkRuntimeError) as exc:
@@ -1002,7 +1005,7 @@ def test_extract_run_git_reads_branch_repo_url() -> None:
         git=SimpleNamespace(
             branches=[
                 SimpleNamespace(
-                    repo_url="github.com/bolkdev/project-atlas",
+                    repo_url="github.com/WezzSide/project-atlas",
                     branch=BRANCH,
                     head_sha=H1,
                 )

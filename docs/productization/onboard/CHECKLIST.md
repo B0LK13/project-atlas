@@ -6,7 +6,7 @@
 ## Before you start
 
 - [ ] Read [HONESTY.md](./HONESTY.md)
-- [ ] Cloned `bolkdev/project-atlas` and opened a PowerShell at repo root
+- [ ] Cloned `WezzSide/project-atlas` and opened a PowerShell at repo root
 - [ ] Python 3.12+ available (`py -3.12` or `python`)
 - [ ] Node.js LTS + npm on PATH
 - [ ] Understand DEMO_FIXTURE / `.tmp/productization/` ≠ authentic estate pilot
