@@ -3,10 +3,40 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
 STATE_SCHEMA_VERSION = 1
+
+_FALLBACK_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}"),
+)
+
+
+def _has_secret(text: str) -> bool:
+    try:
+        from project_atlas.secrets import scan_text
+    except ImportError:
+        return any(pattern.search(text) for pattern in _FALLBACK_PATTERNS)
+    return bool(scan_text(text))
+
+
+def _safe_persist(payload: Any) -> Any:
+    """Omit decoded secret-shaped scalars from ingestion-state persist.
+
+    AS-SEC-SCAN-INGESTION-STATE-JSON-ESC-001: ``load_state`` decodes JSON
+    ``\\u`` escapes that ``scan_text`` misses on raw bytes. ``save_state``
+    must not rewrite them into ``ingestion/state/<project>.json``.
+    """
+    if isinstance(payload, str):
+        return "UNKNOWN" if _has_secret(payload) else payload
+    if isinstance(payload, dict):
+        return {key: _safe_persist(value) for key, value in payload.items()}
+    if isinstance(payload, list):
+        return [_safe_persist(value) for value in payload]
+    return payload
 
 
 def load_state(path: Path, project_id: str) -> dict[str, Any]:
@@ -20,7 +50,10 @@ def load_state(path: Path, project_id: str) -> dict[str, Any]:
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(_safe_persist(state), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def diff_inventory(inventory: dict[str, Any], previous: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
