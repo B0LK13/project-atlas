@@ -373,6 +373,9 @@ def build_project_brief(
             row["answer_id"]
             for row in list_knowledge_answers(vault)
             if row.get("subject") == project_id
+            and not (
+                isinstance(row.get("answer_id"), str) and scan_text(str(row["answer_id"]))
+            )
         ],
         "generated": {"by": GENERATOR_ID},
         "source_drift": live_honesty["source_drift"],
