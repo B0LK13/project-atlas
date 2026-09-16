@@ -27,6 +27,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.secrets import scan_text
+
 PACKAGE_ID = "AS-PROJECT-ROADMAP-001"
 GENERATOR_ID = "atlas-project-roadmap-001"
 SCHEMA_ID = "atlas.project-roadmap.v1"
@@ -81,6 +83,18 @@ _COUNT_THEATRE_RE = re.compile(
 
 class ProjectRoadmapError(ValueError):
     """Fail-closed roadmap error."""
+
+
+def _safe_label(raw: Any, *, default: str) -> str:
+    """Return a persist-safe label; secret-shaped decoded values stay UNKNOWN.
+
+    AS-SEC-SCAN-ROADMAP-TITLE-JSON-ESC-001: json.loads of fenced roadmap
+    records can decode ``\\u`` titles/ids that scan_text misses on raw bytes.
+    """
+    text = str(raw or "").strip()
+    if not text or scan_text(text):
+        return default
+    return text
 
 
 def _write_atomic(path: Path, content: bytes) -> None:
@@ -369,15 +383,28 @@ def _normalize_item(
     *,
     index: int,
 ) -> dict[str, Any]:
-    item_id = str(raw.get("id") or raw.get("item_id") or f"item-{index:03d}")
-    title = str(raw.get("title") or raw.get("name") or item_id)
+    item_id = _safe_label(
+        raw.get("id") or raw.get("item_id") or f"item-{index:03d}",
+        default=f"item-{index:03d}",
+    )
+    title = _safe_label(raw.get("title") or raw.get("name") or item_id, default="UNKNOWN")
     status, status_notes = _normalize_status(raw.get("status") or raw.get("lifecycle"))
     depends_on = [
-        str(dep)
-        for dep in (raw.get("depends_on") or raw.get("dependencies") or [])
-        if str(dep).strip()
+        dep
+        for dep in (
+            _safe_label(raw_dep, default="")
+            for raw_dep in (raw.get("depends_on") or raw.get("dependencies") or [])
+        )
+        if dep
     ]
-    evidence = [str(ref) for ref in (raw.get("evidence") or []) if str(ref).strip()]
+    evidence = [
+        ref
+        for ref in (
+            _safe_label(raw_ref, default="")
+            for raw_ref in (raw.get("evidence") or [])
+        )
+        if ref
+    ]
     missing = [ref for ref in evidence if not _evidence_exists(vault, ref)]
     present = [ref for ref in evidence if ref not in missing]
     flags: list[str] = list(status_notes)
@@ -931,13 +958,20 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if isinstance(raw_milestones, list):
         for raw in raw_milestones:
             if isinstance(raw, str):
-                milestones.append({"id": raw, "title": raw, "status": "UNKNOWN"})
+                label = _safe_label(raw, default="UNKNOWN")
+                milestones.append({"id": label, "title": label, "status": "UNKNOWN"})
             elif isinstance(raw, dict):
                 status, notes = _normalize_status(raw.get("status"))
                 milestones.append(
                     {
-                        "id": str(raw.get("id") or raw.get("title") or "milestone"),
-                        "title": str(raw.get("title") or raw.get("id") or "milestone"),
+                        "id": _safe_label(
+                            raw.get("id") or raw.get("title") or "milestone",
+                            default="milestone",
+                        ),
+                        "title": _safe_label(
+                            raw.get("title") or raw.get("id") or "milestone",
+                            default="UNKNOWN",
+                        ),
                         "status": status,
                         "notes": notes,
                     }
