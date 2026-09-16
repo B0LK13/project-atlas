@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+from internal.graph_node import safe_persist
+
 
 def record(project_id: str, category: str, raw: dict[str, Any], *, artifact_id: str, message: str) -> dict[str, Any]:
     def redact(value: Any) -> Any:
@@ -14,6 +16,18 @@ def record(project_id: str, category: str, raw: dict[str, Any], *, artifact_id: 
             return [redact(item) for item in value]
         return value
 
-    safe = redact(raw)
+    safe = safe_persist(redact(raw))
     fingerprint = hashlib.sha256(repr(sorted(safe.items())).encode("utf-8")).hexdigest()
-    return {"schema_version": 1, "project_id": project_id, "status": "quarantined", "category": category, "message": message[:500], "record_fingerprint": fingerprint, "provenance": {"graphify_artifact_id": artifact_id}, "record": safe, "remediation": "review mapping or source artifact and retry"}
+    return safe_persist(
+        {
+            "schema_version": 1,
+            "project_id": project_id,
+            "status": "quarantined",
+            "category": category,
+            "message": message[:500],
+            "record_fingerprint": fingerprint,
+            "provenance": {"graphify_artifact_id": artifact_id},
+            "record": safe,
+            "remediation": "review mapping or source artifact and retry",
+        }
+    )

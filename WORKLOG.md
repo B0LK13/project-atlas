@@ -14915,3 +14915,19 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-GRAPH-INGESTION-LABEL-JSON-ESC-001 — decoded labels must not persist
+
+Independent leftover hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 persist:
+Graphify `nodes.jsonl` with `"label":"\\u0041KI…"` has no ASCII `AKIA`,
+so `scan_text` of the line is empty. `GraphNode.as_dict` then persists
+the decoded token under `relationships/state` and `relationships/nodes`.
+
+Remediation: `safe_persist` on `GraphNode.as_dict`, `GraphEdge.as_dict`,
+and WP-005 `graph_quarantine.record` (label plus leftover non-label
+scalars and quarantine `record.*`). Distinct from #953 / #983 / #991.
+
+Does not merge. Does not remedi listed P2 / F3 URL pin.
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.

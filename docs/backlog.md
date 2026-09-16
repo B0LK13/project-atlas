@@ -397,6 +397,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CHANGED-001 What Changed defaults
 - [x] AS-CODER-ALPHA-DECISIONS-001 Decision memory
 - [x] AS-CODER-ALPHA-UNKNOWN-001 Unknown/conflict bundle
+- [ ] AS-SEC-SCAN-GRAPH-INGESTION-LABEL-JSON-ESC-001 omit decoded secret Graphify labels from WP-005 persist (draft; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-BRIEF-001 Unified project brief (`atlas brief`)
 - [x] AS-CODER-ALPHA-CAPTURE-001 Session capture defaults
 - [x] AS-CODER-ALPHA-HANDOFF-001 `atlas handoff` create/resume
