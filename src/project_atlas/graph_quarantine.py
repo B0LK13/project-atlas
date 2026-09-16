@@ -32,6 +32,7 @@ from project_atlas.graph_relationships import (
     RelationshipStoreResult,
 )
 from project_atlas.schema import validate_record
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-GRAPH-004"
 SOURCE_PACKAGE_ID = "AS-GRAPH-003"
@@ -136,7 +137,7 @@ class DurableQuarantineRecord:
             "reason": self.reason,
             "remediation": self.remediation,
             "source_package_id": SOURCE_PACKAGE_ID,
-            "source_candidate_id": self.source_candidate_id,
+            "source_candidate_id": _safe_graphify_id(self.source_candidate_id),
             "content_hash": self.content_hash,
             "truth_boundary": TRUTH_BOUNDARY,
             "generated": {"by": GENERATED_BY},
@@ -144,11 +145,11 @@ class DurableQuarantineRecord:
         if self.relationship_fingerprint is not None:
             payload["relationship_fingerprint"] = self.relationship_fingerprint
         if self.graphify_edge_ids:
-            payload["graphify_edge_ids"] = list(self.graphify_edge_ids)
+            payload["graphify_edge_ids"] = _safe_graphify_ids(self.graphify_edge_ids)
         if self.source_graphify_id is not None:
-            payload["source_graphify_id"] = self.source_graphify_id
+            payload["source_graphify_id"] = _safe_graphify_id(self.source_graphify_id)
         if self.target_graphify_id is not None:
-            payload["target_graphify_id"] = self.target_graphify_id
+            payload["target_graphify_id"] = _safe_graphify_id(self.target_graphify_id)
         if self.artifact_refs:
             payload["artifact_refs"] = [dict(item) for item in self.artifact_refs]
         return payload
@@ -313,7 +314,27 @@ def _canonical_digest(payload: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _safe_graphify_id(raw: str | None) -> str:
+    """Omit decoded secret-shaped Graphify ids from persist payloads.
+
+    AS-SEC-SCAN-GRAPH-QUARANTINE-GID-JSON-ESC-001: json.loads of Graphify
+    nodes/edges can decode ``\\u`` ids that scan_text misses on raw bytes.
+    Distinct from AS-SEC-SCAN-GRAPH-REL-GID-JSON-ESC-001 (#983), which
+    only covers ``generated/graph/relationship-quarantine/``.
+    """
+    text = str(raw or "").strip()
+    if not text or scan_text(text):
+        return "UNKNOWN"
+    return text
+
+
+def _safe_graphify_ids(values: Sequence[Any]) -> list[str]:
+    return [_safe_graphify_id(str(item)) for item in values]
+
+
 def _safe_name(token: str) -> str:
+    if scan_text(token):
+        token = "redacted"
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", token).strip("-")
     return cleaned or "quarantine"
 
@@ -321,6 +342,8 @@ def _safe_name(token: str) -> str:
 def _redact_reason(reason: str) -> str:
     """Never echo secret-shaped content in durable quarantine reasons."""
     text = reason.strip()
+    if scan_text(text):
+        return "redacted-sensitive-reason"
     lowered = text.lower()
     for needle in ("password=", "secret=", "token=", "api_key=", "bearer ", "private-key"):
         if needle in lowered:
