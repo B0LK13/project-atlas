@@ -17,6 +17,7 @@ from project_atlas.orchestration.sdk.models import (
     RunRecord,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.registries import RunRegistry
 from project_atlas.orchestration.sdk.security_gates import (
     BoundWorkerResult,
@@ -137,7 +138,7 @@ def _save_consumed(
     if records is not None:
         payload["records"] = records
     path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        json.dumps(safe_persist(payload), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 

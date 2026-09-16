@@ -14915,3 +14915,24 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+---
+
+## AS-SEC-SCAN-ORCH-SDK-RUNTIME-PERSIST-JSON-ESC-001 — decoded SDK persist keys
+
+Independent leftover hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 persist:
+raw SDK runtime JSON with object keys / values `"\\u0041KI…"` has no ASCII
+`AKIA`, so `scan_text` of the file is empty. Incremental writers then
+dump decoded `AKIAAAAAAAAAAAAAAAAA`.
+
+Covered sinks: mutation attribution store + high-water, scheduler parked,
+lease registry, result-plane ingested index, agent/run registries,
+resident-status `LAST_EVENT_CONSUMED`.
+
+Remediation: `persist_safety.safe_persist` (omit secret keys, replace
+secret strings) at each persist write. Distinct from #823–#997.
+
+Does not merge. Does not remedi listed P2 / F3 URL pin.
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.

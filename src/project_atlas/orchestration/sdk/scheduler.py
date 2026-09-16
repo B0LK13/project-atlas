@@ -23,6 +23,7 @@ from project_atlas.orchestration.sdk.models import (
     ScheduleRequest,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.persist_safety import safe_persist
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
 from project_atlas.orchestration.sdk.security_gates import (
@@ -111,7 +112,10 @@ class DagToAgentScheduler:
         if path is None:
             return
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(safe_persist(payload), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
     def _is_parked(self, node_id: str) -> bool:
         parked = self._load_parked()
