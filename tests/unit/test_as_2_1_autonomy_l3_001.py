@@ -63,3 +63,34 @@ def test_json_unicode_escape_arm_id_is_not_persisted(tmp_path: Path) -> None:
     assert token not in written
     assert token not in policy_text
     assert scan_text(written) == []
+    assert scan_text(policy_text) == []
+
+
+def test_json_unicode_escape_extra_policy_key_is_not_persisted(
+    tmp_path: Path,
+) -> None:
+    """AS-SEC-SCAN-AUTONOMY-L3-POLICY-REWRITE-JSON-ESC-001.
+
+    disable_bounded_l3 rewrites the loaded policy. A JSON-escaped extra
+    key that scan_text misses on raw bytes must not persist decoded.
+    """
+    token = "AKIAAAAAAAAAAAAAAAAA"
+    vault = tmp_path / "v"
+    d = vault / "generated" / "ops" / "autonomy"
+    d.mkdir(parents=True)
+    raw = (
+        '{"schema_version":1,"package_id":"AS-2.1-AUTONOMY-L3-001",'
+        '"enabled":true,"l3_bounded_autonomy":true,'
+        '"arm_id":"arm-l3","policy_id":"pol-ok",'
+        '"\\u0041KIAAAAAAAAAAAAAAAAA":"kept"}'
+    )
+    (d / "pol-ok-l3-policy.json").write_text(raw, encoding="utf-8")
+    assert scan_text(raw) == []
+    op = elevated_operator("hunter", extra={"autonomy.l3"})
+    disable_bounded_l3(vault, policy_id="pol-ok", operator=op)
+    written = (d / "pol-ok-l3-disabled.json").read_text(encoding="utf-8")
+    policy_text = (d / "pol-ok-l3-policy.json").read_text(encoding="utf-8")
+    assert token not in written
+    assert token not in policy_text
+    assert scan_text(written) == []
+    assert scan_text(policy_text) == []

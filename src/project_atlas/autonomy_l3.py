@@ -45,6 +45,27 @@ class AutonomyL3Error(ValueError):
     """Fail-closed L3 autonomy error."""
 
 
+def _omit_decoded_secrets(value: Any) -> Any:
+    """Omit decoded secret keys/values after ``json.loads``.
+
+    AS-SEC-SCAN-AUTONOMY-L3-POLICY-REWRITE-JSON-ESC-001: disable rewrites
+    the loaded policy object. ``scan_text`` on raw ``\\u0041KI…`` escapes
+    is empty; persist must not echo the decoded TOKEN as a key or value.
+    """
+    if isinstance(value, dict):
+        cleaned: dict[str, Any] = {}
+        for key, item in value.items():
+            if isinstance(key, str) and scan_text(key):
+                continue
+            cleaned[key] = _omit_decoded_secrets(item)
+        return cleaned
+    if isinstance(value, list):
+        return [_omit_decoded_secrets(item) for item in value]
+    if isinstance(value, str) and scan_text(value):
+        return "unknown"
+    return value
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -200,9 +221,15 @@ def disable_bounded_l3(
     if not path.is_file():
         raise AutonomyL3Error("autonomy-l3-policy-missing")
     prior = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(prior, dict):
+        raise AutonomyL3Error("autonomy-l3-policy-invalid")
+    # AS-SEC-SCAN-AUTONOMY-L3-POLICY-REWRITE-JSON-ESC-001: scrub the
+    # entire loaded object before disable receipt + in-place rewrite.
+    # AS-SEC-SCAN-AUTONOMY-L3-ARM-JSON-ESC-001 remains covered (arm_id).
+    prior = _omit_decoded_secrets(prior)
+    if not isinstance(prior, dict):
+        raise AutonomyL3Error("autonomy-l3-policy-invalid")
     prior_arm = str(prior.get("arm_id") or "")
-    # AS-SEC-SCAN-AUTONOMY-L3-ARM-JSON-ESC-001: json.loads of the policy
-    # can decode \\u arm_id escapes that scan_text misses on raw bytes.
     if scan_text(prior_arm):
         prior_arm = "unknown"
         prior["arm_id"] = "unknown"
