@@ -79,3 +79,33 @@ def test_json_unicode_escape_existing_ledger_row_is_not_rewritten(
     text = (led / "action-ledger.json").read_text(encoding="utf-8")
     assert token not in text
     assert scan_text(text) == []
+
+
+def test_json_unicode_escape_existing_operator_id_is_not_rewritten(
+    tmp_path: Path,
+) -> None:
+    """Existing ledger operator_id \\u decode must not rewrite plaintext."""
+    token = "AKIAAAAAAAAAAAAAAAAA"
+    vault = tmp_path / "vault"
+    create_scaffold(vault)
+    led = vault / "generated" / "ops" / "web-actions"
+    led.mkdir(parents=True)
+    raw = (
+        '{"schema_version":1,"package_id":"AS-2.1-WEB-ACTIONS-001",'
+        '"transactions":[{"action_id":"act-old","action_type":"ask-query",'
+        '"payload":{"ok":true},"operator_id":"\\u0041KIAAAAAAAAAAAAAAAAA",'
+        '"canonical_write":false,"authority":false}],'
+        '"truth_boundary":"x","generated":{"by":"project-atlas"}}'
+    )
+    (led / "action-ledger.json").write_text(raw, encoding="utf-8")
+    assert scan_text(raw) == []
+    submit_web_action(
+        vault,
+        action_id="act-new",
+        action_type="refresh-status",
+        payload={"ok": True},
+        operator=elevated_operator("op", extra={"web.action"}),
+    )
+    text = (led / "action-ledger.json").read_text(encoding="utf-8")
+    assert token not in text
+    assert scan_text(text) == []

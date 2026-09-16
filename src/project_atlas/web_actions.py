@@ -84,7 +84,11 @@ def load_action_ledger(vault: Path) -> dict[str, Any]:
                 for row in rows
                 if not (
                     isinstance(row, dict)
-                    and _payload_has_secrets(row.get("payload"))
+                    and (
+                        _payload_has_secrets(row.get("payload"))
+                        or _payload_has_secrets(row.get("action_id"))
+                        or _payload_has_secrets(row.get("operator_id"))
+                    )
                 )
             ]
         return raw
