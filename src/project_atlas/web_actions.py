@@ -75,6 +75,18 @@ def load_action_ledger(vault: Path) -> dict[str, Any]:
     path = _ledger_path(vault)
     if path.is_file():
         raw: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        rows = raw.get("transactions")
+        if isinstance(rows, list):
+            # AS-SEC-SCAN-WEB-ACTIONS-LEDGER-JSON-ESC-001: rewrite of an
+            # existing ledger must not persist decoded \\u payload secrets.
+            raw["transactions"] = [
+                row
+                for row in rows
+                if not (
+                    isinstance(row, dict)
+                    and _payload_has_secrets(row.get("payload"))
+                )
+            ]
         return raw
     return {
         "schema_version": 1,
