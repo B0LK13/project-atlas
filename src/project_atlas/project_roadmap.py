@@ -421,17 +421,29 @@ def _normalize_item(
             if isinstance(blocker, str) and blocker.strip():
                 blockers.append(
                     {
-                        "reason": blocker.strip(),
+                        "reason": _safe_label(blocker, default="UNKNOWN"),
                         "waiting_on": None,
                         "unlock_condition": None,
                     }
                 )
             elif isinstance(blocker, dict):
+                waiting = blocker.get("waiting_on")
+                unlock = blocker.get("unlock_condition")
                 blockers.append(
                     {
-                        "reason": str(blocker.get("reason") or "UNKNOWN"),
-                        "waiting_on": blocker.get("waiting_on"),
-                        "unlock_condition": blocker.get("unlock_condition"),
+                        "reason": _safe_label(
+                            blocker.get("reason") or "UNKNOWN", default="UNKNOWN"
+                        ),
+                        "waiting_on": (
+                            None
+                            if waiting in (None, "")
+                            else _safe_label(waiting, default="UNKNOWN")
+                        ),
+                        "unlock_condition": (
+                            None
+                            if unlock in (None, "")
+                            else _safe_label(unlock, default="UNKNOWN")
+                        ),
                     }
                 )
     if status == "BLOCKED" and not blockers:
@@ -462,7 +474,11 @@ def _normalize_item(
         "status": status,
         "progress": status,
         "lifecycle": lifecycle,
-        "milestone": raw.get("milestone"),
+        "milestone": (
+            None
+            if raw.get("milestone") in (None, "")
+            else _safe_label(raw.get("milestone"), default="UNKNOWN")
+        ),
         "depends_on": depends_on,
         "evidence": evidence,
         "evidence_present": present,
@@ -472,7 +488,14 @@ def _normalize_item(
         "missing_acceptance_evidence": "MISSING_ACCEPTANCE_EVIDENCE" in flags,
         "missing_dependencies": [],
         "flags": sorted(set(flags)),
-        "notes": list(raw.get("notes") or []),
+        "notes": [
+            note
+            for note in (
+                _safe_label(raw_note, default="")
+                for raw_note in (raw.get("notes") or [])
+            )
+            if note
+        ],
     }
 
 
