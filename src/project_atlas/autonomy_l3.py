@@ -17,6 +17,7 @@ from typing import Any
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_anchor
 from project_atlas.scheduler_live import dispatch_supervised_job
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-2.1-AUTONOMY-L3-001"
 TRUTH_BOUNDARY = (
@@ -199,6 +200,12 @@ def disable_bounded_l3(
     if not path.is_file():
         raise AutonomyL3Error("autonomy-l3-policy-missing")
     prior = json.loads(path.read_text(encoding="utf-8"))
+    prior_arm = str(prior.get("arm_id") or "")
+    # AS-SEC-SCAN-AUTONOMY-L3-ARM-JSON-ESC-001: json.loads of the policy
+    # can decode \\u arm_id escapes that scan_text misses on raw bytes.
+    if scan_text(prior_arm):
+        prior_arm = "unknown"
+        prior["arm_id"] = "unknown"
     payload: dict[str, Any] = {
         "schema_version": 1,
         "package_id": PACKAGE_ID,
@@ -208,7 +215,7 @@ def disable_bounded_l3(
         "l3_bounded_autonomy": False,
         "enabled": False,
         "prior_enabled": bool(prior.get("enabled", True)),
-        "arm_id": prior.get("arm_id"),
+        "arm_id": prior_arm or prior.get("arm_id"),
         "operator_id": op.operator_id,
         "vault_write_enabled": False,
         "truth_boundary": TRUTH_BOUNDARY,
