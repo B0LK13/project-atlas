@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-CODER-ALPHA-HUMAN-LOOP-001"
 GENERATOR_ID = "atlas-coder-alpha-human-loop-001"
@@ -128,6 +129,11 @@ def apply_review_decision(
     subject_id = str(entry.get("subject_id") or "")
     if not subject_id:
         raise HumanLoopError("pending review missing subject_id")
+    # AS-SEC-SCAN-HUMAN-LOOP-SUBJECT-JSON-ESC-001: json.loads of pending
+    # reviews can decode \\u subject escapes that scan_text misses on raw
+    # bytes. Fail closed before any disposition persist.
+    if scan_text(subject_id) or scan_text(category) or scan_text(reason_text):
+        raise HumanLoopError("secret-content")
     winner: str | None = None
     if decision_norm == "accept" and category == "conflict":
         if not winner_claim_id:
