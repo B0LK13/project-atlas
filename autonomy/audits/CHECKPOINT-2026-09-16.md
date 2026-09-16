@@ -38,6 +38,11 @@ after STOP plus resume, and rejects the four-check policy outright.
    Disclosed in policy section 12.3.
 4. Verifier: an interior blank line passed the append gate but locked out the stored-ledger
    reader. Now refused at the gate, with a parity test over both contracts.
+5. Supervisor re-gate, non-blocking: the unblock kit hard-coded the `policy_sha` from before the
+   policy edits in the same commit, so a grant copied verbatim would have been void on first
+   check (fails closed, but the kit exists to be copied). The kit now carries the current pin
+   `a54037f251d3caf77c86a18cef13f69280600b135629a8aa8a0501787c34b94f` and tells the owner to
+   confirm it with `preflight.py sha` on the merge commit rather than trust the written value.
 
 Advisory only. Neither subagent wrote to the repository, and neither verdict is owner closure:
 the supervisor returned REDESIGN on `311ce7b6`, and the verifier returned NOT_CERTIFIED because

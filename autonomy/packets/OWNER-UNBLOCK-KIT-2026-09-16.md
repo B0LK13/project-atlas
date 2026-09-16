@@ -3,9 +3,15 @@
 Everything the owner needs to start iteration 1. Four steps, in order. The executor cannot do
 any of them: merging, grants and directives on `main` are owner-held (policy sections 2 and 3).
 
-Current state: branch `autonomy/scaffold`, head `311ce7b6991ddf18e6a39e682b4a3ee45da72b67`,
-PR https://github.com/bolkdev/project-atlas/pull/1, `policy_sha`
-`f2e70326a12caba992ad2fa3be98202234f5db193cedc698ab84419834fd3f1b`.
+Current state: branch `autonomy/scaffold`, PR https://github.com/bolkdev/project-atlas/pull/1.
+For the head, run `git rev-parse origin/autonomy/scaffold`.
+
+The pin below is `policy_sha`
+`a54037f251d3caf77c86a18cef13f69280600b135629a8aa8a0501787c34b94f`, the value in
+`autonomy/loop.yaml` as of this file's commit. **Re-check it before you commit the grant**:
+after merging, run `python autonomy/tools/preflight.py sha` on `main`. It changes whenever
+`policy.md` changes by even one byte, and a grant carrying the wrong value is void. If the two
+differ, use the value the command prints, not the one written here.
 
 ## Step 1: merge PR #1
 
@@ -25,8 +31,10 @@ Iteration PRs target `autonomy/staging`, never `main` (policy section 10).
 ## Step 3: commit the grant and the directive to `main`
 
 Both files go on `main` in one commit. Replace `<MAIN_HEAD_AFTER_MERGE>` with the merge commit
-SHA (`git rev-parse origin/main`). Everything else is final, and `policy_sha` must stay exactly
-as written or preflight voids the grant.
+SHA (`git rev-parse origin/main`), and set `policy_sha` to the output of
+`python autonomy/tools/preflight.py sha` run on that merge commit. The value below is correct as
+of this file's commit; confirm it rather than trusting it, because a grant whose `policy_sha`
+does not match the policy byte-for-byte is void.
 
 `autonomy/grants/G-1.md`:
 
@@ -35,7 +43,7 @@ as written or preflight voids the grant.
 grant: G-1
 iteration: 1
 issued_by: owner
-policy_sha: f2e70326a12caba992ad2fa3be98202234f5db193cedc698ab84419834fd3f1b
+policy_sha: a54037f251d3caf77c86a18cef13f69280600b135629a8aa8a0501787c34b94f
 base_sha: <MAIN_HEAD_AFTER_MERGE>
 directive: autonomy/directives/D-ATLAS-ITER-1.md
 budget:
@@ -73,7 +81,7 @@ repository (policy section 6).
 
 - Iteration: `1`
 - Proposed by: executor (owner commits it)
-- Derived from: `311ce7b6991ddf18e6a39e682b4a3ee45da72b67`
+- Derived from: the merged head of PR #1 (`git rev-parse origin/main` after the merge)
 - Roadmap anchor: `docs/backlog.md` AS-OBSIDIAN-CAPTURE-001. This is test rigor for a capture
   and provenance guarantee, not a new brain capability. Replace it if you prefer a capability target.
 
