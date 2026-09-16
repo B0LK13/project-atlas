@@ -1,0 +1,10 @@
+# Governed RSI loop configuration (D-ATLAS-RSI-GOVERNED-LOOP-001).
+# Owner-only (autonomy/policy.md section 4). policy_sha = python autonomy/tools/preflight.py sha
+version: 1
+max_iterations_per_grant: 1
+lanes: [linux, windows-native]
+policy_sha: a4e9c18c5821ae0e9f85bf9d83b46923f5d295d13e7cc02077e5ec2aee2f0399
+halt_file: autonomy/HALT
+grant_ref: origin/main
+staging_branch: autonomy/staging
+iteration_branch: iter/{n}

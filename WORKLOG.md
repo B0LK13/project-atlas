@@ -14915,3 +14915,309 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## D-ATLAS-RSI-GOVERNED-LOOP-001 Phase 0: governed RSI loop scaffold
+
+Branch `autonomy/scaffold` off `origin/main` `b87b4a226f4aa8b2f669edf112aa3476454f754f`.
+Executor deliverable for Phase 0 only. No iteration was run: iteration 1 preflight
+stops at the missing owner grant, as designed.
+
+**What landed**
+
+- `autonomy/policy.md` (DRAFT until the owner merges): invariants, roles, a machine-read
+  `# autonomy-policy v1` block (allow-list scopes, forbidden scopes, phase-gated
+  instrument scopes, budget, lanes), grant format and verification, iteration protocol,
+  return packet contract, ledger schema, supervisor gate, promotion path, phases.
+- `autonomy/loop.yaml` pinning
+  `policy_sha: d7b52250c1f29595d6282fd516e18e8a5b54d7c55e12311505e6ed9c704ce3c1`.
+- `autonomy/tools/preflight.py` (stdlib + PyYAML): `sha`, `preflight --iteration N`
+  (HALT, grant presence and labels, pin equality across policy/loop/grant, grant and
+  policy byte-identical to the grant ref, `base_sha` ancestry, directive presence,
+  optional signature), `scope --iteration N` (per-path judgement, never-grantable floor,
+  ledger append-only, budget files and lines, dirty tree).
+- `autonomy/instruments/{verify-checklist.md,directive-template.md,skills/README.md}`,
+  empty `autonomy/ledger.jsonl`, placeholder `grants/`, `directives/`, `packets/`,
+  `verdicts/`.
+- `tests/unit/test_autonomy_preflight.py`: 20 tests, including a CI tripwire that fails
+  if `loop.yaml` stops pinning the current `policy.md` bytes.
+
+**Deliberate tightenings of the directive** (owner may relax in `policy.md`)
+
+- `autonomy/loop.yaml` and `autonomy/tools/**` are forbidden scopes, alongside the
+  directive's `policy.md`, `grants/**`, `verdicts/**`: both hold authority (pin, budget,
+  gate code). They are also in the hard-coded never-grantable floor with `.github/**`.
+- Agent instruction and governance files (`AGENTS.md`, `CLAUDE.md`, `GOVERNANCE.md`,
+  ...), `pyproject.toml` (test and lint config), `scripts/**`, `deps/**` and
+  `atlas-vault-documentation/**` are forbidden unless a grant lists a `scope_exceptions`.
+- `verify-checklist.md` and `directive-template.md` are gated to phase 3 per section 8
+  of the directive; `instruments/skills/**` is open from phase 0 so the section 4 step 6
+  reflection always has a legal target.
+- Grants are verified against the owner-committed copy on the grant ref
+  (`origin/main`), not only the local file.
+
+**Commands (local, native Windows 11, Python 3.13.14)**
+
+```
+python autonomy/tools/preflight.py sha                          # exit 0, d7b52250...
+python -m ruff check .                                          # exit 0
+python -m pytest tests/unit/test_autonomy_preflight.py --no-cov # exit 0, 20 passed
+python autonomy/tools/preflight.py preflight --iteration 1      # exit 1, missing grant G-1
+```
+
+**Not done / owner actions**
+
+- `autonomy/staging` does not exist yet; iteration PRs have no base until the owner
+  creates it from `main`.
+- `G-1` and `D-ATLAS-ITER-1` are owner deliverables and were not written.
+- `required_lanes` check names are inferred from the `ci.yml` matrix and must be
+  confirmed on the first staging PR. No CI run exists for this branch yet.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+## D-ATLAS-AUTONOMY-LADDER-001: executor delta on `autonomy/scaffold` (after V-0)
+
+Supervisor verdict V-0 on `7a700b8e5d8487392b5d4e60ac199192ab77c479`: CONTINUE (conditional).
+The owner directive D-ATLAS-AUTONOMY-LADDER-001 executor `do_now` is applied to the policy
+while it is still DRAFT: merging PR #946 is the owner commit of `autonomy_level: 0`.
+
+**What changed**
+
+- `autonomy/policy.md`: `autonomy_level: 0` replaces `phase`. `level_gated_scopes` open
+  `instruments/skills/**` at level 1, `directive-template.md` at 2, `verify-checklist.md` at 3.
+  `role_scopes` give the verifier `autonomy/certs/C-{n}.md`, the instrument subagent
+  `autonomy/drift/**`, and the supervisor verdicts, packets, ledger, audits and proposals, plus
+  grants from level 2. New sections: authority ladder (11, supersedes the RSI section 8 phase
+  plan), stop and escalate with a mechanized/not-mechanized split (12), five-iteration audit
+  (13). `autonomy/HALT-REQUEST` is a second kill switch. Ledger event table and rules (8.1).
+- `autonomy/loop.yaml` re-pinned:
+  `policy_sha: fcb7b3e36bdfa276f37e615df80288423796a3783bb629e32fcc3a5f9b97d715`.
+- `autonomy/tools/preflight.py`: autonomy level; hard-coded floors for every role, for the
+  executor, and `src/**`/`tests/**` for every non-executor role; `scope --role`; `Atlas-Role`
+  commit trailer check (one role per branch); ledger parsed as a tamper check; STOP holds until
+  an owner `resume` event; closed and paused iterations; iteration `n` needs a
+  CONTINUE/ACCELERATE/DEFER for `n-1`; retry cap `MAX_REDESIGN_RETRIES = 2` hard-coded;
+  role-limited ledger appends; multi-iteration grants need level 3.
+- `autonomy/{certs,drift,audits,proposals}/` created; verify checklist and skills README updated.
+- `tests/unit/test_autonomy_preflight.py`: 20 -> 53 collected tests.
+
+**Decision taken on the stricter reading (owner may reverse)**
+
+The ladder lists no loop-editable instrument at level 0, while V-0 finding 3 accepted
+`skills/**` from phase 0 and the V-0 draft D-ATLAS-ITER-1 asks for a `skills/**` `[instrument]`
+commit. Per policy section 4 ("stricter reading wins"), `skills/**` opens at level 1 and at
+level 0 the reflection step records the edit as `status: proposed`. Reversal is a one-line
+owner edit: move `autonomy/instruments/skills/**` into `allowed_scopes`.
+
+**Not mechanized yet** (the ladder asks for them in `autonomy/tools/`): the verifier/supervisor
+disagreement rule, escalation routing, cert forgery and cert-before-packet ordering, the
+wall-clock and token budget kill, verification of supervisor-issued grants against
+`autonomy/staging`. Listed in policy section 12.3 as owner decisions before level 2.
+
+**CI evidence: INFRA_RED.** Run https://github.com/B0LK13/project-atlas/actions/runs/35011998561
+on `7a700b8e`: all four jobs "not started because your account is locked due to a billing
+issue". Every `ci.yml` run listed since at least 2026-09-15T04:34Z fails the same way (e.g. run
+34929378562). No lane can be GREEN until billing is resolved.
+
+**Local evidence (not a substitute for CI)**
+
+- Native Windows 11, Python 3.13.14: `python -m ruff check .` exit 0;
+  `python -m mypy --strict --ignore-missing-imports autonomy/tools/preflight.py` exit 0;
+  `pytest tests/unit/test_autonomy_preflight.py` 53 passed; `preflight --iteration 1` exit 1
+  with only `missing grant`.
+- Native Windows full suite on `7a700b8e` (`PYTHONPATH=src python -m pytest -x --no-cov`):
+  FAILED, stopped at
+  `tests/unit/test_as_obsidian_capture_001_f6_error_boundary.py::test_f6_cleanup_failure_is_logged_with_the_path_and_cause`.
+  It also fails in isolation on Python 3.12 and 3.13, and `git diff origin/main` over `src/`,
+  that test file and `pyproject.toml` is empty, so it is pre-existing on this host rather than
+  caused by this branch. Whether it fails on `windows-latest` is unknown.
+- Lane runs on this entry's own head commit are reported against that SHA outside this file.
+
+**Local git identity.** `user.name = "Candidate-008 Audit (local only, never pushed)"` and
+`user.email = test@local` are set in the main checkout's repo-local `.git/config`, not in the
+global config. They were set before this session; who set them is undetermined. Nearby
+untracked directories `.worktrees/candidate008-audit` and `.worktrees/candidate008-real` date
+from 2026-09-11. The loop does not depend on commit identity: preflight trusts the grant-ref
+copy and `Atlas-Role` trailers, never author names.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+## Owner rule `lanes.fallback`: local verifier lanes while CI is unavailable
+
+Owner instruction (2026-09-15), applied to the still-DRAFT policy on `autonomy/scaffold`:
+"when CI is unavailable, the verifier subagent runs both lanes on the designated verification
+host (Windows native + WSL Linux) and records command, exit code, duration, and host
+fingerprint in certs/C-<n>.md. Fallback certs are marked lane_mode: local and expire when CI
+returns; the next CI run re-certifies the same head."
+
+**What changed**
+
+- `autonomy/policy.md`: `required_lanes` becomes `lanes.required` plus `lanes.fallback`
+  (`when: ci_unavailable`, `run_by: verifier`, `lane_mode: local`, `expires: ci_available`,
+  designated host). New section 4.4 defines the cert format: per lane, every command with
+  `exit` and `duration_seconds`; a host fingerprint (`hostname`, `os`, `python`, `git`) for local
+  certs; `run_url` for CI certs; `ci_unavailable_evidence` run URL; `result` consistent with
+  exit codes. CI re-certification of the same head goes in `autonomy/certs/C-<n>-ci.md` and
+  supersedes the fallback cert. The verifier's scope gains `C-{n}-ci.md`. Sections 3, 7, 9, 10
+  and 12.3 are updated to match.
+- `autonomy/loop.yaml` re-pinned:
+  `policy_sha: c5e291461fc1b2db6fbd6511bf5573822726d39af9314645d4467d2fbca1564f`.
+- `autonomy/tools/preflight.py`: policy `lanes` parsing (a fallback that changes the rule, such
+  as `run_by: executor`, is a configuration error); `check_cert`, `check_certification`, and a
+  `cert --iteration N [--head SHA] [--require ci]` subcommand.
+- `autonomy/instruments/verify-checklist.md`: section 2a, fallback lanes (verifier only).
+- `tests/unit/test_autonomy_preflight.py`: 53 -> 85 collected tests; full collection 5822 -> 5854.
+
+**Interpretations to confirm (owner)**
+
+- A re-certification that fails, or that names a different head, leaves the iteration
+  uncertified, and a head already promoted on the fallback cert is an immediate stop.
+- The tool records CI unavailability and host identity; it does not query GitHub or
+  authenticate the host, and it cannot tell that CI has returned. Those checks stay with the
+  supervisor (policy section 12.3).
+- The executor's own local lane runs are never a cert: `C-<n>` is written by a separate
+  verifier session only.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+## AS-AUTONOMY-P1-GRANT-REF-001 — HALT freshness + granted-directive pin
+
+Night-cycle independent ADV on PR #946 head `034a1264` independently reproduced two
+VALID P1s that Codex had filed on `7a700b8e` (threads marked outdated, code still open):
+
+- P1-A: `check_git_preflight` judged `origin/main` without fetching, so an owner-pushed
+  `autonomy/HALT` was invisible until a later `git fetch`. Policy §6 also ran Preflight
+  before Ground/`git fetch`.
+- P1-B: the granted directive was existence-checked only; `autonomy/directives/**` stays
+  in executor scope, so rewriting `D-ATLAS-ITER-n.md` after preflight still passed scope.
+
+Same commit also consumes the independently reproduced P2 residuals that sit in the same
+gate: STOP+owner-resume now opens `n+1` (iteration `n` stays closed); ledger appends must
+be LF-terminated JSONL with no blank lines; grant `directive` rejects `..` / empty path
+segments.
+
+`autonomy/loop.yaml` re-pinned:
+`policy_sha: d2731e88c3571560cd97b6918322f2a94c865b5db479a3a0ee11f0d03afea6e8`.
+
+Independent IV on `7ace1fe0` then reproduced a remedi-introduced fail-open: a local
+branch named `origin/main` shadowed the fetched `refs/remotes/origin/main`, so
+`git show origin/main:autonomy/HALT` missed the owner kill switch. Follow-up remedi
+returns the unambiguous remotes ref after fetch, still fetches `refs/remotes/…`
+grant refs, and rejects granted-directive edits at the scope gate.
+`loop.yaml` re-pinned to
+`2d990392de2117a4ea62b2cfd07f34241f8a169edd34fb559b7c95938e15d6e7`.
+
+IV on `8e3e73b7` left ROLE-TRAILER as the only VALID P2: `git log --no-merges`
+skipped an evil merge that introduced `src/evil.py`. `commit_roles` now includes
+merge commits. Policy §4 item 6 updated. Re-pin
+`9638033d201a25fdb4077d98fb4456becac44e8f5c380329ad9af75dc4db7d5e`.
+
+IV on `c5500728` then showed `autonomy/directives/./D-….md` survived `Path.parts`
+and missed the exact-string scope pin. `load_grant` now strips `.` / empty
+segments and stores the canonical path. Re-pin
+`88f68c6c79e691eb2b221cf20984f1aa7f0aa999c589076c1c4a2fa864e03b4c`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+## AS-AUTONOMY-P1-SCOPE-GRANT-REF-001 — scope refreshes grant-ref
+
+Night-cycle independent ADV on PR #946 head `29c051d6` independently reproduced
+a remaining VALID P1: `scope` used the raw `--grant-ref` string (default
+`origin/main`) and never called `refresh_grant_ref`. A local branch named
+`origin/main` at HEAD (or a poisoned `refs/remotes/origin/main`) made
+`merge-base == HEAD`, emptied the change list, and skipped never-writable /
+role / budget / granted-directive floors. `preflight` already unshadowed HALT;
+the advertised `preflight` then `scope` pair could both PASS while
+`autonomy/tools/**` and `.github/**` were rewritten.
+
+`scope` now refreshes the grant ref the same way `preflight` does before
+`git_changes` / `commit_roles` / `ledger_append`. Policy bytes unchanged;
+`loop.yaml` pin stays
+`9638033d201a25fdb4077d98fb4456becac44e8f5c380329ad9af75dc4db7d5e`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+## Shutdown checkpoint 2026-09-15 (D-ATLAS-SHUTDOWN-CHECKPOINT-001)
+
+**Shipped today** on `autonomy/scaffold` (unmerged; https://github.com/bolkdev/project-atlas/pull/1):
+- `7a700b8e`: the governed RSI loop scaffold.
+- `c32e17c8`: the autonomy ladder, role separation and retry cap.
+- `034a1264`: the `lanes.fallback` verifier certs.
+
+The gate tests grew from 0 to 85. No iteration has run.
+
+**Blocked on the owner:**
+- Merge the PR.
+- Commit `G-1` and `D-ATLAS-ITER-1` to `main`.
+- Create `autonomy/staging`.
+- Delete `bolkdev/project-atlas-1`.
+- Rotate the PAT.
+- Decide the open Codex P1 ×2 and P2 findings, the Bugbot finding, and the missing `compat` and `control-plane` required checks. Their fixes are owner-only edits to `autonomy/tools/**` or `policy.md`.
+
+CI run https://github.com/bolkdev/project-atlas/actions/runs/35017265301 was still in progress at shutdown: `control-plane` and `compat` green, `full` and `windows` pending.
+
+**Checkpoint:** `autonomy/audits/SHUTDOWN-2026-09-15.md`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+## 2026-09-16: PR #1 findings closed, loop machinery rehearsed
+
+Branch `autonomy/scaffold` (PR https://github.com/bolkdev/project-atlas/pull/1), from
+`b6e06602` (CI green, run 35018874179).
+
+**Closed the five open review findings** (`311ce7b6` plus this commit): grant-ref refresh before
+the HALT read, directive byte-pinning, strict ledger-append validation, `resume` semantics, and
+all four CI checks named in policy section 4 with `cert_lanes` split out.
+
+**Internal gating caught four defects in that first attempt**, all fixed here: a resume that
+reopened the whole ledger history, an unrestricted `--no-fetch` HALT bypass, undisclosed
+non-mechanization of the required-check status, and an interior blank line that passed the
+append gate but locked out the stored-ledger reader.
+
+**Dry run without a grant:** 14 of 14 steps as required, including a pushed HALT, scope creep,
+role collapse, a corrupt append, a forged cert and resume recovery
+(`autonomy/packets/DRYRUN-2026-09-16.md`).
+
+Gate tests 85 -> 107. `preflight --iteration 1` still fails with exactly `missing grant`.
+
+**Owner-gated:** merge PR #1, create `autonomy/staging`, commit `G-1` and `D-ATLAS-ITER-1`
+(exact contents in `autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`), delete the stray fork,
+rotate the PAT, and settle the two fallback-lane rules plus the level-0 skills question.
+
+Checkpoint: `autonomy/audits/CHECKPOINT-2026-09-16.md`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+## 2026-09-16: reconcile the diverged autonomy/scaffold (D-ATLAS-SCAFFOLD-RECONCILE-001)
+
+Canonical repo is now `WezzSide/project-atlas` (`origin`); `bolkdev/project-atlas` is `fork`,
+read-only. `autonomy/scaffold` had diverged from base `034a1264`: origin held six Cursor Agent
+commits (`7ace1fe0..84209842`), the fork four executor commits (`b6e06602..a134ef0b`), both
+fixing the same Codex P1 x2 / P2, the Bugbot resume defect, and the missing required checks.
+
+Reconciled once, onto origin, cherry-picking the fork's four. Every conflict went to the
+stricter, fail-closed side. Kept from origin: the refresh that returns
+`refs/remotes/<remote>/<branch>` (a local `origin/main` cannot shadow it) and fails closed on a
+missing remote; role trailers over merge commits; the scope-time refresh; normalized granted
+directive paths; and the resume rule where STOP leaves iteration n closed and the owner resume
+opens n+1. Kept from the fork: four `lanes.required` checks plus `lanes.cert_lanes`, the shared
+`_parse_ledger_line` so appended records are judged by the stored-ledger parser, and the policy
+12.3 disclosure that required-check status is not mechanized. Dropped: the fork's `--no-fetch`
+flag (a HALT-blind gate mode) and its wider resume rule. No check on either side was weakened.
+
+Verification: `ruff check .` exit 0; `mypy --strict` on the gate exit 0; `tests/unit/test_autonomy_*`
+127 passed on Python 3.12 and 3.13; dry run against the reconciled gate 15/15
+(`autonomy/packets/DRYRUN-2026-09-16.md`); `preflight --iteration 1` still fails with exactly
+`missing grant`. Pin re-computed: `263bcae0a59fbdc031c0ce0fc81e02e8d8d5d0ecd26fa729d55da26c1dc25767`.
+
+Reconciliation note: `autonomy/packets/OWNER-UNBLOCK-KIT-2026-09-16.md`. Checkpoint:
+`autonomy/audits/CHECKPOINT-2026-09-16.md`.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
