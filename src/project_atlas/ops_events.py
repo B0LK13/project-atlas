@@ -261,6 +261,17 @@ def read_events(vault: Path) -> list[dict[str, Any]]:
         if not isinstance(raw, dict):
             raise OpsEventError(f"JSONL line {line_no} is not an object")
         validate_record(raw, "ops-event")
+        payload = raw.get("payload")
+        if isinstance(payload, dict):
+            try:
+                _scan_payload_for_secrets(payload)
+            except OpsEventError as exc:
+                # AS-SEC-SCAN-OPS-EVT-PAYLOAD-JSON-ESC-001: retention rewrite
+                # must not json.dumps decoded secret-shaped payload fields
+                # that scan_text missed on the escaped on-disk form.
+                raise OpsEventError(
+                    f"NFR-004 secret patterns in stream line {line_no}: {exc}"
+                ) from exc
         events.append(raw)
     return events
 
