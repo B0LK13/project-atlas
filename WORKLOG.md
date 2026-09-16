@@ -14915,3 +14915,18 @@ was committed as reproducible evidence and nothing refers to it -- the same rot
 this package exists to catch, one level further out, and not in its scope.
 
 Evidence: the test module's own docstring, which carries the boundary statement.
+
+## AS-SEC-SCAN-ROUTING-STATE-TITLE-JSON-ESC-001 — decoded titles must not persist
+
+Independent leftover hunt on live main
+`b87b4a226f4aa8b2f669edf112aa3476454f754f` reproduced NFR-004 persist:
+raw `routing/state/<project>.json` with `"title":"\\u0041KI…"` has no
+ASCII `AKIA`, so `scan_text` of the file is empty. `load_state` +
+`serialize_state` (used by `atlas_router.route`) rewrite the token.
+
+Remediation: `_safe_persist_text` on routed-event titles at serialize.
+Distinct from #932.
+
+Does not merge. Does not remedi listed P2 / F3 URL pin.
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
