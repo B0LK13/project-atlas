@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from project_atlas.schema import validate_record
+from project_atlas.secrets import scan_text
 from project_atlas.xproj_edges import GlobalEdgeRecord, load_edge_registry_state
 from project_atlas.xproj_registry import (
     GlobalEntityRecord,
@@ -35,6 +36,20 @@ from project_atlas.xproj_registry import (
 PACKAGE_ID = "AS-XPROJ-004"
 AUTHORITY_LEVEL = "derived"
 TRUTH_BOUNDARY = "CROSS-PROJECT INDEX ≠ AUTOMATIC AUTHORITY"
+
+
+def _safe_index_text(value: str | None) -> str | None:
+    """Return persist-safe text; decoded secret-shaped values are omitted.
+
+    AS-SEC-SCAN-XPROJ-INDEX-DISPLAY-JSON-ESC-001: json.loads of global-entity
+    records can decode ``\\u`` display names that scan_text misses on raw bytes.
+    """
+    if value is None:
+        return None
+    text = str(value)
+    if not text or scan_text(text):
+        return None
+    return text
 
 ALLOWED_WRITE_PREFIXES: tuple[str, ...] = (
     "generated/xproj/indexes/",
@@ -355,7 +370,11 @@ def detect_version_divergence(
 
     families: dict[tuple[str, str], list[GlobalEntityRecord]] = {}
     for entity in entity_list:
-        key = (entity.display_name.casefold(), entity.entity_class)
+        display = _safe_index_text(entity.display_name)
+        gid = _safe_index_text(entity.global_entity_id)
+        if display is None or gid is None:
+            continue
+        key = (display.casefold(), entity.entity_class)
         families.setdefault(key, []).append(entity)
 
     reports: list[ConflictReport] = []
@@ -392,7 +411,7 @@ def detect_version_divergence(
         # with multi-project joins under the same display_name+class family.
         if versions and len(versions) < 2 and len(entity_ids) < 2:
             continue
-        display_name = members_sorted[0].display_name
+        display_name = _safe_index_text(members_sorted[0].display_name)
         conflict_id = (
             f"xc-version-{_safe_name(entity_class)}-{_safe_name(name_key)}"
         )
@@ -424,7 +443,13 @@ def _project_index_entries(joins: Sequence[JoinKeyRecord]) -> list[dict[str, Any
         by_project.setdefault(join.project_id, set()).add(join.global_entity_id)
     entries: list[dict[str, Any]] = []
     for project_id in sorted(by_project, key=str.casefold):
-        globals_sorted = sorted(by_project[project_id], key=str.casefold)
+        if _safe_index_text(project_id) is None:
+            continue
+        globals_sorted = [
+            gid
+            for gid in sorted(by_project[project_id], key=str.casefold)
+            if _safe_index_text(gid) is not None
+        ]
         entries.append(
             {
                 "project_id": project_id,
@@ -445,11 +470,18 @@ def _entity_bucket_entries(
         mapped = _ENTITY_CLASS_TO_BUCKET.get(entity.entity_class)
         if mapped != bucket:
             continue
-        projects = list(_projects_for_global(entity.global_entity_id, joins))
+        gid = _safe_index_text(entity.global_entity_id)
+        if gid is None:
+            continue
+        projects = [
+            project
+            for project in _projects_for_global(entity.global_entity_id, joins)
+            if _safe_index_text(project) is not None
+        ]
         entry: dict[str, Any] = {
-            "global_entity_id": entity.global_entity_id,
+            "global_entity_id": gid,
             "entity_class": entity.entity_class,
-            "display_name": entity.display_name,
+            "display_name": _safe_index_text(entity.display_name),
             "project_ids": projects,
         }
         version = _version_of(entity)
