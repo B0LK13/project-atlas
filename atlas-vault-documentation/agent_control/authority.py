@@ -17,9 +17,48 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 from pathlib import Path
 from typing import Any
+
+_FALLBACK_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}"),
+    re.compile(
+        r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+        r"[\s\S]*?"
+        r"-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    ),
+)
+
+
+def _has_secret(text: str) -> bool:
+    try:
+        from project_atlas.secrets import scan_text
+    except ImportError:
+        return any(pattern.search(text) for pattern in _FALLBACK_PATTERNS)
+    return bool(scan_text(text))
+
+
+def _scan_decoded_or_raise(payload: Any) -> None:
+    """Fail closed on secret-shaped strings after JSON decode.
+
+    AS-SEC-SCAN-AUTHORITY-REVOKE-JSON-ESC-001: ``revoke_grant`` reloads
+    grant JSON. ``scan_text`` on raw ``\\u0041KI…`` bytes is empty;
+    decoded ``AKI…`` must not be rewritten to ``grants/<id>.json``.
+    """
+    if isinstance(payload, str):
+        if _has_secret(payload):
+            raise ValueError("secret-shaped authority grant")
+        return
+    if isinstance(payload, dict):
+        for value in payload.values():
+            _scan_decoded_or_raise(value)
+        return
+    if isinstance(payload, list):
+        for value in payload:
+            _scan_decoded_or_raise(value)
 
 
 PURPOSE_PROMOTE_READINESS = "promote-readiness"
@@ -102,6 +141,7 @@ def revoke_grant(*, store: Path, grant_id: str, issuer_key: str | None = None) -
     if not path.is_file():
         raise ValueError(f"authority grant not found: {grant_id}")
     grant = json.loads(path.read_text(encoding="utf-8"))
+    _scan_decoded_or_raise(grant)
     expected = mac_for(grant, key)
     if not hmac.compare_digest(str(grant.get("mac", "")), expected):
         raise ValueError("authority grant integrity check failed")
