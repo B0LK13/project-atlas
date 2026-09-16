@@ -11,7 +11,7 @@ from project_atlas.atlas3.contracts import (
     require_vault,
     write_json_atomic,
 )
-from project_atlas.atlas3.memory.privacy import scan_or_raise
+from project_atlas.atlas3.memory.privacy import scan_or_raise, scan_payload_or_raise
 from project_atlas.atlas3.memory.routing import assert_items_project_scope
 
 PACKAGE_ID: Final[str] = "AT3-048"
@@ -82,5 +82,8 @@ def search_memory(
 def persist_search(vault: Any, project_id: str, result: dict[str, Any]) -> dict[str, Any]:
     root = require_vault(vault)
     pid = require_project(root, project_id)
+    # Persist is the NFR-004 boundary. Search may receive items decoded
+    # from JSON ``\\u`` escapes that ``scan_text`` missed on raw bytes.
+    scan_payload_or_raise(result)
     write_json_atomic(root / OPS_RELATIVE / "memory" / pid / "search.json", result)
     return result
