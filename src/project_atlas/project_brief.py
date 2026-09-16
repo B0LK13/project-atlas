@@ -23,6 +23,7 @@ from project_atlas.project_changed import ProjectChangedError, materialize_chang
 from project_atlas.project_decisions import materialize_decisions_lenses
 from project_atlas.project_state import materialize_state_lenses
 from project_atlas.project_unknown import materialize_unknown_lenses
+from project_atlas.secrets import scan_text
 from project_atlas.web_api.knowledge import list_knowledge_answers
 
 PACKAGE_ID = "AS-CODER-ALPHA-BRIEF-001"
@@ -81,7 +82,22 @@ def _load_answer(vault: Path, answer_id: str) -> dict[str, Any] | None:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
-    return raw if isinstance(raw, dict) else None
+    if not isinstance(raw, dict):
+        return None
+    # AS-SEC-SCAN-BRIEF-ANSWERID-JSON-ESC-001: json.loads of answer JSON can
+    # decode ``\u`` answer_id / inspected_artifacts escapes that scan_text
+    # misses on raw bytes.
+    loaded_id = raw.get("answer_id")
+    if isinstance(loaded_id, str) and scan_text(loaded_id):
+        raw["answer_id"] = None
+    artifacts = raw.get("inspected_artifacts")
+    if isinstance(artifacts, list):
+        raw["inspected_artifacts"] = [
+            item
+            for item in artifacts
+            if not (isinstance(item, str) and scan_text(item))
+        ]
+    return raw
 
 
 def _next_honesty_flag(next_lens: dict[str, Any] | None, key: str) -> bool:
